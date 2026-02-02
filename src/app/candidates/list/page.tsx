@@ -78,6 +78,7 @@ export default function CandidateListPage() {
     const [pageSize, setPageSize] = useState(20);
 
     // Filters State
+    const [showFilters, setShowFilters] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
     const [filters, setFilters] = useState({
         countries: [] as string[],
@@ -211,6 +212,7 @@ export default function CandidateListPage() {
     const clearAll = () => {
         setFilters({
             countries: [], industries: [], jobGroupings: [], jobFunctions: [], statuses: [], genders: [], companies: [],
+            groups: [], positions: [],
             ageMin: "", ageMax: ""
         });
         setSearchTerm("");
@@ -229,104 +231,122 @@ export default function CandidateListPage() {
 
     return (
         <div className="flex flex-col gap-6 h-full p-6 max-w-[1600px] mx-auto">
-            {/* Header */}
-            <div className="flex justify-between items-end">
-                <div>
-                    <h1 className="text-3xl font-extrabold tracking-tight">Candidate Explorer</h1>
-                    <p className="text-muted-foreground mt-1">
-                        Deep search across entire talent pool. Found <span className="text-primary font-bold">{totalCount}</span> profiles.
-                    </p>
-                </div>
-                <Button variant="outline" className="gap-2">
-                    <Download className="h-4 w-4" /> Export Results
-                </Button>
-            </div>
-
-            {/* Filter Bar */}
-            <Card className="p-5 bg-card border-none shadow-lg ring-1 ring-border rounded-xl space-y-4">
-                <div className="flex flex-wrap gap-3 items-center">
-                    {/* Search */}
-                    <div className="relative w-72">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                            placeholder="Search Name, Email, ID..."
-                            className="pl-9 bg-secondary/30 border-transparent focus:bg-background transition-all"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                    <div className="h-8 w-px bg-border mx-2" />
-
-                    {/* Filter Dropdowns using Popover + Command for robustness */}
-                    {/* 1. Position */}
-                    <FilterMultiSelect label="Position" icon={Briefcase} options={options.positions} selected={filters.positions} onChange={(v: string) => toggleFilter('positions', v)} />
-
-                    {/* 2. Company (Dependent) */}
-                    <FilterMultiSelect
-                        label={`Company (${availableCompanies.length})`}
-                        icon={Layers}
-                        options={availableCompanies}
-                        selected={filters.companies}
-                        onChange={(v: string) => toggleFilter('companies', v)}
-                        disabled={availableCompanies.length === 0}
-                    />
-
-                    {/* 3. Gender */}
-                    <FilterMultiSelect label="Gender" icon={User} options={options.genders} selected={filters.genders} onChange={(v: string) => toggleFilter('genders', v)} />
-
-                    {/* 4. Age Inputs */}
-                    <div className="flex items-center gap-2 bg-secondary/30 px-3 py-1.5 rounded-md border border-transparent focus-within:border-primary/50 transition-colors">
-                        <span className="text-xs font-medium text-muted-foreground">Age:</span>
-                        <input
-                            className="w-8 bg-transparent text-xs text-center border-none outline-none focus:ring-0"
-                            placeholder="Min" value={filters.ageMin} onChange={e => setFilters({ ...filters, ageMin: e.target.value })}
-                        />
-                        <span className="text-muted-foreground">-</span>
-                        <input
-                            className="w-8 bg-transparent text-xs text-center border-none outline-none focus:ring-0"
-                            placeholder="Max" value={filters.ageMax} onChange={e => setFilters({ ...filters, ageMax: e.target.value })}
-                        />
+            {/* Compact Header & Toolbar */}
+            <div className="flex flex-col gap-4 bg-card p-4 rounded-xl border shadow-sm">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
+                            Candidate Explorer
+                            <Badge variant="secondary" className="font-mono text-xs">{totalCount} found</Badge>
+                        </h1>
+                        <p className="text-xs text-muted-foreground mt-0.5">Deep search across talent pool.</p>
                     </div>
 
-                    {/* 5. Status */}
-                    <FilterMultiSelect label="Status" icon={Tags} options={options.statuses} selected={filters.statuses} onChange={(v: string) => toggleFilter('statuses', v)} />
-
-                    {/* 6. Country */}
-                    <FilterMultiSelect label="Country" icon={MapPin} options={options.countries} selected={filters.countries} onChange={(v: string) => toggleFilter('countries', v)} />
-
-                    {/* 7. Company Group */}
-                    <FilterMultiSelect label="Company Group" icon={Building} options={options.groups} selected={filters.groups} onChange={(v: string) => toggleFilter('groups', v)} />
-
-                    {/* 8. Industry */}
-                    <FilterMultiSelect label="Industry" icon={Building} options={options.industries} selected={filters.industries} onChange={(v: string) => toggleFilter('industries', v)} />
-
-                    {/* 9. Job Group */}
-                    <FilterMultiSelect label="Job Group" icon={Briefcase} options={options.jobGroupings} selected={filters.jobGroupings} onChange={(v: string) => toggleFilter('jobGroupings', v)} />
-
-                    {/* 10. Job Function */}
-                    <FilterMultiSelect label="Job Function" icon={Layers} options={options.jobFunctions} selected={filters.jobFunctions} onChange={(v: string) => toggleFilter('jobFunctions', v)} />
-                </div>
-
-                {/* Active Filter Chips */}
-                <div className="flex flex-wrap gap-2 pt-2 border-t border-dashed min-h-[2rem]">
-                    <span className="text-xs font-medium text-muted-foreground self-center mr-2">Active Filters:</span>
-                    {filters.countries.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('countries', c)} color="blue" />)}
-                    {filters.industries.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('industries', c)} color="purple" />)}
-                    {filters.groups.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('groups', c)} color="orange" />)}
-                    {filters.positions.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('positions', c)} color="pink" />)}
-                    {filters.jobGroupings.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('jobGroupings', c)} color="orange" />)}
-                    {filters.companies.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('companies', c)} color="indigo" />)}
-                    {filters.statuses.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('statuses', c)} color="emerald" />)}
-                    {filters.genders.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('genders', c)} color="cyan" />)}
-                    {filters.jobFunctions.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('jobFunctions', c)} color="pink" />)}
-
-                    {(Object.values(filters).some(v => Array.isArray(v) ? v.length > 0 : v) || searchTerm) && (
-                        <Button variant="ghost" size="sm" className="h-6 text-[10px] text-destructive hover:bg-destructive/10 ml-auto" onClick={clearAll}>
-                            Clear All
+                    <div className="flex items-center gap-2 w-full md:w-auto">
+                        <div className="relative flex-1 md:w-64">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Search Name, Email, ID..."
+                                className="pl-9 h-9 text-xs"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                            />
+                        </div>
+                        <Button
+                            variant={showFilters ? "secondary" : "outline"}
+                            size="sm"
+                            className="h-9 gap-2"
+                            onClick={() => setShowFilters(!showFilters)}
+                        >
+                            <Filter className="h-4 w-4" />
+                            <span className="hidden sm:inline">Filters</span>
+                            {/* Show count of active filters if hidden */}
+                            {!showFilters && Object.values(filters).some(v => Array.isArray(v) ? v.length > 0 : v) && (
+                                <span className="h-1.5 w-1.5 rounded-full bg-primary absolute top-1 right-1" />
+                            )}
                         </Button>
-                    )}
+                        <Button variant="outline" size="sm" className="h-9 gap-2">
+                            <Download className="h-4 w-4" /> <span className="hidden sm:inline">Export</span>
+                        </Button>
+                    </div>
                 </div>
-            </Card>
+
+                {/* Collapsible Filters */}
+                {showFilters && (
+                    <div className="pt-2 border-t border-dashed animate-in slide-in-from-top-2 fade-in duration-200 space-y-3">
+                        <div className="flex flex-wrap gap-2 items-center">
+                            {/* Filter Dropdowns using Popover + Command for robustness */}
+                            {/* 1. Position */}
+                            <FilterMultiSelect label="Position" icon={Briefcase} options={options.positions} selected={filters.positions} onChange={(v: string) => toggleFilter('positions', v)} />
+
+                            {/* 2. Company (Dependent) */}
+                            <FilterMultiSelect
+                                label={`Company (${availableCompanies.length})`}
+                                icon={Layers}
+                                options={availableCompanies}
+                                selected={filters.companies}
+                                onChange={(v: string) => toggleFilter('companies', v)}
+                                disabled={availableCompanies.length === 0}
+                            />
+
+                            {/* 3. Gender */}
+                            <FilterMultiSelect label="Gender" icon={User} options={options.genders} selected={filters.genders} onChange={(v: string) => toggleFilter('genders', v)} />
+
+                            {/* 4. Age Inputs */}
+                            <div className="flex items-center gap-2 bg-secondary/30 px-3 py-1.5 rounded-md border border-transparent focus-within:border-primary/50 transition-colors h-9">
+                                <span className="text-xs font-medium text-muted-foreground">Age:</span>
+                                <input
+                                    className="w-8 bg-transparent text-xs text-center border-none outline-none focus:ring-0"
+                                    placeholder="Min" value={filters.ageMin} onChange={e => setFilters({ ...filters, ageMin: e.target.value })}
+                                />
+                                <span className="text-muted-foreground">-</span>
+                                <input
+                                    className="w-8 bg-transparent text-xs text-center border-none outline-none focus:ring-0"
+                                    placeholder="Max" value={filters.ageMax} onChange={e => setFilters({ ...filters, ageMax: e.target.value })}
+                                />
+                            </div>
+
+                            {/* 5. Status */}
+                            <FilterMultiSelect label="Status" icon={Tags} options={options.statuses} selected={filters.statuses} onChange={(v: string) => toggleFilter('statuses', v)} />
+
+                            {/* 6. Country */}
+                            <FilterMultiSelect label="Country" icon={MapPin} options={options.countries} selected={filters.countries} onChange={(v: string) => toggleFilter('countries', v)} />
+
+                            {/* 7. Company Group */}
+                            <FilterMultiSelect label="Company Group" icon={Building} options={options.groups} selected={filters.groups} onChange={(v: string) => toggleFilter('groups', v)} />
+
+                            {/* 8. Industry */}
+                            <FilterMultiSelect label="Industry" icon={Building} options={options.industries} selected={filters.industries} onChange={(v: string) => toggleFilter('industries', v)} />
+
+                            {/* 9. Job Group */}
+                            <FilterMultiSelect label="Job Group" icon={Briefcase} options={options.jobGroupings} selected={filters.jobGroupings} onChange={(v: string) => toggleFilter('jobGroupings', v)} />
+
+                            {/* 10. Job Function */}
+                            <FilterMultiSelect label="Job Function" icon={Layers} options={options.jobFunctions} selected={filters.jobFunctions} onChange={(v: string) => toggleFilter('jobFunctions', v)} />
+                        </div>
+
+                        {/* Active Filter Chips */}
+                        <div className="flex flex-wrap gap-2 min-h-[1.5rem] items-center">
+                            <span className="text-[10px] font-medium text-muted-foreground mr-1">Active:</span>
+                            {filters.countries.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('countries', c)} color="blue" />)}
+                            {filters.industries.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('industries', c)} color="purple" />)}
+                            {filters.groups.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('groups', c)} color="orange" />)}
+                            {filters.positions.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('positions', c)} color="pink" />)}
+                            {filters.jobGroupings.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('jobGroupings', c)} color="orange" />)}
+                            {filters.companies.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('companies', c)} color="indigo" />)}
+                            {filters.statuses.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('statuses', c)} color="emerald" />)}
+                            {filters.genders.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('genders', c)} color="cyan" />)}
+                            {filters.jobFunctions.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('jobFunctions', c)} color="pink" />)}
+
+                            {(Object.values(filters).some(v => Array.isArray(v) ? v.length > 0 : v)) && (
+                                <Button variant="ghost" size="icon" className="h-5 w-5 ml-auto text-destructive hover:bg-destructive/10 rounded-full" onClick={clearAll} title="Clear All">
+                                    <X className="h-3 w-3" />
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
 
             {/* Results List */}
             <div className="flex-1 space-y-4 overflow-y-auto pr-2 pb-2">

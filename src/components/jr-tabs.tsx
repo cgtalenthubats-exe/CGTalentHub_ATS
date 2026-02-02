@@ -11,9 +11,10 @@ interface Tab {
 interface JRTabsProps {
     activeId: string | undefined;
     onSelect: (id: string) => void;
+    onAdd?: () => void;
 }
 
-export function JRTabs({ activeId, onSelect }: JRTabsProps) {
+export function JRTabs({ activeId, onSelect, onAdd }: JRTabsProps) {
     const [tabs, setTabs] = useState<Tab[]>([]);
 
     useEffect(() => {
@@ -28,7 +29,7 @@ export function JRTabs({ activeId, onSelect }: JRTabsProps) {
 
     // Save when activeId changes (add active to tabs)
     useEffect(() => {
-        if (!activeId) return;
+        if (!activeId || activeId === 'new') return; // Don't save 'new' tab yet
 
         // Find existing or add new
         // Ideally we need the title. Since we don't have it here easily unless passed, 
@@ -46,14 +47,14 @@ export function JRTabs({ activeId, onSelect }: JRTabsProps) {
         setTabs(newTabs);
         localStorage.setItem("ats_jr_tabs", JSON.stringify(newTabs));
 
-        if (id === activeId && newTabs.length > 0) {
-            onSelect(newTabs[newTabs.length - 1].id);
-        } else if (id === activeId) {
-            onSelect(""); // Clear
+        if (id === activeId) {
+            if (newTabs.length > 0) {
+                onSelect(newTabs[newTabs.length - 1].id);
+            } else {
+                onSelect(""); // Clear
+            }
         }
     };
-
-    if (tabs.length === 0) return null;
 
     return (
         <div className="flex items-center gap-1 border-b px-4 bg-slate-100 dark:bg-slate-900 pt-2 overflow-x-auto">
@@ -63,7 +64,7 @@ export function JRTabs({ activeId, onSelect }: JRTabsProps) {
                     onClick={() => onSelect(tab.id)}
                     className={`
                         group flex items-center gap-2 px-3 py-1.5 min-w-[120px] max-w-[200px] text-xs font-medium rounded-t-lg cursor-pointer border-t border-x
-                        ${tab.id === activeId
+                        ${tab.id === activeId || (activeId === undefined && tabs.length === 0)
                             ? "bg-white dark:bg-black border-slate-200 dark:border-slate-800 text-foreground"
                             : "bg-slate-200 dark:bg-slate-800 border-transparent text-muted-foreground hover:bg-slate-300 dark:hover:bg-slate-700"}
                     `}
@@ -77,6 +78,22 @@ export function JRTabs({ activeId, onSelect }: JRTabsProps) {
                     </button>
                 </div>
             ))}
+
+            {/* New Tab Button */}
+            <div
+                onClick={onAdd}
+                className={`
+                    flex items-center justify-center p-1.5 rounded-t-lg cursor-pointer transition-colors
+                    ${activeId === 'new'
+                        ? "bg-white dark:bg-black border-t border-x border-slate-200 dark:border-slate-800 text-foreground"
+                        : "hover:bg-slate-200 dark:hover:bg-slate-800 text-muted-foreground"}
+                `}
+                title="New Requisition"
+            >
+                <Plus className="h-4 w-4" />
+            </div>
         </div>
     );
 }
+
+import { Plus } from "lucide-react";

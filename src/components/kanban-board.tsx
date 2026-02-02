@@ -73,16 +73,27 @@ export function KanbanBoard({ jrId }: KanbanBoardProps) {
                 // Note: DB status strings must match status_master strings exactly.
                 const stageCandidates = candidates.filter(c => c.status === stage);
 
+                // Header Color Mapping
+                const headerColor = {
+                    'Pool': 'bg-slate-100 border-slate-200 text-slate-700',
+                    'Screening': 'bg-blue-50 border-blue-200 text-blue-700', // Mapped from 'Phone Screen' if needed, or check status master
+                    'Phone Screen': 'bg-blue-50 border-blue-200 text-blue-700',
+                    'Interview': 'bg-purple-50 border-purple-200 text-purple-700',
+                    'Offer': 'bg-orange-50 border-orange-200 text-orange-700',
+                    'Hired': 'bg-green-50 border-green-200 text-green-700',
+                    'Rejected': 'bg-red-50 border-red-200 text-red-700',
+                }[stage] || 'bg-slate-100 border-slate-200 text-slate-700';
+
                 return (
                     <div
                         key={stage}
-                        className="flex-shrink-0 w-72 flex flex-col gap-2 rounded-xl bg-slate-100/50 border p-2"
+                        className={`flex-shrink-0 w-72 flex flex-col gap-2 rounded-xl border p-2 ${headerColor}`}
                         onDragOver={handleDragOver}
                         onDrop={(e) => handleDrop(e, stage)}
                     >
                         <div className="flex items-center justify-between p-2">
-                            <h3 className="font-semibold text-sm text-slate-700">{stage}</h3>
-                            <Badge variant="secondary" className="bg-slate-200 text-slate-600 rounded-full h-5 px-1.5 min-w-[20px] justify-center flex">
+                            <h3 className="font-semibold text-sm opacity-90">{stage}</h3>
+                            <Badge variant="secondary" className="bg-white/50 text-inherit rounded-full h-5 px-1.5 min-w-[20px] justify-center flex">
                                 {stageCandidates.length}
                             </Badge>
                         </div>

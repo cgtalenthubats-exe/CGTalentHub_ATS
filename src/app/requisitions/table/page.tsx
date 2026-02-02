@@ -12,11 +12,14 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie
 } from 'recharts';
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { CreateJobRequisitionForm } from "@/components/create-jr-form";
 
 export default function RequisitionsPage() {
     const [jrs, setJrs] = useState<JobRequisition[]>([]);
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [loading, setLoading] = useState(true);
+    const [isCreateOpen, setIsCreateOpen] = useState(false);
 
     // Filters
     const [search, setSearch] = useState("");
@@ -77,9 +80,27 @@ export default function RequisitionsPage() {
                     <h1 className="text-3xl font-bold tracking-tight text-slate-900">Job Requisition Table</h1>
                     <p className="text-slate-500 mt-1">Overview of all requisitions and their pipeline status.</p>
                 </div>
-                <Button>
-                    <Plus className="mr-2 h-4 w-4" /> Create New JR
-                </Button>
+                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                    <DialogTrigger asChild>
+                        <Button>
+                            <Plus className="mr-2 h-4 w-4" /> Create New JR
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                        <div className="text-center mb-6">
+                            <h2 className="text-2xl font-bold">Create New Requisition</h2>
+                            <p className="text-muted-foreground">Drafting a new job requisition. ID will be generated automatically.</p>
+                        </div>
+                        <CreateJobRequisitionForm
+                            onCancel={() => setIsCreateOpen(false)}
+                            onSuccess={(newJR) => {
+                                setIsCreateOpen(false);
+                                // Ideally append to JRs list or refetch
+                                setJrs(prev => [newJR, ...prev]);
+                            }}
+                        />
+                    </DialogContent>
+                </Dialog>
             </div>
 
             {/* --- DASHBOARD SECTION --- */}

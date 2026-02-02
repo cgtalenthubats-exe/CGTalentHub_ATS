@@ -14,7 +14,9 @@ import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
 } from "recharts";
 
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { JRTabs } from "@/components/jr-tabs";
+import { CreateJobRequisitionForm } from "@/components/create-jr-form";
 
 export default function JRManagePage() {
     const router = useRouter();
@@ -25,7 +27,9 @@ export default function JRManagePage() {
     const [currentTab, setCurrentTab] = useState(initialTab);
 
     // Selected JR State
+    // Selected JR State
     const [selectedJR, setSelectedJR] = useState<JobRequisition | null>(null);
+    const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [analytics, setAnalytics] = useState<any>(null);
 
     // Sync URL with Tab
@@ -56,23 +60,26 @@ export default function JRManagePage() {
         }
     }, [selectedJR]);
 
-    // Handle Tab Selection
+
+
+    // Handle create tab selection (if coming from history/url in future)
+    // Handle url/history (simplified)
+    useEffect(() => {
+        // No special new tab logic needed on load anymore
+    }, []);
+
     const handleTabSelect = (id: string) => {
-        // We need to fetch the JR details to set selectedJR.
-        // Currently JRSwitcher does fetching. We need a way to fetch by ID directly here?
-        // Or just set the ID and let JRSwitcher sync? 
-        // JRSwitcher takes `selectedId` and `onSelect`.
-        // If we only have ID, we might need a helper to fetch full object.
-        // For now, let's just update the URL/Switcher logic if possible.
-        // Or, simpler: Just set a "trigger" state that JRSwitcher listens to?
-        // Best approach: Fetch it.
+        if (id === 'new') {
+            setSelectedJR(null); // Show empty state for selection
+            return;
+        }
+
         if (!id) {
             setSelectedJR(null);
             return;
         }
 
         // Fetch full JR (Reuse verify logic or simple fetch)
-        // Ideally reuse action.
         import("@/app/actions/requisitions").then(async ({ getRequisition }) => {
             const jr = await getRequisition(id);
             if (jr) setSelectedJR(jr);
@@ -103,8 +110,11 @@ export default function JRManagePage() {
         <div className="flex flex-col min-h-screen bg-slate-50/50 dark:bg-black">
             {/* Top Tabs Bar */}
             <JRTabs
-                activeId={selectedJR?.id}
+                activeId={selectedJR ? selectedJR.id : undefined}
                 onSelect={handleTabSelect}
+                onAdd={() => {
+                    setSelectedJR(null); // Just clear selection to show switcher "workspace"
+                }}
             />
 
             <div className="container mx-auto p-6 space-y-6 flex-1">
@@ -130,11 +140,34 @@ export default function JRManagePage() {
                     </div>
 
                     <div className="flex gap-2">
+                        {/* Create New JR Button */}
+                        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                            <DialogTrigger asChild>
+                                <Button className="bg-primary text-primary-foreground">
+                                    <Plus className="mr-2 h-4 w-4" /> Create New JR
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                                <div className="text-center mb-6">
+                                    <h2 className="text-2xl font-bold">Create New Requisition</h2>
+                                    <p className="text-muted-foreground">Drafting a new job requisition. ID will be generated automatically.</p>
+                                </div>
+                                <CreateJobRequisitionForm
+                                    onCancel={() => setIsCreateOpen(false)}
+                                    onSuccess={(newJR) => {
+                                        setIsCreateOpen(false);
+                                        setSelectedJR(newJR);
+                                    }}
+                                />
+                            </DialogContent>
+                        </Dialog>
+
                         {/* Actions dependent on JR selection */}
                         <Button disabled={!selectedJR} variant="outline">
                             <MessageSquare className="mr-2 h-4 w-4" /> View Feedback
                         </Button>
-                        <Button disabled={!selectedJR}>
+                        {/* Placeholder for Add Candidate */}
+                        <Button disabled={!selectedJR} onClick={() => alert("Add Candidate Feature coming in next sprint (Candidate Form integration)")}>
                             <Plus className="mr-2 h-4 w-4" /> Add Candidate
                         </Button>
                     </div>
@@ -206,7 +239,7 @@ export default function JRManagePage() {
                                         <List className="mr-2 h-4 w-4" /> List View
                                     </TabsTrigger>
                                     <TabsTrigger value="kanban" className="h-10 px-6 data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800 data-[state=active]:text-primary">
-                                        <Kanban className="mr-2 h-4 w-4" /> Kanban Board
+                                        <Kanban className="mr-2 h-4 w-4" /> Pipeline
                                     </TabsTrigger>
                                 </TabsList>
                             </div>

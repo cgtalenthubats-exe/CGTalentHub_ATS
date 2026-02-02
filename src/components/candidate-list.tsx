@@ -6,8 +6,9 @@ import { getJRCandidates } from "@/app/actions/jr-candidates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { MoreHorizontal, MessageSquare, ArrowRight, UserMinus } from "lucide-react";
+import { MoreHorizontal, MessageSquare, ArrowRight, UserMinus, Copy, Trash2, CheckSquare } from "lucide-react";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -26,6 +27,7 @@ export function CandidateList({ jrId }: CandidateListProps) {
     const [loading, setLoading] = useState(true);
     const [filterText, setFilterText] = useState("");
     const [statusFilter, setStatusFilter] = useState<string>("All");
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
     useEffect(() => {
         async function load() {
@@ -83,13 +85,46 @@ export function CandidateList({ jrId }: CandidateListProps) {
 
     const uniqueStatuses = Array.from(new Set(candidates.map(c => c.status)));
 
+    // Selection Logic
+    const toggleSelectAll = () => {
+        if (selectedIds.length === filteredCandidates.length) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(filteredCandidates.map(c => c.id));
+        }
+    };
+
+    const toggleSelect = (id: string) => {
+        if (selectedIds.includes(id)) {
+            setSelectedIds(selectedIds.filter(i => i !== id));
+        } else {
+            setSelectedIds([...selectedIds, id]);
+        }
+    };
+
     if (loading) return <div className="p-8 text-center text-muted-foreground">Loading candidates...</div>;
     // Keep showing table even if filtered empty, so user can clear filter
 
     return (
         <Card>
             <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
-                <CardTitle className="text-lg font-semibold">Active Candidates ({filteredCandidates.length})</CardTitle>
+                <div className="flex items-center gap-4">
+                    <CardTitle className="text-lg font-semibold">Active Candidates ({filteredCandidates.length})</CardTitle>
+                    {selectedIds.length > 0 && (
+                        <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-md animate-in fade-in slide-in-from-left-2">
+                            <span className="text-xs font-medium">{selectedIds.length} Selected</span>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Copy to JR">
+                                <Copy className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" title="Change Status">
+                                <ArrowRight className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500 hover:text-red-600" title="Delete">
+                                <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                        </div>
+                    )}
+                </div>
                 <div className="flex gap-2">
                     <input
                         className="h-8 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
@@ -111,6 +146,12 @@ export function CandidateList({ jrId }: CandidateListProps) {
                 <table className="w-full text-sm">
                     <thead>
                         <tr className="bg-slate-50 dark:bg-slate-900/50 border-b">
+                            <th className="px-4 py-3 w-[40px]">
+                                <Checkbox
+                                    checked={filteredCandidates.length > 0 && selectedIds.length === filteredCandidates.length}
+                                    onCheckedChange={toggleSelectAll}
+                                />
+                            </th>
                             <th className="text-left font-medium text-muted-foreground px-4 py-3 w-[60px]">Rank</th>
                             <th className="text-left font-medium text-muted-foreground px-4 py-3 w-[100px]">List Type</th>
                             <th className="text-left font-medium text-muted-foreground px-4 py-3 w-[120px]">Status</th>
@@ -127,6 +168,12 @@ export function CandidateList({ jrId }: CandidateListProps) {
                     <tbody>
                         {sortedCandidates.map((c) => (
                             <tr key={c.id} className={getRowClass(c.status)}>
+                                <td className="px-4 py-3">
+                                    <Checkbox
+                                        checked={selectedIds.includes(c.id)}
+                                        onCheckedChange={() => toggleSelect(c.id)}
+                                    />
+                                </td>
                                 <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{c.rank || "-"}</td>
                                 <td className="px-4 py-3">
                                     <Badge variant="outline" className="font-normal text-xs bg-white dark:bg-slate-950 text-nowrap">

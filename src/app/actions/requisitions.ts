@@ -101,3 +101,89 @@ export async function getJRStats(): Promise<DashboardStats> {
         ]
     };
 }
+
+export async function createJobRequisition(data: any): Promise<JobRequisition | null> {
+    const supabase = adminAuthClient;
+
+    try {
+        // 1. Generate Running ID
+        // Format: JRxxxxxx (e.g., JR000014)
+        const prefix = 'JR';
+
+        // Find max ID with this prefix (using regex or simple ordering since fixed length is ideal, 
+        // but simple ordering works if length is consistent. To be safe, we order desc.)
+        const { data: maxResult, error: maxError } = await supabase
+            .from('job_requisitions')
+            .select('jr_id')
+            .ilike('jr_id', `${prefix}%`)
+            .order('jr_id', { ascending: false })
+            .limit(1)
+            .single();
+
+        let nextNum = 1;
+        const maxRow = maxResult as any;
+        if (maxRow && maxRow.jr_id) {
+            // Extract number part
+            const currentMax = maxRow.jr_id.replace(/^JR/, '');
+            const parsed = parseInt(currentMax);
+            if (!isNaN(parsed)) {
+                nextNum = parsed + 1;
+            }
+        }
+
+        const nextId = `${prefix}${nextNum.toString().padStart(6, '0')}`;
+
+        // 2. Insert Data
+        // Mapping form data to DB schema (assuming standard fields)
+        const insertPayload = {
+            jr_id: nextId,
+            position_jr: data.position,
+            bu: data.division,
+            sub_bu: data.department,
+            hiring_manager_name: data.hiring_manager_name || "Unknown",
+            headcount: data.headcount,
+            hired_count: 0,
+            location: data.location,
+            request_date: new Date().toISOString(),
+            is_active: 'Active',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+
+        const { data: inserted, error: insertError } = await supabase
+            .from('job_requisitions')
+            .insert(insertPayload)
+            .select()
+            .single();
+
+        if (insertError) {
+            console.error("Error inserting JR:", insertError);
+            throw insertError;
+        }
+
+        const insertedData = inserted as any; // Cast to any to avoid 'never' type inference
+
+        // Return mapped object
+        return {
+            id: insertedData.jr_id,
+            job_title: insertedData.position_jr,
+            title: insertedData.position_jr,
+            hiring_manager_id: "",
+            hiring_manager_name: insertedData.hiring_manager_name,
+            department: insertedData.sub_bu,
+            division: insertedData.bu,
+            status: 'Open',
+            headcount_total: insertedData.headcount,
+            headcount_hired: 0,
+            opened_date: insertedData.request_date,
+            is_active: true,
+            location: insertedData.location,
+            created_at: insertedData.created_at,
+            updated_at: insertedData.updated_at
+        };
+
+    } catch (e) {
+        console.error("Create JR Failed", e);
+        return null;
+    }
+}

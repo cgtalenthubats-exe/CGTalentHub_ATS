@@ -38,16 +38,7 @@ export default function RequisitionsMenuPage() {
                     onClick={() => router.push('/requisitions/manage')}
                 />
 
-                {/* 2. JR Status (Kanban) */}
-                <MenuCard
-                    title="JR Status"
-                    subtitle="Kanban Board"
-                    icon={Kanban}
-                    color="bg-blue-100 text-blue-600"
-                    onClick={() => router.push('/requisitions/manage?tab=kanban')}
-                />
-
-                {/* 4. Job Requisition Table (Overview) */}
+                {/* Job Requisition Table (Overview) - Restored */}
                 <MenuCard
                     title="Job Requisition Table"
                     icon={TableProperties}

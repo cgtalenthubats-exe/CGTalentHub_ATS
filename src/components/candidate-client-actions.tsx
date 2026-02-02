@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, Plus, Download, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase/client";
 import {
     Dialog,
     DialogContent,
@@ -89,6 +90,51 @@ export function AddPrescreenDialog({ candidateId }: { candidateId: string }) {
                         <Button type="submit">Save Log</Button>
                     </div>
                 </form>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+export function DeleteCandidateDialog({ id, name }: { id: string, name: string }) {
+    const [open, setOpen] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const router = useRouter();
+
+    const handleDelete = async () => {
+        setLoading(true);
+        try {
+            const { error } = await supabase.from('Candidate Profile').delete().eq('candidate_id', id);
+            if (error) throw error;
+            router.push('/candidates');
+            router.refresh();
+        } catch (err: any) {
+            alert("Error deleting candidate: " + err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button variant="destructive" size="sm" className="w-full sm:w-auto">
+                    Delete Candidate
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Confirm Deletion</DialogTitle>
+                </DialogHeader>
+                <div className="py-4">
+                    <p>Are you sure you want to delete <span className="font-bold">{name}</span> ({id})?</p>
+                    <p className="text-sm text-muted-foreground mt-2">This action cannot be undone.</p>
+                </div>
+                <div className="flex justify-end gap-2">
+                    <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+                    <Button variant="destructive" onClick={handleDelete} disabled={loading}>
+                        {loading ? "Deleting..." : "Confirm Delete"}
+                    </Button>
+                </div>
             </DialogContent>
         </Dialog>
     );

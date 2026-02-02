@@ -22,7 +22,6 @@ const menuItems = [
     { name: "Dashboard", icon: BarChart3, path: "/dashboard" }, // Renamed from Analytics
     { name: "Candidates", icon: Users, path: "/candidates" },
     { name: "Job Requisitions", icon: Briefcase, path: "/requisitions" },
-    { name: "Jobs Reference", icon: LayoutDashboard, path: "/jobs" },
     { name: "Settings", icon: Settings, path: "/settings" },
 ];
 
@@ -33,24 +32,30 @@ export function Sidebar() {
     return (
         <aside
             className={cn(
-                "relative h-screen border-r bg-card transition-all duration-300 flex flex-col z-20",
+                "relative h-screen border-r transition-all duration-300 flex flex-col z-20 bg-slate-900 text-slate-100",
                 collapsed ? "w-20" : "w-64"
             )}
         >
             {/* Branding */}
-            <div className="h-16 flex items-center px-6 border-b shrink-0 overflow-hidden">
-                <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0">
+            <div className="h-16 flex items-center px-6 border-b border-slate-800 shrink-0 overflow-hidden bg-slate-950/30">
+                <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/20">
                     <LayoutDashboard className="h-5 w-5 text-white" />
                 </div>
                 {!collapsed && (
-                    <span className="ml-3 font-bold text-sm tracking-tight truncate">
-                        CG TALENT HUB
-                    </span>
+                    <div className="ml-3 flex flex-col">
+                        <span className="font-bold text-sm tracking-wide bg-gradient-to-r from-white to-slate-400 bg-clip-text text-transparent">
+                            CG TALENT HUB
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-medium">ATS Platform</span>
+                    </div>
                 )}
             </div>
 
             {/* Navigation */}
             <nav className="flex-1 py-6 px-3 space-y-2 overflow-y-auto">
+                <div className="px-3 mb-2">
+                    {!collapsed && <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Main Menu</p>}
+                </div>
                 {menuItems.map((item) => {
                     const isActive = pathname === item.path;
                     const Icon = item.icon;
@@ -59,27 +64,29 @@ export function Sidebar() {
                             key={item.path}
                             href={item.path}
                             className={cn(
-                                "flex items-center h-11 px-3 rounded-xl transition-all group",
+                                "flex items-center h-11 px-3 rounded-lg transition-all group relative overflow-hidden",
                                 isActive
-                                    ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20"
-                                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                                    ? "bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-900/20"
+                                    : "text-slate-400 hover:bg-slate-800 hover:text-white"
                             )}
                         >
-                            <Icon className={cn("h-5 w-5 shrink-0", isActive ? "" : "group-hover:scale-110 transition-transform")} />
-                            {!collapsed && <span className="ml-3 font-semibold text-sm">{item.name}</span>}
-                            {!collapsed && isActive && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-white opacity-50" />}
+                            <Icon className={cn("h-5 w-5 shrink-0 z-10", isActive ? "text-indigo-100" : "group-hover:text-indigo-400 transition-colors")} />
+                            {!collapsed && <span className="ml-3 font-medium text-sm z-10">{item.name}</span>}
+
+                            {/* Active Indicator Line */}
+                            {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-300" />}
                         </Link>
                     );
                 })}
             </nav>
 
             {/* Footer / Toggle */}
-            <div className="p-4 border-t sticky bottom-0 bg-card">
+            <div className="p-4 border-t border-slate-800 sticky bottom-0 bg-slate-900">
                 <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setCollapsed(!collapsed)}
-                    className="w-full justify-start gap-2 h-10 rounded-xl"
+                    className="w-full justify-start gap-2 h-10 rounded-lg hover:bg-slate-800 hover:text-white text-slate-400"
                 >
                     {collapsed ? <ChevronRight className="h-5 w-5" /> : (
                         <>

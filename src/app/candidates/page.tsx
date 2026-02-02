@@ -210,75 +210,14 @@ export default function CandidatesMenuPage() {
                     </DialogContent>
                 </Dialog>
 
-                {/* 3. Manual Input (Form) */}
-                <Dialog open={isOpenManual} onOpenChange={setIsOpenManual}>
-                    <DialogTrigger asChild>
-                        <div className="contents">
-                            <MenuCard
-                                title="Manual Input"
-                                icon={PenTool}
-                                color="bg-orange-500"
-                                description="Entry form for walk-ins"
-                            />
-                        </div>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-lg">
-                        <DialogHeader>
-                            <DialogTitle>Manual Candidate Intake</DialogTitle>
-                            <DialogDescription>
-                                Create a new candidate profile manually.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="grid gap-4 py-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="name">Full Name</Label>
-                                    <Input
-                                        id="name"
-                                        placeholder="John Doe"
-                                        value={formData.name}
-                                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="position">Position</Label>
-                                    <Input
-                                        id="position"
-                                        placeholder="Software Engineer"
-                                        value={formData.position}
-                                        onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="email">Email</Label>
-                                    <Input
-                                        id="email"
-                                        type="email"
-                                        placeholder="john@example.com"
-                                        value={formData.email}
-                                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                    />
-                                </div>
-                                <div className="space-y-2">
-                                    <Label htmlFor="phone">Phone</Label>
-                                    <Input
-                                        id="phone"
-                                        placeholder="+66..."
-                                        value={formData.phone}
-                                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <Button type="submit" onClick={handleManualSubmit} disabled={saving}>
-                                {saving ? "Saving..." : "Save Candidate"}
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
+                {/* 3. Manual Input (Direct Link) */}
+                <MenuCard
+                    title="Manual Input"
+                    icon={PenTool}
+                    color="bg-orange-500"
+                    description="Entry form for walk-ins"
+                    onClick={() => window.location.href = '/candidates/new'}
+                />
 
                 {/* 4. Upload CSV */}
                 <MenuCard
