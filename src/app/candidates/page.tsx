@@ -176,39 +176,13 @@ export default function CandidatesMenuPage() {
                 />
 
                 {/* 2. Upload Resume */}
-                <Dialog open={isOpenResume} onOpenChange={setIsOpenResume}>
-                    <DialogTrigger asChild>
-                        <div className="contents">
-                            <MenuCard
-                                title="Upload Resume"
-                                icon={UploadCloud}
-                                color="bg-cyan-500"
-                                description="Drag & drop to parse with n8n"
-                            />
-                        </div>
-                    </DialogTrigger>
-                    <DialogContent className="sm:max-w-md">
-                        <DialogHeader>
-                            <DialogTitle>Upload Resume for Parsing</DialogTitle>
-                            <DialogDescription>
-                                Files will be sent to n8n for OCR and Auto-Extraction.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="flex items-center justify-center w-full mt-4">
-                            <label htmlFor="dropzone-file" className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed rounded-lg cursor-pointer bg-secondary/50 hover:bg-secondary/80 transition-colors border-muted-foreground/25">
-                                <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                                    <UploadCloud className="w-10 h-10 mb-3 text-primary" />
-                                    <p className="text-sm text-foreground font-semibold">Click to upload or drag and drop</p>
-                                    <p className="text-xs text-muted-foreground mt-2">PDF, DOCX (MAX. 5MB)</p>
-                                </div>
-                                <input id="dropzone-file" type="file" className="hidden" />
-                            </label>
-                        </div>
-                        <DialogFooter>
-                            <Button type="submit" className="w-full">Start Processing</Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
+                <MenuCard
+                    title="Upload Resume"
+                    icon={UploadCloud}
+                    color="bg-cyan-500"
+                    description="Drag & drop to parse with n8n"
+                    onClick={() => window.location.href = '/candidates/import'}
+                />
 
                 {/* 3. Manual Input (Direct Link) */}
                 <MenuCard

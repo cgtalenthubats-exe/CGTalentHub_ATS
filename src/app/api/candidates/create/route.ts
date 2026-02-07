@@ -18,32 +18,17 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Name is required' }, { status: 400 });
         }
 
-        // 1. Get the latest candidate_id
-        // Table name verified as 'Candidate Profile' in check-db.js
-        const { data: latestCandidates, error: fetchError } = await supabase
-            .from('Candidate Profile')
-            .select('candidate_id')
-            .order('candidate_id', { ascending: false })
-            .limit(1);
+        // 1. Get the latest candidate_id via Centralized RPC (Safe)
+        const { data: idRange, error: rpcError } = await supabase.rpc('reserve_candidate_ids', { batch_size: 1 });
 
-        if (fetchError) {
-            console.error("Error fetching latest ID:", fetchError);
+        if (rpcError || !idRange || idRange.length === 0) {
+            console.error("ID Reservation Failed:", rpcError);
             return NextResponse.json({ error: 'Failed to generate ID' }, { status: 500 });
         }
 
-        let newId = 'C00001'; // Default fallback
-        if (latestCandidates && latestCandidates.length > 0) {
-            const lastId = latestCandidates[0].candidate_id;
-            // Extract number part (assuming format Cxxxxx)
-            const match = lastId.match(/C(\d+)/);
-            if (match && match[1]) {
-                const num = parseInt(match[1]);
-                const nextNum = num + 1;
-                newId = `C${nextNum.toString().padStart(5, '0')}`;
-            }
-        }
-
-        console.log(`Generating new Candidate ID: ${newId}`);
+        const numericId = idRange[0].start_id;
+        const newId = `C${numericId.toString().padStart(5, '0')}`;
+        console.log(`Reserved New Candidate ID: ${newId}`);
 
         // 2. Insert new candidate into Candidate Profile
         // Columns mapped from check-db.js output / user context

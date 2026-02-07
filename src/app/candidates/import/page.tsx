@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Papa from "papaparse";
 import { processCsvUpload } from "@/app/actions/csv-actions";
+import { createUploadRecord } from "@/app/actions/resume-actions";
 import { getJobRequisitions } from "@/app/actions/requisitions";
 import { bulkAddCandidatesToJR } from "@/app/actions/jr-candidates";
 import { createClient } from "@/utils/supabase/client";
+// Ensure ResumeUpload is exported correctly in src/components/ResumeUpload.tsx
+import { ResumeUpload, UploadedFile } from "@/components/ResumeUpload";
 import {
     ArrowLeft,
     UploadCloud,
@@ -23,7 +26,9 @@ import {
     Filter,
     PlusCircle,
     CheckSquare,
-    Square
+    Square,
+    FileText,
+    Layers
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,17 +53,20 @@ import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface UploadLog {
-    id: number;
-    batch_id: string;
-    candidate_id: string;
-    name: string;
-    linkedin: string;
+    id: number | string; // UUID for resume, Int for CSV
+    batch_id?: string; // CSV only
+    candidate_id?: string;
+    name?: string; // CSV
+    file_name?: string; // Resume
+    linkedin?: string;
     status: string;
-    note: string;
+    note?: string;
     uploader_email: string;
     created_at: string;
+    resume_url?: string;
 }
 
 interface JobRequisition {
@@ -71,16 +79,18 @@ interface JobRequisition {
 
 export default function CandidateImportPage() {
     const router = useRouter();
+    const [viewMode, setViewMode] = useState<'csv' | 'resume'>('resume');
     const [uploading, setUploading] = useState(false);
     const [logs, setLogs] = useState<UploadLog[]>([]);
     const [loadingLogs, setLoadingLogs] = useState(true);
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const [openDialog, setOpenDialog] = useState(false);
+    const [openDialog, setOpenDialog] = useState(false); // CSV Dialog
+    const [openResumeDialog, setOpenResumeDialog] = useState(false); // Resume Dialog
     const [files, setFiles] = useState<File | null>(null);
     const [dragActive, setDragActive] = useState(false);
 
     // Selection & JR Logic
-    const [selectedIds, setSelectedIds] = useState<number[]>([]); // Log IDs
+    const [selectedIds, setSelectedIds] = useState<(number | string)[]>([]); // Log IDs
     const [openJRDialog, setOpenJRDialog] = useState(false);
     const [jrs, setJrs] = useState<JobRequisition[]>([]);
     const [loadingJrs, setLoadingJrs] = useState(false);
@@ -96,16 +106,31 @@ export default function CandidateImportPage() {
 
     useEffect(() => {
         fetchLogs();
-    }, []);
+    }, [viewMode]);
 
     const fetchLogs = async () => {
         setLoadingLogs(true);
         const supabase = createClient();
-        const { data, error } = await supabase
-            .from('csv_upload_logs')
-            .select('*')
-            .order('created_at', { ascending: false })
-            .limit(200);
+        let data: any[] | null = null;
+        let error: any = null;
+
+        if (viewMode === 'csv') {
+            const result = await supabase
+                .from('csv_upload_logs')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(200);
+            data = result.data;
+            error = result.error;
+        } else {
+            const result = await supabase
+                .from('resume_uploads')
+                .select('*')
+                .order('created_at', { ascending: false })
+                .limit(200);
+            data = result.data;
+            error = result.error;
+        }
 
         if (error) {
             console.error(error);
@@ -157,7 +182,7 @@ export default function CandidateImportPage() {
         document.body.removeChild(link);
     };
 
-    const handleUpload = async () => {
+    const handleCsvUpload = async () => {
         if (!files) return;
 
         setUploading(true);
@@ -179,6 +204,7 @@ export default function CandidateImportPage() {
                         }
                     }
 
+                    // TODO: Get actual user email
                     const uploaderEmail = "sumethwork@gmail.com";
 
                     const res = await processCsvUpload(rows, uploaderEmail);
@@ -206,14 +232,33 @@ export default function CandidateImportPage() {
         }
     };
 
+    const handleResumeUploadComplete = async (files: UploadedFile[]) => {
+        // Filter only success files
+        const successFiles = files.filter(f => f.status === 'success' && f.url);
+
+        for (const f of successFiles) {
+            // Save to DB
+            const res = await createUploadRecord({
+                file_name: f.file.name,
+                resume_url: f.url!,
+                uploader_email: "sumethwork@gmail.com" // TODO: Real email
+            });
+
+            if (!res.success) {
+                toast.error(`Failed to save record for ${f.file.name}`);
+            }
+        }
+
+        // Refresh logs to see new pending items
+        fetchLogs();
+    };
+
     // --- JR Selection Logic ---
     const handleOpenJRDialog = async () => {
         if (selectedIds.length === 0) return;
         setOpenJRDialog(true);
         setLoadingJrs(true);
         const data = await getJobRequisitions();
-        // Filter only open status if needed, but 'getJobRequisitions' returns simplified object.
-        // Assuming we want all Active ones.
         setJrs(data.filter(j => j.is_active));
         setLoadingJrs(false);
     };
@@ -226,7 +271,7 @@ export default function CandidateImportPage() {
         }
     };
 
-    const handleSelectOne = (id: number, checked: boolean) => {
+    const handleSelectOne = (id: number | string, checked: boolean) => {
         if (checked) {
             setSelectedIds(prev => [...prev, id]);
         } else {
@@ -244,8 +289,8 @@ export default function CandidateImportPage() {
         try {
             // Get candidate info from selected logs
             const selectedCandidates = logs
-                .filter(l => selectedIds.includes(l.id) && l.candidate_id?.startsWith('C')) // Only valid candidates
-                .map(l => ({ id: l.candidate_id, name: l.name }));
+                .filter(l => selectedIds.includes(l.id) && l.candidate_id?.startsWith('C'))
+                .map(l => ({ id: l.candidate_id!, name: l.name || l.candidate_name || "Unknown" })) as { id: string, name: string }[];
 
             if (selectedCandidates.length === 0) {
                 toast.error("No valid candidates selected (Must have Candidate ID)");
@@ -253,8 +298,7 @@ export default function CandidateImportPage() {
                 return;
             }
 
-            // Call Server Action
-            // Remove duplicates within selection just in case
+            // Remove duplicates within selection
             const uniqueCandidates = Array.from(new Map(selectedCandidates.map(item => [item.id, item])).values());
 
             const res = await bulkAddCandidatesToJR(selectedJrId, uniqueCandidates);
@@ -293,6 +337,7 @@ export default function CandidateImportPage() {
         }
     };
 
+    // Filter Logic
     const filteredJrs = jrs.filter(jr =>
         jr.title.toLowerCase().includes(jrSearch.toLowerCase()) ||
         jr.department.toLowerCase().includes(jrSearch.toLowerCase()) ||
@@ -300,15 +345,15 @@ export default function CandidateImportPage() {
         jr.id.toLowerCase().includes(jrSearch.toLowerCase())
     );
 
-    // Derived State for Rendering
     const uniqueUsers = Array.from(new Set(logs.map(l => l.uploader_email).filter(Boolean)));
     const uniqueStatuses = Array.from(new Set(logs.map(l => l.status).filter(Boolean)));
 
     const filteredLogs = logs.filter(log => {
         const matchesSearch =
-            log.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            log.candidate_id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            log.note?.toLowerCase().includes(searchQuery.toLowerCase());
+            (log.name && log.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+            (log.file_name && log.file_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+            (log.candidate_id && log.candidate_id.toLowerCase().includes(searchQuery.toLowerCase())) ||
+            (log.note && log.note.toLowerCase().includes(searchQuery.toLowerCase()));
 
         const matchesStatus = statusFilter === "all" || log.status === statusFilter;
         const matchesUser = userFilter === "all" || log.uploader_email === userFilter;
@@ -319,8 +364,9 @@ export default function CandidateImportPage() {
     const sortedLogs = [...filteredLogs].sort((a, b) => {
         if (!sortConfig) return 0;
 
-        const valA = a[sortConfig.key] || "";
-        const valB = b[sortConfig.key] || "";
+        // Handle potentially missing keys safely
+        const valA = (a as any)[sortConfig.key] || "";
+        const valB = (b as any)[sortConfig.key] || "";
 
         if (valA < valB) return sortConfig.direction === 'asc' ? -1 : 1;
         if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
@@ -351,7 +397,7 @@ export default function CandidateImportPage() {
                 <div className="flex items-center justify-between">
                     <div>
                         <h1 className="text-3xl font-black tracking-tight text-slate-900">Candidate Import</h1>
-                        <p className="text-muted-foreground mt-1">Upload CSV to bulk import candidates. System detects duplicates automatically.</p>
+                        <p className="text-muted-foreground mt-1">Bulk upload candidates via CSV or AI Resume Parsing.</p>
                     </div>
 
                     <div className="flex gap-2">
@@ -365,10 +411,31 @@ export default function CandidateImportPage() {
                             </Button>
                         )}
 
+                        {/* Resume Dialog */}
+                        <Dialog open={openResumeDialog} onOpenChange={setOpenResumeDialog}>
+                            <DialogTrigger asChild>
+                                <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-200">
+                                    <FileText className="mr-2 h-4 w-4" /> Import Resumes (PDF)
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="sm:max-w-xl">
+                                <DialogHeader>
+                                    <DialogTitle>Bulk Resume Upload</DialogTitle>
+                                    <DialogDescription>
+                                        Upload multiple PDF resumes. The AI will process them in the background.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="py-4">
+                                    <ResumeUpload onUploadComplete={handleResumeUploadComplete} />
+                                </div>
+                            </DialogContent>
+                        </Dialog>
+
+                        {/* CSV Dialog */}
                         <Dialog open={openDialog} onOpenChange={setOpenDialog}>
                             <DialogTrigger asChild>
                                 <Button className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200">
-                                    <UploadCloud className="mr-2 h-4 w-4" /> Import CSV
+                                    <FileSpreadsheet className="mr-2 h-4 w-4" /> Import CSV
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="sm:max-w-md">
@@ -376,7 +443,6 @@ export default function CandidateImportPage() {
                                     <DialogTitle>Upload Candidate CSV</DialogTitle>
                                 </DialogHeader>
                                 <div className="space-y-4 py-4">
-                                    {/* ... [Drag Drop Area] ... */}
                                     <div
                                         className={cn(
                                             "border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center transition-colors cursor-pointer",
@@ -418,7 +484,7 @@ export default function CandidateImportPage() {
                                         </Button>
                                     </div>
 
-                                    <Button onClick={handleUpload} disabled={!files || uploading} className="w-full bg-indigo-600 hover:bg-indigo-700">
+                                    <Button onClick={handleCsvUpload} disabled={!files || uploading} className="w-full bg-indigo-600 hover:bg-indigo-700">
                                         {uploading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</> : "Start Import"}
                                     </Button>
                                 </div>
@@ -431,13 +497,17 @@ export default function CandidateImportPage() {
             <Card className="border-none shadow-xl bg-white/50 backdrop-blur-sm flex-1 flex flex-col overflow-hidden">
                 <CardHeader className="bg-slate-50/50 border-b border-slate-100/50 flex flex-col gap-4 pb-4">
                     <div className="flex flex-row items-center justify-between">
-                        <CardTitle className="text-lg font-bold text-slate-700 flex items-center gap-2">
-                            <FileSpreadsheet className="w-5 h-5 text-indigo-500" />
-                            Upload History
-                            <span className="text-xs font-normal text-slate-400 ml-2 bg-slate-100 px-2 py-0.5 rounded-full">
+                        <div className="flex items-center gap-4">
+                            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)} className="w-[400px]">
+                                <TabsList>
+                                    <TabsTrigger value="resume" className="gap-2"><FileText className="w-4 h-4" /> Resume Uploads</TabsTrigger>
+                                    <TabsTrigger value="csv" className="gap-2"><FileSpreadsheet className="w-4 h-4" /> CSV Uploads</TabsTrigger>
+                                </TabsList>
+                            </Tabs>
+                            <span className="text-xs font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
                                 {filteredLogs.length} records
                             </span>
-                        </CardTitle>
+                        </div>
                         <Button variant="ghost" size="sm" onClick={fetchLogs} disabled={loadingLogs}>
                             <RefreshCw className={cn("w-4 h-4", loadingLogs && "animate-spin")} />
                         </Button>
@@ -498,19 +568,22 @@ export default function CandidateImportPage() {
                                             onCheckedChange={(checked) => handleSelectAll(!!checked)}
                                         />
                                     </TableHead>
-                                    <TableHead className="w-[180px] cursor-pointer" onClick={() => requestSort('created_at')}>
+                                    <TableHead className="w-[150px] cursor-pointer" onClick={() => requestSort('created_at')}>
                                         <div className="flex items-center">Timestamp <SortIcon column="created_at" /></div>
                                     </TableHead>
-                                    <TableHead className="w-[120px] cursor-pointer" onClick={() => requestSort('candidate_id')}>
+                                    <TableHead className="w-[100px] cursor-pointer" onClick={() => requestSort('candidate_id')}>
                                         <div className="flex items-center">ID <SortIcon column="candidate_id" /></div>
                                     </TableHead>
                                     <TableHead className="w-[200px] cursor-pointer" onClick={() => requestSort('name')}>
-                                        <div className="flex items-center">Name <SortIcon column="name" /></div>
+                                        <div className="flex items-center">{viewMode === 'resume' ? 'File / Name' : 'Name'} <SortIcon column="name" /></div>
                                     </TableHead>
-                                    <TableHead className="w-[200px] cursor-pointer" onClick={() => requestSort('uploader_email')}>
+                                    {viewMode === 'resume' && (
+                                        <TableHead className="w-[80px]">Link</TableHead>
+                                    )}
+                                    <TableHead className="w-[150px] cursor-pointer" onClick={() => requestSort('uploader_email')}>
                                         <div className="flex items-center">User <SortIcon column="uploader_email" /></div>
                                     </TableHead>
-                                    <TableHead className="w-[150px] cursor-pointer" onClick={() => requestSort('status')}>
+                                    <TableHead className="w-[120px] cursor-pointer" onClick={() => requestSort('status')}>
                                         <div className="flex items-center">Status <SortIcon column="status" /></div>
                                     </TableHead>
                                     <TableHead>Note</TableHead>
@@ -542,17 +615,36 @@ export default function CandidateImportPage() {
                                                 </Badge>
                                             )}
                                         </TableCell>
-                                        <TableCell className="font-medium text-slate-800 text-sm">{log.name}</TableCell>
-                                        <TableCell className="text-xs text-slate-500">{log.uploader_email}</TableCell>
+                                        <TableCell>
+                                            <div className="flex flex-col">
+                                                <span className="font-medium text-slate-800 text-sm">
+                                                    {log.name || log.file_name || "Unknown"}
+                                                </span>
+                                                {viewMode === 'resume' && log.candidate_id && log.name && log.file_name && (
+                                                    <span className="text-[10px] text-slate-400">{log.file_name}</span>
+                                                )}
+                                            </div>
+                                        </TableCell>
+                                        {viewMode === 'resume' && (
+                                            <TableCell>
+                                                {log.resume_url && (
+                                                    <a href={log.resume_url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">
+                                                        <FileText className="w-4 h-4" />
+                                                    </a>
+                                                )}
+                                            </TableCell>
+                                        )}
+                                        <TableCell className="text-xs text-slate-500 truncate max-w-[150px]">{log.uploader_email}</TableCell>
                                         <TableCell>
                                             <Badge variant="secondary" className={cn("text-[10px] uppercase font-bold tracking-wider",
-                                                log.status === 'Complete' || log.status === 'Scraping' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                                                log.status === 'Completed' || log.status === 'Complete' || log.status === 'Scraping' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
                                                     log.status.includes('Duplicate') ? "bg-amber-50 text-amber-600 border-amber-100" :
-                                                        "bg-red-50 text-red-600 border-red-100")}>
+                                                        log.status === 'pending' || log.status === 'Processing' ? "bg-blue-50 text-blue-600 border-blue-100" :
+                                                            "bg-red-50 text-red-600 border-red-100")}>
                                                 {log.status}
                                             </Badge>
                                         </TableCell>
-                                        <TableCell className="text-xs text-slate-500 italic">{log.note}</TableCell>
+                                        <TableCell className="text-xs text-slate-500 italic truncate max-w-[200px]">{log.note}</TableCell>
                                     </TableRow>
                                 ))}
                             </TableBody>
@@ -563,6 +655,7 @@ export default function CandidateImportPage() {
 
             {/* JR Selection Dialog */}
             <Dialog open={openJRDialog} onOpenChange={setOpenJRDialog}>
+                {/* ... (Existing JR Dialog Content) ... */}
                 <DialogContent className="sm:max-w-[600px] h-[80vh] flex flex-col">
                     <DialogHeader>
                         <DialogTitle>Add {selectedIds.length} Candidate(s) to Requisition</DialogTitle>

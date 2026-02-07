@@ -1,0 +1,189 @@
+{
+    "name": "ATS Resume Processor (Queue Based)",
+    "nodes": [
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "field": "minutes",
+                            "minutes": 1
+                        }
+                    ]
+                }
+            },
+            "name": "Schedule Trigger",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1,
+            "position": [
+                460,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "url": "=http://localhost:3000/api/n8n/queue",
+                "options": {}
+            },
+            "name": "Get Pending Uploads",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                680,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "fieldToSplitOut": "tasks",
+                "options": {}
+            },
+            "name": "Split In Batches",
+            "type": "n8n-nodes-base.itemLists",
+            "typeVersion": 1,
+            "position": [
+                900,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "url": "={{ $json.resume_url }}",
+                "responseFormat": "file",
+                "options": {}
+            },
+            "name": "Download PDF",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                1120,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "keepOnlySet": true,
+                "values": {
+                    "string": [
+                        {
+                            "name": "profile.name",
+                            "value": "Test Candidate {{ $now.format('HHmm') }}"
+                        },
+                        {
+                            "name": "profile.email",
+                            "value": "test{{ $now.format('HHmm') }}@example.com"
+                        },
+                        {
+                            "name": "profile.linkedin",
+                            "value": "https://linkedin.com/in/test{{ $now.format('HHmm') }}"
+                        },
+                        {
+                            "name": "upload_id",
+                            "value": "={{ $('Split In Batches').item.json.id }}"
+                        },
+                        {
+                            "name": "resume_url",
+                            "value": "={{ $('Split In Batches').item.json.resume_url }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "name": "Mock Parser (Replace with Real Logic)",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 2,
+            "position": [
+                1340,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "=http://localhost:3000/api/n8n/callback",
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "upload_id",
+                            "value": "={{ $json.upload_id }}"
+                        },
+                        {
+                            "name": "resume_url",
+                            "value": "={{ $json.resume_url }}"
+                        },
+                        {
+                            "name": "profile",
+                            "value": "={{ { name: $json.profile.name, email: $json.profile.email, linkedin: $json.profile.linkedin } }}"
+                        }
+                    ]
+                },
+                "options": {}
+            },
+            "name": "Send Callback",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                1560,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Schedule Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Get Pending Uploads",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Pending Uploads": {
+            "main": [
+                [
+                    {
+                        "node": "Split In Batches",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Split In Batches": {
+            "main": [
+                [
+                    {
+                        "node": "Download PDF",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Download PDF": {
+            "main": [
+                [
+                    {
+                        "node": "Mock Parser (Replace with Real Logic)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Mock Parser (Replace with Real Logic)": {
+            "main": [
+                [
+                    {
+                        "node": "Send Callback",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}
