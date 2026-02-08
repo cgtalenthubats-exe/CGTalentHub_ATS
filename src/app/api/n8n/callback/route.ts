@@ -11,30 +11,50 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { upload_id, resume_url, profile, experience } = body;
+        const {
+            upload_id,
+            resume_url,
+
+            // New n8n Fields
+            FirstName,
+            LastName,
+            Gender,
+            Dateofbirth,
+            Telephone,
+            email,
+            CurrentJob,
+            Company,
+            // Industry, Level, LatestSalary, // Skipped per user feedback
+            Experience, // Array from "code that separates Experience"
+            Full_Experience,
+            normallizedfullname
+        } = body;
+
+        // Fallback for name: Combined > Normalized > Profile.name (legacy)
+        const combinedName = (FirstName && LastName) ? `${FirstName} ${LastName}` : null;
+        // Check legacy structure just in case
+        const legacyName = body.profile?.name;
+
+        const candidateName = combinedName || normallizedfullname || legacyName || "Unknown Candidate";
 
         // Validation
-        if (!upload_id || !profile || !profile.name) {
-            return NextResponse.json({ error: 'Missing required fields: upload_id, profile.name' }, { status: 400 });
+        if (!upload_id || !candidateName) {
+            return NextResponse.json({ error: 'Missing required fields: upload_id, FirstName/LastName' }, { status: 400 });
         }
 
-        console.log(`Processing Callback for Upload ID: ${upload_id}, Name: ${profile.name}`);
+        console.log(`Processing Callback for Upload ID: ${upload_id}, Name: ${candidateName}`);
 
         // 1. Check Duplicates (DB)
         const { isDuplicate, candidateId: existingId, reason } = await checkDuplicateCandidate(
-            profile.name,
-            profile.linkedin || ""
+            candidateName,
+            "" // LinkedIn not provided in new output list, sending empty
         );
 
-        if (isDuplicate && existingId) {
-            // ... handling (same as before) ...
-        }
-
         // 1.1 Check Active Processing (Queue)
-        const { isProcessing, source } = await checkActiveProcessing(profile.name, profile.linkedin || "", upload_id);
+        const { isProcessing, source } = await checkActiveProcessing(candidateName, "", upload_id);
 
         if (isProcessing) {
-            console.log(`Active Duplicate found in ${source}: ${profile.name}`);
+            console.log(`Active Duplicate found in ${source}: ${candidateName}`);
             await updateUploadStatus(
                 upload_id,
                 `Duplicate found in ${source} (Active Processing)`
@@ -51,11 +71,8 @@ export async function POST(req: NextRequest) {
             // Update Duplicate Status
             await updateUploadStatus(
                 upload_id,
-                `Found duplicate with ${existingId} ${profile.name.substring(0, 20)}...`
+                `Found duplicate with ${existingId} ${candidateName.substring(0, 20)}...`
             );
-
-            // Link upload to existing candidate anyway? Maybe useful. 
-            // For now just update status as per requirement.
 
             return NextResponse.json({
                 success: true,
@@ -80,20 +97,26 @@ export async function POST(req: NextRequest) {
 
         // 3. Insert Candidate Profile
         const now = new Date().toISOString();
+
+        // Handling Date of Birth
+        let dob = null;
+        // Simple check if Dateofbirth is valid string or ISO
+        if (Dateofbirth && !isNaN(Date.parse(Dateofbirth))) {
+            dob = new Date(Dateofbirth).toISOString().split('T')[0];
+        }
+
         const profileData = {
             candidate_id: newCandidateId,
-            name: profile.name,
-            email: profile.email || null,
-            mobile_phone: profile.phone || null,
-            linkedin: profile.linkedin || null,
-            nationality: profile.nationality || null,
-            gender: profile.gender || null, // Assuming n8n sends 'Male'/'Female' or similar
-            date_of_birth: profile.dob || null, // Format YYYY-MM-DD
-            age: profile.age ? parseInt(profile.age) : null,
+            name: candidateName,
+            email: email || null,
+            mobile_phone: Telephone || null,
+            gender: Gender || null,
+            date_of_birth: dob,
             resume_url: resume_url || null,
             created_date: now,
-            modify_date: now
-            // Add other mapped fields if n8n provides them
+            modify_date: now,
+            current_position: CurrentJob || null
+            // linkedin: // Not in new list
         };
 
         const { error: insertProfileError } = await supabase
@@ -105,27 +128,68 @@ export async function POST(req: NextRequest) {
             throw insertProfileError;
         }
 
-        // 4. Insert Experiences (if any)
-        if (experience && Array.isArray(experience) && experience.length > 0) {
-            const expData = experience.map((exp: any) => ({
-                candidate_id: newCandidateId,
-                name: profile.name, // Denormalized name in experience table
-                company: exp.company,
-                position: exp.position,
-                start_date: exp.start_date || null,
-                end_date: exp.end_date || null,
-                is_current_job: exp.is_current ? 'Current' : 'Past',
-                row_status: 'Active',
-                // Map other fields as needed
-            }));
+        // 3.1 Insert into candidate_profile_enhance
+        // Mapping Full_Experience -> full_resume_text
+        // education_summary -> body['bachelor degree date'] (if exists)? User list said 'bachelor degree date'
+        const bachelorDate = body['bachelor degree date'];
 
-            const { error: insertExpError } = await supabase
-                .from('candidate_experiences') // Verified table name
-                .insert(expData);
+        const enhanceData = {
+            candidate_id: newCandidateId,
+            full_resume_text: Full_Experience || null,
+            education_summary: bachelorDate || null,
+            // skills_analysis: JSON (Industry, Level, LatestSalary) - SKIPPED per user instruction
+            name: candidateName
+        };
 
-            if (insertExpError) {
-                console.error("Insert Experience Error (Non-blocking):", insertExpError);
-                // We don't fail the whole process if experience fails, but good to log
+        const { error: enhanceError } = await supabase
+            .from('candidate_profile_enhance')
+            .insert([enhanceData]);
+
+        if (enhanceError) {
+            console.error("Insert Enhance Error (Non-blocking):", enhanceError);
+        }
+
+        // 4. Insert Experiences
+        const experienceList = Experience || [];
+        // Need to handle if Experience is just the string block (in case n8n didn't split it yet), but user said "code splits it".
+        // Assuming it's an array of objects.
+
+        if (Array.isArray(experienceList) && experienceList.length > 0) {
+            const expData = experienceList.map((exp: any) => {
+                // User listed: StartDate, EndDate, Position, Work_locator
+                // We need 'Company' for the table. 
+                // If 'Company' key is missing in the object, we try to find it or default.
+                // Assuming the 'code' user mentioned puts it in 'Company' or it's implicitly 'Work_locator'? 
+                // Let's use 'Company' if exists, else 'Work_locator' might contain it? 
+                // Or maybe it's passed as 'company' (lowercase).
+                // Safest fallbacks:
+                const companyName = exp.Company || exp.company || "Unknown Company";
+
+                return {
+                    candidate_id: newCandidateId,
+                    name: candidateName,
+                    company: companyName, // Field name in DB 'candidate_experiences' is likely 'company' or 'company_name_text'
+                    company_name_text: companyName, // Ensure we cover both potential columns (based on previous types check: 'company_name_text')
+                    position: exp.Position || exp.position || "Unknown Position",
+                    start_date: exp.StartDate || null, // Ensure format is YYYY-MM-DD if possible, DB might be loose
+                    end_date: exp.EndDate || null,
+                    is_current: (exp.EndDate?.toLowerCase() === 'present' || exp.endDate?.toLowerCase() === 'present') ? 'Current' : 'Past',
+                    description: exp.Work_locator || exp.location || null, // Mapping Work_locator to description/location
+                    row_status: 'Active'
+                };
+            });
+
+            // Filter out empty objects if any
+            const validExpData = expData.filter((e: any) => e.position !== "Unknown Position" || e.company !== "Unknown Company");
+
+            if (validExpData.length > 0) {
+                const { error: insertExpError } = await supabase
+                    .from('candidate_experiences')
+                    .insert(validExpData);
+
+                if (insertExpError) {
+                    console.error("Insert Experience Error (Non-blocking):", insertExpError);
+                }
             }
         }
 
@@ -135,9 +199,9 @@ export async function POST(req: NextRequest) {
             .update({
                 status: 'Complete',
                 candidate_id: newCandidateId,
-                candidate_name: profile.name,
-                company: experience?.[0]?.company || '', // Store updated company info
-                position: experience?.[0]?.position || ''
+                candidate_name: candidateName,
+                company: Company || (Array.isArray(experienceList) && experienceList[0]?.Company) || '',
+                position: CurrentJob || (Array.isArray(experienceList) && experienceList[0]?.Position) || ''
             })
             .eq('id', upload_id);
 
@@ -149,15 +213,6 @@ export async function POST(req: NextRequest) {
 
     } catch (error: any) {
         console.error("Callback API Error:", error);
-
-        // Try to update status to Failed if possible
-        if (req.body) {
-            // Hard to get ID if JSON parse failed, but assuming we got past that
-            // Actually request body can only be read once. We read it at top.
-            // We can use 'upload_id' if it was extracted. 
-            // Implementing detailed error handling later if needed.
-        }
-
         return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 });
     }
 }
