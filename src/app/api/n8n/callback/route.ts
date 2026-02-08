@@ -100,7 +100,6 @@ export async function POST(req: NextRequest) {
 
         // Handling Date of Birth
         let dob = null;
-        // Simple check if Dateofbirth is valid string or ISO
         if (Dateofbirth && !isNaN(Date.parse(Dateofbirth))) {
             dob = new Date(Dateofbirth).toISOString().split('T')[0];
         }
@@ -112,16 +111,17 @@ export async function POST(req: NextRequest) {
             mobile_phone: Telephone || null,
             gender: Gender || null,
             date_of_birth: dob,
+            year_of_bachelor_education: body['bachelor degree date'] || null, // Mapped from user screenshot
+            gross_salary_base_b_mth: body['LatestSalary'] || null, // Mapped from user screenshot
             resume_url: resume_url || null,
             created_date: now,
-            modify_date: now,
-            current_position: CurrentJob || null
-            // linkedin: // Not in new list
+            modify_date: now
+            // linkedin: Not in new list
         };
 
         const { error: insertProfileError } = await supabase
             .from('Candidate Profile')
-            .insert([profileData]);
+            .insert([profileData] as any);
 
         if (insertProfileError) {
             console.error("Insert Profile Error:", insertProfileError);
@@ -129,21 +129,23 @@ export async function POST(req: NextRequest) {
         }
 
         // 3.1 Insert into candidate_profile_enhance
-        // Mapping Full_Experience -> full_resume_text
-        // education_summary -> body['bachelor degree date'] (if exists)? User list said 'bachelor degree date'
-        const bachelorDate = body['bachelor degree date'];
-
         const enhanceData = {
             candidate_id: newCandidateId,
-            full_resume_text: Full_Experience || null,
-            education_summary: bachelorDate || null,
-            // skills_analysis: JSON (Industry, Level, LatestSalary) - SKIPPED per user instruction
-            name: candidateName
+            name: candidateName,
+            gender: Gender || null,
+            headline: body.LatestPositionName || null,
+            email: email || null,
+            mobile_number: Telephone || null,
+            current_position: body.LatestPositionName || null,
+            current_company: Company || null,
+            country: Array.isArray(Experience) && Experience.length > 0 ? (Experience[0].Work_locator || Experience[0].work_location) : null,
+            experience_summary: Full_Experience || null,
+            // education_summary: body['bachelor degree date'] || null // Legacy? User map says year_of_bachelor -> Candidate Profile.
         };
 
         const { error: enhanceError } = await supabase
             .from('candidate_profile_enhance')
-            .insert([enhanceData]);
+            .insert([enhanceData] as any);
 
         if (enhanceError) {
             console.error("Insert Enhance Error (Non-blocking):", enhanceError);
@@ -151,41 +153,32 @@ export async function POST(req: NextRequest) {
 
         // 4. Insert Experiences
         const experienceList = Experience || [];
-        // Need to handle if Experience is just the string block (in case n8n didn't split it yet), but user said "code splits it".
-        // Assuming it's an array of objects.
 
         if (Array.isArray(experienceList) && experienceList.length > 0) {
             const expData = experienceList.map((exp: any) => {
-                // User listed: StartDate, EndDate, Position, Work_locator
-                // We need 'Company' for the table. 
-                // If 'Company' key is missing in the object, we try to find it or default.
-                // Assuming the 'code' user mentioned puts it in 'Company' or it's implicitly 'Work_locator'? 
-                // Let's use 'Company' if exists, else 'Work_locator' might contain it? 
-                // Or maybe it's passed as 'company' (lowercase).
-                // Safest fallbacks:
                 const companyName = exp.Company || exp.company || "Unknown Company";
+                const location = exp.Work_locator || exp.work_location || exp.location || null;
 
                 return {
                     candidate_id: newCandidateId,
                     name: candidateName,
-                    company: companyName, // Field name in DB 'candidate_experiences' is likely 'company' or 'company_name_text'
-                    company_name_text: companyName, // Ensure we cover both potential columns (based on previous types check: 'company_name_text')
+                    company: companyName,
+                    company_name_text: companyName, // likely needed for DB compatibility
                     position: exp.Position || exp.position || "Unknown Position",
-                    start_date: exp.StartDate || null, // Ensure format is YYYY-MM-DD if possible, DB might be loose
+                    start_date: exp.StartDate || null,
                     end_date: exp.EndDate || null,
-                    is_current: (exp.EndDate?.toLowerCase() === 'present' || exp.endDate?.toLowerCase() === 'present') ? 'Current' : 'Past',
-                    description: exp.Work_locator || exp.location || null, // Mapping Work_locator to description/location
+                    work_location: location, // Mapped from user screenshot
+                    is_current: (exp.EndDate?.toLowerCase() === 'present' || exp.endDate?.toLowerCase() === 'present') || false,
                     row_status: 'Active'
                 };
             });
 
-            // Filter out empty objects if any
             const validExpData = expData.filter((e: any) => e.position !== "Unknown Position" || e.company !== "Unknown Company");
 
             if (validExpData.length > 0) {
                 const { error: insertExpError } = await supabase
                     .from('candidate_experiences')
-                    .insert(validExpData);
+                    .insert(validExpData as any);
 
                 if (insertExpError) {
                     console.error("Insert Experience Error (Non-blocking):", insertExpError);
