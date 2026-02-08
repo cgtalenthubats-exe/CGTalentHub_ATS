@@ -133,14 +133,13 @@ export async function POST(req: NextRequest) {
             candidate_id: newCandidateId,
             name: candidateName,
             gender: Gender || null,
-            headline: body.LatestPositionName || null,
+            headline: CurrentJob || null, // Fixed: User said use CurrentJob (mapped from LatestPositionName in n8n, but body has CurrentJob)
             email: email || null,
             mobile_number: Telephone || null,
-            current_position: body.LatestPositionName || null,
+            current_position: CurrentJob || null, // Fixed: Map current_position to CurrentJob
             current_company: Company || null,
             country: Array.isArray(Experience) && Experience.length > 0 ? (Experience[0].Work_locator || Experience[0].work_location) : null,
             experience_summary: Full_Experience || null,
-            // education_summary: body['bachelor degree date'] || null // Legacy? User map says year_of_bachelor -> Candidate Profile.
         };
 
         const { error: enhanceError } = await supabase
