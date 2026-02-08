@@ -52,7 +52,7 @@ export default function JRManagePage() {
         if (selectedJR) {
             try {
                 const stored = localStorage.getItem("ats_jr_tabs");
-                let tabs = stored ? JSON.parse(stored) : [];
+                const tabs = stored ? JSON.parse(stored) : [];
 
                 // Add if not exists
                 if (!tabs.find((t: any) => t.id === selectedJR.id)) {
@@ -295,11 +295,11 @@ export default function JRManagePage() {
                             </div>
 
                             <TabsContent value="list" className="mt-0">
-                                <CandidateList key={`list-${selectedJR.id}-${refreshKey}`} jrId={selectedJR.id} />
+                                <CandidateList key={`list-${selectedJR.id}-${refreshKey}`} jrId={selectedJR.id} jobTitle={selectedJR.job_title} bu={selectedJR.division} subBu={selectedJR.department} />
                             </TabsContent>
 
                             <TabsContent value="kanban" className="mt-0">
-                                <KanbanBoard key={`kanban-${selectedJR.id}-${refreshKey}`} jrId={selectedJR.id} />
+                                <KanbanBoard key={`kanban-${selectedJR.id}-${refreshKey}`} jrId={selectedJR.id} jobTitle={selectedJR.job_title} bu={selectedJR.division} subBu={selectedJR.department} />
                             </TabsContent>
                         </Tabs>
                     </div>

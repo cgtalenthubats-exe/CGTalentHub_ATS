@@ -290,7 +290,7 @@ export default function CandidateImportPage() {
             // Get candidate info from selected logs
             const selectedCandidates = logs
                 .filter(l => selectedIds.includes(l.id) && l.candidate_id?.startsWith('C'))
-                .map(l => ({ id: l.candidate_id!, name: l.name || l.candidate_name || "Unknown" })) as { id: string, name: string }[];
+                .map(l => ({ id: l.candidate_id!, name: l.name || l.file_name || "Unknown" })) as { id: string, name: string }[];
 
             if (selectedCandidates.length === 0) {
                 toast.error("No valid candidates selected (Must have Candidate ID)");
@@ -472,7 +472,7 @@ export default function CandidateImportPage() {
                                                 <p className="text-sm text-slate-500 mb-1">
                                                     <span className="font-semibold text-indigo-600">Click to upload</span> or drag and drop
                                                 </p>
-                                                <p className="text-xs text-slate-400">CSV file with 'Name' and 'LinkedIn' headers</p>
+                                                <p className="text-xs text-slate-400">CSV file with &apos;Name&apos; and &apos;LinkedIn&apos; headers</p>
                                             </>
                                         )}
                                         <input type="file" accept=".csv" ref={fileInputRef} onChange={handleFileChange} className="hidden" />

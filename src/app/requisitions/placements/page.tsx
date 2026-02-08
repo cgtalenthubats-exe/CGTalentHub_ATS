@@ -35,6 +35,8 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
+import { EditPlacementDialog } from "@/components/edit-placement-dialog";
+import { Pencil } from "lucide-react";
 
 export default function PlacementsPage() {
     const [records, setRecords] = useState<any[]>([]);
@@ -42,6 +44,7 @@ export default function PlacementsPage() {
     const [search, setSearch] = useState("");
     const [selectedRecord, setSelectedRecord] = useState<any>(null);
     const [isResignDialogOpen, setIsResignDialogOpen] = useState(false);
+    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
     // Resignation form state
     const [resignData, setResignData] = useState({
@@ -144,6 +147,9 @@ export default function PlacementsPage() {
                                     <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6">Candidate Name</TableHead>
                                     <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6">Business Unit</TableHead>
                                     <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6">Salary Info</TableHead>
+                                    <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6">Fee (20%)</TableHead>
+                                    <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6">Job Grade</TableHead>
+                                    <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6">Emp. ID</TableHead>
                                     <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6">Hire Date</TableHead>
                                     <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6">Status</TableHead>
                                     <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6 pr-8 text-right">Action</TableHead>
@@ -179,10 +185,19 @@ export default function PlacementsPage() {
                                         <TableCell>
                                             <div className="flex flex-col">
                                                 <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
-                                                    <BadgeDollarSign className="w-3 h-3" /> Base Salary
+                                                    <BadgeDollarSign className="w-3 h-3" /> Base: ฿{r.base_salary?.toLocaleString()}
                                                 </span>
-                                                <span className="font-bold text-slate-800">฿{r.base_salary?.toLocaleString()}</span>
+                                                <span className="font-bold text-slate-800 text-[10px]">Annual: ฿{r.annual_salary?.toLocaleString()}</span>
                                             </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <span className="font-bold text-slate-700">฿{r.outsource_fee_20_percent?.toLocaleString()}</span>
+                                        </TableCell>
+                                        <TableCell>
+                                            <span className="font-bold text-slate-700">{r.job_grade || "-"}</span>
+                                        </TableCell>
+                                        <TableCell>
+                                            <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{r.employee_id || "-"}</span>
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-2 text-slate-600 font-bold text-xs">
@@ -206,6 +221,17 @@ export default function PlacementsPage() {
                                                 className="border-red-100 text-red-600 hover:bg-red-50 hover:text-red-700 hover:border-red-200 rounded-xl font-bold text-[11px] uppercase transition-all"
                                             >
                                                 <UserMinus className="w-3.5 h-3.5 mr-2" /> Mark Resigned
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="icon"
+                                                onClick={() => {
+                                                    setSelectedRecord(r);
+                                                    setIsEditDialogOpen(true);
+                                                }}
+                                                className="ml-2 border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 rounded-xl transition-all"
+                                            >
+                                                <Pencil className="w-3.5 h-3.5" />
                                             </Button>
                                         </TableCell>
                                     </TableRow>
@@ -260,6 +286,17 @@ export default function PlacementsPage() {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Edit Dialog */}
+            <EditPlacementDialog
+                open={isEditDialogOpen}
+                onOpenChange={setIsEditDialogOpen}
+                initialData={selectedRecord}
+                onSuccess={() => {
+                    loadRecords();
+                    setSelectedRecord(null);
+                }}
+            />
 
         </div>
     );

@@ -62,7 +62,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             const jrIds = jrCandidates.map((j: any) => j.jr_id).filter(Boolean);
             const jrCandidateIds = jrCandidates.map((j: any) => j.jr_candidate_id).filter(Boolean);
 
-            let jobMap: Record<string, any> = {};
+            const jobMap: Record<string, any> = {};
             if (jrIds.length > 0) {
                 const { data: jobs, error: jobFetchError } = await adminAuthClient
                     .from('job_requisitions')
@@ -79,7 +79,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             }
 
             // B. Fetch Status Logs Manually
-            let statusMap: Record<string, any> = {};
+            const statusMap: Record<string, any> = {};
             if (jrCandidateIds.length > 0) {
                 const { data: logs, error: statusError } = await adminAuthClient
                     .from('status_log')

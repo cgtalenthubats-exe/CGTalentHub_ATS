@@ -44,6 +44,7 @@ export async function updateN8nConfig(id: number, url: string, method: 'GET' | '
     }
 
     revalidatePath('/admin/n8n');
+    revalidatePath('/settings');
     return { success: true };
 }
 

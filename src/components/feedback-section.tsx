@@ -84,7 +84,7 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback }: Feed
                             </CardHeader>
                             <CardContent className="pt-4 space-y-3">
                                 <p className="text-[13px] text-slate-600 font-medium leading-relaxed italic line-clamp-4">
-                                    "{f.feedback_text}"
+                                    &quot;{f.feedback_text}&quot;
                                 </p>
                                 {f.feedback_file && (
                                     <a

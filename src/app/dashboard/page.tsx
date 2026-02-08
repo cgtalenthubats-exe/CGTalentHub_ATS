@@ -207,8 +207,8 @@ export default function DashboardPage() {
     const filteredSalaryData = useMemo(() => {
         if (!salaryData) return { stats: [], details: [], availableOptions: { industries: [], groups: [], companies: [] } };
 
-        let details = salaryData.details;
-        let finalStats = salaryData.companyStats;
+        const details = salaryData.details;
+        const finalStats = salaryData.companyStats;
 
         const matches = (item: any, exclude?: string) => {
             const mInd = exclude === 'industry' || salaryIndustries.length === 0 || salaryIndustries.includes(item.industry);

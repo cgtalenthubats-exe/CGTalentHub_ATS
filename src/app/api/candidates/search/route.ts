@@ -179,7 +179,7 @@ export async function POST(req: Request) {
         // Fetch experiences ONLY for the displayed page of candidates
         const pageCandidateIds = (profiles as any)?.map((p: any) => p.candidate_id) || [];
 
-        let fullExpQuery = adminAuthClient
+        const fullExpQuery = adminAuthClient
             .from('candidate_experiences')
             .select('*')
             .in('candidate_id', pageCandidateIds)

@@ -55,9 +55,14 @@ import { CandidateAvatar } from "@/components/candidate-avatar";
 
 interface CandidateListProps {
     jrId: string;
+    jobTitle: string;
+    bu: string;
+    subBu: string;
 }
 
-export function CandidateList({ jrId }: CandidateListProps) {
+import { ConfirmPlacementDialog } from "@/components/confirm-placement-dialog";
+
+export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps) {
     const [candidates, setCandidates] = useState<JRCandidate[]>([]);
     const [loading, setLoading] = useState(true);
     const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
@@ -72,6 +77,7 @@ export function CandidateList({ jrId }: CandidateListProps) {
     // Feedback Dialog State
     const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
     const [feedbackCandidate, setFeedbackCandidate] = useState<{ id: string, name: string } | null>(null);
+    const [placementCandidate, setPlacementCandidate] = useState<{ id: string, name: string } | null>(null);
 
     useEffect(() => {
         async function load() {
@@ -94,6 +100,17 @@ export function CandidateList({ jrId }: CandidateListProps) {
     }, [jrId]);
 
     const handleStatusChange = async (jrCandId: string, newStatus: string) => {
+        if (newStatus === 'Successful Placement') {
+            const candidate = candidates.find(c => c.id === jrCandId);
+            if (candidate) {
+                setPlacementCandidate({
+                    id: jrCandId,
+                    name: candidate.candidate_name || "Unknown Candidate"
+                });
+            }
+            return;
+        }
+
         setStatusUpdating(jrCandId);
         const { success, error } = await updateCandidateStatus(jrCandId, newStatus);
         if (success) {
@@ -552,6 +569,23 @@ export function CandidateList({ jrId }: CandidateListProps) {
                     onSuccess={() => {
                         // Optionally refresh list or analytics? 
                         // Feedback doesn't change list status usually, but maybe good to know
+                    }}
+                />
+            )}
+            {placementCandidate && (
+                <ConfirmPlacementDialog
+                    open={!!placementCandidate}
+                    onOpenChange={(open) => !open && setPlacementCandidate(null)}
+                    jrCandidateId={placementCandidate.id}
+                    candidateName={placementCandidate.name}
+                    position={jobTitle}
+                    bu={bu}
+                    subBu={subBu}
+                    onSuccess={async () => {
+                        // Refresh data
+                        const updated = await getJRCandidates(jrId);
+                        setCandidates(updated);
+                        setPlacementCandidate(null);
                     }}
                 />
             )}

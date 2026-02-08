@@ -105,7 +105,7 @@ export default function JobsPage() {
                     {loading ? (
                         <div className="p-10 text-center text-muted-foreground animate-pulse">Loading Requisitions...</div>
                     ) : filteredJobs.length === 0 ? (
-                        <div className="p-10 text-center text-muted-foreground">No jobs found matching "{searchTerm}"</div>
+                        <div className="p-10 text-center text-muted-foreground">No jobs found matching &quot;{searchTerm}&quot;</div>
                     ) : (
                         filteredJobs.map((job) => (
                             <div key={job.jr_id} className="grid grid-cols-12 gap-4 p-3 items-center bg-card hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg transition-all group text-sm border border-transparent hover:border-border hover:shadow-sm">

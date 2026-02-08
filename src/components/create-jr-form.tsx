@@ -55,7 +55,7 @@ function CreatableCombobox({ value, onChange, options, placeholder, allowCustom 
                                         setOpen(false);
                                     }}
                                 >
-                                    <Plus className="h-4 w-4" /> Create "{query}"
+                                    <Plus className="h-4 w-4" /> Create &quot;{query}&quot;
                                 </div>
                             ) : "No results found."}
                         </CommandEmpty>

@@ -4,7 +4,7 @@ declare module 'react-simple-maps' {
     export interface ComposableMapProps {
         width?: number;
         height?: number;
-        projection?: string | Function;
+        projection?: string | ((...args: any[]) => any);
         projectionConfig?: any;
         className?: string;
         style?: any; // React.CSSProperties

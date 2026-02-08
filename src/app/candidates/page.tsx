@@ -84,7 +84,7 @@ export default function CandidatesMenuPage() {
     async function checkConnection() {
         try {
             // Use "Candidate Profile" as verified by debug script
-            let { count, error } = await supabase
+            const { count, error } = await supabase
                 .from('Candidate Profile')
                 .select('*', { count: 'exact', head: true });
 
@@ -173,6 +173,7 @@ export default function CandidatesMenuPage() {
                     icon={Search}
                     color="bg-blue-500"
                     description="AI-powered resume search"
+                    onClick={() => window.location.href = '/ai-search'}
                 />
 
                 {/* 2. Upload Resume */}

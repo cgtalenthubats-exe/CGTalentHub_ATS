@@ -60,7 +60,7 @@ export async function getOrgNodesRaw(uploadId: string): Promise<RawOrgNode[]> {
         .filter(n => n.matched_candidate_id)
         .map(n => n.matched_candidate_id)
 
-    let candidateMap: Record<string, any> = {}
+    const candidateMap: Record<string, any> = {}
 
     if (candidateIds.length > 0) {
         const { data: candidates } = await (supabase
@@ -148,7 +148,7 @@ export async function fetchOrgChartData(uploadId: string) {
         .filter(n => n.matched_candidate_id)
         .map(n => n.matched_candidate_id)
 
-    let candidateMap: Record<string, any> = {}
+    const candidateMap: Record<string, any> = {}
 
     if (candidateIds.length > 0) {
         const { data: candidates } = await (supabase

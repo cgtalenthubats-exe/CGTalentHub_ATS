@@ -22,6 +22,9 @@ import { CandidateAvatar } from "@/components/candidate-avatar";
 
 interface KanbanBoardProps {
     jrId: string;
+    jobTitle: string;
+    bu: string;
+    subBu: string;
 }
 
 type StageType = {
@@ -29,11 +32,14 @@ type StageType = {
     stage_order?: number;
 }
 
-export function KanbanBoard({ jrId }: KanbanBoardProps) {
+import { ConfirmPlacementDialog } from "@/components/confirm-placement-dialog";
+
+export function KanbanBoard({ jrId, jobTitle, bu, subBu }: KanbanBoardProps) {
     const [candidates, setCandidates] = useState<JRCandidate[]>([]);
     const [stages, setStages] = useState<StageType[]>([]);
     const [loading, setLoading] = useState(true);
     const [updatingId, setUpdatingId] = useState<string | null>(null);
+    const [placementCandidate, setPlacementCandidate] = useState<{ id: string, name: string } | null>(null);
 
     useEffect(() => {
         async function load() {
@@ -70,7 +76,19 @@ export function KanbanBoard({ jrId }: KanbanBoardProps) {
 
         if (candidateId) {
             const candidate = candidates.find(c => c.id === candidateId);
-            if (candidate && candidate.status === newStage) return;
+            if (candidate?.status === newStage) return;
+
+            setUpdatingId(candidateId);
+
+            if (newStage === 'Successful Placement') {
+                if (candidate) {
+                    setPlacementCandidate({
+                        id: candidateId,
+                        name: candidate.candidate_name || "Unknown Candidate"
+                    });
+                }
+                return;
+            }
 
             setUpdatingId(candidateId);
 
@@ -89,6 +107,17 @@ export function KanbanBoard({ jrId }: KanbanBoardProps) {
     };
 
     const handleStatusChange = async (candidateId: string, newStatus: string) => {
+        if (newStatus === 'Successful Placement') {
+            const candidate = candidates.find(c => c.id === candidateId);
+            if (candidate) {
+                setPlacementCandidate({
+                    id: candidateId,
+                    name: candidate.candidate_name || "Unknown Candidate"
+                });
+            }
+            return;
+        }
+
         setUpdatingId(candidateId);
         const { success, error } = await updateCandidateStatus(candidateId, newStatus);
         if (success) {
@@ -213,6 +242,23 @@ export function KanbanBoard({ jrId }: KanbanBoardProps) {
                     </div>
                 );
             })}
+            {placementCandidate && (
+                <ConfirmPlacementDialog
+                    open={!!placementCandidate}
+                    onOpenChange={(open) => !open && setPlacementCandidate(null)}
+                    jrCandidateId={placementCandidate.id}
+                    candidateName={placementCandidate.name}
+                    position={jobTitle}
+                    bu={bu}
+                    subBu={subBu}
+                    onSuccess={async () => {
+                        // Refresh data
+                        const updated = await getJRCandidates(jrId);
+                        setCandidates(updated);
+                        setPlacementCandidate(null);
+                    }}
+                />
+            )}
         </div>
     );
 }

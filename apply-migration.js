@@ -19,7 +19,7 @@ async function runMigration() {
         await client.connect();
         console.log("✅ Connected to Database");
 
-        const sqlPath = path.join(__dirname, 'supabase', 'migrations', '20240207_fix_storage_policy.sql');
+        const sqlPath = path.join(__dirname, 'supabase', 'migrations', '20240209_create_ai_search_tables.sql');
         const sql = fs.readFileSync(sqlPath, 'utf8');
 
         console.log("Running Migration...");
