@@ -77,7 +77,7 @@ export async function getRequisition(id: string): Promise<JobRequisition | null>
 
 
 function normalizeStatus(status: string): 'Open' | 'Closed' | 'On Hold' | 'Draft' {
-    const s = status?.toLowerCase();
+    const s = String(status || "").toLowerCase();
     if (s === 'active') return 'Open';
     if (s === 'inactive' || s === 'closed') return 'Closed';
     return 'Open'; // Default

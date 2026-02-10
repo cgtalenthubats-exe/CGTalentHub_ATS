@@ -594,7 +594,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
 }
 
 function getRowStatusClass(status: string) {
-    const s = (status || "").toLowerCase();
+    const s = String(status || "").toLowerCase();
     if (s.includes('pool')) return 'bg-slate-100 text-slate-600 border-slate-200 hover:border-slate-300';
     if (s.includes('screen')) return 'bg-blue-50 text-blue-600 border-blue-100 hover:border-blue-200';
     if (s.includes('interview')) return 'bg-purple-50 text-purple-600 border-purple-100 hover:border-purple-200';
