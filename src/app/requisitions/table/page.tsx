@@ -163,7 +163,6 @@ export default function RequisitionsPage() {
     // --- Dynamic Stats Computation ---
     const stats = useMemo(() => {
         // 1. Identify IDs of Target JRs (Selected OR Filtered)
-        // If selection exists, use selection. Else use filtered.
         const targetJrs = selectedJrIds.size > 0
             ? jrs.filter(j => selectedJrIds.has(j.id))
             : filteredJrs;
@@ -181,13 +180,39 @@ export default function RequisitionsPage() {
         });
         const candidatesByStatus = Object.keys(statusCounts).map(k => ({ status: k, count: statusCounts[k] }));
 
-        // 4. Aging (Mock for now, or use Global Avg)
-        const agingByStage = [
-            { stage: 'Pool', days: 5 },
-            { stage: 'Screen', days: 3 },
-            { stage: 'Interview', days: 12 },
-            { stage: 'Offer', days: 4 },
-        ];
+        // 4. Real Aging Calculation
+        // Formula: For each candidate, find time diff between status changes.
+        const stageTotals: Record<string, { totalDays: number; count: number }> = {};
+        const now = new Date();
+
+        relevantCandidates.forEach(cand => {
+            const logs = [...(cand as any).logs || []].sort((a, b) => a.log_id - b.log_id);
+            if (logs.length === 0) return;
+
+            for (let i = 0; i < logs.length; i++) {
+                const currentLog = logs[i];
+                const nextLog = logs[i + 1];
+
+                const startTime = new Date(currentLog.timestamp);
+                const endTime = nextLog ? new Date(nextLog.timestamp) : now;
+
+                if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) continue;
+
+                const diffDays = Math.max(0, (endTime.getTime() - startTime.getTime()) / (1000 * 3600 * 24));
+                const stage = currentLog.status || "Unk";
+
+                if (!stageTotals[stage]) stageTotals[stage] = { totalDays: 0, count: 0 };
+                stageTotals[stage].totalDays += diffDays;
+                stageTotals[stage].count += 1;
+            }
+        });
+
+        // Map to Chart Format (Limit to top stages if needed, or sort logically)
+        const logicalStages = ["Pool Candidate", "Screening", "Interview", "Offer", "Hired", "Rejected"];
+        const agingByStage = logicalStages.map(stage => ({
+            stage: stage.replace(" Candidate", ""), // Shorten label
+            days: stageTotals[stage] ? Math.round(stageTotals[stage].totalDays / stageTotals[stage].count) : 0
+        })).filter(s => s.days > 0 || statusCounts[s.stage + " Candidate"]); // Show if there's data
 
         return {
             total_jrs: targetJrs.length,
@@ -195,7 +220,12 @@ export default function RequisitionsPage() {
             total_candidates: relevantCandidates.length,
             avg_aging_days: avgAging,
             candidates_by_status: candidatesByStatus,
-            aging_by_stage: agingByStage
+            aging_by_stage: agingByStage.length > 0 ? agingByStage : [
+                { stage: 'Pool', days: 0 },
+                { stage: 'Screen', days: 0 },
+                { stage: 'Interview', days: 0 },
+                { stage: 'Offer', days: 0 },
+            ]
         };
     }, [filteredJrs, selectedJrIds, allCandidates, avgAging, jrs]);
 

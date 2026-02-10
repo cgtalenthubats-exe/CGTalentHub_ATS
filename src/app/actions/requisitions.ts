@@ -217,13 +217,17 @@ export async function createJobRequisition(data: any): Promise<JobRequisition | 
 // Returns just key fields to minimize payload
 // New helper to fetch ALL candidate statuses for client-side aggregation
 // Returns just key fields to minimize payload
-export async function getAllCandidatesSummary(): Promise<{ jr_id: string; status: string }[]> {
+// New helper to fetch ALL candidate statuses and logs for client-side aggregation
+export async function getAllCandidatesSummary(): Promise<{
+    jr_id: string;
+    jr_candidate_id: string;
+    status: string;
+    logs: { status: string; timestamp: string; log_id: number }[]
+}[]> {
     const supabase = adminAuthClient;
     try {
-        // 1. Fetch all JR Candidates (Mapping jr_candidate_id -> jr_id)
+        // 1. Fetch all JR Candidates
         let candidateMap: Record<string, string> = {}; // jr_candidate_id -> jr_id
-
-        // Fetch candidates in chunks to avoid memory/timeout issues
         let from = 0;
         const step = 1000;
         let more = true;
@@ -234,76 +238,63 @@ export async function getAllCandidatesSummary(): Promise<{ jr_id: string; status
                 .select('jr_candidate_id, jr_id')
                 .range(from, from + step - 1);
 
-            if (error) {
-                console.error("Fetch candidates error", error);
-                break;
-            }
+            if (error) break;
 
             if (data && data.length > 0) {
                 data.forEach((d: any) => {
-                    if (d.jr_candidate_id) {
-                        candidateMap[String(d.jr_candidate_id)] = d.jr_id;
-                    }
+                    if (d.jr_candidate_id) candidateMap[String(d.jr_candidate_id)] = d.jr_id;
                 });
-
                 if (data.length < step) more = false;
                 else from += step;
-            } else {
-                more = false;
-            }
+            } else more = false;
         }
 
-        // 2. Fetch Status Logs to determine latest status
-        // We need to iterate all logs to find the one with the highest log_id for each candidate.
-        // This is heavy but necessary if the DB doesn't have a reliable current status column.
-
-        let latestStatusMap: Record<string, { status: string; logId: number }> = {}; // jr_candidate_id -> { status, logId }
+        // 2. Fetch ALL Status Logs
+        let logsMap: Record<string, { status: string; timestamp: string; log_id: number }[]> = {};
         from = 0;
         more = true;
 
         while (more) {
             const { data, error } = await supabase
                 .from('status_log')
-                .select('jr_candidate_id, status, log_id')
+                .select('jr_candidate_id, status, log_id, timestamp')
                 .range(from, from + step - 1);
 
-            if (error) {
-                console.error("Fetch logs error", error);
-                break;
-            }
+            if (error) break;
 
             if (data && data.length > 0) {
                 const logs = data as any[];
                 for (const log of logs) {
                     const cid = String(log.jr_candidate_id);
-                    const logId = typeof log.log_id === 'number' ? log.log_id : parseInt(log.log_id);
-
-                    if (!latestStatusMap[cid] || latestStatusMap[cid].logId < logId) {
-                        latestStatusMap[cid] = { status: log.status, logId };
-                    }
+                    if (!logsMap[cid]) logsMap[cid] = [];
+                    logsMap[cid].push({
+                        status: log.status,
+                        timestamp: log.timestamp,
+                        log_id: typeof log.log_id === 'number' ? log.log_id : parseInt(log.log_id)
+                    });
                 }
-
                 if (data.length < step) more = false;
                 else from += step;
-            } else {
-                more = false;
-            }
+            } else more = false;
         }
 
         // 3. Merge & Result
-        const results: { jr_id: string; status: string }[] = [];
-
-        // Iterate over all known candidates
+        const results: any[] = [];
         Object.keys(candidateMap).forEach(cid => {
             const jr_id = candidateMap[cid];
+            const cLogs = logsMap[cid] || [];
 
-            // Get derived status or fallback
-            // Note: If no log exists, we fallback to 'Pool Candidate' (or maybe check temp_status if really needed, but user said temp_status is Pool)
-            const statusObj = latestStatusMap[cid];
-            const status = statusObj ? statusObj.status : "Pool Candidate";
+            // Sort logs by log_id or timestamp to find current status
+            const sortedLogs = [...cLogs].sort((a, b) => a.log_id - b.log_id);
+            const currentStatus = sortedLogs.length > 0 ? sortedLogs[sortedLogs.length - 1].status : "Pool Candidate";
 
             if (jr_id) {
-                results.push({ jr_id, status });
+                results.push({
+                    jr_id,
+                    jr_candidate_id: cid,
+                    status: currentStatus,
+                    logs: sortedLogs
+                });
             }
         });
 
