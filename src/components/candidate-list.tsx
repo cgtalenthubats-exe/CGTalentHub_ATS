@@ -98,6 +98,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
         }
         if (jrId) load();
         console.log("ATS System: CandidateList Loaded (Safe Version - Fix Applied) ✅");
+        // Manual Sync Trigger: Confirmed Local-Remote Parity
     }, [jrId]);
 
     const handleStatusChange = async (jrCandId: string, newStatus: string) => {
