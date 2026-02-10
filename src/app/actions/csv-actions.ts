@@ -11,6 +11,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 interface CsvRow {
     Name?: string;
     LinkedIn?: string;
+    Email?: string;
     [key: string]: any;
 }
 
@@ -42,15 +43,18 @@ function normalizeLinkedIn(url: string): string {
     }
 }
 
+function normalizeEmail(email: string): string {
+    return email ? email.trim().toLowerCase() : "";
+}
+
 export async function processCsvUpload(rows: CsvRow[], uploaderEmail: string) {
     const batchId = uuidv4();
     const logs: UploadLog[] = [];
 
     // 1. Validation & Pre-processing (Identify who needs an ID)
-    const validRowsToProcess: { name: string, linkedin: string, rowIdx: number }[] = [];
+    const validRowsToProcess: { name: string, linkedin: string, email: string, rowIdx: number }[] = [];
 
-    // 1. Validation & Pre-processing
-    // Extract Names and LinkedIns for targeted DB Query (Avoid fetching entire DB)
+    // Extract Names, LinkedIns, and Emails for targeted DB Query
     const allNames = rows.map(r => {
         const val = r['Name'] || r['name'] || Object.keys(r).find(k => k.trim().toLowerCase() === 'name') ? r[Object.keys(r).find(k => k.trim().toLowerCase() === 'name')!] : '';
         return normalizeName(val || "");
@@ -61,14 +65,19 @@ export async function processCsvUpload(rows: CsvRow[], uploaderEmail: string) {
         return normalizeLinkedIn(val || "");
     }).filter(l => l.length > 0 && l.toLowerCase().includes("linkedin"));
 
+    const allEmails = rows.map(r => {
+        const val = r['Email'] || r['email'] || Object.keys(r).find(k => k.trim().toLowerCase() === 'email') ? r[Object.keys(r).find(k => k.trim().toLowerCase() === 'email')!] : '';
+        return normalizeEmail(val || "");
+    }).filter(e => e.length > 0);
+
     // Fetch ONLY relevant existing candidates
     let existingCandidates: any[] = [];
-    if (allNames.length > 0 || allLinkedIns.length > 0) {
+    if (allNames.length > 0 || allLinkedIns.length > 0 || allEmails.length > 0) {
         // Query by Name
         if (allNames.length > 0) {
             const { data: nameMatches } = await supabase
                 .from('Candidate Profile' as any)
-                .select('candidate_id, name, linkedin')
+                .select('candidate_id, name, linkedin, email')
                 .in('name', allNames);
             if (nameMatches) existingCandidates.push(...nameMatches);
         }
@@ -77,9 +86,18 @@ export async function processCsvUpload(rows: CsvRow[], uploaderEmail: string) {
         if (allLinkedIns.length > 0) {
             const { data: linkedinMatches } = await supabase
                 .from('Candidate Profile' as any)
-                .select('candidate_id, name, linkedin')
+                .select('candidate_id, name, linkedin, email')
                 .in('linkedin', allLinkedIns);
             if (linkedinMatches) existingCandidates.push(...linkedinMatches);
+        }
+
+        // Query by Email
+        if (allEmails.length > 0) {
+            const { data: emailMatches } = await supabase
+                .from('Candidate Profile' as any)
+                .select('candidate_id, name, linkedin, email')
+                .in('email', allEmails);
+            if (emailMatches) existingCandidates.push(...emailMatches);
         }
 
         // Dedup results based on ID and Sort by ID ASC to prioritize oldest candidate
@@ -91,11 +109,13 @@ export async function processCsvUpload(rows: CsvRow[], uploaderEmail: string) {
     for (const [index, row] of rows.entries()) {
         const rawName = row['Name'] || row['name'] || Object.keys(row).find(k => k.trim().toLowerCase() === 'name') ? row[Object.keys(row).find(k => k.trim().toLowerCase() === 'name')!] : '';
         const rawLinkedIn = row['LinkedIn'] || row['linkedin'] || row['LinkedIn '] || Object.keys(row).find(k => k.trim().toLowerCase().includes('linkedin')) ? row[Object.keys(row).find(k => k.trim().toLowerCase().includes('linkedin'))!] : '';
+        const rawEmail = row['Email'] || row['email'] || Object.keys(row).find(k => k.trim().toLowerCase() === 'email') ? row[Object.keys(row).find(k => k.trim().toLowerCase() === 'email')!] : '';
 
         if (!rawName) continue; // Skip empty rows
 
         const name = normalizeName(rawName);
         const linkedin = normalizeLinkedIn(rawLinkedIn);
+        const email = normalizeEmail(rawEmail);
 
         let status = "Processing";
         let note = "";
@@ -108,10 +128,13 @@ export async function processCsvUpload(rows: CsvRow[], uploaderEmail: string) {
             continue;
         }
 
-        // Duplicate Check (DB) - Fix implicit any type
+        // Duplicate Check (DB)
         const duplicate = existingCandidates?.find((c: any) => {
-            return normalizeName(c.name || "").toLowerCase() === name.toLowerCase() ||
-                normalizeLinkedIn(c.linkedin || "").toLowerCase() === linkedin.toLowerCase();
+            const nameMatch = normalizeName(c.name || "").toLowerCase() === name.toLowerCase();
+            const linkedinMatch = c.linkedin && normalizeLinkedIn(c.linkedin).toLowerCase() === linkedin.toLowerCase();
+            const emailMatch = c.email && normalizeEmail(c.email) === email && email !== "";
+
+            return nameMatch || linkedinMatch || emailMatch;
         });
 
         if (duplicate) {
@@ -123,7 +146,12 @@ export async function processCsvUpload(rows: CsvRow[], uploaderEmail: string) {
         }
 
         // Duplicate Check (In-Batch)
-        const inBatchDuplicate = validRowsToProcess.find(r => r.name.toLowerCase() === name.toLowerCase() || r.linkedin.toLowerCase() === linkedin.toLowerCase());
+        const inBatchDuplicate = validRowsToProcess.find(r =>
+            r.name.toLowerCase() === name.toLowerCase() ||
+            (r.linkedin && r.linkedin.toLowerCase() === linkedin.toLowerCase()) ||
+            (r.email && r.email === email && email !== "")
+        );
+
         if (inBatchDuplicate) {
             status = "Duplicate found";
             note = "Found duplicate in batch";
@@ -132,11 +160,9 @@ export async function processCsvUpload(rows: CsvRow[], uploaderEmail: string) {
         }
 
         // Duplicate Check (Active Uploads)
-        // Fetching all currently processing items to avoid complex OR query construction for every row
-        // This is safe as the number of simultaneous active uploads is expected to be reasonable.
         const { data: activeLogs } = await supabase
             .from('csv_upload_logs')
-            .select('name, linkedin')
+            .select('name, linkedin') // Note: logs might not have email, using Name/LinkedIn primarily
             .in('status', ['Scraping', 'Processing', 'PENDING']);
 
         const isProcessing = activeLogs?.some((log: any) =>
@@ -152,7 +178,7 @@ export async function processCsvUpload(rows: CsvRow[], uploaderEmail: string) {
         }
 
         // If valid and new, add to processing list
-        validRowsToProcess.push({ name, linkedin, rowIdx: index });
+        validRowsToProcess.push({ name, linkedin, email, rowIdx: index });
     }
 
     // 2. Reserve IDs Atomically (Concurrency Safe)
@@ -180,6 +206,7 @@ export async function processCsvUpload(rows: CsvRow[], uploaderEmail: string) {
                 candidate_id: candidateId,
                 name: item.name,
                 linkedin: item.linkedin,
+                email: item.email || null, // Insert email if available
                 created_date: new Date().toISOString(),
                 modify_date: new Date().toISOString()
             });
@@ -215,7 +242,8 @@ export async function processCsvUpload(rows: CsvRow[], uploaderEmail: string) {
             candidates: newCandidatesForInsert.map(c => ({
                 id: c.candidate_id,
                 name: c.name,
-                linkedin: c.linkedin
+                linkedin: c.linkedin,
+                email: c.email
             }))
         };
 

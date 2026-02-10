@@ -146,6 +146,7 @@ export default function PlacementsPage() {
                                 <TableRow className="hover:bg-transparent border-slate-100">
                                     <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6 pl-8">JR ID & Position</TableHead>
                                     <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6">Candidate Name</TableHead>
+                                    <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6">DOB | Age</TableHead>
                                     <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6">Business Unit</TableHead>
                                     <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6">Salary Info</TableHead>
                                     <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6">Fee (20%)</TableHead>
@@ -175,6 +176,16 @@ export default function PlacementsPage() {
                                                     {r.candidate_name?.charAt(0)}
                                                 </div>
                                                 <span className="font-bold text-slate-800">{r.candidate_name}</span>
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            <div className="flex flex-col">
+                                                <span className="text-xs font-bold text-slate-700">
+                                                    {r.date_of_birth ? new Date(r.date_of_birth).toLocaleDateString('en-GB') : '-'}
+                                                </span>
+                                                <span className="text-[10px] font-medium text-slate-400">
+                                                    {r.date_of_birth ? `${new Date().getFullYear() - new Date(r.date_of_birth).getFullYear()} yrs` : ''}
+                                                </span>
                                             </div>
                                         </TableCell>
                                         <TableCell>

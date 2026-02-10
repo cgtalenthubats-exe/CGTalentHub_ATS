@@ -1,42 +1,78 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getJobRequisitions, getJRStats } from "@/app/actions/requisitions";
-import { JobRequisition, DashboardStats } from "@/types/requisition";
+import { useEffect, useState, useMemo } from "react";
+import { getJobRequisitions, getAllCandidatesSummary, getAgingSummary, getUserProfiles } from "@/app/actions/requisitions";
+import { JobRequisition } from "@/types/requisition";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Users, Clock, Briefcase, Filter, TrendingUp } from "lucide-react";
+import { Search, Plus, Users, Clock, Briefcase, Filter, TrendingUp, ArrowUpDown, Copy, MoreHorizontal, FileText, CheckSquare, Square } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, PieChart, Pie
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { CreateJobRequisitionForm } from "@/components/create-jr-form";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { CopyJRDialog } from "@/components/copy-jr-dialog";
+import { useRouter } from "next/navigation";
 
 export default function RequisitionsPage() {
+    const router = useRouter();
     const [jrs, setJrs] = useState<JobRequisition[]>([]);
-    const [stats, setStats] = useState<DashboardStats | null>(null);
+
+    // Data for Client-Side Aggregation
+    const [allCandidates, setAllCandidates] = useState<{ jr_id: string; status: string }[]>([]);
+    const [avgAging, setAvgAging] = useState<number>(0);
+    const [userProfiles, setUserProfiles] = useState<Record<string, string>>({}); // email -> real_name
+
     const [loading, setLoading] = useState(true);
     const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+    // Copy Dialog State
+    const [copyDialogOpen, setCopyDialogOpen] = useState(false);
+    const [jrToCopy, setJrToCopy] = useState<JobRequisition | null>(null);
 
     // Filters
     const [search, setSearch] = useState("");
     const [filterBu, setFilterBu] = useState<string[]>([]);
     const [filterSubBu, setFilterSubBu] = useState<string[]>([]);
     const [filterPosition, setFilterPosition] = useState<string[]>([]);
-    const [filterStatus, setFilterStatus] = useState<string[]>([]);
+    const [filterJrType, setFilterJrType] = useState<string[]>([]);
     const [filterIsActive, setFilterIsActive] = useState<string[]>([]);
+    const [filterCreatedBy, setFilterCreatedBy] = useState<string[]>([]); // New Filter
+
+    // Selection
+    const [selectedJrIds, setSelectedJrIds] = useState<Set<string>>(new Set());
+
+    // Sorting
+    const [sortConfig, setSortConfig] = useState<{ key: keyof JobRequisition; direction: 'asc' | 'desc' } | null>({ key: 'id', direction: 'desc' });
 
     useEffect(() => {
         async function load() {
             setLoading(true);
             try {
-                const [dJrs, dStats] = await Promise.all([getJobRequisitions(), getJRStats()]);
+                // Fetch Data needed for Client-Side Aggregation
+                const [dJrs, dCandidates, dAging, dProfiles] = await Promise.all([
+                    getJobRequisitions(),
+                    getAllCandidatesSummary(),
+                    getAgingSummary(),
+                    getUserProfiles()
+                ]);
                 setJrs(dJrs);
-                setStats(dStats);
+                setAllCandidates(dCandidates);
+                setAvgAging(dAging);
+
+                // Map profiles
+                const profileMap: Record<string, string> = {};
+                dProfiles.forEach(p => {
+                    if (p.email) profileMap[p.email] = p.real_name || p.email;
+                });
+                setUserProfiles(profileMap);
+
             } catch (error) {
                 console.error("Failed to load JRs", error);
             }
@@ -54,25 +90,131 @@ export default function RequisitionsPage() {
         }
     };
 
+    const toggleSelection = (id: string) => {
+        const newSet = new Set(selectedJrIds);
+        if (newSet.has(id)) newSet.delete(id);
+        else newSet.add(id);
+        setSelectedJrIds(newSet);
+    };
+
+    const toggleAllSelection = () => {
+        if (selectedJrIds.size === filteredJrs.length) {
+            setSelectedJrIds(new Set());
+        } else {
+            setSelectedJrIds(new Set(filteredJrs.map(j => j.id)));
+        }
+    };
+
     // Filter Logic
-    const filteredJrs = jrs.filter(jr => {
-        const mSearch = !search || jr.id.toLowerCase().includes(search.toLowerCase());
-        const mPosition = filterPosition.length === 0 || filterPosition.includes(jr.job_title);
-        const mBu = filterBu.length === 0 || filterBu.includes(jr.division);
-        const mSubBu = filterSubBu.length === 0 || filterSubBu.includes(jr.department);
-        const mStatus = filterStatus.length === 0 || filterStatus.includes(jr.status);
-        const mActive = filterIsActive.length === 0 || filterIsActive.includes(jr.is_active ? 'Active' : 'Inactive');
-        return mSearch && mPosition && mBu && mSubBu && mStatus && mActive;
-    });
+    const filteredJrs = useMemo(() => {
+        return jrs.filter(jr => {
+            const mSearch = !search || jr.id.toLowerCase().includes(search.toLowerCase());
+            const mPosition = filterPosition.length === 0 || filterPosition.includes(jr.job_title);
+            const mBu = filterBu.length === 0 || filterBu.includes(jr.division);
+            const mSubBu = filterSubBu.length === 0 || filterSubBu.includes(jr.department);
+            const mType = filterJrType.length === 0 || filterJrType.includes(jr.jr_type || 'New');
+            const mActive = filterIsActive.length === 0 || filterIsActive.includes(jr.is_active ? 'Active' : 'Inactive');
+
+            // Creator Filter
+            // jr.created_by is email. We filter by Real Name if possible.
+            // filterCreatedBy contains Real Names (from options).
+            const creatorName = userProfiles[jr.created_by || ""] || jr.created_by || "System";
+            const mCreator = filterCreatedBy.length === 0 || filterCreatedBy.includes(creatorName);
+
+            return mSearch && mPosition && mBu && mSubBu && mType && mActive && mCreator;
+        });
+    }, [jrs, search, filterPosition, filterBu, filterSubBu, filterJrType, filterIsActive, filterCreatedBy, userProfiles]);
+
+    // Sorting Logic
+    const sortedJrs = useMemo(() => {
+        const sorted = [...filteredJrs].sort((a, b) => {
+            if (!sortConfig) return 0;
+            const { key, direction } = sortConfig;
+
+            let valA = a[key] as any;
+            let valB = b[key] as any;
+
+            if (key === 'id') {
+                const numA = parseInt(valA.replace('JR', ''), 10);
+                const numB = parseInt(valB.replace('JR', ''), 10);
+                if (!isNaN(numA) && !isNaN(numB)) {
+                    return direction === 'asc' ? numA - numB : numB - numA;
+                }
+            }
+
+            if (typeof valA === 'string') valA = valA.toLowerCase();
+            if (typeof valB === 'string') valB = valB.toLowerCase();
+
+            if (valA < valB) return direction === 'asc' ? -1 : 1;
+            if (valA > valB) return direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+        return sorted;
+    }, [filteredJrs, sortConfig]);
+
+    const requestSort = (key: keyof JobRequisition) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
+    // --- Dynamic Stats Computation ---
+    const stats = useMemo(() => {
+        // 1. Identify IDs of Target JRs (Selected OR Filtered)
+        // If selection exists, use selection. Else use filtered.
+        const targetJrs = selectedJrIds.size > 0
+            ? jrs.filter(j => selectedJrIds.has(j.id))
+            : filteredJrs;
+
+        const targetJrIds = new Set(targetJrs.map(j => j.id));
+
+        // 2. Filter Candidates based on JRs
+        const relevantCandidates = allCandidates.filter(c => targetJrIds.has(c.jr_id));
+
+        // 3. Status Grouping
+        const statusCounts: Record<string, number> = {};
+        relevantCandidates.forEach(c => {
+            const s = c.status || "Pool Candidate";
+            statusCounts[s] = (statusCounts[s] || 0) + 1;
+        });
+        const candidatesByStatus = Object.keys(statusCounts).map(k => ({ status: k, count: statusCounts[k] }));
+
+        // 4. Aging (Mock for now, or use Global Avg)
+        const agingByStage = [
+            { stage: 'Pool', days: 5 },
+            { stage: 'Screen', days: 3 },
+            { stage: 'Interview', days: 12 },
+            { stage: 'Offer', days: 4 },
+        ];
+
+        return {
+            total_jrs: targetJrs.length,
+            active_jrs: targetJrs.filter(j => j.is_active).length,
+            total_candidates: relevantCandidates.length,
+            avg_aging_days: avgAging,
+            candidates_by_status: candidatesByStatus,
+            aging_by_stage: agingByStage
+        };
+    }, [filteredJrs, selectedJrIds, allCandidates, avgAging, jrs]);
+
 
     // Unique Options
     const optPosition = Array.from(new Set(jrs.map(j => j.job_title))).sort();
     const optBu = Array.from(new Set(jrs.map(j => j.division))).sort();
     const optSubBu = Array.from(new Set(jrs.map(j => j.department))).sort();
-    const optStatus = ["Open", "Closed", "On Hold", "Draft"];
+    const optJrType = ["New", "Replacement"];
     const optIsActive = ["Active", "Inactive"];
+    const optCreatedBy = Array.from(new Set(jrs.map(j => userProfiles[j.created_by || ""] || j.created_by || "System"))).sort();
 
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
+
+    // Handle Copy
+    const handleCopyClick = (jr: JobRequisition) => {
+        setJrToCopy(jr);
+        setCopyDialogOpen(true);
+    };
 
     return (
         <div className="container mx-auto p-6 space-y-8 min-h-screen bg-slate-50/50">
@@ -85,7 +227,10 @@ export default function RequisitionsPage() {
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight text-slate-900">Job Requisition Table</h1>
-                    <p className="text-slate-500 mt-1">Overview of all requisitions and their pipeline status.</p>
+                    <p className="text-slate-500 mt-1">
+                        Overview of all requisitions and their pipeline status.
+                        {selectedJrIds.size > 0 && <span className="ml-2 font-medium text-blue-600">(Analyzing {selectedJrIds.size} selected items)</span>}
+                    </p>
                 </div>
                 <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                     <DialogTrigger asChild>
@@ -102,7 +247,6 @@ export default function RequisitionsPage() {
                             onCancel={() => setIsCreateOpen(false)}
                             onSuccess={(newJR) => {
                                 setIsCreateOpen(false);
-                                // Ideally append to JRs list or refetch
                                 setJrs(prev => [newJR, ...prev]);
                             }}
                         />
@@ -111,58 +255,54 @@ export default function RequisitionsPage() {
             </div>
 
             {/* --- DASHBOARD SECTION --- */}
-            {stats && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <SummaryCard title="Total Requisitions" value={stats.total_jrs} icon={Briefcase} color="text-blue-600" />
-                    <SummaryCard title="Active Openings" value={stats.active_jrs} icon={TrendingUp} color="text-green-600" />
-                    <SummaryCard title="Total Candidates" value={stats.total_candidates} icon={Users} color="text-purple-600" />
-                    <SummaryCard title="Avg Aging (Days)" value={stats.avg_aging_days} icon={Clock} color="text-orange-600" />
-                </div>
-            )}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <SummaryCard title="Total Requisitions" value={stats.total_jrs} icon={Briefcase} color="text-blue-600" />
+                <SummaryCard title="Active Openings" value={stats.active_jrs} icon={TrendingUp} color="text-green-600" />
+                <SummaryCard title="Total Candidates" value={stats.total_candidates} icon={Users} color="text-purple-600" />
+                <SummaryCard title="Avg Aging (Days)" value={stats.avg_aging_days} icon={Clock} color="text-orange-600" />
+            </div>
 
-            {stats && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[400px]">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Candidates by Status</CardTitle>
-                            <CardDescription>Current volume across all active pipelines</CardDescription>
-                        </CardHeader>
-                        <CardContent className="h-[300px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={stats.candidates_by_status} layout="vertical" margin={{ left: 20 }}>
-                                    <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                                    <XAxis type="number" hide />
-                                    <YAxis dataKey="status" type="category" width={80} tick={{ fontSize: 12 }} />
-                                    <Tooltip cursor={{ fill: 'transparent' }} />
-                                    <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]}>
-                                        {stats.candidates_by_status.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </CardContent>
-                    </Card>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[400px]">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Candidates by Status</CardTitle>
+                        <CardDescription>Volume across {selectedJrIds.size > 0 ? 'selected' : 'active (filtered)'} pipelines</CardDescription>
+                    </CardHeader>
+                    <CardContent className="h-[300px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={stats.candidates_by_status} layout="vertical" margin={{ left: 20 }}>
+                                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                <XAxis type="number" hide />
+                                <YAxis dataKey="status" type="category" width={100} tick={{ fontSize: 11 }} />
+                                <Tooltip cursor={{ fill: 'transparent' }} />
+                                <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]}>
+                                    {stats.candidates_by_status.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </CardContent>
+                </Card>
 
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Aging Analysis</CardTitle>
-                            <CardDescription>Average days candidates spend in each stage</CardDescription>
-                        </CardHeader>
-                        <CardContent className="h-[300px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={stats.aging_by_stage}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                    <XAxis dataKey="stage" tick={{ fontSize: 12 }} />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Bar dataKey="days" fill="#f97316" radius={[4, 4, 0, 0]} barSize={50} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </CardContent>
-                    </Card>
-                </div>
-            )}
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Aging Analysis</CardTitle>
+                        <CardDescription>Average days candidates spend in each stage</CardDescription>
+                    </CardHeader>
+                    <CardContent className="h-[300px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={stats.aging_by_stage}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                <XAxis dataKey="stage" tick={{ fontSize: 12 }} />
+                                <YAxis />
+                                <Tooltip />
+                                <Bar dataKey="days" fill="#f97316" radius={[4, 4, 0, 0]} barSize={50} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </CardContent>
+                </Card>
+            </div>
 
             {/* --- LIST SECTION --- */}
             <Card>
@@ -200,12 +340,20 @@ export default function RequisitionsPage() {
                                 onChange={(v: string) => toggle(filterSubBu, v, setFilterSubBu)}
                                 icon={Briefcase}
                             />
+                            {/* Created By Filter */}
                             <FilterMultiSelect
-                                label="Status"
-                                options={optStatus}
-                                selected={filterStatus}
-                                onChange={(v: string) => toggle(filterStatus, v, setFilterStatus)}
-                                icon={Filter}
+                                label="Created By"
+                                options={optCreatedBy}
+                                selected={filterCreatedBy}
+                                onChange={(v: string) => toggle(filterCreatedBy, v, setFilterCreatedBy)}
+                                icon={Users}
+                            />
+                            <FilterMultiSelect
+                                label="JR Type"
+                                options={optJrType}
+                                selected={filterJrType}
+                                onChange={(v: string) => toggle(filterJrType, v, setFilterJrType)}
+                                icon={FileText}
                             />
                             <FilterMultiSelect
                                 label="Active?"
@@ -216,10 +364,11 @@ export default function RequisitionsPage() {
                             />
                         </div>
                         {/* Clear Filters Button */}
-                        {(filterPosition.length > 0 || filterBu.length > 0 || filterSubBu.length > 0 || filterStatus.length > 0 || filterIsActive.length > 0) && (
+                        {(filterPosition.length > 0 || filterBu.length > 0 || filterSubBu.length > 0 || filterJrType.length > 0 || filterIsActive.length > 0 || filterCreatedBy.length > 0) && (
                             <div className="flex justify-end">
                                 <Button variant="ghost" size="sm" onClick={() => {
-                                    setFilterPosition([]); setFilterBu([]); setFilterSubBu([]); setFilterStatus([]); setFilterIsActive([]); setSearch("");
+                                    setFilterPosition([]); setFilterBu([]); setFilterSubBu([]); setFilterJrType([]); setFilterIsActive([]); setFilterCreatedBy([]); setSearch("");
+                                    setSelectedJrIds(new Set());
                                 }} className="text-destructive h-8 px-2">
                                     Clear All Filters
                                 </Button>
@@ -232,32 +381,48 @@ export default function RequisitionsPage() {
                         <table className="w-full text-sm">
                             <thead className="bg-muted/50">
                                 <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">JR ID</th>
-                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Position</th>
-                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">BU</th>
-                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Sub BU</th>
+                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-[40px]">
+                                        <Checkbox
+                                            checked={selectedJrIds.size === filteredJrs.length && filteredJrs.length > 0}
+                                            onCheckedChange={toggleAllSelection}
+                                        />
+                                    </th>
+                                    <SortableHeader label="JR ID" sortKey="id" currentSort={sortConfig} onSort={requestSort} />
+                                    <SortableHeader label="Position" sortKey="job_title" currentSort={sortConfig} onSort={requestSort} />
+                                    <SortableHeader label="BU" sortKey="division" currentSort={sortConfig} onSort={requestSort} />
+                                    <SortableHeader label="Sub BU" sortKey="department" currentSort={sortConfig} onSort={requestSort} />
+                                    <SortableHeader label="Created By" sortKey="created_by" currentSort={sortConfig} onSort={requestSort} />
                                     <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Candidates</th>
-                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Status</th>
-                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Active</th>
+                                    <SortableHeader label="Type" sortKey="jr_type" currentSort={sortConfig} onSort={requestSort} />
+                                    <SortableHeader label="Active" sortKey="is_active" currentSort={sortConfig} onSort={requestSort} />
                                     <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {loading ? (
                                     <tr>
-                                        <td colSpan={8} className="p-8 text-center text-muted-foreground">Loading requisitions...</td>
+                                        <td colSpan={10} className="p-8 text-center text-muted-foreground">Loading requisitions...</td>
                                     </tr>
-                                ) : filteredJrs.length === 0 ? (
+                                ) : sortedJrs.length === 0 ? (
                                     <tr>
-                                        <td colSpan={8} className="p-8 text-center text-muted-foreground">No requisitions found matching filters.</td>
+                                        <td colSpan={10} className="p-8 text-center text-muted-foreground">No requisitions found matching filters.</td>
                                     </tr>
                                 ) : (
-                                    filteredJrs.map((jr) => (
+                                    sortedJrs.map((jr) => (
                                         <tr key={jr.id} className="border-b transition-colors hover:bg-muted/50">
+                                            <td className="p-4">
+                                                <Checkbox
+                                                    checked={selectedJrIds.has(jr.id)}
+                                                    onCheckedChange={() => toggleSelection(jr.id)}
+                                                />
+                                            </td>
                                             <td className="p-4 font-mono font-medium">{jr.id}</td>
                                             <td className="p-4 font-semibold">{jr.job_title}</td>
                                             <td className="p-4 text-muted-foreground">{jr.division}</td>
                                             <td className="p-4 text-muted-foreground">{jr.department}</td>
+                                            <td className="p-4 text-sm text-muted-foreground">
+                                                {userProfiles[jr.created_by || ""] || jr.created_by || "-"}
+                                            </td>
                                             <td className="p-4">
                                                 <div className="flex items-center gap-2">
                                                     <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -270,7 +435,7 @@ export default function RequisitionsPage() {
                                                 </div>
                                             </td>
                                             <td className="p-4">
-                                                <StatusBadge status={jr.status} />
+                                                <Badge variant="outline">{jr.jr_type || 'New'}</Badge>
                                             </td>
                                             <td className="p-4">
                                                 <Badge variant={jr.is_active ? "default" : "secondary"} className={jr.is_active ? "bg-green-600 hover:bg-green-700" : ""}>
@@ -278,7 +443,21 @@ export default function RequisitionsPage() {
                                                 </Badge>
                                             </td>
                                             <td className="p-4 text-right">
-                                                <Button variant="outline" size="sm" className="h-8">View</Button>
+                                                <DropdownMenu>
+                                                    <DropdownMenuTrigger asChild>
+                                                        <Button variant="ghost" className="h-8 w-8 p-0">
+                                                            <MoreHorizontal className="h-4 w-4" />
+                                                        </Button>
+                                                    </DropdownMenuTrigger>
+                                                    <DropdownMenuContent align="end">
+                                                        <DropdownMenuItem onClick={() => router.push(`/requisitions/manage?selected=${jr.id}`)}>
+                                                            View Details
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={() => handleCopyClick(jr)}>
+                                                            <Copy className="mr-2 h-4 w-4" /> Copy Job Requisition
+                                                        </DropdownMenuItem>
+                                                    </DropdownMenuContent>
+                                                </DropdownMenu>
                                             </td>
                                         </tr>
                                     ))
@@ -288,6 +467,24 @@ export default function RequisitionsPage() {
                     </div>
                 </CardContent>
             </Card>
+
+            {/* Copy Dialog */}
+            {copyDialogOpen && jrToCopy && (
+                <CopyJRDialog
+                    open={copyDialogOpen}
+                    onOpenChange={setCopyDialogOpen}
+                    sourceJR={jrToCopy}
+                    onSuccess={(newId) => {
+                        // Refresh data
+                        setLoading(true);
+                        getJobRequisitions().then(d => {
+                            setJrs(d);
+                            setLoading(false);
+                        });
+                        // Trigger stats re-calc via state update
+                    }}
+                />
+            )}
         </div>
     );
 }
@@ -317,5 +514,19 @@ function StatusBadge({ status }: { status: string }) {
         <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${styles[status] || styles['Draft']}`}>
             {status}
         </span>
+    );
+}
+
+function SortableHeader({ label, sortKey, currentSort, onSort }: any) {
+    return (
+        <th
+            className="h-12 px-4 text-left align-middle font-medium text-muted-foreground cursor-pointer hover:text-foreground group"
+            onClick={() => onSort(sortKey)}
+        >
+            <div className="flex items-center gap-1">
+                {label}
+                <ArrowUpDown className={`h-3 w-3 ${currentSort?.key === sortKey ? 'text-primary' : 'text-transparent group-hover:text-muted-foreground'}`} />
+            </div>
+        </th>
     );
 }

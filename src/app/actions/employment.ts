@@ -15,7 +15,31 @@ export async function getEmploymentRecords(status: 'Active' | 'Resigned') {
         console.error(`Error fetching ${status} employment records:`, error);
         return [];
     }
-    return data || [];
+
+    // Manual fetch of DOBs for candidates
+    const records = data || [];
+    if (records.length > 0) {
+        const candidateIds = records.map((r: any) => r.candidate_id).filter(Boolean);
+
+        if (candidateIds.length > 0) {
+            const { data: profiles, error: profileError } = await supabase
+                .from('candidate_profile')
+                .select('candidate_id, date_of_birth')
+                .in('candidate_id', candidateIds);
+
+            if (!profileError && profiles) {
+                const dobMap = new Map(profiles.map((p: any) => [p.candidate_id, p.date_of_birth]));
+                // Merge DOB into records
+                records.forEach((r: any) => {
+                    if (r.candidate_id) {
+                        r.date_of_birth = dobMap.get(r.candidate_id) || null;
+                    }
+                });
+            }
+        }
+    }
+
+    return records;
 }
 
 export async function markAsResigned(id: string, resignData: {

@@ -16,6 +16,8 @@ export interface JobRequisition {
     created_at: string;
     updated_at: string;
     title: string; // Alias for job_title
+    jr_type: string; // New or Replacement
+    created_by?: string;
 }
 
 export interface JRCandidate {

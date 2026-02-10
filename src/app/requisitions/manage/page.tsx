@@ -154,7 +154,7 @@ export default function JRManagePage() {
                 {/* Header / Switcher Bar */}
                 <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4 border-b pb-6">
                     <div className="flex flex-col gap-2">
-                        <h1 className="text-2xl font-bold tracking-tight text-foreground">Pipeline Management</h1>
+                        <h1 className="text-2xl font-bold tracking-tight text-foreground">Job Requisition Manage</h1>
                         <div className="flex gap-4 items-center">
                             <JRSwitcher
                                 selectedId={selectedJR?.id}
