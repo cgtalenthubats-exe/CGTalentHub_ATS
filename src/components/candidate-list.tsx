@@ -97,6 +97,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
             setLoading(false);
         }
         if (jrId) load();
+        console.log("ATS System: CandidateList Loaded (Safe Version - Fix Applied) ✅");
     }, [jrId]);
 
     const handleStatusChange = async (jrCandId: string, newStatus: string) => {
