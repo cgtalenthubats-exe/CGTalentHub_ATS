@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@supabase/supabase-js";
+import { v4 as uuidv4 } from 'uuid';
 import { getN8nUrl } from "./admin-actions";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -10,21 +11,23 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // --- 1. Submit Search ---
 export async function submitSearch(query: string, userEmail: string = "sumethwork@gmail.com") {
     try {
+        const sessionId = uuidv4();
         // 1. Create a Search Job entry
         const { data: job, error: jobError } = await supabase
             .from('search_jobs')
             .insert([
                 {
+                    session_id: sessionId,
                     original_query: query,
                     user_email: userEmail,
                     status: 'processing'
                 }
             ])
-            .select('session_id')
+            .select()
             .single();
 
         if (jobError) throw jobError;
-        const sessionId = job.session_id;
+        // sessionId is already defined above and matched by the select result
 
         // 2. Get n8n Webhook URL
         const config = await getN8nUrl('Candidate Search');
@@ -62,6 +65,15 @@ export async function submitSearch(query: string, userEmail: string = "sumethwor
             await supabase.from('search_jobs').update({ status: 'failed', report: { error: `Webhook Error: ${response.statusText}` } }).eq('session_id', sessionId);
             return { success: false, error: `Failed to trigger n8n: ${response.statusText}` };
         }
+
+        // 4. Initialize Status Rows for Pipeline
+        const sources = ['Internal_db', 'external_db', 'linkedin_db'];
+        const statusRows = sources.map(src => ({
+            session_id: sessionId,
+            source: src,
+            summary_agent_1: 'Waiting...'
+        }));
+        await supabase.from('search_job_status').insert(statusRows);
 
         return { success: true, sessionId };
 
@@ -159,6 +171,22 @@ export async function getExternalCandidateDetails(extCandidateId: string) {
 
     } catch (error: any) {
         console.error("Get Ext Candidate Error:", error);
+        return { success: false, error: error.message };
+    }
+}
+// --- 6. Get Search Job Statuses ---
+export async function getSearchJobStatuses(sessionId: string) {
+    try {
+        const { data, error } = await supabase
+            .from('search_job_status')
+            .select('*')
+            .eq('session_id', sessionId)
+            .order('source', { ascending: true });
+
+        if (error) throw error;
+        return { success: true, data };
+    } catch (error: any) {
+        console.error("Get Statuses Error:", error);
         return { success: false, error: error.message };
     }
 }

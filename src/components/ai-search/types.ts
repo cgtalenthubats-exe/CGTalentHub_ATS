@@ -8,22 +8,31 @@ export interface SearchJob {
 }
 
 export interface ConsolidatedResult {
-    result_id: string;
+    id: string;
     session_id: string;
-    source: 'External' | 'Internal';
-    candidate_id?: string;
-    ext_candidate_id?: string;
+    source: 'internal_db' | 'external_db' | 'linkedin_db';
+    candidate_ref_id: string;
     name: string;
     position: string;
     company: string;
-    company_tag?: string;
-    company_rating?: string;
-    match_score: number;
-    key_highlights?: string;
-    professional_summary?: string;
-    key_skills?: any;
-    reason_for_match?: string;
     link_url?: string;
+    source_url?: string;
+    company_tier?: string;
+    business_model?: string;
+    match_score: number;
+    scoring_breakdown?: {
+        leadership?: number;
+        scale?: number;
+        innovation?: number;
+        culture?: number;
+        resilience?: number;
+        [key: string]: any;
+    };
+    demographic_tag?: string;
+    inferred_insights?: any;
+    executive_summary?: string;
+    red_flags?: string;
+    created_at: string;
 }
 
 export interface ExternalCandidateDetail {
