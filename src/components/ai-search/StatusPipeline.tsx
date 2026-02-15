@@ -13,6 +13,10 @@ interface StatusPipelineProps {
 export function StatusPipeline({ statuses }: StatusPipelineProps) {
     if (!statuses || statuses.length === 0) return null;
 
+    const filteredStatuses = statuses.filter(s => s.source.toLowerCase() !== 'linkedin_db');
+
+    if (filteredStatuses.length === 0) return null;
+
     const agents = [
         { key: "summary_agent_1", label: "Agent 1" },
         { key: "summary_agent_2", label: "Agent 2" },
@@ -24,7 +28,6 @@ export function StatusPipeline({ statuses }: StatusPipelineProps) {
         switch (source) {
             case 'Internal_db': return 'Internal DB';
             case 'external_db': return 'External DB';
-            case 'linkedin_db': return 'LinkedIn DB';
             default: return source;
         }
     };
@@ -32,7 +35,7 @@ export function StatusPipeline({ statuses }: StatusPipelineProps) {
     return (
         <Card className="mb-6 border-none shadow-sm bg-white overflow-hidden">
             <CardContent className="p-4 flex flex-col gap-4">
-                {statuses.map((status) => (
+                {filteredStatuses.map((status) => (
                     <div key={status.source} className="flex flex-col gap-2">
                         <div className="flex items-center gap-2">
                             <span className="text-sm font-bold text-slate-700 min-w-[100px]">

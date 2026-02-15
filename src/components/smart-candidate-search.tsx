@@ -23,7 +23,8 @@ import { searchCompanies, searchPositions } from "@/app/actions/candidate-filter
 import { useDebounce } from "@/hooks/use-debounce";
 
 interface SmartCandidateSearchProps {
-    onSearch: (term: string, type: 'global' | 'company' | 'position') => void; // Updated signature
+    onSearch: (term: string, type: 'global' | 'company' | 'position') => void;
+    onRawQueryChange?: (term: string) => void; // Support live updates
     filters?: any;
     placeholder?: string;
     className?: string;
@@ -31,6 +32,7 @@ interface SmartCandidateSearchProps {
 
 export function SmartCandidateSearch({
     onSearch,
+    onRawQueryChange,
     filters,
     placeholder = "Smart Search...",
     className,
@@ -115,7 +117,10 @@ export function SmartCandidateSearch({
                         <CommandInput
                             placeholder="Type name, company, or position..."
                             value={query}
-                            onValueChange={setQuery}
+                            onValueChange={(val) => {
+                                setQuery(val);
+                                onRawQueryChange?.(val);
+                            }}
                             autoFocus
                         />
                         <CommandList>

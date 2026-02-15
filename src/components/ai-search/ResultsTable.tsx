@@ -20,9 +20,10 @@ interface Props {
     results: ConsolidatedResult[];
     onSelectResult: (result: ConsolidatedResult) => void;
     activeResultId?: string | null;
+    disableScroll?: boolean;
 }
 
-export function ResultsTable({ results, onSelectResult, activeResultId }: Props) {
+export function ResultsTable({ results, onSelectResult, activeResultId, disableScroll = false }: Props) {
     if (!results || results.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center h-[50vh] text-slate-400 gap-4">
@@ -32,9 +33,12 @@ export function ResultsTable({ results, onSelectResult, activeResultId }: Props)
         );
     }
 
+    const Container = disableScroll ? 'div' : ScrollArea;
+    const containerClasses = disableScroll ? 'pr-1' : 'flex-1 pr-1';
+
     return (
-        <div className="flex flex-col h-full bg-slate-50/50 p-1">
-            <ScrollArea className="flex-1 pr-1">
+        <div className={cn("flex flex-col bg-slate-50/50 p-1", !disableScroll && "h-full")}>
+            <Container className={containerClasses}>
                 <div className="grid gap-3 p-2">
                     <AnimatePresence mode="popLayout">
                         {results.map((result, index) => (
@@ -56,6 +60,19 @@ export function ResultsTable({ results, onSelectResult, activeResultId }: Props)
                                     )}
                                 >
                                     <div className="flex items-start gap-4">
+                                        {/* Candidate Photo */}
+                                        <div className="flex-shrink-0">
+                                            <div className="w-14 h-14 rounded-full border border-slate-200 overflow-hidden bg-slate-100 flex items-center justify-center">
+                                                {result.photo_url ? (
+                                                    <img src={result.photo_url} alt={result.name} className="w-full h-full object-cover" />
+                                                ) : (
+                                                    <span className="text-xl font-bold text-slate-400">
+                                                        {result.name?.charAt(0)}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+
                                         {/* Score Visual */}
                                         <div className="relative flex-shrink-0">
                                             <svg className="w-14 h-14 transform -rotate-90">
@@ -77,17 +94,17 @@ export function ResultsTable({ results, onSelectResult, activeResultId }: Props)
                                                     strokeWidth="3"
                                                     strokeDasharray={150.8}
                                                     initial={{ strokeDashoffset: 150.8 }}
-                                                    animate={{ strokeDashoffset: 150.8 - (150.8 * result.match_score) / 100 }}
+                                                    animate={{ strokeDashoffset: 150.8 - (150.8 * (result.final_total_score || result.match_score || 0)) / 100 }}
                                                     transition={{ duration: 1, ease: "easeOut" }}
                                                     className={cn(
-                                                        result.match_score >= 80 ? "text-emerald-500" :
-                                                            result.match_score >= 50 ? "text-amber-500" :
+                                                        (result.final_total_score || result.match_score || 0) >= 80 ? "text-emerald-500" :
+                                                            (result.final_total_score || result.match_score || 0) >= 50 ? "text-amber-500" :
                                                                 "text-indigo-400"
                                                     )}
                                                 />
                                             </svg>
                                             <div className="absolute inset-0 flex items-center justify-center">
-                                                <span className="text-sm font-bold text-slate-700">{result.match_score}</span>
+                                                <span className="text-sm font-bold text-slate-700">{result.final_total_score || result.match_score || 0}</span>
                                             </div>
                                         </div>
 
@@ -151,7 +168,7 @@ export function ResultsTable({ results, onSelectResult, activeResultId }: Props)
                         ))}
                     </AnimatePresence>
                 </div>
-            </ScrollArea>
+            </Container>
             <div className="bg-white/50 backdrop-blur-sm border-t p-2.5 text-[10px] font-medium text-center text-slate-400 flex items-center justify-center gap-2">
                 <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
                 Found {results.length} qualified candidates for this search

@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/command";
 import { searchCandidates } from "@/app/actions/candidate";
 import { addCandidatesToJR, getExistingCandidateIdsForJR } from "@/app/actions/jr-candidates";
+import { SmartCandidateSearch } from "@/components/smart-candidate-search";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -110,8 +111,14 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess }: AddC
 
     // Search Logic (Debounced)
     useEffect(() => {
+        // DEBUG LOG
+        console.log("AddCandidateDialog: Search Effect Triggered", { searchQuery, filters });
+
         const timer = setTimeout(async () => {
+            console.log("AddCandidateDialog: Debounce Timeout Executing", { searchQuery, len: searchQuery.trim().length });
+
             if (searchQuery.trim().length >= 2 || Object.values(filters).some(v => Array.isArray(v) ? v.length > 0 : v)) {
+                console.log("AddCandidateDialog: Starting Search...");
                 setSearching(true);
                 try {
                     // We use the same API as Candidate Explorer for consistency
@@ -135,6 +142,7 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess }: AddC
                         })
                     });
                     const data = await res.json();
+                    console.log("AddCandidateDialog: Search Results", data.data?.length);
                     setResults(data.data || []);
                 } catch (e) {
                     console.error("Search failed", e);
@@ -142,6 +150,7 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess }: AddC
                     setSearching(false);
                 }
             } else {
+                console.log("AddCandidateDialog: Clearing Results");
                 setResults([]);
             }
         }, 500);
@@ -175,7 +184,7 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess }: AddC
 
         // Check for Blacklisted candidates if not forced
         if (!force) {
-            const blacklisted = results.filter(c => selectedIds.includes(c.candidate_id) && c.status === "Blacklist");
+            const blacklisted = results.filter(c => selectedIds.includes(c.candidate_id) && c.candidate_status === "Blacklist");
             if (blacklisted.length > 0) {
                 setBlacklistedInSelection(blacklisted);
                 setShowBlacklistAlert(true);
@@ -267,13 +276,31 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess }: AddC
 
                     <div className="px-7 py-5 flex flex-col gap-4 bg-white dark:bg-slate-950 border-b shadow-sm z-10">
                         <div className="flex gap-3">
-                            <div className="flex-1 relative group">
-                                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-primary transition-colors" />
-                                <Input
-                                    placeholder="Search Name, Email, or Candidate ID..."
-                                    className="pl-11 h-12 bg-slate-50 border-slate-200 focus-visible:ring-primary/20 focus-visible:border-primary/50 text-base font-medium rounded-xl transition-all"
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
+                            <div className="flex-1 relative group z-20">
+                                <SmartCandidateSearch
+                                    onSearch={(term, type) => {
+                                        if (type === 'global') {
+                                            setSearchQuery(term);
+                                        } else if (type === 'company') {
+                                            setFilters(prev => ({
+                                                ...prev,
+                                                companies: prev.companies.includes(term) ? prev.companies : [...prev.companies, term]
+                                            }));
+                                            setSearchQuery("");
+                                            setShowFilters(true);
+                                        } else if (type === 'position') {
+                                            setFilters(prev => ({
+                                                ...prev,
+                                                positions: prev.positions.includes(term) ? prev.positions : [...prev.positions, term]
+                                            }));
+                                            setSearchQuery("");
+                                            setShowFilters(true);
+                                        }
+                                    }}
+                                    onRawQueryChange={setSearchQuery}
+                                    filters={filters}
+                                    placeholder={searchQuery || "Search Name, Email, ID, Company..."}
+                                    className="h-12 [&_button]:h-12 [&_button]:text-base [&_button]:rounded-xl [&_button]:bg-slate-50 [&_button]:border-slate-200 [&_button]:border-solid [&_button]:hover:bg-slate-100 [&_button]:text-slate-600 [&_button]:font-medium"
                                 />
                             </div>
                             <Button

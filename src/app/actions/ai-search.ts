@@ -67,7 +67,7 @@ export async function submitSearch(query: string, userEmail: string = "sumethwor
         }
 
         // 4. Initialize Status Rows for Pipeline
-        const sources = ['Internal_db', 'external_db', 'linkedin_db'];
+        const sources = ['Internal_db', 'external_db'];
         const statusRows = sources.map(src => ({
             session_id: sessionId,
             source: src,
@@ -103,16 +103,102 @@ export async function getSearchHistory() {
 // --- 3. Get Search Results ---
 export async function getSearchResults(sessionId: string) {
     try {
-        const { data, error } = await supabase
+        const { data: results, error } = await supabase
             .from('consolidated_results')
             .select('*')
             .eq('session_id', sessionId)
-            .order('match_score', { ascending: false });
+            .order('final_total_score', { ascending: false })
+            .order('candidate_ref_id', { ascending: true }); // Secondary sort for stability
 
         if (error) throw error;
-        return { success: true, data };
+
+        // Enrich with Photos
+        const enrichedResults = await Promise.all(results.map(async (result) => {
+            const source = result.source?.toLowerCase();
+            let photoUrl = null;
+            if (source === 'external_db') {
+                const { data: profile } = await supabase
+                    .from('ext_candidate_profile')
+                    .select('photo_url')
+                    .eq('candidate_id', result.candidate_ref_id)
+                    .maybeSingle();
+                if (profile) photoUrl = profile.photo_url;
+            } else if (source === 'internal_db') {
+                // Use 'Candidate Profile' table and 'photo' column as per user instruction & jr-candidates.ts
+                const { data: profile } = await supabase
+                    .from('Candidate Profile')
+                    .select('photo')
+                    .eq('candidate_id', result.candidate_ref_id)
+                    .maybeSingle();
+                if (profile) photoUrl = profile.photo;
+            }
+            return { ...result, photo_url: photoUrl };
+        }));
+
+        return { success: true, data: enrichedResults };
     } catch (error: any) {
         console.error("Get Results Error:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+// --- 3.1 Get Internal Candidate Details ---
+export async function getInternalCandidateDetails(candidateId: string) {
+    try {
+        // Fetch Profile from 'Candidate Profile'
+        const { data: profile, error: profileError } = await supabase
+            .from('Candidate Profile')
+            .select('*')
+            .eq('candidate_id', candidateId)
+            .maybeSingle();
+
+        if (profileError) throw profileError;
+        if (!profile) return { success: false, error: "Internal candidate not found" };
+
+        // Fetch Experiences
+        // Try 'candidate_experiences' first. Use aliases if needed to match standardized fields
+        const { data: experiences, error: expError } = await supabase
+            .from('candidate_experiences')
+            .select('*')
+            .eq('candidate_id', candidateId)
+            .order('experience_id', { ascending: true });
+
+
+        if (expError) throw expError;
+
+        // Initialize Internal Profile Enhance (if exists) or structure
+        const { data: enhance, error: enhanceError } = await supabase
+            .from('candidate_profile_enhance')
+            .select('*')
+            .eq('candidate_id', candidateId)
+            .maybeSingle();
+
+        // Map profile data to match expected interface (photo -> photo_url)
+        const mappedProfile = {
+            ...profile,
+            photo_url: profile.photo || profile.photo_url // Map photo to photo_url
+        };
+
+        return {
+            success: true,
+            data: {
+                ...mappedProfile,
+                ...(enhance || {}),
+                experiences: (experiences || []).map((e: any) => ({
+                    ...e,
+                    // Ensure company name is mapped to company_name_text
+                    company_name_text: e.company_name_text || e.company_name || e.company || 'Unknown Company',
+                    start_date: e.start_date,
+                    end_date: e.end_date,
+                    is_current: e.is_current,
+                    description: e.description,
+                    position: e.position
+                }))
+            }
+        };
+
+    } catch (error: any) {
+        console.error("Get Internal Details Error:", error);
         return { success: false, error: error.message };
     }
 }
@@ -142,30 +228,45 @@ export async function getExternalCandidateDetails(extCandidateId: string) {
             .from('ext_candidate_profile')
             .select('*')
             .eq('candidate_id', extCandidateId)
-            .single();
+            .maybeSingle();
 
         if (profileError) throw profileError;
+        if (!profile) return { success: false, error: "Candidate profile not found" };
 
         // Fetch Enhance (AI Summary)
         const { data: enhance, error: enhanceError } = await supabase
             .from('ext_profile_enhance')
             .select('*')
             .eq('candidate_id', extCandidateId)
-            .single();
+            .maybeSingle();
+
+        // Warning: enhance might be null if not yet generated, which is fine.
+        if (enhanceError && enhanceError.code !== 'PGRST116') {
+            console.warn("Enhance fetch warning:", enhanceError.message);
+        }
 
         // Fetch Experiences
         const { data: experiences, error: expError } = await supabase
             .from('ext_candidate_experiences')
             .select('*')
             .eq('candidate_id', extCandidateId)
-            .order('start_date', { ascending: false });
+            .order('experience_id', { ascending: true });
+
 
         return {
             success: true,
             data: {
                 ...profile,
-                ...enhance,
-                experiences: experiences || []
+                ...(enhance || {}), // Spread enhance if exists, otherwise empty
+                experiences: (experiences || []).map((e: any) => ({
+                    ...e,
+                    company_name_text: e.company_name_text || e.company_name || e.company || 'Unknown Company',
+                    start_date: e.start_date,
+                    end_date: e.end_date,
+                    is_current: e.is_current,
+                    description: e.description,
+                    position: e.position
+                }))
             }
         };
 
@@ -174,9 +275,58 @@ export async function getExternalCandidateDetails(extCandidateId: string) {
         return { success: false, error: error.message };
     }
 }
+// Helper to auto-complete job if Agent 4 is done
+async function checkAndCompleteJob(sessionId: string) {
+    try {
+        // 1. Check if Agent 4 is completed (in ANY row for this session, though usually 1 per source, we check if any completed)
+        // Actually, we should check if ALL required rows are completed, but user said "if summart_agent_4 of session_id = Completed"
+        // Let's check if there is AT LEAST ONE row with summart_agent_4 = 'Completed' (or if all?)
+        // User said: "Check summart_agent_4 of both Internal and External. If = Completed... update search_jobs status"
+        // It implies if the PROCESS is done. Usually we wait for both. 
+        // Let's assume if ANY record has Agent 4 completed, it might be enough to mark job as completed?
+        // OR better: Check if ALL sources are completed?
+        // Re-reading user: "adminAuthClient ... summart_agent_4 ... = Completed ... update search_jobs"
+        // Let's query all statuses for this session.
+
+        const { data: statuses } = await supabase
+            .from('search_job_status')
+            .select('summart_agent_4')
+            .eq('session_id', sessionId);
+
+        if (!statuses || statuses.length === 0) return;
+
+        // Logic: If ALL rows that exist have Agent 4 completed? Or just one?
+        // Usually we have 2 rows (Internal, External). 
+        // If both are completed, then job is completed.
+        const allCompleted = statuses.every(s => s.summart_agent_4 === 'Completed');
+
+        if (allCompleted) {
+            // Check current job status
+            const { data: job } = await supabase
+                .from('search_jobs')
+                .select('status')
+                .eq('session_id', sessionId)
+                .single();
+
+            if (job && job.status !== 'completed') {
+                await supabase
+                    .from('search_jobs')
+                    .update({ status: 'completed' })
+                    .eq('session_id', sessionId);
+            }
+        }
+    } catch (e) {
+        console.error("Auto-complete job error:", e);
+    }
+}
+
 // --- 6. Get Search Job Statuses ---
 export async function getSearchJobStatuses(sessionId: string) {
     try {
+        // Trigger background check (no await to not block UI? or await to ensure UI gets fresh status?)
+        // Await is safer to ensure UI sees 'completed' immediately if it just happened.
+        await checkAndCompleteJob(sessionId);
+
         const { data, error } = await supabase
             .from('search_job_status')
             .select('*')

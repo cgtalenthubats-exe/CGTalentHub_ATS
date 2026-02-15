@@ -102,19 +102,22 @@ export async function POST(req: Request) {
             }
         }
 
+        // Helper to convert empty arrays to null
+        const cleanFilter = (val: any) => (Array.isArray(val) && val.length > 0 ? val : null);
+
         // --- EXECUTE UNIFIED SEARCH RPC ---
         const { data, error } = await (adminAuthClient.rpc as any)('search_candidates_robust', {
             p_search: search || null,
-            p_companies: normalizedFilters.companies || null,
-            p_positions: normalizedFilters.positions || null,
-            p_countries: normalizedFilters.countries || null,
-            p_industries: normalizedFilters.industries || null,
-            p_groups: normalizedFilters.groups || null,
+            p_companies: cleanFilter(normalizedFilters.companies),
+            p_positions: cleanFilter(normalizedFilters.positions),
+            p_countries: cleanFilter(normalizedFilters.countries),
+            p_industries: cleanFilter(normalizedFilters.industries),
+            p_groups: cleanFilter(normalizedFilters.groups),
             p_exp_type: normalizedFilters.experienceType || 'All',
-            p_genders: filters?.gender || null,
-            p_statuses: filters?.status || null,
-            p_job_groupings: filters?.jobGrouping || null,
-            p_job_functions: filters?.jobFunction || null,
+            p_genders: cleanFilter(filters?.gender),
+            p_statuses: cleanFilter(filters?.status),
+            p_job_groupings: cleanFilter(filters?.jobGrouping),
+            p_job_functions: cleanFilter(filters?.jobFunction),
             p_age_min: filters?.ageMin ? parseInt(filters.ageMin) : null,
             p_age_max: filters?.ageMax ? parseInt(filters.ageMax) : null,
             p_offset: offset,
@@ -126,23 +129,42 @@ export async function POST(req: Request) {
         const totalCount = data?.[0]?.total_count || 0;
         const profiles = data || [];
 
-        // --- 6. HYDRATE EXPERIENCES ---
+        // --- 6. HYDRATE EXPERIENCES & BLACKLIST NOTES ---
         const pageCandidateIds = profiles.map((p: any) => p.candidate_id).filter(Boolean);
 
         let fullExp: any[] = [];
-        if (pageCandidateIds.length > 0) {
-            const { data: expData, error: expError } = await adminAuthClient
-                .from('candidate_experiences')
-                .select('*')
-                .in('candidate_id', pageCandidateIds)
-                .order('start_date', { ascending: false });
+        let blacklistNotes: Record<string, string> = {};
 
-            if (expError) throw expError;
-            fullExp = expData || [];
+        if (pageCandidateIds.length > 0) {
+            // Parallel fetch: Experiences and Blacklist Notes
+            const [expResult, noteResult] = await Promise.all([
+                adminAuthClient
+                    .from('candidate_experiences')
+                    .select('*')
+                    .in('candidate_id', pageCandidateIds)
+                    .order('start_date', { ascending: false }),
+
+                adminAuthClient
+                    .from('Candidate Profile')
+                    .select('candidate_id, blacklist_note')
+                    .in('candidate_id', pageCandidateIds)
+            ]);
+
+            if (expResult.error) throw expResult.error;
+            fullExp = expResult.data || [];
+
+            if (noteResult.data) {
+                noteResult.data.forEach((n: any) => {
+                    if (n.blacklist_note) {
+                        blacklistNotes[n.candidate_id] = n.blacklist_note;
+                    }
+                });
+            }
         }
 
         const finalResults = profiles.map((p: any) => ({
             ...p,
+            blacklist_note: blacklistNotes[p.candidate_id] || null,
             experiences: fullExp.filter((e: any) => e.candidate_id === p.candidate_id)
         }));
 
