@@ -13,10 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
 import { StatusPipeline } from "@/components/ai-search/StatusPipeline";
 import { PipelineStatus } from "@/components/ai-search/types-status";
-<<<<<<< HEAD
 import { AddCandidateDialog } from "@/components/ai-search/AddCandidateDialog";
-=======
->>>>>>> 7f2fabb39c677d6d2490e3c7e24a546c29aa9f67
 
 export default function AISearchPage() {
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -34,14 +31,10 @@ export default function AISearchPage() {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [filterSource, setFilterSource] = useState<'all' | 'internal' | 'external'>('all');
 
-<<<<<<< HEAD
     // Selection & Dialog States
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [targetCandidateIds, setTargetCandidateIds] = useState<string[]>([]);
-
-=======
->>>>>>> 7f2fabb39c677d6d2490e3c7e24a546c29aa9f67
     // Polling setup
     useEffect(() => {
         if (!activeSessionId || sessionStatus !== 'processing') return;
@@ -112,7 +105,6 @@ export default function AISearchPage() {
         return true;
     });
 
-<<<<<<< HEAD
     // Selection Handlers
     const handleToggleSelect = (id: string) => {
         setSelectedIds(prev =>
@@ -132,9 +124,6 @@ export default function AISearchPage() {
         setTargetCandidateIds(ids);
         setIsAddDialogOpen(true);
     };
-
-=======
->>>>>>> 7f2fabb39c677d6d2490e3c7e24a546c29aa9f67
     return (
         <div className="flex h-screen bg-slate-50/50 overflow-hidden">
             {/* Left Sidebar: Collapsible */}
@@ -304,13 +293,10 @@ export default function AISearchPage() {
                                 onSelectResult={setSelectedResult}
                                 activeResultId={selectedResult?.id}
                                 disableScroll={true} // Allow page scroll
-<<<<<<< HEAD
                                 selectedIds={selectedIds}
                                 onToggleSelect={handleToggleSelect}
                                 onToggleSelectAll={handleToggleSelectAll}
                                 onBulkAddToJR={handleBulkAddToJR}
-=======
->>>>>>> 7f2fabb39c677d6d2490e3c7e24a546c29aa9f67
                             />
                         </div>
                     </div>
@@ -323,15 +309,11 @@ export default function AISearchPage() {
                             <CandidateDetailPanel
                                 result={selectedResult}
                                 onClose={() => setSelectedResult(null)}
-<<<<<<< HEAD
                                 onImportToJR={(id) => handleBulkAddToJR([id])}
-=======
->>>>>>> 7f2fabb39c677d6d2490e3c7e24a546c29aa9f67
                             />
                         </div>
                     )}
                 </AnimatePresence>
-<<<<<<< HEAD
 
                 {/* Shared Dialog for Adding to JR */}
                 <AddCandidateDialog
@@ -343,8 +325,6 @@ export default function AISearchPage() {
                         setSelectedIds([]);
                     }}
                 />
-=======
->>>>>>> 7f2fabb39c677d6d2490e3c7e24a546c29aa9f67
             </div>
         </div>
     );
@@ -392,7 +372,7 @@ function renderSummaryContent(content: any, textColorClass: string, results: Con
                                 <Sparkles className="w-3 h-3 text-emerald-500" /> Final Insight
                             </h4>
                             <p className="text-xs text-emerald-800 font-medium leading-relaxed italic">
-                                "{parsed.final_insight}"
+                                &quot;{parsed.final_insight}&quot;
                             </p>
                         </div>
                     )}
