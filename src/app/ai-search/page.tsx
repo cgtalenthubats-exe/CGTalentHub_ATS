@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
 import { StatusPipeline } from "@/components/ai-search/StatusPipeline";
 import { PipelineStatus } from "@/components/ai-search/types-status";
+import { AddCandidateDialog } from "@/components/ai-search/AddCandidateDialog";
 
 export default function AISearchPage() {
     const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -29,6 +30,11 @@ export default function AISearchPage() {
     // New UI States
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [filterSource, setFilterSource] = useState<'all' | 'internal' | 'external'>('all');
+
+    // Selection & Dialog States
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+    const [targetCandidateIds, setTargetCandidateIds] = useState<string[]>([]);
 
     // Polling setup
     useEffect(() => {
@@ -99,6 +105,26 @@ export default function AISearchPage() {
         if (filterSource === 'external') return r.source === 'external_db'; // or others like linkedin
         return true;
     });
+
+    // Selection Handlers
+    const handleToggleSelect = (id: string) => {
+        setSelectedIds(prev =>
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
+
+    const handleToggleSelectAll = (ids: string[]) => {
+        if (selectedIds.length === ids.length) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(ids);
+        }
+    };
+
+    const handleBulkAddToJR = (ids: string[]) => {
+        setTargetCandidateIds(ids);
+        setIsAddDialogOpen(true);
+    };
 
     return (
         <div className="flex h-screen bg-slate-50/50 overflow-hidden">
@@ -269,6 +295,10 @@ export default function AISearchPage() {
                                 onSelectResult={setSelectedResult}
                                 activeResultId={selectedResult?.id}
                                 disableScroll={true} // Allow page scroll
+                                selectedIds={selectedIds}
+                                onToggleSelect={handleToggleSelect}
+                                onToggleSelectAll={handleToggleSelectAll}
+                                onBulkAddToJR={handleBulkAddToJR}
                             />
                         </div>
                     </div>
@@ -281,10 +311,22 @@ export default function AISearchPage() {
                             <CandidateDetailPanel
                                 result={selectedResult}
                                 onClose={() => setSelectedResult(null)}
+                                onImportToJR={(id) => handleBulkAddToJR([id])}
                             />
                         </div>
                     )}
                 </AnimatePresence>
+
+                {/* Shared Dialog for Adding to JR */}
+                <AddCandidateDialog
+                    open={isAddDialogOpen}
+                    onOpenChange={setIsAddDialogOpen}
+                    candidateIds={targetCandidateIds}
+                    candidateNames={targetCandidateIds.map(id => results.find(r => r.id === id)?.name || "Unknown")}
+                    onSuccess={() => {
+                        setSelectedIds([]);
+                    }}
+                />
             </div>
         </div>
     );

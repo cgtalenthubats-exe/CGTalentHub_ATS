@@ -12,7 +12,7 @@ import { KanbanBoard } from "@/components/kanban-board";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, List, Kanban, MessageSquare, Briefcase, Share2, Loader2, Copy } from "lucide-react";
+import { Plus, List, Kanban, MessageSquare, Briefcase, Share2, Loader2, Copy, Trophy } from "lucide-react";
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
 } from "recharts";
@@ -232,6 +232,13 @@ export default function JRManagePage() {
                                 className="border-slate-200"
                             >
                                 <BarChart className="mr-2 h-4 w-4" /> View History
+                            </Button>
+                            <Button
+                                variant="outline"
+                                onClick={() => router.push('/requisitions/placements')}
+                                className="border-amber-200 text-amber-700 hover:bg-amber-50"
+                            >
+                                <Trophy className="mr-2 h-4 w-4" /> Placements
                             </Button>
                             <Button
                                 disabled={!selectedJR}

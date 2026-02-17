@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChevronDown, ChevronUp, ExternalLink, MapPin } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // --- Types (Duplicated from page.tsx to avoid circular deps or complex refactor) ---
 export interface Experience {
@@ -49,6 +50,9 @@ export interface Candidate {
 interface CandidateTableViewProps {
     candidates: Candidate[];
     loading: boolean;
+    selectedIds?: string[];
+    onToggleSelect?: (id: string) => void;
+    onToggleSelectAll?: (ids: string[]) => void;
 }
 
 function sortExperiences(exps: Experience[]) {
@@ -67,7 +71,15 @@ function sortExperiences(exps: Experience[]) {
     });
 }
 
-const CandidateRow = ({ candidate }: { candidate: Candidate }) => {
+const CandidateRow = ({
+    candidate,
+    isSelected,
+    onToggleSelect
+}: {
+    candidate: Candidate;
+    isSelected?: boolean;
+    onToggleSelect?: (id: string) => void;
+}) => {
     const [expanded, setExpanded] = useState(false);
 
     // Sort experiences
@@ -76,7 +88,18 @@ const CandidateRow = ({ candidate }: { candidate: Candidate }) => {
 
     return (
         <>
-            <TableRow className={cn("hover:bg-slate-50/80 transition-colors", expanded && "bg-slate-50/50")}>
+            <TableRow className={cn(
+                "hover:bg-slate-50/80 transition-colors",
+                expanded && "bg-slate-50/50",
+                isSelected && "bg-indigo-50/40 hover:bg-indigo-50/60"
+            )}>
+                <TableCell className="w-[40px] px-2 text-center">
+                    <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => onToggleSelect?.(candidate.candidate_id)}
+                        className="translate-y-[2px] border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600 shadow-sm"
+                    />
+                </TableCell>
                 <TableCell className="w-[50px]">
                     <Button
                         variant="ghost"
@@ -155,7 +178,7 @@ const CandidateRow = ({ candidate }: { candidate: Candidate }) => {
             </TableRow>
             {expanded && (
                 <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
-                    <TableCell colSpan={7} className="p-0">
+                    <TableCell colSpan={8} className="p-0">
                         <div className="p-4 pl-14">
                             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
                                 <span className="w-2 h-2 rounded-full bg-slate-300"></span>
@@ -200,7 +223,13 @@ const CandidateRow = ({ candidate }: { candidate: Candidate }) => {
     );
 };
 
-export function CandidateTableView({ candidates, loading }: CandidateTableViewProps) {
+export function CandidateTableView({
+    candidates,
+    loading,
+    selectedIds = [],
+    onToggleSelect,
+    onToggleSelectAll
+}: CandidateTableViewProps) {
     if (loading) {
         return (
             <div className="bg-white rounded-lg border shadow-sm p-8 space-y-4">
@@ -228,6 +257,13 @@ export function CandidateTableView({ candidates, loading }: CandidateTableViewPr
             <Table>
                 <TableHeader className="bg-slate-50/80">
                     <TableRow>
+                        <TableHead className="w-[40px] px-2 text-center">
+                            <Checkbox
+                                checked={candidates.length > 0 && selectedIds.length === candidates.length}
+                                onCheckedChange={() => onToggleSelectAll?.(candidates.map(c => c.candidate_id))}
+                                className="translate-y-[2px] border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600 shadow-sm"
+                            />
+                        </TableHead>
                         <TableHead className="w-[50px]"></TableHead>
                         <TableHead>Candidate</TableHead>
                         <TableHead>Status</TableHead>
@@ -239,7 +275,12 @@ export function CandidateTableView({ candidates, loading }: CandidateTableViewPr
                 </TableHeader>
                 <TableBody>
                     {candidates.map((candidate) => (
-                        <CandidateRow key={candidate.candidate_id} candidate={candidate} />
+                        <CandidateRow
+                            key={candidate.candidate_id}
+                            candidate={candidate}
+                            isSelected={selectedIds.includes(candidate.candidate_id)}
+                            onToggleSelect={onToggleSelect}
+                        />
                     ))}
                 </TableBody>
             </Table>

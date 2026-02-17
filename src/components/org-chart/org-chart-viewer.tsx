@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { UserCheck, UserPlus, Focus, ZoomIn, ZoomOut, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { cn } from "@/lib/utils"
 
 type OrgChartViewerProps = {
     initialData: OrgNode | null
@@ -96,6 +97,7 @@ const NodeCard = ({ nodeDatum, toggleNode }: any) => {
 export function OrgChartViewer({ initialData }: OrgChartViewerProps) {
     const [translate, setTranslate] = useState({ x: 0, y: 0 })
     const [zoom, setZoom] = useState(0.7)
+    const [showLegend, setShowLegend] = useState(false)
     const containerRef = React.useRef<HTMLDivElement>(null)
 
     const centerChart = () => {
@@ -126,43 +128,60 @@ export function OrgChartViewer({ initialData }: OrgChartViewerProps) {
     return (
         <div className="flex flex-col h-full w-full relative bg-slate-50/30 rounded-xl overflow-hidden border shadow-sm group">
 
-            {/* Action Buttons */}
-            <div className="absolute top-4 right-4 z-10 flex flex-col gap-2">
-                <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={centerChart}
-                    className="h-10 w-10 shadow-lg border-slate-200 bg-white hover:bg-slate-50 rounded-full"
-                    title="Recenter Chart"
-                >
-                    <Focus size={18} className="text-slate-600" />
-                </Button>
-            </div>
+            {/* Action Buttons (Top Right) */}
+            <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-2">
+                <div className="flex gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowLegend(!showLegend)}
+                        className={cn(
+                            "h-9 px-3 shadow-md border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-full text-xs gap-2 transition-all",
+                            showLegend ? "bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400" : "text-slate-600 hover:bg-slate-50"
+                        )}
+                        title="Toggle Legend"
+                    >
+                        <Plus size={14} className={cn("transition-transform", showLegend && "rotate-45")} />
+                        CHART KEY
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={centerChart}
+                        className="h-9 w-9 shadow-md border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 hover:bg-slate-50 rounded-full"
+                        title="Recenter Chart"
+                    >
+                        <Focus size={16} className="text-slate-600" />
+                    </Button>
+                </div>
 
-            {/* Legend / Help */}
-            <div className="absolute bottom-6 left-6 z-10 bg-white/95 dark:bg-slate-900/95 backdrop-blur p-4 rounded-xl shadow-xl border text-[11px] text-slate-500 space-y-2.5 min-w-[180px] border-indigo-100 dark:border-indigo-900/30">
-                <div className="font-bold text-slate-800 dark:text-slate-100 uppercase tracking-widest text-[10px] mb-2 border-b pb-1.5 flex items-center justify-between">
-                    <span>Chart Key</span>
-                </div>
-                <div className="flex items-center gap-3">
-                    <div className="h-2.5 w-2.5 rounded-full bg-indigo-500 ring-4 ring-indigo-50 dark:ring-indigo-900/20" />
-                    <span className="font-medium text-slate-700 dark:text-slate-300">Internal Matched Profile</span>
-                </div>
-                <div className="flex items-center gap-3">
-                    <div className="h-2.5 w-2.5 rounded-full bg-slate-300 ring-4 ring-slate-50 dark:ring-slate-800/20" />
-                    <span className="font-medium text-slate-500">External / Unmatched Info</span>
-                </div>
-                <div className="pt-2 flex flex-col gap-1.5 border-t mt-1 opacity-70">
-                    <div className="flex items-center gap-2 italic">
-                        <ZoomIn size={12} /> Scroll to Zoom
+                {/* Legend Panel (Collapsible) */}
+                {showLegend && (
+                    <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur p-3 rounded-xl shadow-xl border border-indigo-100 dark:border-indigo-900/30 text-[10px] text-slate-500 space-y-2 w-52 animate-in fade-in slide-in-from-top-2 duration-200">
+                        <div className="font-bold text-slate-800 dark:text-slate-100 uppercase tracking-widest text-[9px] border-b pb-1 flex items-center justify-between">
+                            <span>Legend & Help</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full bg-indigo-500 ring-4 ring-indigo-50 dark:ring-indigo-900/20" />
+                            <span className="font-medium text-slate-700 dark:text-slate-300">Internal Matched Profile</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full bg-slate-300 ring-4 ring-slate-50 dark:ring-slate-800/20" />
+                            <span className="font-medium text-slate-500">External / Unmatched Info</span>
+                        </div>
+                        <div className="pt-1.5 flex flex-col gap-1 border-t mt-1 opacity-70">
+                            <div className="flex items-center gap-2 italic">
+                                <ZoomIn size={12} /> Scroll to Zoom
+                            </div>
+                            <div className="flex items-center gap-2 italic">
+                                <Focus size={12} /> Drag to Pan
+                            </div>
+                            <div className="flex items-center gap-2 italic">
+                                <Plus size={12} /> Click Card to Expand Team
+                            </div>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2 italic">
-                        <Focus size={12} /> Drag to Pan
-                    </div>
-                    <div className="flex items-center gap-2 italic">
-                        <Plus size={12} /> Click Card to Expand Team
-                    </div>
-                </div>
+                )}
             </div>
 
             {/* Tree Container */}

@@ -22,10 +22,10 @@ import { Button } from "@/components/ui/button";
 
 const menuItems = [
     { name: "Overview", icon: LayoutDashboard, path: "/" },
-    { name: "Dashboard", icon: BarChart3, path: "/dashboard" }, // Renamed from Analytics
+    { name: "Dashboard", icon: BarChart3, path: "/dashboard" },
     { name: "Candidates", icon: Users, path: "/candidates" },
-    { name: "Org Chart", icon: Network, path: "/org-chart" },
     { name: "Job Requisitions", icon: Briefcase, path: "/requisitions" },
+    { name: "Org Chart", icon: Network, path: "/org-chart" },
     { name: "Settings", icon: Settings, path: "/settings" },
     { name: "n8n Integration", icon: Webhook, path: "/admin/n8n" },
     { name: "Data Aging Report", icon: HistoryIcon, path: "/reports/aging" },

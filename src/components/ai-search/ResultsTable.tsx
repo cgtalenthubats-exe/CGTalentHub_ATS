@@ -15,15 +15,31 @@ import {
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface Props {
     results: ConsolidatedResult[];
     onSelectResult: (result: ConsolidatedResult) => void;
     activeResultId?: string | null;
     disableScroll?: boolean;
+    selectedIds?: string[];
+    onToggleSelect?: (id: string) => void;
+    onToggleSelectAll?: (ids: string[]) => void;
+    onBulkAddToJR?: (ids: string[]) => void;
 }
 
-export function ResultsTable({ results, onSelectResult, activeResultId, disableScroll = false }: Props) {
+export function ResultsTable({
+    results,
+    onSelectResult,
+    activeResultId,
+    disableScroll = false,
+    selectedIds = [],
+    onToggleSelect,
+    onToggleSelectAll,
+    onBulkAddToJR
+}: Props) {
     if (!results || results.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center h-[50vh] text-slate-400 gap-4">
@@ -37,8 +53,21 @@ export function ResultsTable({ results, onSelectResult, activeResultId, disableS
     const containerClasses = disableScroll ? 'pr-1' : 'flex-1 pr-1';
 
     return (
-        <div className={cn("flex flex-col bg-slate-50/50 p-1", !disableScroll && "h-full")}>
+        <div className={cn("flex flex-col bg-slate-50/50 p-1 relative", !disableScroll && "h-full")}>
             <Container className={containerClasses}>
+                {/* Header with Select All */}
+                {results.length > 0 && onToggleSelectAll && (
+                    <div className="flex items-center gap-3 px-4 py-2 bg-white/50 border-b border-slate-200/50 sticky top-0 z-20 backdrop-blur-sm">
+                        <Checkbox
+                            checked={selectedIds.length === results.length && results.length > 0}
+                            onCheckedChange={() => onToggleSelectAll(results.map(r => r.id))}
+                            className="border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
+                        />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Select All Candidates ({results.length})
+                        </span>
+                    </div>
+                )}
                 <div className="grid gap-3 p-2">
                     <AnimatePresence mode="popLayout">
                         {results.map((result, index) => (
@@ -56,10 +85,27 @@ export function ResultsTable({ results, onSelectResult, activeResultId, disableS
                                         "hover:shadow-lg hover:shadow-indigo-500/5 hover:border-indigo-200",
                                         activeResultId === result.id
                                             ? "border-indigo-500 shadow-md ring-1 ring-indigo-500/20"
-                                            : "border-slate-200"
+                                            : "border-slate-200",
+                                        selectedIds.includes(result.id) && "bg-indigo-50/30 border-indigo-200"
                                     )}
                                 >
-                                    <div className="flex items-start gap-4">
+                                    {/* Checkbox Overlay */}
+                                    {onToggleSelect && (
+                                        <div
+                                            className="absolute top-4 left-4 z-10"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onToggleSelect(result.id);
+                                            }}
+                                        >
+                                            <Checkbox
+                                                checked={selectedIds.includes(result.id)}
+                                                className="h-5 w-5 border-slate-200 bg-white shadow-sm data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
+                                            />
+                                        </div>
+                                    )}
+
+                                    <div className={cn("flex items-start gap-4", onToggleSelect && "pl-8")}>
                                         {/* Candidate Photo */}
                                         <div className="flex-shrink-0">
                                             <div className="w-14 h-14 rounded-full border border-slate-200 overflow-hidden bg-slate-100 flex items-center justify-center">
@@ -168,12 +214,36 @@ export function ResultsTable({ results, onSelectResult, activeResultId, disableS
                         ))}
                     </AnimatePresence>
                 </div>
-            </Container>
+            </Container >
             <div className="bg-white/50 backdrop-blur-sm border-t p-2.5 text-[10px] font-medium text-center text-slate-400 flex items-center justify-center gap-2">
                 <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
                 Found {results.length} qualified candidates for this search
             </div>
-        </div>
+
+            {/* Selection Toolbar */}
+            <AnimatePresence>
+                {selectedIds.length > 0 && onBulkAddToJR && (
+                    <motion.div
+                        initial={{ y: 100, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: 100, opacity: 0 }}
+                        className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-4 bg-slate-900 text-white px-6 py-3 rounded-2xl shadow-2xl border border-white/10 ring-1 ring-black/50"
+                    >
+                        <div className="flex flex-col">
+                            <span className="text-xs font-bold">{selectedIds.length} Candidates Selected</span>
+                            <span className="text-[10px] text-slate-400 font-medium">Bulk Action</span>
+                        </div>
+                        <div className="w-px h-8 bg-white/10 mx-2" />
+                        <Button
+                            onClick={() => onBulkAddToJR(selectedIds)}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-10 px-6 font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
+                        >
+                            <Plus className="w-4 h-4" /> Add to Job Requisition
+                        </Button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+        </div >
     );
 }
 

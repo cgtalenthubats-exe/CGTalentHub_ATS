@@ -30,9 +30,10 @@ import { motion } from "framer-motion";
 interface Props {
     result: ConsolidatedResult;
     onClose: () => void;
+    onImportToJR?: (id: string) => void;
 }
 
-export function CandidateDetailPanel({ result, onClose }: Props) {
+export function CandidateDetailPanel({ result, onClose, onImportToJR }: Props) {
     const [detail, setDetail] = useState<ExternalCandidateDetail | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -344,7 +345,10 @@ export function CandidateDetailPanel({ result, onClose }: Props) {
                     Close
                 </Button>
                 {result.source !== 'internal_db' && (
-                    <Button className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-lg shadow-indigo-500/20 rounded-xl h-12 px-8 font-bold">
+                    <Button
+                        onClick={() => onImportToJR?.(result.candidate_ref_id)}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 shadow-lg shadow-indigo-500/20 rounded-xl h-12 px-8 font-bold"
+                    >
                         <Plus className="w-4 h-4" /> Import to Requisition
                     </Button>
                 )}

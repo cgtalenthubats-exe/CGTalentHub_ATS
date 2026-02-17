@@ -17,13 +17,19 @@ import {
     Filter,
     Check,
     LayoutList,
-    Table as TableIcon
+    Table as TableIcon,
+    RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { CandidateTableView } from "./table-view";
+import { AddCandidateDialog } from "@/components/ai-search/AddCandidateDialog";
+import { Plus, Loader2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 import {
     Popover,
     PopoverContent,
@@ -44,6 +50,7 @@ import { CandidateAvatar } from "@/components/candidate-avatar";
 import { AsyncFilterMultiSelect } from "@/components/ui/async-filter-multi-select";
 import { SmartCandidateSearch } from "@/components/smart-candidate-search"; // [NEW] Smart Search
 import { searchCompanies, searchPositions } from "@/app/actions/candidate-filters";
+import { triggerCandidateRefresh } from "@/app/actions/n8n-actions";
 
 // Types
 interface Candidate {
@@ -79,6 +86,12 @@ export default function CandidateListPage() {
     const [candidates, setCandidates] = useState<Candidate[]>([]);
     const [loading, setLoading] = useState(true);
     const [totalCount, setTotalCount] = useState(0);
+
+    // Selection & Dialog States
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [selectAllMode, setSelectAllMode] = useState(false);
+    const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+    const [targetCandidateIds, setTargetCandidateIds] = useState<string[]>([]);
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -201,7 +214,19 @@ export default function CandidateListPage() {
     // Reset Page on Filter Change
     useEffect(() => {
         setCurrentPage(1);
+        setSelectAllMode(false);
+        setSelectedIds([]);
     }, [filters, searchTerm]);
+
+    // Update selection when Page changes (Looping behavior or preserve? Standard is preserve IDs but SelectAllMode might reset or persist?)
+    // Decision: If Global Select All is ON, it persists across pages. 
+    // If NOT Global, we keep selectedIds as is (cross-page selection).
+    useEffect(() => {
+        if (selectAllMode) {
+            // Ensure visual consistency on new page
+            setSelectedIds(candidates.map(c => c.candidate_id));
+        }
+    }, [currentPage, candidates, selectAllMode]);
 
     const clearAll = () => {
         setFilters({
@@ -230,8 +255,59 @@ export default function CandidateListPage() {
         });
     };
 
+    // Selection Handlers
+    const handleToggleSelect = (id: string) => {
+        if (selectAllMode) {
+            setSelectAllMode(false);
+            // If we were in "Select All Global", deselecting one means we are now just selecting specific IDs.
+            // Since we can't track "All except one" easily without backend support, 
+            // we'll revert to "Select All on Current Page" minus the one deselected.
+            setSelectedIds(candidates.map(c => c.candidate_id).filter(cid => cid !== id));
+        } else {
+            setSelectedIds(prev =>
+                prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+            );
+        }
+    };
+
+    const handleToggleSelectAll = (ids: string[]) => {
+        if (selectAllMode) {
+            setSelectAllMode(false);
+            setSelectedIds([]);
+        } else if (selectedIds.length === ids.length) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(ids);
+        }
+    };
+
+    const handleSelectGlobal = () => {
+        setSelectAllMode(true);
+        setSelectedIds(candidates.map(c => c.candidate_id)); // Visually select current page
+    };
+
+    const handleBulkAddToJR = (ids: string[]) => {
+        setTargetCandidateIds(ids);
+        setIsAddDialogOpen(true);
+        setIsAddDialogOpen(true);
+    };
+
+    const handleRefreshData = async (ids: string[]) => {
+        toast.promise(
+            triggerCandidateRefresh(ids, "Recruiter (Manual Trigger)"),
+            {
+                loading: `Sending ${ids.length} candidates to n8n for refresh...`,
+                success: (data: any) => {
+                    if (data.success) return `Successfully triggered refresh for ${ids.length} candidates!`;
+                    throw new Error(data.error);
+                },
+                error: (err) => `Failed to refresh: ${err.message}`
+            }
+        );
+    };
+
     return (
-        <div className="flex flex-col gap-6 h-full p-6 max-w-[1600px] mx-auto">
+        <div className="flex flex-col gap-6 p-6 max-w-[1600px] mx-auto min-h-screen">
             {/* Compact Header & Toolbar */}
             <div className="flex flex-col gap-4 bg-card p-4 rounded-xl border shadow-sm">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -443,13 +519,55 @@ export default function CandidateListPage() {
                 )}
             </div>
 
+            {/* Select All Banner */}
+            <AnimatePresence>
+                {!selectAllMode && selectedIds.length > 0 && candidates.length > 0 && selectedIds.length === candidates.length && totalCount > candidates.length && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="bg-indigo-50 border border-indigo-100 rounded-lg px-4 py-2 flex items-center justify-center gap-2 text-sm text-indigo-900 overflow-hidden"
+                    >
+                        <span>All <b>{candidates.length}</b> candidates on this page are selected.</span>
+                        <button
+                            onClick={handleSelectGlobal}
+                            className="font-bold text-indigo-700 hover:underline hover:text-indigo-900"
+                        >
+                            Select all {totalCount} candidates matching this search
+                        </button>
+                    </motion.div>
+                )}
+                {selectAllMode && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="bg-indigo-600 text-white rounded-lg px-4 py-2 flex items-center justify-center gap-2 text-sm overflow-hidden shadow-sm"
+                    >
+                        <span>All <b>{totalCount}</b> candidates are selected.</span>
+                        <button
+                            onClick={() => { setSelectAllMode(false); setSelectedIds([]); }}
+                            className="font-bold underline hover:text-indigo-100"
+                        >
+                            Clear selection
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
             {/* Results Content */}
             {viewMode === 'table' ? (
-                <div className="flex-1 overflow-y-auto pr-2 pb-2">
-                    <CandidateTableView candidates={candidates} loading={loading} />
+                <div className="flex-1 pb-2">
+                    <CandidateTableView
+                        candidates={candidates}
+                        loading={loading}
+                        selectedIds={selectedIds}
+                        onToggleSelect={handleToggleSelect}
+                        onToggleSelectAll={(ids) => handleToggleSelectAll(ids)}
+                    />
                 </div>
             ) : (
-                <div className="flex-1 space-y-4 overflow-y-auto pr-2 pb-2">
+                <div className="flex-1 space-y-4 pb-2">
                     {loading ? (
                         <div className="space-y-4 opacity-50">
                             {[1, 2, 3].map(i => <div key={i} className="h-40 w-full bg-secondary/20 animate-pulse rounded-xl" />)}
@@ -462,7 +580,12 @@ export default function CandidateListPage() {
                         </div>
                     ) : (
                         candidates.map(candidate => (
-                            <CandidateRichCard key={candidate.candidate_id} candidate={candidate} />
+                            <CandidateRichCard
+                                key={candidate.candidate_id}
+                                candidate={candidate}
+                                isSelected={selectedIds.includes(candidate.candidate_id)}
+                                onToggleSelect={() => handleToggleSelect(candidate.candidate_id)}
+                            />
                         ))
                     )}
                 </div>
@@ -488,6 +611,52 @@ export default function CandidateListPage() {
                 </div>
                 <PaginationControls currentPage={currentPage} totalCount={totalCount} pageSize={pageSize} onPageChange={setCurrentPage} />
             </div>
+
+            {/* Selection Toolbar */}
+            <AnimatePresence>
+                {!isAddDialogOpen && selectedIds.length > 0 && (
+                    <motion.div
+                        initial={{ y: 100, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: 100, opacity: 0 }}
+                        className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-4 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl border border-white/10 ring-1 ring-black/50"
+                    >
+                        <div className="flex flex-col">
+                            <span className="text-sm font-black">{selectAllMode ? totalCount : selectedIds.length} SELECTED</span>
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Candidate Explorer</span>
+                        </div>
+                        <div className="w-px h-8 bg-white/10 mx-2" />
+                        <Button
+                            onClick={() => handleBulkAddToJR(selectedIds)}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-12 px-8 font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
+                        >
+                            <Plus className="w-5 h-5" /> Add to Job Requisition
+                        </Button>
+                        <div className="w-px h-8 bg-white/10 mx-2" />
+                        <Button
+                            onClick={() => handleRefreshData(selectedIds)}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl h-12 px-6 font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all active:scale-95"
+                        >
+                            <RefreshCw className="w-4 h-4" /> Refresh Data
+                        </Button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            <AddCandidateDialog
+                open={isAddDialogOpen}
+                onOpenChange={setIsAddDialogOpen}
+                candidateIds={targetCandidateIds}
+                candidateNames={targetCandidateIds.map(id => candidates.find(c => c.candidate_id === id)?.name || id)}
+                onSuccess={() => {
+                    setSelectedIds([]);
+                    setTargetCandidateIds([]);
+                }}
+                isSelectAll={selectAllMode}
+                filters={filters}
+                search={searchTerm}
+                totalCount={totalCount}
+            />
         </div>
     );
 }
@@ -707,16 +876,36 @@ function sortExperiences(exps: Experience[]) {
     });
 }
 
-function CandidateRichCard({ candidate }: { candidate: Candidate }) {
+function CandidateRichCard({
+    candidate,
+    isSelected,
+    onToggleSelect
+}: {
+    candidate: Candidate;
+    isSelected?: boolean;
+    onToggleSelect?: () => void;
+}) {
     const [expanded, setExpanded] = useState(true);
     // Sort experiences: Present first, then by End Date descending
     const sortedExperiences = useMemo(() => sortExperiences(candidate.experiences), [candidate.experiences]);
     const currentJob = sortedExperiences.find(e => e.is_current_job) || sortedExperiences[0];
 
     return (
-        <Card className="overflow-hidden border-none shadow-md ring-1 ring-border group transition-all hover:ring-primary/40 hover:shadow-xl bg-card">
+        <Card className={cn(
+            "overflow-hidden border-none shadow-md ring-1 ring-border group transition-all hover:ring-primary/40 hover:shadow-xl bg-card relative",
+            isSelected && "ring-2 ring-indigo-600 shadow-indigo-500/10 bg-indigo-50/10"
+        )}>
+            {/* Selection Checkbox */}
+            <div className="absolute top-4 left-4 z-10">
+                <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={onToggleSelect}
+                    className="h-5 w-5 border-slate-300 bg-white shadow-sm data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600 transition-all"
+                />
+            </div>
+
             {/* Summary Header */}
-            <div className="p-5 flex gap-5 items-start relative bg-gradient-to-r from-card via-card to-secondary/5">
+            <div className={cn("p-5 flex gap-5 items-start relative bg-gradient-to-r from-card via-card to-secondary/5", isSelected && "pl-14")}>
 
                 {/* Action Buttons (Top Right) */}
                 <div className="absolute top-4 right-4 flex items-center gap-2">
@@ -776,7 +965,7 @@ function CandidateRichCard({ candidate }: { candidate: Candidate }) {
 
             {/* Experience Table */}
             {expanded && (
-                <div className="border-t bg-secondary/5">
+                <div className={cn("border-t bg-secondary/5", isSelected && "pl-8")}>
                     <div className="grid grid-cols-12 gap-4 px-6 py-2 border-b bg-secondary/20 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                         <div className="col-span-4">Position</div>
                         <div className="col-span-3">Company</div>

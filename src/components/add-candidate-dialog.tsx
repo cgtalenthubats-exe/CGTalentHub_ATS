@@ -47,6 +47,8 @@ import {
 import { searchCandidates } from "@/app/actions/candidate";
 import { addCandidatesToJR, getExistingCandidateIdsForJR } from "@/app/actions/jr-candidates";
 import { SmartCandidateSearch } from "@/components/smart-candidate-search";
+import { AsyncFilterMultiSelect } from "@/components/ui/async-filter-multi-select";
+import { searchCompanies, searchPositions } from "@/app/actions/candidate-filters";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -60,7 +62,10 @@ interface AddCandidateDialogProps {
 export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess }: AddCandidateDialogProps) {
     const [searchQuery, setSearchQuery] = useState("");
     const [results, setResults] = useState<any[]>([]);
+    const [totalResults, setTotalResults] = useState(0);
+    const [page, setPage] = useState(1);
     const [searching, setSearching] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [existingIds, setExistingIds] = useState<string[]>([]);
     const [listType, setListType] = useState("Longlist");
@@ -81,7 +86,8 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess }: AddC
         statuses: [] as string[],
         genders: [] as string[],
         ageMin: "",
-        ageMax: ""
+        ageMax: "",
+        experienceType: "All" as 'Current' | 'Past' | 'All'
     });
 
     const [options, setOptions] = useState<any>({
@@ -109,54 +115,72 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess }: AddC
         }
     }, [open, jrId]);
 
+    // Search Function
+    const fetchCandidates = async (pageNum: number, replace: boolean = false) => {
+        if (replace) {
+            setSearching(true);
+        } else {
+            setLoadingMore(true);
+        }
+
+        try {
+            const res = await fetch('/api/candidates/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    search: searchQuery.trim(),
+                    filters: {
+                        country: filters.countries,
+                        position: filters.positions,
+                        industry: filters.industries,
+                        company: filters.companies,
+                        status: filters.statuses,
+                        gender: filters.genders,
+                        jobFunction: filters.jobFunctions,
+                        ageMin: filters.ageMin ? parseInt(filters.ageMin) : undefined,
+                        ageMax: filters.ageMax ? parseInt(filters.ageMax) : undefined,
+                        experienceType: filters.experienceType
+                    },
+                    page: pageNum,
+                    pageSize: 20
+                })
+            });
+            const data = await res.json();
+
+            if (replace) {
+                setResults(data.data || []);
+            } else {
+                setResults(prev => [...prev, ...(data.data || [])]);
+            }
+            setTotalResults(data.total || 0);
+            setPage(pageNum);
+        } catch (e) {
+            console.error("Search failed", e);
+        } finally {
+            setSearching(false);
+            setLoadingMore(false);
+        }
+    };
+
     // Search Logic (Debounced)
     useEffect(() => {
-        // DEBUG LOG
-        console.log("AddCandidateDialog: Search Effect Triggered", { searchQuery, filters });
-
-        const timer = setTimeout(async () => {
-            console.log("AddCandidateDialog: Debounce Timeout Executing", { searchQuery, len: searchQuery.trim().length });
-
+        const timer = setTimeout(() => {
             if (searchQuery.trim().length >= 2 || Object.values(filters).some(v => Array.isArray(v) ? v.length > 0 : v)) {
-                console.log("AddCandidateDialog: Starting Search...");
-                setSearching(true);
-                try {
-                    // We use the same API as Candidate Explorer for consistency
-                    const res = await fetch('/api/candidates/search', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            search: searchQuery.trim(),
-                            filters: {
-                                country: filters.countries,
-                                position: filters.positions,
-                                industry: filters.industries,
-                                company: filters.companies,
-                                status: filters.statuses,
-                                gender: filters.genders,
-                                jobFunction: filters.jobFunctions,
-                                ageMin: filters.ageMin ? parseInt(filters.ageMin) : undefined,
-                                ageMax: filters.ageMax ? parseInt(filters.ageMax) : undefined,
-                            },
-                            pageSize: 20
-                        })
-                    });
-                    const data = await res.json();
-                    console.log("AddCandidateDialog: Search Results", data.data?.length);
-                    setResults(data.data || []);
-                } catch (e) {
-                    console.error("Search failed", e);
-                } finally {
-                    setSearching(false);
-                }
+                fetchCandidates(1, true);
             } else {
-                console.log("AddCandidateDialog: Clearing Results");
                 setResults([]);
+                setTotalResults(0);
             }
         }, 500);
 
         return () => clearTimeout(timer);
     }, [searchQuery, filters]);
+
+    const handleLoadMore = () => {
+        if (!loadingMore && results.length < totalResults) {
+            fetchCandidates(page + 1, false);
+        }
+    };
 
     const handleToggle = (id: string) => {
         if (existingIds.includes(id)) return;
@@ -203,7 +227,7 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess }: AddC
             setSelectedIds([]);
             setSearchQuery("");
             setFilters({
-                countries: [], industries: [], positions: [], companies: [], jobFunctions: [], statuses: [], genders: [], ageMin: "", ageMax: ""
+                countries: [], industries: [], positions: [], companies: [], jobFunctions: [], statuses: [], genders: [], ageMin: "", ageMax: "", experienceType: "All"
             });
         } else {
             toast.error("Error: " + error);
@@ -257,7 +281,7 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess }: AddC
     return (
         <>
             <Dialog open={open} onOpenChange={onOpenChange}>
-                <DialogContent className="sm:max-w-3xl overflow-hidden flex flex-col max-h-[96vh] p-0 border-none shadow-2xl rounded-2xl">
+                <DialogContent className="sm:max-w-6xl overflow-hidden flex flex-col max-h-[96vh] p-0 border-none shadow-2xl rounded-2xl">
                     <DialogHeader className="p-7 pb-5 bg-gradient-to-r from-indigo-50/80 to-slate-50/50 dark:from-slate-900 dark:to-slate-950 border-b">
                         <div className="flex items-center justify-between">
                             <div className="space-y-1.5">
@@ -318,15 +342,54 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess }: AddC
                             </Button>
                         </div>
 
+
                         {showFilters && (
-                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 pt-1 animate-in slide-in-from-top-3 duration-300">
-                                <FilterSelect label="Position" icon={Briefcase} options={options.positions} selected={filters.positions} onChange={(v: string) => toggleFilter('positions', v)} />
-                                <FilterSelect label="Company" icon={Building2} options={options.companies} selected={filters.companies} onChange={(v: string) => toggleFilter('companies', v)} />
-                                <FilterSelect label="Country" icon={MapPin} options={options.countries} selected={filters.countries} onChange={(v: string) => toggleFilter('countries', v)} />
-                                <FilterSelect label="Industry" icon={Briefcase} options={options.industries} selected={filters.industries} onChange={(v: string) => toggleFilter('industries', v)} />
-                                <FilterSelect label="Gender" icon={User} options={options.genders} selected={filters.genders} onChange={(v: string) => toggleFilter('genders', v)} />
-                                <FilterSelect label="Status" icon={Tags} options={options.statuses} selected={filters.statuses} onChange={(v: string) => toggleFilter('statuses', v)} />
-                                <FilterSelect label="Function" icon={Briefcase} options={options.jobFunctions} selected={filters.jobFunctions} onChange={(v: string) => toggleFilter('jobFunctions', v)} />
+                            <div className="flex flex-wrap gap-2 items-center pt-2 animate-in slide-in-from-top-3 duration-300">
+                                {/* Experience Type */}
+                                <div className="flex items-center bg-secondary/30 p-0.5 rounded-lg border border-primary/10 h-8">
+                                    {['All', 'Current', 'Past'].map((type) => (
+                                        <button
+                                            key={type}
+                                            onClick={() => setFilters(prev => ({ ...prev, experienceType: type as any }))}
+                                            className={cn(
+                                                "px-3 h-7 text-[10px] font-bold transition-all rounded-md",
+                                                filters.experienceType === type
+                                                    ? "bg-primary text-white shadow-sm"
+                                                    : "text-muted-foreground hover:text-primary hover:bg-white/50"
+                                            )}
+                                        >
+                                            {type === 'All' ? 'Exp: All' : type}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <div className="h-4 w-px bg-border mx-1" />
+
+                                <AsyncFilterMultiSelect
+                                    label="Position"
+                                    icon={Briefcase}
+                                    selected={filters.positions}
+                                    onChange={(v: string[]) => setFilters(prev => ({ ...prev, positions: v }))}
+                                    fetcher={searchPositions}
+                                    placeholder="Search Position..."
+                                    filters={filters}
+                                />
+
+                                <AsyncFilterMultiSelect
+                                    label="Company"
+                                    icon={Building2}
+                                    selected={filters.companies}
+                                    onChange={(v: string[]) => setFilters(prev => ({ ...prev, companies: v }))}
+                                    fetcher={searchCompanies}
+                                    placeholder="Search Company..."
+                                    filters={filters}
+                                />
+
+                                <FilterMultiSelect label="Country" icon={MapPin} options={options.countries} selected={filters.countries} onChange={(v: string[]) => setFilters(prev => ({ ...prev, countries: v }))} />
+                                <FilterMultiSelect label="Industry" icon={Briefcase} options={options.industries} selected={filters.industries} onChange={(v: string[]) => setFilters(prev => ({ ...prev, industries: v }))} />
+                                <FilterMultiSelect label="Gender" icon={User} options={options.genders} selected={filters.genders} onChange={(v: string[]) => setFilters(prev => ({ ...prev, genders: v }))} />
+                                <FilterMultiSelect label="Status" icon={Tags} options={options.statuses} selected={filters.statuses} onChange={(v: string[]) => setFilters(prev => ({ ...prev, statuses: v }))} />
+                                <FilterMultiSelect label="Function" icon={Briefcase} options={options.jobFunctions} selected={filters.jobFunctions} onChange={(v: string[]) => setFilters(prev => ({ ...prev, jobFunctions: v }))} />
                             </div>
                         )}
 
@@ -335,7 +398,7 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess }: AddC
                                 <div className="flex items-center gap-2">
                                     <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
                                     <p className="text-xs font-bold uppercase text-slate-500 tracking-wider">
-                                        {results.length} results matching criteria
+                                        {results.length} of {totalResults} results
                                     </p>
                                 </div>
                                 <Button
@@ -406,10 +469,14 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess }: AddC
                                                         </Badge>
                                                     )}
                                                 </div>
-                                                <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1.5 mt-2 text-xs text-slate-500 font-bold">
+                                                <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1.5 mt-2 text-xs text-slate-500 font-bold">
                                                     <div className="flex items-center gap-2 truncate text-slate-700/80">
                                                         <Briefcase className="h-3.5 w-3.5 text-primary/50 shrink-0" />
                                                         {c.job_function || "Position N/A"}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 truncate text-slate-700/80 col-span-2 md:col-span-1">
+                                                        <Building2 className="h-3.5 w-3.5 text-indigo-500/50 shrink-0" />
+                                                        {c.experiences?.[0]?.company || c.company || "Company N/A"}
                                                     </div>
                                                     <div className="flex items-center gap-2 truncate">
                                                         <MapPin className="h-3.5 w-3.5 text-emerald-500/50 shrink-0" />
@@ -427,6 +494,18 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess }: AddC
                                         </div>
                                     );
                                 })}
+                                {results.length < totalResults && (
+                                    <div className="flex justify-center pt-4 pb-2">
+                                        <Button
+                                            variant="outline"
+                                            onClick={handleLoadMore}
+                                            disabled={loadingMore}
+                                            className="min-w-[120px]"
+                                        >
+                                            {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : "Load More"}
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                         ) : (searchQuery.length >= 2 || Object.values(filters).some(v => Array.isArray(v) && v.length > 0)) ? (
                             <div className="flex flex-col items-center justify-center h-full py-20 text-slate-400">
@@ -578,57 +657,96 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess }: AddC
     );
 }
 
-// Helper Filter Component
-function FilterSelect({ label, icon: Icon, options = [], selected, onChange }: any) {
+// Helper Filter Component (Lifted from Candidate Explorer)
+function FilterMultiSelect({ label, icon: Icon, options = [], selected, onChange, disabled }: any) {
     const [open, setOpen] = useState(false);
+    const [tempSelected, setTempSelected] = useState<string[]>(selected);
+
+    // Sync tempSelected with parent selected when popover opens
+    useEffect(() => {
+        if (open) {
+            setTempSelected(selected);
+        }
+    }, [open, selected]);
+
+    const handleToggle = (option: string) => {
+        setTempSelected(prev =>
+            prev.includes(option)
+                ? prev.filter(i => i !== option)
+                : [...prev, option]
+        );
+    };
+
+    const handleApply = () => {
+        onChange(tempSelected);
+        setOpen(false);
+    };
+
+    const handleClear = () => {
+        setTempSelected([]);
+    };
+
     return (
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className={cn(
-                    "h-8 gap-1.5 border-dashed text-[10px] font-bold uppercase tracking-tight",
-                    selected.length > 0 && "border-primary text-primary bg-primary/5"
-                )}>
-                    <Icon className="h-3 w-3" />
+                <Button variant="outline" size="sm" className={cn("h-9 gap-2 border-dashed bg-background", selected.length > 0 && "border-primary/50 bg-primary/5")} disabled={disabled}>
+                    <Icon className="h-3.5 w-3.5 text-muted-foreground" />
                     {label}
                     {selected.length > 0 && (
-                        <span className="ml-1 px-1 bg-primary text-white rounded-sm text-[8px]">{selected.length}</span>
+                        <Badge variant="secondary" className="ml-1 h-5 px-1 text-[10px] bg-primary text-primary-foreground">{selected.length}</Badge>
                     )}
-                    <ChevronDown className="h-3 w-3 opacity-30 ml-auto" />
+                    <ChevronDown className="ml-auto h-3 w-3 opacity-50" />
                 </Button>
             </PopoverTrigger>
-            <PopoverContent className="p-0 w-[180px]" align="start">
+            <PopoverContent className="p-0 w-[240px]" align="start">
                 <Command>
-                    <CommandInput placeholder={label} className="h-8 text-xs" />
+                    <CommandInput placeholder={`Search ${label}...`} className="h-9" />
                     <CommandList>
-                        <CommandEmpty className="py-2 text-[10px]">No matches</CommandEmpty>
-                        <CommandGroup className="max-h-48 overflow-y-auto p-1">
+                        <CommandEmpty>No results found.</CommandEmpty>
+                        <CommandGroup className="max-h-64 overflow-y-auto">
                             {options.map((option: string) => {
-                                const isSelected = selected.includes(option);
+                                const isSelected = tempSelected.includes(option);
                                 return (
                                     <CommandItem
                                         key={option}
                                         value={option}
-                                        onSelect={() => onChange(option)}
-                                        className="text-xs"
+                                        onSelect={() => handleToggle(option)}
                                     >
-                                        <div className={cn("mr-2 flex h-3.5 w-3.5 items-center justify-center rounded-sm border border-primary", isSelected ? "bg-primary text-white" : "opacity-30")}>
-                                            <Check className={cn("h-3 w-3", !isSelected && "hidden")} />
+                                        <div className={cn("mr-2 flex h-4 w-4 items-center justify-center rounded-sm border border-primary", isSelected ? "bg-primary text-primary-foreground" : "opacity-50 [&_svg]:invisible")}>
+                                            <Check className={cn("h-4 w-4")} />
                                         </div>
-                                        <span className="truncate">{option}</span>
+                                        {option}
                                     </CommandItem>
                                 );
                             })}
                         </CommandGroup>
-                        {selected.length > 0 && (
-                            <>
-                                <CommandSeparator />
-                                <CommandGroup>
-                                    <CommandItem onSelect={() => selected.forEach((s: string) => onChange(s))} className="justify-center text-[10px] text-primary font-bold py-1">
-                                        Clear
-                                    </CommandItem>
-                                </CommandGroup>
-                            </>
-                        )}
+                        <div className="flex items-center justify-between p-2 border-t bg-slate-50">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 text-[10px] font-bold text-slate-500 hover:text-red-500 px-2"
+                                onClick={handleClear}
+                            >
+                                Clear
+                            </Button>
+                            <div className="flex gap-1.5">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 text-[10px] px-2"
+                                    onClick={() => setOpen(false)}
+                                >
+                                    Cancel
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    className="h-8 text-[10px] px-3 bg-primary text-white font-bold"
+                                    onClick={handleApply}
+                                >
+                                    Apply ({tempSelected.length})
+                                </Button>
+                            </div>
+                        </div>
                     </CommandList>
                 </Command>
             </PopoverContent>

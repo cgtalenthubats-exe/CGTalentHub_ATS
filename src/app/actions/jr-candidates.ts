@@ -2,6 +2,7 @@
 
 import { adminAuthClient } from "@/lib/supabase/admin";
 import { JRCandidate, JRAnalytics } from "@/types/requisition";
+import { getCandidateIdsByExperienceFilters } from "@/lib/candidate-service";
 
 // Internal type for DB row structure
 interface DBJRCandidate {
@@ -285,10 +286,38 @@ export async function bulkAddCandidatesToJR(
     jrId: string,
     candidates: { id: string, name: string }[],
     listType: string = 'Longlist'
-): Promise<{ success: boolean; added: number; duplicates: string[]; error?: string }> {
+): Promise<{ success: boolean; added: number; duplicates: string[]; blacklisted: string[]; error?: string }> {
     const supabase = adminAuthClient;
 
     try {
+        if (candidates.length === 0) return { success: true, added: 0, duplicates: [], blacklisted: [] };
+
+        // 0. Check for Blacklisted Candidates
+        const candidateIdsToCheck = candidates.map(c => c.id);
+        const { data: blacklistData, error: blError } = await supabase
+            .from('Candidate Profile')
+            .select('candidate_id, blacklist_note')
+            .in('candidate_id', candidateIdsToCheck)
+            .not('blacklist_note', 'is', null);
+
+        if (blError) throw blError;
+
+        const blacklistedIds = new Set(blacklistData?.map((b: any) => b.candidate_id));
+        const blacklistedNames: string[] = [];
+
+        // Filter out blacklisted
+        const candidatesSafe = candidates.filter(c => {
+            if (blacklistedIds.has(c.id)) {
+                blacklistedNames.push(c.name);
+                return false;
+            }
+            return true;
+        });
+
+        if (candidatesSafe.length === 0) {
+            return { success: true, added: 0, duplicates: [], blacklisted: blacklistedNames };
+        }
+
         // 1. Fetch existing candidates in this JR to filter duplicates
         const { data: existing, error: fetchError } = await supabase
             .from('jr_candidates')
@@ -301,7 +330,7 @@ export async function bulkAddCandidatesToJR(
         const toAdd = [];
         const duplicates = [];
 
-        for (const c of candidates) {
+        for (const c of candidatesSafe) {
             if (existingIds.has(c.id)) {
                 duplicates.push(c.name);
             } else {
@@ -310,7 +339,7 @@ export async function bulkAddCandidatesToJR(
         }
 
         if (toAdd.length === 0) {
-            return { success: true, added: 0, duplicates };
+            return { success: true, added: 0, duplicates, blacklisted: blacklistedNames };
         }
 
         // 2. Reuse efficient logic from addCandidatesToJR (but we need to inline it or call it safely)
@@ -376,11 +405,65 @@ export async function bulkAddCandidatesToJR(
         const { error: logError } = await supabase.from('status_log').insert(statusLogsInsert as any);
         if (logError) throw logError;
 
-        return { success: true, added: toAdd.length, duplicates };
+        return { success: true, added: toAdd.length, duplicates, blacklisted: blacklistedNames };
 
     } catch (e: any) {
         console.error("Bulk Add Error:", e);
-        return { success: false, added: 0, duplicates: [], error: e.message };
+        return { success: false, added: 0, duplicates: [], blacklisted: [], error: e.message };
+    }
+}
+
+export async function bulkAddByFilterToJR(
+    jrId: string,
+    filters: any,
+    search: string,
+    listType: string = 'Longlist'
+) {
+    try {
+        // Copied logic from candidates/search/route.ts to get ALL matches
+        const normalizedFilters = {
+            companies: filters?.company || filters?.companies,
+            positions: filters?.position || filters?.positions,
+            countries: filters?.country || filters?.countries,
+            industries: filters?.industry || filters?.industries,
+            groups: filters?.group || filters?.groups,
+            experienceType: filters?.experienceType
+        };
+
+        const expCandidateIds = await getCandidateIdsByExperienceFilters(normalizedFilters);
+        const cleanFilter = (val: any) => (Array.isArray(val) && val.length > 0 ? val : null);
+
+        // Call RPC with specialized parameters for "ID fetching" or just use robust search with high limit
+        const { data, error } = await (adminAuthClient.rpc as any)('search_candidates_robust', {
+            p_search: search || null,
+            p_companies: cleanFilter(normalizedFilters.companies),
+            p_positions: cleanFilter(normalizedFilters.positions),
+            p_countries: cleanFilter(normalizedFilters.countries),
+            p_industries: cleanFilter(normalizedFilters.industries),
+            p_groups: cleanFilter(normalizedFilters.groups),
+            p_exp_type: normalizedFilters.experienceType || 'All',
+            p_genders: cleanFilter(filters?.genders || filters?.gender),
+            p_statuses: cleanFilter(filters?.statuses || filters?.status),
+            p_job_groupings: cleanFilter(filters?.jobGroupings || filters?.jobGrouping),
+            p_job_functions: cleanFilter(filters?.jobFunctions || filters?.jobFunction),
+            p_age_min: filters?.ageMin ? parseInt(filters.ageMin) : null,
+            p_age_max: filters?.ageMax ? parseInt(filters.ageMax) : null,
+            p_offset: 0,
+            p_limit: 10000 // High limit for bulk action
+        });
+
+        if (error) throw error;
+
+        const candidates = (data || []).map((c: any) => ({
+            id: c.candidate_id,
+            name: c.name
+        }));
+
+        return await bulkAddCandidatesToJR(jrId, candidates, listType);
+
+    } catch (error: any) {
+        console.error("Bulk Filter Add Error:", error);
+        return { success: false, error: error.message };
     }
 }
 

@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Users, Clock, Briefcase, Filter, TrendingUp, ArrowUpDown, Copy, MoreHorizontal, FileText, CheckSquare, Square } from "lucide-react";
+import { Search, Plus, Users, Clock, Briefcase, Filter, TrendingUp, ArrowUpDown, Copy, MoreHorizontal, FileText, CheckSquare, Square, Trophy } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
@@ -262,26 +262,35 @@ export default function RequisitionsPage() {
                         {selectedJrIds.size > 0 && <span className="ml-2 font-medium text-blue-600">(Analyzing {selectedJrIds.size} selected items)</span>}
                     </p>
                 </div>
-                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                    <DialogTrigger asChild>
-                        <Button>
-                            <Plus className="mr-2 h-4 w-4" /> Create New JR
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-                        <div className="text-center mb-6">
-                            <h2 className="text-2xl font-bold">Create New Requisition</h2>
-                            <p className="text-muted-foreground">Drafting a new job requisition. ID will be generated automatically.</p>
-                        </div>
-                        <CreateJobRequisitionForm
-                            onCancel={() => setIsCreateOpen(false)}
-                            onSuccess={(newJR) => {
-                                setIsCreateOpen(false);
-                                setJrs(prev => [newJR, ...prev]);
-                            }}
-                        />
-                    </DialogContent>
-                </Dialog>
+                <div className="flex gap-3">
+                    <Button
+                        variant="outline"
+                        className="border-amber-200 text-amber-700 hover:bg-amber-50"
+                        onClick={() => router.push('/requisitions/placements')}
+                    >
+                        <Trophy className="mr-2 h-4 w-4" /> Successful Placements
+                    </Button>
+                    <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                        <DialogTrigger asChild>
+                            <Button>
+                                <Plus className="mr-2 h-4 w-4" /> Create New JR
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                            <div className="text-center mb-6">
+                                <h2 className="text-2xl font-bold">Create New Requisition</h2>
+                                <p className="text-muted-foreground">Drafting a new job requisition. ID will be generated automatically.</p>
+                            </div>
+                            <CreateJobRequisitionForm
+                                onCancel={() => setIsCreateOpen(false)}
+                                onSuccess={(newJR) => {
+                                    setIsCreateOpen(false);
+                                    setJrs(prev => [newJR, ...prev]);
+                                }}
+                            />
+                        </DialogContent>
+                    </Dialog>
+                </div>
             </div>
 
             {/* --- DASHBOARD SECTION --- */}

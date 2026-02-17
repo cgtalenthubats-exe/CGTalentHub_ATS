@@ -108,3 +108,55 @@ export async function getAllReports() {
         return { success: false, error: error.message };
     }
 }
+
+// --- New: Candidate Data Refresh ---
+
+export async function triggerCandidateRefresh(candidateIds: string[], requester: string) {
+    try {
+        // 1. Fetch Config
+        const config = await getN8nUrl('Candidate Refresh');
+        if (!config) {
+            return { success: false, error: "n8n Configuration 'Candidate Refresh' not found" };
+        }
+
+        const url = new URL(config.url);
+        const requestDate = new Date().toISOString();
+
+        // 2. Prepare Payload
+        const payload = {
+            candidate_ids: candidateIds,
+            requester: requester,
+            request_date: requestDate
+        };
+
+        console.log(`Triggering n8n Candidate Refresh (${config.method}):`, config.url);
+
+        const fetchOptions: RequestInit = {
+            method: config.method,
+            cache: 'no-store',
+            headers: { 'Content-Type': 'application/json' }
+        };
+
+        if (config.method === 'POST') {
+            fetchOptions.body = JSON.stringify(payload);
+        } else {
+            // For GET, we might hit URL length limits with many IDs, but let's support it basic
+            url.searchParams.append("requester", requester);
+            url.searchParams.append("request_date", requestDate);
+            url.searchParams.append("candidate_ids", candidateIds.join(','));
+        }
+
+        const fullUrl = config.method === 'GET' ? url.toString() : config.url;
+
+        const response = await fetch(fullUrl, fetchOptions);
+
+        if (!response.ok) {
+            return { success: false, error: `n8n failed with status: ${response.status}` };
+        }
+
+        return { success: true, count: candidateIds.length };
+    } catch (error: any) {
+        console.error("Trigger Candidate Refresh Error:", error);
+        return { success: false, error: error.message };
+    }
+}

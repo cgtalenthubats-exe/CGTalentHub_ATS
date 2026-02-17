@@ -24,7 +24,8 @@ import {
     Building2,
     UserCircle2,
     Briefcase,
-    History
+    History,
+    RefreshCw
 } from "lucide-react";
 import { getStatusMaster } from "@/app/actions/status-master";
 import {
@@ -34,6 +35,8 @@ import {
     removeFromJR,
     copyCandidatesToJR
 } from "@/app/actions/status-updates";
+import { triggerCandidateRefresh } from "@/app/actions/n8n-actions";
+import { toast } from "sonner";
 import { getJobRequisitions } from "@/app/actions/requisitions";
 import { cn } from "@/lib/utils";
 import {
@@ -147,6 +150,20 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
         } else {
             alert("Update error: " + error);
         }
+    };
+
+    const handleRefreshData = async (ids: string[]) => {
+        toast.promise(
+            triggerCandidateRefresh(ids, "JR Manager (Manual Trigger)"),
+            {
+                loading: `Sending ${ids.length} candidates to n8n for refresh...`,
+                success: (data: any) => {
+                    if (data.success) return `Successfully triggered refresh for ${ids.length} candidates!`;
+                    throw new Error(data.error);
+                },
+                error: (err) => `Failed to refresh: ${err.message}`
+            }
+        );
     };
 
     const handleRemove = async (ids: string[]) => {
@@ -272,6 +289,16 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
                                     ))}
                                 </DropdownMenuContent>
                             </DropdownMenu>
+
+                            <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-[10px] font-black text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 gap-1.5 uppercase tracking-wide"
+                                onClick={() => handleRefreshData(selectedIds)}
+                                title="Send to n8n for Update"
+                            >
+                                <RefreshCw className="h-3 w-3" /> Refresh
+                            </Button>
 
                             <Popover>
                                 <PopoverTrigger asChild>

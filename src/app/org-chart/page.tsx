@@ -2,7 +2,7 @@ import { fetchOrgChartUploads, fetchOrgChartData, getOrgNodesRaw } from '@/app/a
 import { Suspense } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { OrgNodeTable } from '@/components/org-chart/org-node-table'
-import { OrgChartSelector } from '@/components/org-chart/org-chart-selector'
+import { OrgDirectory } from '@/components/org-chart/org-directory'
 import { OrgChartClientWrapper } from '@/components/org-chart/org-chart-client-wrapper'
 
 export default async function OrgChartPage({
@@ -31,44 +31,66 @@ export default async function OrgChartPage({
     }
 
     return (
-        <div className="container mx-auto py-6 space-y-6 h-screen flex flex-col">
-            <div className="flex items-center justify-between shrink-0">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+        <div className="container mx-auto py-2 space-y-2 flex flex-col h-screen overflow-hidden px-4 md:px-6">
+            <div className="shrink-0 flex items-center justify-between">
+                <div className="flex items-baseline gap-3">
+                    <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 italic">
                         Organization Chart
                     </h1>
-                    <p className="text-slate-500 dark:text-slate-400 mt-1">
-                        Visualizing company structure from PDF uploads.
-                    </p>
                 </div>
 
-                {/* Global Company Selector */}
-                <div className="flex items-center gap-4">
-                    <OrgChartSelector
-                        uploads={uploads}
-                        currentId={currentUploadId}
-                    />
+                {/* Secondary Tab Switcher - Horizontal Link style-ish */}
+                <div className="flex gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-lg">
+                    {/* We'll use the Tabs component but more compact below */}
                 </div>
             </div>
 
+            {/* Top Area: Compact Directory Toolbar */}
+            <OrgDirectory
+                uploads={uploads}
+                currentId={currentUploadId}
+            />
+
+            {/* Main Content: Chart/Table */}
             <div className="flex-1 min-h-0 relative">
                 <Tabs defaultValue="chart" className="h-full flex flex-col">
-                    <div className="flex mb-4">
-                        <TabsList>
-                            <TabsTrigger value="chart">Visual Chart View</TabsTrigger>
-                            <TabsTrigger value="list">Raw Data Table (Edit)</TabsTrigger>
+                    <div className="flex mb-1 shrink-0 justify-between items-center bg-white/50 dark:bg-slate-950/50 p-1 rounded-lg border border-slate-100 dark:border-slate-800 px-3">
+                        <TabsList className="h-8 bg-transparent p-0 gap-1">
+                            <TabsTrigger
+                                value="chart"
+                                className="h-7 text-xs px-3 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm"
+                            >
+                                Chart View
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="list"
+                                className="h-7 text-xs px-3 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 data-[state=active]:shadow-sm"
+                            >
+                                Data Table
+                            </TabsTrigger>
                         </TabsList>
+
+                        {currentUploadId && (
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                    Current Org:
+                                </span>
+                                <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                                    {uploads.find(u => u.upload_id === currentUploadId)?.company_name}
+                                </span>
+                            </div>
+                        )}
                     </div>
 
-                    <TabsContent value="chart" className="flex-1 min-h-0 border rounded-xl overflow-hidden mt-0 bg-slate-50/50">
-                        <Suspense fallback={<div className="h-full w-full bg-slate-100 animate-pulse" />}>
+                    <TabsContent value="chart" className="flex-1 min-h-0 border rounded-xl overflow-hidden mt-0 bg-slate-50/50 dark:bg-slate-900/10">
+                        <Suspense fallback={<div className="h-full w-full bg-slate-100 dark:bg-slate-800 animate-pulse" />}>
                             <OrgChartClientWrapper
                                 initialData={chartData}
                             />
                         </Suspense>
                     </TabsContent>
 
-                    <TabsContent value="list" className="flex-1 overflow-auto mt-0">
+                    <TabsContent value="list" className="flex-1 overflow-auto mt-0 border rounded-xl bg-white dark:bg-slate-950">
                         <OrgNodeTable nodes={tableData} uploadId={currentUploadId} />
                     </TabsContent>
                 </Tabs>
