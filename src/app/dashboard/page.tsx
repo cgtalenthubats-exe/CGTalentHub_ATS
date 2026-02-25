@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { getGlobalPoolDisplay, getMarketSalaryStats } from "@/app/actions/dashboard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,6 +15,7 @@ import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
 import { Button } from "@/components/ui/button";
 import { Tooltip as ReactTooltip } from "react-tooltip";
 import PipelineTab from "./PipelineTab";
+import PlacementTab from "./PlacementTab";
 
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
@@ -28,10 +29,38 @@ const CONTINENT_COORDS: Record<string, { center: [number, number], zoom: number 
 };
 
 export default function DashboardPage() {
-    // Data State
-    const [globalData, setGlobalData] = useState<any>(null); // { rawJobs, totalCandidates, filterOptions }
-    const [salaryData, setSalaryData] = useState<any>(null); // { companyStats, details, filterOptions }
-    const [loading, setLoading] = useState(true);
+    // Data State — loaded lazily per tab
+    const [globalData, setGlobalData] = useState<any>(null);
+    const [salaryData, setSalaryData] = useState<any>(null);
+    const [globalLoading, setGlobalLoading] = useState(false);
+    const [salaryLoading, setSalaryLoading] = useState(false);
+    const loadedTabs = useRef<Set<string>>(new Set());
+
+    // Active tab
+    const [activeTab, setActiveTab] = useState("global");
+
+    // Lazy load per tab — only fetch on first visit
+    const loadTab = useCallback(async (tab: string) => {
+        if (loadedTabs.current.has(tab)) return;
+        loadedTabs.current.add(tab);
+        if (tab === "global") {
+            setGlobalLoading(true);
+            try { setGlobalData(await getGlobalPoolDisplay()); } catch (e) { console.error(e); }
+            setGlobalLoading(false);
+        } else if (tab === "market") {
+            setSalaryLoading(true);
+            try { setSalaryData(await getMarketSalaryStats()); } catch (e) { console.error(e); }
+            setSalaryLoading(false);
+        }
+        // pipeline & placement tabs handle their own data internally
+    }, []);
+
+    useEffect(() => { loadTab("global"); }, [loadTab]);
+
+    const handleTabChange = (tab: string) => {
+        setActiveTab(tab);
+        loadTab(tab);
+    };
 
     // Filter State - Global Pool
     const [gpContinents, setGpContinents] = useState<string[]>([]);
@@ -43,7 +72,6 @@ export default function DashboardPage() {
     // Map View State
     const [mapPosition, setMapPosition] = useState<{ center: [number, number], zoom: number }>(CONTINENT_COORDS["World"]);
 
-    // Update Map Position when Continent Filter Changes
     useEffect(() => {
         if (gpContinents.length === 1 && CONTINENT_COORDS[gpContinents[0]]) {
             setMapPosition(CONTINENT_COORDS[gpContinents[0]]);
@@ -56,24 +84,6 @@ export default function DashboardPage() {
     const [salaryIndustries, setSalaryIndustries] = useState<string[]>([]);
     const [salaryGroups, setSalaryGroups] = useState<string[]>([]);
     const [salaryCompanies, setSalaryCompanies] = useState<string[]>([]);
-
-    useEffect(() => {
-        async function load() {
-            setLoading(true);
-            try {
-                const [pool, market] = await Promise.all([
-                    getGlobalPoolDisplay(),
-                    getMarketSalaryStats()
-                ]);
-                setGlobalData(pool);
-                setSalaryData(market);
-            } catch (e) {
-                console.error("Dashboard Load Error:", e);
-            }
-            setLoading(false);
-        }
-        load();
-    }, []);
 
     // --- Helper: Toggle ---
     const toggle = (current: string[], value: string, setter: (val: string[]) => void) => {
@@ -242,11 +252,7 @@ export default function DashboardPage() {
 
     }, [salaryData, salaryIndustries, salaryGroups, salaryCompanies]);
 
-    if (loading) {
-        return <div className="flex items-center justify-center h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
-    }
-
-    if (!globalData || !salaryData) return <div className="p-8">Error loading data.</div>;
+    // No global loading gate — tabs load independently
 
     // Scale for Map Bubbles
     const maxCount = Math.max(...(filteredStats.map((s: any) => s.count) || [0]), 10);
@@ -258,299 +264,313 @@ export default function DashboardPage() {
         <div className="container mx-auto p-6 space-y-6 bg-background min-h-screen">
             <h1 className="text-4xl font-extrabold tracking-tight text-foreground">Dashboard</h1>
 
-            <Tabs defaultValue="global" className="space-y-6">
-                <TabsList className="grid w-full grid-cols-3 max-w-[600px]">
+            <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
+                <TabsList className="grid w-full grid-cols-4 max-w-[800px]">
                     <TabsTrigger value="global">Global Candidate Pool</TabsTrigger>
                     <TabsTrigger value="market">Salary Benchmark</TabsTrigger>
                     <TabsTrigger value="pipeline">Recruitment Pipeline</TabsTrigger>
+                    <TabsTrigger value="placement">Search &amp; Placement</TabsTrigger>
                 </TabsList>
 
                 {/* --- TAB 1: GLOBAL POOL --- */}
                 <TabsContent value="global" className="space-y-6">
-                    {/* Scorecards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <MetricCard title="Candidates" value={filteredCount.toLocaleString()} subtext="Total In Pool" icon={Users} />
-                        <MetricCard title="Companies" value={filteredCompaniesCount.toLocaleString()} subtext="Active Companies" icon={TrendingUp} />
-                        <MetricCard title="Countries" value={filteredStats.length.toLocaleString()} subtext="Global Reach" icon={Globe} />
-                    </div>
+                    {globalLoading && <div className="flex items-center justify-center h-48"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
+                    {!globalLoading && !globalData && <div className="p-8 text-muted-foreground">Failed to load data.</div>}
+                    {!globalLoading && globalData && <>
+                        {/* Scorecards */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <MetricCard title="Candidates" value={filteredCount.toLocaleString()} subtext="Total In Pool" icon={Users} />
+                            <MetricCard title="Companies" value={filteredCompaniesCount.toLocaleString()} subtext="Active Companies" icon={TrendingUp} />
+                            <MetricCard title="Countries" value={filteredStats.length.toLocaleString()} subtext="Global Reach" icon={Globe} />
+                        </div>
 
-                    {/* Filters */}
-                    <div className="flex flex-wrap gap-4 items-center">
-                        <FilterMultiSelect
-                            label="Continent"
-                            icon={Globe}
-                            options={availableOptions.continents}
-                            selected={gpContinents}
-                            onChange={(v: string) => toggle(gpContinents, v, setGpContinents)}
-                        />
-                        <FilterMultiSelect
-                            label="Country"
-                            icon={MapPin}
-                            options={availableOptions.countries}
-                            selected={gpCountries}
-                            onChange={(v: string) => toggle(gpCountries, v, setGpCountries)}
-                        />
-                        <FilterMultiSelect
-                            label="Industry"
-                            icon={TrendingUp}
-                            options={availableOptions.industries}
-                            selected={gpIndustries}
-                            onChange={(v: string) => toggle(gpIndustries, v, setGpIndustries)}
-                        />
-                        <FilterMultiSelect
-                            label="Group"
-                            icon={Users}
-                            options={availableOptions.groups}
-                            selected={gpGroups}
-                            onChange={(v: string) => toggle(gpGroups, v, setGpGroups)}
-                        />
-                        <FilterMultiSelect
-                            label="Company"
-                            icon={Building}
-                            options={availableOptions.companies}
-                            selected={gpCompanies}
-                            onChange={(v: string) => toggle(gpCompanies, v, setGpCompanies)}
-                        />
-                        {(gpContinents.length > 0 || gpCountries.length > 0 || gpIndustries.length > 0 || gpGroups.length > 0 || gpCompanies.length > 0) && (
-                            <Button variant="ghost" size="sm" onClick={() => {
-                                setGpContinents([]); setGpCountries([]); setGpIndustries([]); setGpGroups([]); setGpCompanies([]);
-                            }} className="text-destructive h-9">
-                                Clear
-                            </Button>
-                        )}
-                    </div>
-
-
-                    <Card className="overflow-hidden border-2 relative">
-                        <CardHeader className="bg-muted/30 pb-2 flex flex-row items-center justify-between">
-                            <CardTitle>Pool candidate by company and location</CardTitle>
-                            {gpContinents.length > 0 && (
-                                <Button size="sm" variant="outline" onClick={() => setGpContinents([])} className="h-8 gap-2">
-                                    <RotateCcw className="h-3 w-3" /> Back to World
+                        {/* Filters */}
+                        <div className="flex flex-wrap gap-4 items-center">
+                            <FilterMultiSelect
+                                label="Continent"
+                                icon={Globe}
+                                options={availableOptions.continents}
+                                selected={gpContinents}
+                                onChange={(v: string) => toggle(gpContinents, v, setGpContinents)}
+                            />
+                            <FilterMultiSelect
+                                label="Country"
+                                icon={MapPin}
+                                options={availableOptions.countries}
+                                selected={gpCountries}
+                                onChange={(v: string) => toggle(gpCountries, v, setGpCountries)}
+                            />
+                            <FilterMultiSelect
+                                label="Industry"
+                                icon={TrendingUp}
+                                options={availableOptions.industries}
+                                selected={gpIndustries}
+                                onChange={(v: string) => toggle(gpIndustries, v, setGpIndustries)}
+                            />
+                            <FilterMultiSelect
+                                label="Group"
+                                icon={Users}
+                                options={availableOptions.groups}
+                                selected={gpGroups}
+                                onChange={(v: string) => toggle(gpGroups, v, setGpGroups)}
+                            />
+                            <FilterMultiSelect
+                                label="Company"
+                                icon={Building}
+                                options={availableOptions.companies}
+                                selected={gpCompanies}
+                                onChange={(v: string) => toggle(gpCompanies, v, setGpCompanies)}
+                            />
+                            {(gpContinents.length > 0 || gpCountries.length > 0 || gpIndustries.length > 0 || gpGroups.length > 0 || gpCompanies.length > 0) && (
+                                <Button variant="ghost" size="sm" onClick={() => {
+                                    setGpContinents([]); setGpCountries([]); setGpIndustries([]); setGpGroups([]); setGpCompanies([]);
+                                }} className="text-destructive h-9">
+                                    Clear
                                 </Button>
                             )}
-                        </CardHeader>
-                        <CardContent className="h-[600px] p-0 bg-[#E0E2E5] relative transition-all duration-500">
-                            <div className="w-full h-full">
-                                <ComposableMap projection="geoMercator" projectionConfig={{ scale: 120 }}>
-                                    <ZoomableGroup
-                                        center={mapPosition.center}
-                                        zoom={mapPosition.zoom}
-                                        minZoom={0.5}
-                                        maxZoom={10}
-                                        onMoveEnd={({ coordinates, zoom }) => {
-                                            // Optional: Update state if you want 2-way binding, 
-                                            // but strictly controlled is better for drill-down.
-                                            // setMapPosition({ center: coordinates as [number, number], zoom });
-                                        }}
-                                        className="transition-transform duration-700 ease-in-out"
-                                    >
-                                        <Geographies geography={geoUrl}>
-                                            {({ geographies }) =>
-                                                geographies.map((geo) => {
-                                                    const isSelectedCountry = gpCountries.includes(geo.properties.name);
+                        </div>
 
-                                                    // Highlighting Logic:
-                                                    // If Continent View: Highlight nothing or hover continent? (Hard to map geo to continent easily without massive map)
-                                                    // If Country View: Highlight selected country
 
-                                                    return (
-                                                        <Geography
-                                                            key={geo.rsmKey}
-                                                            geography={geo}
-                                                            onClick={() => {
-                                                                if (gpContinents.length > 0) {
-                                                                    toggle(gpCountries, geo.properties.name, setGpCountries);
-                                                                }
-                                                            }}
-                                                            fill={isSelectedCountry ? "#3b82f6" : "#FFF"}
-                                                            stroke={isSelectedCountry ? "#1e40af" : "#D6D6DA"}
-                                                            strokeWidth={0.5}
-                                                            style={{
-                                                                default: { outline: "none" },
-                                                                hover: { fill: isSelectedCountry ? "#2563eb" : "#F0F0F0", outline: "none" },
-                                                                pressed: { outline: "none" },
-                                                            }}
-                                                            data-tooltip-id="map-tooltip"
-                                                            data-tooltip-content={geo.properties.name}
+                        <Card className="overflow-hidden border-2 relative">
+                            <CardHeader className="bg-muted/30 pb-2 flex flex-row items-center justify-between">
+                                <CardTitle>Pool candidate by company and location</CardTitle>
+                                {gpContinents.length > 0 && (
+                                    <Button size="sm" variant="outline" onClick={() => setGpContinents([])} className="h-8 gap-2">
+                                        <RotateCcw className="h-3 w-3" /> Back to World
+                                    </Button>
+                                )}
+                            </CardHeader>
+                            <CardContent className="h-[600px] p-0 bg-[#E0E2E5] relative transition-all duration-500">
+                                <div className="w-full h-full">
+                                    <ComposableMap projection="geoMercator" projectionConfig={{ scale: 120 }}>
+                                        <ZoomableGroup
+                                            center={mapPosition.center}
+                                            zoom={mapPosition.zoom}
+                                            minZoom={0.5}
+                                            maxZoom={10}
+                                            onMoveEnd={({ coordinates, zoom }) => {
+                                                // Optional: Update state if you want 2-way binding, 
+                                                // but strictly controlled is better for drill-down.
+                                                // setMapPosition({ center: coordinates as [number, number], zoom });
+                                            }}
+                                            className="transition-transform duration-700 ease-in-out"
+                                        >
+                                            <Geographies geography={geoUrl}>
+                                                {({ geographies }) =>
+                                                    geographies.map((geo) => {
+                                                        const isSelectedCountry = gpCountries.includes(geo.properties.name);
+
+                                                        // Highlighting Logic:
+                                                        // If Continent View: Highlight nothing or hover continent? (Hard to map geo to continent easily without massive map)
+                                                        // If Country View: Highlight selected country
+
+                                                        return (
+                                                            <Geography
+                                                                key={geo.rsmKey}
+                                                                geography={geo}
+                                                                onClick={() => {
+                                                                    if (gpContinents.length > 0) {
+                                                                        toggle(gpCountries, geo.properties.name, setGpCountries);
+                                                                    }
+                                                                }}
+                                                                fill={isSelectedCountry ? "#3b82f6" : "#FFF"}
+                                                                stroke={isSelectedCountry ? "#1e40af" : "#D6D6DA"}
+                                                                strokeWidth={0.5}
+                                                                style={{
+                                                                    default: { outline: "none" },
+                                                                    hover: { fill: isSelectedCountry ? "#2563eb" : "#F0F0F0", outline: "none" },
+                                                                    pressed: { outline: "none" },
+                                                                }}
+                                                                data-tooltip-id="map-tooltip"
+                                                                data-tooltip-content={geo.properties.name}
+                                                            />
+                                                        );
+                                                    })
+                                                }
+                                            </Geographies>
+                                            {mapMarkers.map((m: any, i: number) => {
+                                                const isSelected = m.type === 'country' && gpCountries.includes(m.name);
+                                                return (
+                                                    <Marker
+                                                        key={i}
+                                                        coordinates={m.coords}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (m.type === 'continent') {
+                                                                setGpContinents([m.name]);
+                                                                // Effect will handle Zoom
+                                                            } else {
+                                                                toggle(gpCountries, m.name, setGpCountries);
+                                                            }
+                                                        }}
+                                                        data-tooltip-id="map-tooltip"
+                                                        data-tooltip-content={`${m.name}: ${m.count}`}
+                                                    >
+                                                        <circle
+                                                            r={popScale(m.count) + (m.type === 'continent' ? 4 : 0)} // Make continents slightly bigger
+                                                            fill={m.type === 'continent' ? "#f97316" : (isSelected ? "#ef4444" : "#0088FE")} // Orange for Continents
+                                                            stroke="#FFF"
+                                                            strokeWidth={2}
+                                                            className="cursor-pointer hover:opacity-80 transition-all duration-300"
                                                         />
-                                                    );
-                                                })
-                                            }
-                                        </Geographies>
-                                        {mapMarkers.map((m: any, i: number) => {
-                                            const isSelected = m.type === 'country' && gpCountries.includes(m.name);
-                                            return (
-                                                <Marker
-                                                    key={i}
-                                                    coordinates={m.coords}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (m.type === 'continent') {
-                                                            setGpContinents([m.name]);
-                                                            // Effect will handle Zoom
-                                                        } else {
-                                                            toggle(gpCountries, m.name, setGpCountries);
-                                                        }
-                                                    }}
-                                                    data-tooltip-id="map-tooltip"
-                                                    data-tooltip-content={`${m.name}: ${m.count}`}
-                                                >
-                                                    <circle
-                                                        r={popScale(m.count) + (m.type === 'continent' ? 4 : 0)} // Make continents slightly bigger
-                                                        fill={m.type === 'continent' ? "#f97316" : (isSelected ? "#ef4444" : "#0088FE")} // Orange for Continents
-                                                        stroke="#FFF"
-                                                        strokeWidth={2}
-                                                        className="cursor-pointer hover:opacity-80 transition-all duration-300"
-                                                    />
-                                                    {/* Optional: Add Label for Continents? */}
-                                                    {m.type === 'continent' && (
-                                                        <text textAnchor="middle" y={5} className="text-[8px] font-bold fill-white pointer-events-none drop-shadow-md">
-                                                            {m.count}
-                                                        </text>
-                                                    )}
-                                                </Marker>
-                                            )
-                                        })}
-                                    </ZoomableGroup>
-                                </ComposableMap>
-                                <ReactTooltip id="map-tooltip" style={{ fontSize: '12px', zIndex: 100 }} />
-                            </div>
-                        </CardContent>
-                    </Card>
+                                                        {/* Optional: Add Label for Continents? */}
+                                                        {m.type === 'continent' && (
+                                                            <text textAnchor="middle" y={5} className="text-[8px] font-bold fill-white pointer-events-none drop-shadow-md">
+                                                                {m.count}
+                                                            </text>
+                                                        )}
+                                                    </Marker>
+                                                )
+                                            })}
+                                        </ZoomableGroup>
+                                    </ComposableMap>
+                                    <ReactTooltip id="map-tooltip" style={{ fontSize: '12px', zIndex: 100 }} />
+                                </div>
+                            </CardContent>
+                        </Card>
 
-                    {/* Regional Tables */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {["Asia", "Europe", "South and North America", "Africa"].map((region) => (
-                            <RegionTable key={region} region={region} data={filteredRegionTables[region]} />
-                        ))}
-                    </div>
+                        {/* Regional Tables */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {["Asia", "Europe", "South and North America", "Africa"].map((region) => (
+                                <RegionTable key={region} region={region} data={filteredRegionTables[region]} />
+                            ))}
+                        </div>
+                    </>}
                 </TabsContent>
 
                 {/* --- TAB 2: SALARY BENCHMARK --- */}
                 <TabsContent value="market" className="space-y-6">
-                    {/* Filters */}
-                    <div className="flex flex-wrap gap-4 items-center">
-                        <FilterMultiSelect
-                            label="Industry"
-                            icon={TrendingUp}
-                            options={filteredSalaryData.availableOptions.industries}
-                            selected={salaryIndustries}
-                            onChange={(v: string) => toggle(salaryIndustries, v, setSalaryIndustries)}
-                        />
-                        <FilterMultiSelect
-                            label="Group"
-                            icon={Users}
-                            options={filteredSalaryData.availableOptions.groups}
-                            selected={salaryGroups}
-                            onChange={(v: string) => toggle(salaryGroups, v, setSalaryGroups)}
-                        />
-                        <FilterMultiSelect
-                            label="Company"
-                            icon={Building}
-                            options={filteredSalaryData.availableOptions.companies}
-                            selected={salaryCompanies}
-                            onChange={(v: string) => toggle(salaryCompanies, v, setSalaryCompanies)}
-                        />
-                        {(salaryIndustries.length > 0 || salaryGroups.length > 0 || salaryCompanies.length > 0) && (
-                            <Button variant="ghost" size="sm" onClick={() => {
-                                setSalaryIndustries([]); setSalaryGroups([]); setSalaryCompanies([]);
-                            }} className="text-destructive h-9">
-                                Clear
-                            </Button>
-                        )}
-                    </div>
+                    {salaryLoading && <div className="flex items-center justify-center h-48"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}
+                    {!salaryLoading && !salaryData && <div className="p-8 text-muted-foreground">Failed to load salary data.</div>}
+                    {!salaryLoading && salaryData && <>
+                        {/* Filters */}
+                        <div className="flex flex-wrap gap-4 items-center">
+                            <FilterMultiSelect
+                                label="Industry"
+                                icon={TrendingUp}
+                                options={filteredSalaryData.availableOptions.industries}
+                                selected={salaryIndustries}
+                                onChange={(v: string) => toggle(salaryIndustries, v, setSalaryIndustries)}
+                            />
+                            <FilterMultiSelect
+                                label="Group"
+                                icon={Users}
+                                options={filteredSalaryData.availableOptions.groups}
+                                selected={salaryGroups}
+                                onChange={(v: string) => toggle(salaryGroups, v, setSalaryGroups)}
+                            />
+                            <FilterMultiSelect
+                                label="Company"
+                                icon={Building}
+                                options={filteredSalaryData.availableOptions.companies}
+                                selected={salaryCompanies}
+                                onChange={(v: string) => toggle(salaryCompanies, v, setSalaryCompanies)}
+                            />
+                            {(salaryIndustries.length > 0 || salaryGroups.length > 0 || salaryCompanies.length > 0) && (
+                                <Button variant="ghost" size="sm" onClick={() => {
+                                    setSalaryIndustries([]); setSalaryGroups([]); setSalaryCompanies([]);
+                                }} className="text-destructive h-9">
+                                    Clear
+                                </Button>
+                            )}
+                        </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[500px]">
-                        {/* Bar Chart */}
-                        <Card className="h-full flex flex-col">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[500px]">
+                            {/* Bar Chart */}
+                            <Card className="h-full flex flex-col">
+                                <CardHeader>
+                                    <CardTitle>Salary Range per Company</CardTitle>
+                                    <CardDescription>Min, Avg, and Max Annual Salary</CardDescription>
+                                </CardHeader>
+                                <CardContent className="flex-1 min-h-0">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <BarChart
+                                            data={filteredSalaryData.stats}
+                                            margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                                        >
+                                            <CartesianGrid strokeDasharray="3 3" />
+                                            <XAxis dataKey="company" fontSize={10} interval={0} angle={-45} textAnchor="end" />
+                                            <YAxis tickFormatter={(val) => `฿${val / 1000}k`} />
+                                            <Tooltip formatter={(value: any) => `฿${Number(value || 0).toLocaleString()}`} />
+                                            <Legend verticalAlign="top" />
+                                            <Bar dataKey="minSalary" fill="#8884d8" name="Min" />
+                                            <Bar dataKey="avgSalary" fill="#FFBB28" name="Avg" />
+                                            <Bar dataKey="maxSalary" fill="#82ca9d" name="Max" />
+                                        </BarChart>
+                                    </ResponsiveContainer>
+                                </CardContent>
+                            </Card>
+
+                            {/* Scatter Plot */}
+                            <Card className="h-full flex flex-col">
+                                <CardHeader>
+                                    <CardTitle>Market Position Analysis</CardTitle>
+                                    <CardDescription>Max Salary (X) vs Avg Salary (Y)</CardDescription>
+                                </CardHeader>
+                                <CardContent className="flex-1 min-h-0">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                                            <CartesianGrid />
+                                            <XAxis type="number" dataKey="maxSalary" name="Max Salary" unit="฿" tickFormatter={(val) => `${val / 1000}k`} />
+                                            <YAxis type="number" dataKey="avgSalary" name="Avg Salary" unit="฿" tickFormatter={(val) => `${val / 1000}k`} />
+                                            <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomTooltip />} />
+                                            <Scatter name="Companies" data={filteredSalaryData.stats} fill="#8884d8">
+                                                {filteredSalaryData.stats.map((entry: any, index: number) => (
+                                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                ))}
+                                            </Scatter>
+                                        </ScatterChart>
+                                    </ResponsiveContainer>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        {/* Detailed Table */}
+                        <Card>
                             <CardHeader>
-                                <CardTitle>Salary Range per Company</CardTitle>
-                                <CardDescription>Min, Avg, and Max Annual Salary</CardDescription>
+                                <CardTitle>Detailed Salary Breakdown</CardTitle>
                             </CardHeader>
-                            <CardContent className="flex-1 min-h-0">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart
-                                        data={filteredSalaryData.stats}
-                                        margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-                                    >
-                                        <CartesianGrid strokeDasharray="3 3" />
-                                        <XAxis dataKey="company" fontSize={10} interval={0} angle={-45} textAnchor="end" />
-                                        <YAxis tickFormatter={(val) => `฿${val / 1000}k`} />
-                                        <Tooltip formatter={(value: any) => `฿${Number(value || 0).toLocaleString()}`} />
-                                        <Legend verticalAlign="top" />
-                                        <Bar dataKey="minSalary" fill="#8884d8" name="Min" />
-                                        <Bar dataKey="avgSalary" fill="#FFBB28" name="Avg" />
-                                        <Bar dataKey="maxSalary" fill="#82ca9d" name="Max" />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
-
-                        {/* Scatter Plot */}
-                        <Card className="h-full flex flex-col">
-                            <CardHeader>
-                                <CardTitle>Market Position Analysis</CardTitle>
-                                <CardDescription>Max Salary (X) vs Avg Salary (Y)</CardDescription>
-                            </CardHeader>
-                            <CardContent className="flex-1 min-h-0">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                                        <CartesianGrid />
-                                        <XAxis type="number" dataKey="maxSalary" name="Max Salary" unit="฿" tickFormatter={(val) => `${val / 1000}k`} />
-                                        <YAxis type="number" dataKey="avgSalary" name="Avg Salary" unit="฿" tickFormatter={(val) => `${val / 1000}k`} />
-                                        <Tooltip cursor={{ strokeDasharray: '3 3' }} content={<CustomTooltip />} />
-                                        <Scatter name="Companies" data={filteredSalaryData.stats} fill="#8884d8">
-                                            {filteredSalaryData.stats.map((entry: any, index: number) => (
-                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                            ))}
-                                        </Scatter>
-                                    </ScatterChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    {/* Detailed Table */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Detailed Salary Breakdown</CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-0">
-                            <div className="max-h-[500px] overflow-auto">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-[#1e293b] text-white sticky top-0 z-10 shadow-sm">
-                                        <tr className="border-b border-gray-700">
-                                            <th className="p-3 text-left font-semibold">Industry</th>
-                                            <th className="p-3 text-left font-semibold">Company</th>
-                                            <th className="p-3 text-left font-semibold">Name</th>
-                                            <th className="p-3 text-left font-semibold">Position</th>
-                                            <th className="p-3 text-right font-semibold">Base Salary (Mth)</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y">
-                                        {filteredSalaryData.details.map((s: any, i: number) => (
-                                            <tr key={i} className="hover:bg-muted/50 transition-colors">
-                                                <td className="p-3">{s.industry || '-'}</td>
-                                                <td className="p-3">{s.company}</td>
-                                                <td className="p-3">{s.name}</td>
-                                                <td className="p-3 text-muted-foreground">{s.position}</td>
-                                                <td className="p-3 text-right font-mono">฿{s.salaryMonthly.toLocaleString()}</td>
+                            <CardContent className="p-0">
+                                <div className="max-h-[500px] overflow-auto">
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-[#1e293b] text-white sticky top-0 z-10 shadow-sm">
+                                            <tr className="border-b border-gray-700">
+                                                <th className="p-3 text-left font-semibold">Industry</th>
+                                                <th className="p-3 text-left font-semibold">Company</th>
+                                                <th className="p-3 text-left font-semibold">Name</th>
+                                                <th className="p-3 text-left font-semibold">Position</th>
+                                                <th className="p-3 text-right font-semibold">Base Salary (Mth)</th>
                                             </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                                {filteredSalaryData.details.length === 0 && (
-                                    <div className="p-8 text-center text-muted-foreground">No matches found.</div>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
+                                        </thead>
+                                        <tbody className="divide-y">
+                                            {filteredSalaryData.details.map((s: any, i: number) => (
+                                                <tr key={i} className="hover:bg-muted/50 transition-colors">
+                                                    <td className="p-3">{s.industry || '-'}</td>
+                                                    <td className="p-3">{s.company}</td>
+                                                    <td className="p-3">{s.name}</td>
+                                                    <td className="p-3 text-muted-foreground">{s.position}</td>
+                                                    <td className="p-3 text-right font-mono">฿{s.salaryMonthly.toLocaleString()}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                    {filteredSalaryData.details.length === 0 && (
+                                        <div className="p-8 text-center text-muted-foreground">No matches found.</div>
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </>}
                 </TabsContent>
 
                 {/* --- TAB 3: RECRUITMENT PIPELINE --- */}
                 <TabsContent value="pipeline" className="space-y-6">
                     <PipelineTab />
+                </TabsContent>
+
+                {/* --- TAB 4: SEARCH & PLACEMENT --- */}
+                <TabsContent value="placement" className="space-y-6">
+                    <PlacementTab />
                 </TabsContent>
             </Tabs>
         </div>

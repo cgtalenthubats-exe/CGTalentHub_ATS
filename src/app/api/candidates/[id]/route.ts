@@ -226,3 +226,73 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         return NextResponse.json({ error: error.message }, { status: 500 });
     }
 }
+
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+    const candidateId = (await params).id;
+    if (!candidateId) {
+        return NextResponse.json({ error: 'Candidate ID is required' }, { status: 400 });
+    }
+
+    try {
+        // Step 1: Get all jr_candidate_ids for this candidate
+        const { data: jrCandidates, error: jrcFetchError } = await adminAuthClient
+            .from('jr_candidates')
+            .select('jr_candidate_id')
+            .eq('candidate_id', candidateId);
+
+        if (jrcFetchError) throw new Error('Failed to fetch jr_candidates: ' + jrcFetchError.message);
+
+        const jrCandidateIds = (jrCandidates || []).map((r: any) => r.jr_candidate_id).filter(Boolean);
+
+        // Step 2: Delete status_log entries for these jr_candidate_ids
+        if (jrCandidateIds.length > 0) {
+            const { error: statusLogError } = await adminAuthClient
+                .from('status_log')
+                .delete()
+                .in('jr_candidate_id', jrCandidateIds);
+            if (statusLogError) throw new Error('Failed to delete status_log: ' + statusLogError.message);
+        }
+
+        // Step 3: Delete jr_candidates
+        const { error: jrcDeleteError } = await adminAuthClient
+            .from('jr_candidates')
+            .delete()
+            .eq('candidate_id', candidateId);
+        if (jrcDeleteError) throw new Error('Failed to delete jr_candidates: ' + jrcDeleteError.message);
+
+        // Step 4: Delete candidate_experiences
+        const { error: expDeleteError } = await adminAuthClient
+            .from('candidate_experiences')
+            .delete()
+            .eq('candidate_id', candidateId);
+        if (expDeleteError) throw new Error('Failed to delete candidate_experiences: ' + expDeleteError.message);
+
+        // Step 5: Delete candidate_profile_enhance
+        const { error: enhDeleteError } = await adminAuthClient
+            .from('candidate_profile_enhance')
+            .delete()
+            .eq('candidate_id', candidateId);
+        if (enhDeleteError) throw new Error('Failed to delete candidate_profile_enhance: ' + enhDeleteError.message);
+
+        // Step 6: Delete pre_screen_log
+        const { error: preScreenDeleteError } = await adminAuthClient
+            .from('pre_screen_log')
+            .delete()
+            .eq('candidate_id', candidateId);
+        if (preScreenDeleteError) throw new Error('Failed to delete pre_screen_log: ' + preScreenDeleteError.message);
+
+        // Step 7: Delete Candidate Profile (last)
+        const { error: profileDeleteError } = await adminAuthClient
+            .from('Candidate Profile')
+            .delete()
+            .eq('candidate_id', candidateId);
+        if (profileDeleteError) throw new Error('Failed to delete Candidate Profile: ' + profileDeleteError.message);
+
+        console.log(`[API] Cascade deleted candidate ${candidateId}: ${jrCandidateIds.length} jr_candidates, status_logs, experiences, enhance, pre_screen_log`);
+        return NextResponse.json({ success: true, message: 'Candidate and all related data deleted successfully' });
+
+    } catch (error: any) {
+        console.error('[API] DELETE Candidate Error:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+}

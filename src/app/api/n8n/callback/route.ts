@@ -44,6 +44,14 @@ export async function POST(req: NextRequest) {
 
         console.log(`Processing Callback for Upload ID: ${upload_id}, Name: ${candidateName}`);
 
+        // Lookup uploader_email from resume_uploads to use as created_by
+        const { data: uploadRecord } = await supabase
+            .from('resume_uploads')
+            .select('uploader_email')
+            .eq('id', upload_id)
+            .maybeSingle();
+        const createdBy = (uploadRecord as any)?.uploader_email || 'Resume Parser';
+
         // 1. Check Duplicates (DB)
         const { isDuplicate, candidateId: existingId, reason } = await checkDuplicateCandidate(
             candidateName,
@@ -114,12 +122,12 @@ export async function POST(req: NextRequest) {
             mobile_phone: Telephone || null,
             gender: Gender || null,
             date_of_birth: dob,
-            year_of_bachelor_education: body['bachelor degree date'] || null, // Mapped from user screenshot
-            gross_salary_base_b_mth: body['LatestSalary'] || null, // Mapped from user screenshot
+            year_of_bachelor_education: body['bachelor degree date'] || null,
+            gross_salary_base_b_mth: body['LatestSalary'] || null,
             resume_url: resume_url || null,
             created_date: now,
-            modify_date: now
-            // linkedin: Not in new list
+            modify_date: now,
+            created_by: createdBy  // ← email ของคนที่ upload resume
         };
 
         const { error: insertProfileError } = await supabase

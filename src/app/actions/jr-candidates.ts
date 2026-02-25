@@ -1,8 +1,20 @@
 "use server";
 
 import { adminAuthClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { JRCandidate, JRAnalytics } from "@/types/requisition";
 import { getCandidateIdsByExperienceFilters } from "@/lib/candidate-service";
+
+// Get current logged-in user email from session
+async function getCurrentUserEmail(): Promise<string> {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        return user?.email || 'System';
+    } catch {
+        return 'System';
+    }
+}
 
 // Internal type for DB row structure
 interface DBJRCandidate {
@@ -208,6 +220,9 @@ export async function addCandidatesToJR(
     const supabase = adminAuthClient;
 
     try {
+        // Get current user email for tracking
+        const addedBy = await getCurrentUserEmail();
+
         // 1. Get current max ID for jr_candidate_id (numeric)
         const { data: maxResult } = await supabase
             .from('jr_candidates')
@@ -249,17 +264,18 @@ export async function addCandidatesToJR(
                 jr_candidate_id: jrCandidateId,
                 jr_id: jrId,
                 candidate_id: candidateId,
-                temp_status: null, // As per user: "ไม่ต้องใส่ temp_status ก็ได้"
+                temp_status: null,
                 list_type: listType,
-                rank: null, // As per user: "Recruiter จะเป็นคนใส่เอง"
-                time_stamp: new Date().toISOString()
+                rank: null,
+                time_stamp: new Date().toISOString(),
+                added_by: addedBy
             });
 
             statusLogsInsert.push({
                 log_id: nextLogId,
                 jr_candidate_id: jrCandidateId,
                 status: 'Pool Candidate',
-                updated_By: 'System',
+                updated_By: addedBy,
                 timestamp: timestampStr,
                 note: null
             });
@@ -291,6 +307,9 @@ export async function bulkAddCandidatesToJR(
 
     try {
         if (candidates.length === 0) return { success: true, added: 0, duplicates: [], blacklisted: [] };
+
+        // Get current user email for tracking
+        const addedBy = await getCurrentUserEmail();
 
         // 0. Check for Blacklisted Candidates
         const candidateIdsToCheck = candidates.map(c => c.id);
@@ -382,16 +401,17 @@ export async function bulkAddCandidatesToJR(
                 jr_candidate_id: jrCandidateId,
                 jr_id: jrId,
                 candidate_id: candidateId,
-                temp_status: 'Pool Candidate', // Defaulting to Pool
+                temp_status: 'Pool Candidate',
                 list_type: listType,
-                time_stamp: new Date().toISOString()
+                time_stamp: new Date().toISOString(),
+                added_by: addedBy
             });
 
             statusLogsInsert.push({
                 log_id: nextLogId,
                 jr_candidate_id: jrCandidateId,
                 status: 'Pool Candidate',
-                updated_By: 'System',
+                updated_By: addedBy,
                 timestamp: timestampStr
             });
 

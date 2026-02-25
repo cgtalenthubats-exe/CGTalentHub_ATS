@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
     Users,
     Search,
@@ -64,6 +65,7 @@ function MenuCard({
 }
 
 export default function CandidatesMenuPage() {
+    const router = useRouter();
     const [candidateCount, setCandidateCount] = useState(0);
     const [loading, setLoading] = useState(true);
     const [errorDetails, setErrorDetails] = useState<string | null>(null);
@@ -111,11 +113,16 @@ export default function CandidatesMenuPage() {
     const handleManualSubmit = async () => {
         setSaving(true);
         try {
+            // Get current user email for KPI tracking
+            const { data: { user } } = await supabase.auth.getUser();
+            const createdBy = user?.email || 'System';
+
             const { error } = await supabase.from('Candidate Profile').insert([
                 {
                     "Name": formData.name, // Assuming columns might also be Title Case based on table naming style
                     "Email": formData.email,
                     "Mobile_phone": formData.phone,
+                    "created_by": createdBy,
                     // Add other fields as per schema if they exist, or map loosely for now
                     // If strictly mapped, check schema. For now, try common variations or minimal insert
                 }
@@ -180,7 +187,7 @@ export default function CandidatesMenuPage() {
                     icon={Search}
                     color="bg-blue-500"
                     description="AI-powered resume search"
-                    onClick={() => window.location.href = '/ai-search'}
+                    onClick={() => router.push('/ai-search')}
                 />
 
                 {/* 2. Upload Resume */}
@@ -189,7 +196,7 @@ export default function CandidatesMenuPage() {
                     icon={UploadCloud}
                     color="bg-cyan-500"
                     description="Drag & drop to parse with n8n"
-                    onClick={() => window.location.href = '/candidates/import'}
+                    onClick={() => router.push('/candidates/import')}
                 />
 
                 {/* 3. Manual Input (Direct Link) */}
@@ -198,7 +205,7 @@ export default function CandidatesMenuPage() {
                     icon={PenTool}
                     color="bg-orange-500"
                     description="Entry form for walk-ins"
-                    onClick={() => window.location.href = '/candidates/new'}
+                    onClick={() => router.push('/candidates/new')}
                 />
 
                 <MenuCard
@@ -206,7 +213,7 @@ export default function CandidatesMenuPage() {
                     icon={FileText}
                     color="bg-emerald-500"
                     description="Bulk import via Excel/CSV"
-                    onClick={() => window.location.href = '/candidates/import'}
+                    onClick={() => router.push('/candidates/import')}
                 />
 
                 {/* 5. All List */}
@@ -215,7 +222,7 @@ export default function CandidatesMenuPage() {
                     icon={Users}
                     color="bg-indigo-500"
                     description="View full database"
-                    onClick={() => window.location.href = '/candidates/list'}
+                    onClick={() => router.push('/candidates/list')}
                 />
 
                 {/* 6. Pre-Screen */}

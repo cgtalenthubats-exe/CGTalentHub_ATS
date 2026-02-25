@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Users, Clock, Briefcase, Filter, TrendingUp, ArrowUpDown, Copy, MoreHorizontal, FileText, CheckSquare, Square, Trophy } from "lucide-react";
+import { Search, Plus, Users, Clock, Briefcase, Filter, TrendingUp, ArrowUpDown, Copy, MoreHorizontal, FileText, CheckSquare, Square, Trophy, Trash2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
@@ -16,9 +16,20 @@ import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { CreateJobRequisitionForm } from "@/components/create-jr-form";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CopyJRDialog } from "@/components/copy-jr-dialog";
 import { useRouter } from "next/navigation";
+import { deleteJobRequisition } from "@/app/actions/requisitions";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function RequisitionsPage() {
     const router = useRouter();
@@ -35,6 +46,11 @@ export default function RequisitionsPage() {
     // Copy Dialog State
     const [copyDialogOpen, setCopyDialogOpen] = useState(false);
     const [jrToCopy, setJrToCopy] = useState<JobRequisition | null>(null);
+
+    // Delete Dialog State
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+    const [jrToDelete, setJrToDelete] = useState<JobRequisition | null>(null);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Filters
     const [search, setSearch] = useState("");
@@ -244,6 +260,26 @@ export default function RequisitionsPage() {
     const handleCopyClick = (jr: JobRequisition) => {
         setJrToCopy(jr);
         setCopyDialogOpen(true);
+    };
+
+    // Handle Delete
+    const handleDeleteClick = (jr: JobRequisition) => {
+        setJrToDelete(jr);
+        setDeleteDialogOpen(true);
+    };
+
+    const handleDeleteConfirm = async () => {
+        if (!jrToDelete) return;
+        setIsDeleting(true);
+        const result = await deleteJobRequisition(jrToDelete.id);
+        setIsDeleting(false);
+        setDeleteDialogOpen(false);
+        if (result.success) {
+            setJrs(prev => prev.filter(j => j.id !== jrToDelete.id));
+            setJrToDelete(null);
+        } else {
+            alert('Error deleting JR: ' + result.error);
+        }
     };
 
     return (
@@ -495,6 +531,13 @@ export default function RequisitionsPage() {
                                                         <DropdownMenuItem onClick={() => handleCopyClick(jr)}>
                                                             <Copy className="mr-2 h-4 w-4" /> Copy Job Requisition
                                                         </DropdownMenuItem>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem
+                                                            onClick={() => handleDeleteClick(jr)}
+                                                            className="text-destructive focus:text-destructive"
+                                                        >
+                                                            <Trash2 className="mr-2 h-4 w-4" /> Delete JR
+                                                        </DropdownMenuItem>
                                                     </DropdownMenuContent>
                                                 </DropdownMenu>
                                             </td>
@@ -514,16 +557,38 @@ export default function RequisitionsPage() {
                     onOpenChange={setCopyDialogOpen}
                     sourceJR={jrToCopy}
                     onSuccess={(newId) => {
-                        // Refresh data
                         setLoading(true);
                         getJobRequisitions().then(d => {
                             setJrs(d);
                             setLoading(false);
                         });
-                        // Trigger stats re-calc via state update
                     }}
                 />
             )}
+
+            {/* Delete JR Confirm Dialog */}
+            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Job Requisition?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to delete <strong>{jrToDelete?.id} — {jrToDelete?.job_title}</strong>?<br />
+                            This will permanently delete the JR and all associated candidates and status logs.
+                            <span className="block mt-2 font-semibold text-destructive">This action cannot be undone.</span>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDeleteConfirm}
+                            disabled={isDeleting}
+                            className="bg-destructive hover:bg-destructive/90 text-white"
+                        >
+                            {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }

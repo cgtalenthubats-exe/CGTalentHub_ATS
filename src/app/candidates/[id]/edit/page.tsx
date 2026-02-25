@@ -230,7 +230,7 @@ export default function EditCandidatePage({ params }: { params: Promise<{ id: st
 
     return (
         <div className="max-w-4xl mx-auto py-10 px-4">
-            <Button variant="ghost" className="gap-2 mb-6 text-muted-foreground" onClick={() => router.back()}>
+            <Button variant="ghost" className="gap-2 mb-6 text-muted-foreground" onClick={() => router.push(`/candidates/${candidateId}`)}>
                 <ArrowLeft className="h-4 w-4" /> Cancel & Back
             </Button>
 

@@ -112,6 +112,16 @@ export default function CandidateImportPage() {
     // Status Master Data
     const [statusOptions, setStatusOptions] = useState<{ status: string, color: string }[]>([]);
 
+    // Current user email for upload tracking
+    const [userEmail, setUserEmail] = useState<string>('');
+
+    useEffect(() => {
+        const supabase = createClient();
+        supabase.auth.getUser().then(({ data: { user } }) => {
+            setUserEmail(user?.email || '');
+        });
+    }, []);
+
     useEffect(() => {
         getStatuses().then(data => setStatusOptions(data));
     }, []);
@@ -216,8 +226,8 @@ export default function CandidateImportPage() {
                         }
                     }
 
-                    // TODO: Get actual user email
-                    const uploaderEmail = "sumethwork@gmail.com";
+                    // Use real logged-in user email
+                    const uploaderEmail = userEmail || 'unknown';
 
                     const res = await processCsvUpload(rows, uploaderEmail);
 
@@ -253,7 +263,7 @@ export default function CandidateImportPage() {
             const res = await createUploadRecord({
                 file_name: f.file.name,
                 resume_url: f.url!,
-                uploader_email: "sumethwork@gmail.gmail.com" // TODO: Real email
+                uploader_email: userEmail || 'unknown'
             });
 
             if (!res.success) {

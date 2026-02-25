@@ -31,6 +31,7 @@ const menuItems = [
     { name: "Data Aging Report", icon: HistoryIcon, path: "/reports/aging" },
 ];
 
+
 export function Sidebar() {
     const pathname = usePathname();
     const [collapsed, setCollapsed] = useState(false);
@@ -63,7 +64,8 @@ export function Sidebar() {
                     {!collapsed && <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Main Menu</p>}
                 </div>
                 {menuItems.map((item) => {
-                    const isActive = pathname === item.path;
+                    const isActive = pathname === item.path ||
+                        (item.path !== '/' && pathname.startsWith(item.path));
                     const Icon = item.icon;
                     return (
                         <Link

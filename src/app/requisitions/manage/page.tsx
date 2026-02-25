@@ -12,7 +12,7 @@ import { KanbanBoard } from "@/components/kanban-board";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, List, Kanban, MessageSquare, Briefcase, Share2, Loader2, Copy, Trophy } from "lucide-react";
+import { Plus, List, Kanban, MessageSquare, Briefcase, Share2, Loader2, Copy, Trophy, Trash2 } from "lucide-react";
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
 } from "recharts";
@@ -25,6 +25,17 @@ import { ReportViewDialog } from "@/components/report-view-dialog";
 import { triggerReport } from "@/app/actions/n8n-actions";
 import { CopyJRDialog } from "@/components/copy-jr-dialog";
 import { toast } from "sonner";
+import { deleteJobRequisition } from "@/app/actions/requisitions";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function JRManagePage() {
     const router = useRouter();
@@ -44,6 +55,8 @@ export default function JRManagePage() {
     const [isReportViewOpen, setIsReportViewOpen] = useState(false);
     const [isTriggeringReport, setIsTriggeringReport] = useState(false);
     const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // Sync URL with Tab
     const handleTabChange = (val: string) => {
@@ -205,6 +218,16 @@ export default function JRManagePage() {
                             >
                                 <Copy className="mr-2 h-4 w-4" /> Copy Job Requisition
                             </Button>
+
+                            {selectedJR && (
+                                <Button
+                                    variant="destructive"
+                                    className="w-full"
+                                    onClick={() => setIsDeleteDialogOpen(true)}
+                                >
+                                    <Trash2 className="mr-2 h-4 w-4" /> Delete This JR
+                                </Button>
+                            )}
                         </div>
 
                         {/* Secondary Action Group */}
@@ -393,6 +416,51 @@ export default function JRManagePage() {
                     />
                 )
             }
+
+            {/* Delete JR Confirm Dialog */}
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Job Requisition?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to delete <strong>{selectedJR?.id} — {selectedJR?.job_title}</strong>?<br />
+                            This will permanently delete the JR and all associated candidates and status logs.
+                            <span className="block mt-2 font-semibold text-destructive">This action cannot be undone.</span>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            disabled={isDeleting}
+                            className="bg-destructive hover:bg-destructive/90 text-white"
+                            onClick={async () => {
+                                if (!selectedJR) return;
+                                setIsDeleting(true);
+                                const result = await deleteJobRequisition(selectedJR.id);
+                                setIsDeleting(false);
+                                setIsDeleteDialogOpen(false);
+                                if (result.success) {
+                                    toast.success(`Deleted ${selectedJR.id} and all related data.`);
+                                    setSelectedJR(null);
+                                    // Remove from JRTabs localStorage
+                                    try {
+                                        const stored = localStorage.getItem('ats_jr_tabs');
+                                        if (stored) {
+                                            const tabs = JSON.parse(stored).filter((t: any) => t.id !== selectedJR.id);
+                                            localStorage.setItem('ats_jr_tabs', JSON.stringify(tabs));
+                                            window.dispatchEvent(new Event('storage'));
+                                        }
+                                    } catch (e) { /* ignore */ }
+                                } else {
+                                    toast.error('Error deleting JR: ' + result.error);
+                                }
+                            }}
+                        >
+                            {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div >
     );
 }

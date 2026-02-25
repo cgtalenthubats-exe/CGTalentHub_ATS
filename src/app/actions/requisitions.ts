@@ -458,3 +458,53 @@ export async function copyJobRequisition(sourceJrId: string, newJrData: Partial<
         return { success: false, error: e.message };
     }
 }
+
+export async function deleteJobRequisition(jrId: string): Promise<{ success: boolean; error?: string }> {
+    const supabase = adminAuthClient;
+
+    try {
+        // Step 1: Get all jr_candidate_ids for this JR
+        const { data: jrCandidates, error: fetchError } = await supabase
+            .from('jr_candidates')
+            .select('jr_candidate_id')
+            .eq('jr_id', jrId);
+
+        if (fetchError) throw new Error('Failed to fetch jr_candidates: ' + fetchError.message);
+
+        const jrCandidateIds = (jrCandidates || []).map((r: any) => r.jr_candidate_id).filter(Boolean);
+
+        // Step 2: Delete status_log for those jr_candidate_ids
+        if (jrCandidateIds.length > 0) {
+            const chunkSize = 200;
+            for (let i = 0; i < jrCandidateIds.length; i += chunkSize) {
+                const chunk = jrCandidateIds.slice(i, i + chunkSize);
+                const { error: logError } = await supabase
+                    .from('status_log')
+                    .delete()
+                    .in('jr_candidate_id', chunk);
+                if (logError) throw new Error('Failed to delete status_log: ' + logError.message);
+            }
+        }
+
+        // Step 3: Delete jr_candidates
+        const { error: jrcError } = await supabase
+            .from('jr_candidates')
+            .delete()
+            .eq('jr_id', jrId);
+        if (jrcError) throw new Error('Failed to delete jr_candidates: ' + jrcError.message);
+
+        // Step 4: Delete the Job Requisition itself
+        const { error: jrError } = await supabase
+            .from('job_requisitions')
+            .delete()
+            .eq('jr_id', jrId);
+        if (jrError) throw new Error('Failed to delete job_requisitions: ' + jrError.message);
+
+        console.log(`[Action] Cascade deleted JR ${jrId}: ${jrCandidateIds.length} jr_candidates + status_logs removed`);
+        return { success: true };
+
+    } catch (e: any) {
+        console.error('Delete JR Failed:', e);
+        return { success: false, error: e.message };
+    }
+}

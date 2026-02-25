@@ -19,10 +19,16 @@ export default function LoginPage() {
     const handleGoogleLogin = async () => {
         setIsLoading(true)
         try {
+            // Override redirect for local development since Supabase dash might not be configured
+            const isLocalDev = typeof window !== 'undefined' && window.location.hostname === 'localhost'
+            const redirectUrl = isLocalDev
+                ? 'http://localhost:3000/auth/callback'
+                : `${window.location.origin}/auth/callback`
+
             const { error } = await supabase.auth.signInWithOAuth({
                 provider: 'google',
                 options: {
-                    redirectTo: `${window.location.origin}/auth/callback`,
+                    redirectTo: redirectUrl,
                 },
             })
 

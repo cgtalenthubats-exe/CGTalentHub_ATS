@@ -1,15 +1,28 @@
 "use server";
 
 import { adminAuthClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+
+// Get current logged-in user email from session
+async function getCurrentUserEmail(): Promise<string> {
+    try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        return user?.email || 'System';
+    } catch {
+        return 'System';
+    }
+}
 
 export async function updateCandidateStatus(
     jrCandidateId: string,
     newStatus: string,
-    updatedBy: string = "Recruiter",
+    updatedBy?: string,
     note: string | null = null
 ) {
     const supabase = adminAuthClient;
+    const resolvedUpdatedBy = updatedBy || await getCurrentUserEmail();
 
     try {
         // 1. Get current max ID for log_id (numeric)
@@ -36,7 +49,8 @@ export async function updateCandidateStatus(
                 log_id: nextLogId,
                 jr_candidate_id: jrCandidateId,
                 status: newStatus,
-                updated_By: updatedBy,
+                updated_By: resolvedUpdatedBy,
+                updated_by: resolvedUpdatedBy,
                 timestamp: timestampStr,
                 note: note
             } as any);
@@ -57,9 +71,10 @@ export async function updateCandidateStatus(
 export async function batchUpdateCandidateStatus(
     jrCandidateIds: string[],
     newStatus: string,
-    updatedBy: string = "Recruiter"
+    updatedBy?: string
 ) {
     const supabase = adminAuthClient;
+    const resolvedUpdatedBy = updatedBy || await getCurrentUserEmail();
 
     try {
         // 1. Get current max ID for log_id (numeric)
@@ -83,7 +98,7 @@ export async function batchUpdateCandidateStatus(
             log_id: nextLogId + index,
             jr_candidate_id: id,
             status: newStatus,
-            updated_By: updatedBy,
+            updated_By: resolvedUpdatedBy,
             timestamp: timestampStr,
             note: "Batch update"
         }));

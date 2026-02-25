@@ -66,9 +66,11 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
 
             {/* --- TOP BAR --- */}
             <div className="flex flex-col mb-2">
+                <BackButton fallbackHref="/candidates/list" />
                 <AtsBreadcrumb
                     items={[
                         { label: 'Candidates', href: '/candidates' },
+                        { label: 'All Candidates', href: '/candidates/list' },
                         { label: candidate.name || 'Candidate Detail' }
                     ]}
                     action={<div className="text-xs font-mono text-muted-foreground opacity-50">ID: {candidate.candidate_id}</div>}

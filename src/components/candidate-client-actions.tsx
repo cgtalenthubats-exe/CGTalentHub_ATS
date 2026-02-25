@@ -16,9 +16,10 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 
-export function BackButton() {
+export function BackButton({ fallbackHref = '/candidates' }: { fallbackHref?: string }) {
+    const router = useRouter();
     return (
-        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground pl-0 gap-1 group" onClick={() => window.history.back()}>
+        <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground pl-0 gap-1 group" onClick={() => router.push(fallbackHref)}>
             <div className="rounded-full bg-background/50 p-1 group-hover:bg-background transition-colors">
                 <ChevronLeft className="h-4 w-4" />
             </div>
@@ -103,9 +104,10 @@ export function DeleteCandidateDialog({ id, name }: { id: string, name: string }
     const handleDelete = async () => {
         setLoading(true);
         try {
-            const { error } = await supabase.from('Candidate Profile').delete().eq('candidate_id', id);
-            if (error) throw error;
-            router.push('/candidates');
+            const res = await fetch(`/api/candidates/${id}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Delete failed');
+            router.push('/candidates/list');
             router.refresh();
         } catch (err: any) {
             alert("Error deleting candidate: " + err.message);
