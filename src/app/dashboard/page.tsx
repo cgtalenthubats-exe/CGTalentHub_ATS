@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip as ReactTooltip } from "react-tooltip";
 import PipelineTab from "./PipelineTab";
 import PlacementTab from "./PlacementTab";
+import PackageInfoTab from "./PackageInfoTab";
 
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
@@ -265,11 +266,12 @@ export default function DashboardPage() {
             <h1 className="text-4xl font-extrabold tracking-tight text-foreground">Dashboard</h1>
 
             <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-                <TabsList className="grid w-full grid-cols-4 max-w-[800px]">
+                <TabsList className="grid w-full grid-cols-5 max-w-[1000px]">
                     <TabsTrigger value="global">Global Candidate Pool</TabsTrigger>
                     <TabsTrigger value="market">Salary Benchmark</TabsTrigger>
                     <TabsTrigger value="pipeline">Recruitment Pipeline</TabsTrigger>
                     <TabsTrigger value="placement">Search &amp; Placement</TabsTrigger>
+                    <TabsTrigger value="package">Package Info</TabsTrigger>
                 </TabsList>
 
                 {/* --- TAB 1: GLOBAL POOL --- */}
@@ -571,6 +573,11 @@ export default function DashboardPage() {
                 {/* --- TAB 4: SEARCH & PLACEMENT --- */}
                 <TabsContent value="placement" className="space-y-6">
                     <PlacementTab />
+                </TabsContent>
+
+                {/* --- TAB 5: PACKAGE INFO --- */}
+                <TabsContent value="package" className="space-y-6">
+                    <PackageInfoTab />
                 </TabsContent>
             </Tabs>
         </div>
