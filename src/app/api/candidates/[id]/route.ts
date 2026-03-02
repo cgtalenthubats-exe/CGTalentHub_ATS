@@ -202,7 +202,25 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         if (mobile_phone !== undefined) updateData.mobile_phone = mobile_phone;
         if (linkedin !== undefined) updateData.linkedin = linkedin;
 
-        // Add timestamp if available in schema (modify_date)
+        // Profile fields
+        if (body.nationality !== undefined) updateData.nationality = body.nationality || null;
+        if (body.gender !== undefined) updateData.gender = body.gender || null;
+        if (body.date_of_birth !== undefined) updateData.date_of_birth = body.date_of_birth || null;
+        if (body.year_of_bachelor_education !== undefined) updateData.year_of_bachelor_education = body.year_of_bachelor_education || null;
+        if (body.age !== undefined) updateData.age = body.age || null;
+
+        // Compensation & Benefits fields
+        const compensationFields = [
+            'gross_salary_base_b_mth', 'other_income', 'bonus_mth',
+            'car_allowance_b_mth', 'gasoline_b_mth', 'phone_b_mth',
+            'provident_fund_pct', 'medical_b_annual', 'medical_b_mth',
+            'insurance', 'housing_for_expat_b_mth', 'others_benefit'
+        ];
+        compensationFields.forEach(f => {
+            if (body[f] !== undefined) updateData[f] = body[f] || null;
+        });
+
+        // Add timestamp
         updateData.modify_date = new Date().toISOString();
 
         if (Object.keys(updateData).length === 0) {

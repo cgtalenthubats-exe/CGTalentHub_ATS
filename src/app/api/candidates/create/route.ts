@@ -48,6 +48,19 @@ export async function POST(req: NextRequest) {
                     date_of_birth: body.date_of_birth || null,
                     year_of_bachelor_education: body.year_of_bachelor_education ? parseInt(body.year_of_bachelor_education) : null,
                     age: body.age ? parseInt(body.age) : null,
+                    // Compensation & Benefits (all optional)
+                    gross_salary_base_b_mth: body.gross_salary_base_b_mth || null,
+                    other_income: body.other_income || null,
+                    bonus_mth: body.bonus_mth || null,
+                    car_allowance_b_mth: body.car_allowance_b_mth || null,
+                    gasoline_b_mth: body.gasoline_b_mth || null,
+                    phone_b_mth: body.phone_b_mth || null,
+                    provident_fund_pct: body.provident_fund_pct || null,
+                    medical_b_annual: body.medical_b_annual || null,
+                    medical_b_mth: body.medical_b_mth || null,
+                    insurance: body.insurance || null,
+                    housing_for_expat_b_mth: body.housing_for_expat_b_mth || null,
+                    others_benefit: body.others_benefit || null,
                     created_date: new Date().toISOString(),
                     modify_date: new Date().toISOString()
                 }

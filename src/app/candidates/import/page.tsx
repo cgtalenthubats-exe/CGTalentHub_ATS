@@ -410,6 +410,37 @@ export default function CandidateImportPage() {
             <ArrowUpDown className="ml-1 h-3 w-3 text-indigo-600" />;
     };
 
+    const downloadCsv = () => {
+        const headers = [
+            'Candidate ID', 'Name', 'File Name', 'LinkedIn',
+            'Status', 'Candidate Status', 'Note',
+            'Uploader Email', 'Batch ID', 'Created At', 'Resume URL'
+        ];
+        const rows = sortedLogs.map(log => [
+            log.candidate_id || '',
+            log.name || '',
+            log.file_name || '',
+            log.linkedin || '',
+            log.status || '',
+            log.candidate_status || '',
+            (log.note || '').replace(/,/g, ';').replace(/\n/g, ' '),
+            log.uploader_email || '',
+            log.batch_id || '',
+            log.created_at || '',
+            log.resume_url || ''
+        ]);
+        const csvContent = [headers, ...rows]
+            .map(row => row.map(cell => `"${cell}"`).join(','))
+            .join('\n');
+        const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `upload-log-${viewMode}-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     return (
         <div className="container mx-auto p-6 space-y-6 max-w-7xl h-full flex flex-col">
             <div className="flex flex-col gap-2">
@@ -533,9 +564,14 @@ export default function CandidateImportPage() {
                                 {filteredLogs.length} records
                             </span>
                         </div>
-                        <Button variant="ghost" size="sm" onClick={fetchLogs} disabled={loadingLogs}>
-                            <RefreshCw className={cn("w-4 h-4", loadingLogs && "animate-spin")} />
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm" onClick={downloadCsv} disabled={sortedLogs.length === 0} className="gap-2 text-slate-600">
+                                <Download className="w-4 h-4" /> Download CSV
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={fetchLogs} disabled={loadingLogs}>
+                                <RefreshCw className={cn("w-4 h-4", loadingLogs && "animate-spin")} />
+                            </Button>
+                        </div>
                     </div>
 
                     <div className="flex flex-col md:flex-row gap-3">

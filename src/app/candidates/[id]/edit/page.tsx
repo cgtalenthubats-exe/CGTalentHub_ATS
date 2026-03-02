@@ -53,20 +53,31 @@ export default function EditCandidatePage({ params }: { params: Promise<{ id: st
         name: "",
         candidate_status: "",
         email: "",
-        phone: "", // mobile_phone in DB
+        phone: "",
         nationality: "",
         gender: "",
         linkedin: "",
-        // Age Logic
         age_input_type: "dob",
         date_of_birth: "",
         year_of_bachelor_education: "",
         age: "",
-        // Enhance Fields
         skills: "",
         education: "",
         languages: "",
-        blacklist_note: ""
+        blacklist_note: "",
+        // Compensation & Benefits
+        gross_salary_base_b_mth: "",
+        other_income: "",
+        bonus_mth: "",
+        car_allowance_b_mth: "",
+        gasoline_b_mth: "",
+        phone_b_mth: "",
+        provident_fund_pct: "",
+        medical_b_annual: "",
+        medical_b_mth: "",
+        insurance: "",
+        housing_for_expat_b_mth: "",
+        others_benefit: ""
     });
 
     useEffect(() => {
@@ -92,14 +103,27 @@ export default function EditCandidatePage({ params }: { params: Promise<{ id: st
                     nationality: data.nationality || "",
                     gender: data.gender || "",
                     linkedin: data.linkedin || "",
-                    age_input_type: "dob", // Default
+                    age_input_type: "dob",
                     date_of_birth: data.date_of_birth || "",
                     year_of_bachelor_education: data.year_of_bachelor_education || "",
                     age: data.age || "",
-                    skills: data.other_skill || data.enhancement?.skills || "", // Try both
+                    skills: data.other_skill || data.enhancement?.skills || "",
                     education: data.enhancement?.education_summary || "",
                     languages: data.language_skill || data.enhancement?.languages || "",
-                    blacklist_note: data.blacklist_note || ""
+                    blacklist_note: data.blacklist_note || "",
+                    // Compensation & Benefits
+                    gross_salary_base_b_mth: data.gross_salary_base_b_mth || "",
+                    other_income: data.other_income || "",
+                    bonus_mth: data.bonus_mth || "",
+                    car_allowance_b_mth: data.car_allowance_b_mth || "",
+                    gasoline_b_mth: data.gasoline_b_mth || "",
+                    phone_b_mth: data.phone_b_mth || "",
+                    provident_fund_pct: data.provident_fund_pct || "",
+                    medical_b_annual: data.medical_b_annual || "",
+                    medical_b_mth: data.medical_b_mth || "",
+                    insurance: data.insurance || "",
+                    housing_for_expat_b_mth: data.housing_for_expat_b_mth || "",
+                    others_benefit: data.others_benefit || ""
                 });
 
                 if (data.photo) setPhotoPreview(data.photo);
@@ -200,7 +224,20 @@ export default function EditCandidatePage({ params }: { params: Promise<{ id: st
                 age: formData.age,
                 photo: photoUrl,
                 resume_url: resumeUrl,
-                blacklist_note: formData.blacklist_note
+                blacklist_note: formData.blacklist_note,
+                // Compensation & Benefits
+                gross_salary_base_b_mth: formData.gross_salary_base_b_mth || null,
+                other_income: formData.other_income || null,
+                bonus_mth: formData.bonus_mth || null,
+                car_allowance_b_mth: formData.car_allowance_b_mth || null,
+                gasoline_b_mth: formData.gasoline_b_mth || null,
+                phone_b_mth: formData.phone_b_mth || null,
+                provident_fund_pct: formData.provident_fund_pct || null,
+                medical_b_annual: formData.medical_b_annual || null,
+                medical_b_mth: formData.medical_b_mth || null,
+                insurance: formData.insurance || null,
+                housing_for_expat_b_mth: formData.housing_for_expat_b_mth || null,
+                others_benefit: formData.others_benefit || null,
             };
 
             const res = await fetch(`/api/candidates/${candidateId}`, {
@@ -433,6 +470,68 @@ export default function EditCandidatePage({ params }: { params: Promise<{ id: st
                                 )}
                             </div>
                         </div>
+
+                        {/* === Compensation & Benefits === */}
+                        <div className="pt-6 border-t space-y-4">
+                            <div className="flex items-center gap-2">
+                                <div className="p-1.5 bg-emerald-100 rounded-md text-emerald-600">
+                                    <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
+                                </div>
+                                <h3 className="font-semibold text-slate-700 text-sm">Compensation &amp; Benefits <span className="text-xs font-normal text-slate-400 ml-1">(optional)</span></h3>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="gross_salary_base_b_mth" className="text-xs font-semibold text-slate-600">Gross Salary (B/mth)</Label>
+                                    <Input id="gross_salary_base_b_mth" placeholder="e.g. 250000" value={formData.gross_salary_base_b_mth} onChange={handleChange} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="other_income" className="text-xs font-semibold text-slate-600">Other Income</Label>
+                                    <Input id="other_income" placeholder="e.g. 10000" value={formData.other_income} onChange={handleChange} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="bonus_mth" className="text-xs font-semibold text-slate-600">Bonus (months)</Label>
+                                    <Input id="bonus_mth" placeholder="e.g. 3" value={formData.bonus_mth} onChange={handleChange} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="car_allowance_b_mth" className="text-xs font-semibold text-slate-600">Car Allowance (B/mth)</Label>
+                                    <Input id="car_allowance_b_mth" placeholder="e.g. 15000" value={formData.car_allowance_b_mth} onChange={handleChange} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="gasoline_b_mth" className="text-xs font-semibold text-slate-600">Gasoline (B/mth)</Label>
+                                    <Input id="gasoline_b_mth" placeholder="e.g. 5000" value={formData.gasoline_b_mth} onChange={handleChange} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="phone_b_mth" className="text-xs font-semibold text-slate-600">Phone Allowance (B/mth)</Label>
+                                    <Input id="phone_b_mth" placeholder="e.g. 1500" value={formData.phone_b_mth} onChange={handleChange} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="provident_fund_pct" className="text-xs font-semibold text-slate-600">Provident Fund (%)</Label>
+                                    <Input id="provident_fund_pct" placeholder="e.g. 5%" value={formData.provident_fund_pct} onChange={handleChange} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="medical_b_annual" className="text-xs font-semibold text-slate-600">Medical (B/annual)</Label>
+                                    <Input id="medical_b_annual" placeholder="e.g. 30000" value={formData.medical_b_annual} onChange={handleChange} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="medical_b_mth" className="text-xs font-semibold text-slate-600">Medical (B/mth)</Label>
+                                    <Input id="medical_b_mth" placeholder="e.g. 2500" value={formData.medical_b_mth} onChange={handleChange} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="insurance" className="text-xs font-semibold text-slate-600">Insurance</Label>
+                                    <Input id="insurance" placeholder="e.g. Immediate family" value={formData.insurance} onChange={handleChange} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="housing_for_expat_b_mth" className="text-xs font-semibold text-slate-600">Housing Expat (B/mth)</Label>
+                                    <Input id="housing_for_expat_b_mth" placeholder="e.g. 50000" value={formData.housing_for_expat_b_mth} onChange={handleChange} />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="others_benefit" className="text-xs font-semibold text-slate-600">Others</Label>
+                                    <Input id="others_benefit" placeholder="e.g. Company car, Club membership" value={formData.others_benefit} onChange={handleChange} />
+                                </div>
+                            </div>
+                        </div>
+
 
                     </CardContent>
 

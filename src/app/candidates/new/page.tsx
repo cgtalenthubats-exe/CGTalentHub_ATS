@@ -44,15 +44,26 @@ export default function NewCandidatePage() {
         nationality: "",
         gender: "",
         linkedin: "",
-        // Age Logic
-        age_input_type: "dob", // 'dob' or 'bachelor'
+        age_input_type: "dob",
         date_of_birth: "",
         year_of_bachelor_education: "",
         age: "",
-        // Enhance Fields
         skills: "",
         education: "",
-        languages: ""
+        languages: "",
+        // Compensation & Benefits (optional)
+        gross_salary_base_b_mth: "",
+        other_income: "",
+        bonus_mth: "",
+        car_allowance_b_mth: "",
+        gasoline_b_mth: "",
+        phone_b_mth: "",
+        provident_fund_pct: "",
+        medical_b_annual: "",
+        medical_b_mth: "",
+        insurance: "",
+        housing_for_expat_b_mth: "",
+        others_benefit: ""
     });
 
     useEffect(() => {
@@ -330,6 +341,65 @@ export default function NewCandidatePage() {
                                 <div className="space-y-2">
                                     <Label htmlFor="languages">Languages</Label>
                                     <textarea id="languages" className="flex min-h-[80px] w-full rounded-md border border-input bg-secondary/20 px-3 py-2 text-sm" placeholder="Thai (Native), English (Fluent)..." value={formData.languages} onChange={handleChange} />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Section 4: Compensation & Benefits (Optional) */}
+                        <div className="space-y-4 pt-4 border-t border-border/50">
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Compensation &amp; Benefits</h3>
+                                <span className="text-xs text-muted-foreground">(optional)</span>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="gross_salary_base_b_mth" className="text-xs font-semibold">Gross Salary (B/mth)</Label>
+                                    <Input id="gross_salary_base_b_mth" placeholder="e.g. 250000" value={formData.gross_salary_base_b_mth} onChange={handleChange} className="bg-secondary/20" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="other_income" className="text-xs font-semibold">Other Income</Label>
+                                    <Input id="other_income" placeholder="e.g. 10000" value={formData.other_income} onChange={handleChange} className="bg-secondary/20" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="bonus_mth" className="text-xs font-semibold">Bonus (months)</Label>
+                                    <Input id="bonus_mth" placeholder="e.g. 3" value={formData.bonus_mth} onChange={handleChange} className="bg-secondary/20" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="car_allowance_b_mth" className="text-xs font-semibold">Car Allowance (B/mth)</Label>
+                                    <Input id="car_allowance_b_mth" placeholder="e.g. 15000" value={formData.car_allowance_b_mth} onChange={handleChange} className="bg-secondary/20" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="gasoline_b_mth" className="text-xs font-semibold">Gasoline (B/mth)</Label>
+                                    <Input id="gasoline_b_mth" placeholder="e.g. 5000" value={formData.gasoline_b_mth} onChange={handleChange} className="bg-secondary/20" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="phone_b_mth" className="text-xs font-semibold">Phone Allowance (B/mth)</Label>
+                                    <Input id="phone_b_mth" placeholder="e.g. 1500" value={formData.phone_b_mth} onChange={handleChange} className="bg-secondary/20" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="provident_fund_pct" className="text-xs font-semibold">Provident Fund (%)</Label>
+                                    <Input id="provident_fund_pct" placeholder="e.g. 5%" value={formData.provident_fund_pct} onChange={handleChange} className="bg-secondary/20" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="medical_b_annual" className="text-xs font-semibold">Medical (B/annual)</Label>
+                                    <Input id="medical_b_annual" placeholder="e.g. 30000" value={formData.medical_b_annual} onChange={handleChange} className="bg-secondary/20" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="medical_b_mth" className="text-xs font-semibold">Medical (B/mth)</Label>
+                                    <Input id="medical_b_mth" placeholder="e.g. 2500" value={formData.medical_b_mth} onChange={handleChange} className="bg-secondary/20" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="insurance" className="text-xs font-semibold">Insurance</Label>
+                                    <Input id="insurance" placeholder="e.g. Immediate family" value={formData.insurance} onChange={handleChange} className="bg-secondary/20" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="housing_for_expat_b_mth" className="text-xs font-semibold">Housing Expat (B/mth)</Label>
+                                    <Input id="housing_for_expat_b_mth" placeholder="e.g. 50000" value={formData.housing_for_expat_b_mth} onChange={handleChange} className="bg-secondary/20" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="others_benefit" className="text-xs font-semibold">Others</Label>
+                                    <Input id="others_benefit" placeholder="e.g. Company car" value={formData.others_benefit} onChange={handleChange} className="bg-secondary/20" />
                                 </div>
                             </div>
                         </div>
