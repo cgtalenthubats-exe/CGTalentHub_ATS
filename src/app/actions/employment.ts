@@ -23,7 +23,7 @@ export async function getEmploymentRecords(status: 'Active' | 'Resigned') {
 
         if (candidateIds.length > 0) {
             const { data: profiles, error: profileError } = await supabase
-                .from('candidate_profile')
+                .from('Candidate Profile')
                 .select('candidate_id, date_of_birth')
                 .in('candidate_id', candidateIds);
 
@@ -128,5 +128,21 @@ export async function addResignationReason(reason: string) {
         return { success: false, error: error.message };
     }
 
+    return { success: true };
+}
+
+export async function updateCandidateDOB(candidateId: string, dob: string | null) {
+    const supabase = adminAuthClient;
+    const { error } = await (supabase
+        .from('Candidate Profile') as any)
+        .update({ date_of_birth: dob })
+        .eq('candidate_id', candidateId);
+
+    if (error) {
+        console.error('Error updating candidate DOB:', error);
+        return { success: false, error: error.message };
+    }
+
+    revalidatePath('/requisitions/placements');
     return { success: true };
 }

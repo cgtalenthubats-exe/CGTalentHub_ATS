@@ -24,7 +24,7 @@ export default async function CandidateLogPage({ params }: { params: Promise<{ j
         <div className="flex flex-col min-h-screen bg-[#f8fafc]">
             {/* Header */}
             <header className="sticky top-0 z-40 w-full border-b bg-white/95 backdrop-blur-md shadow-sm">
-                <div className="container flex h-24 items-center px-8 gap-8 max-w-[1400px] mx-auto">
+                <div className="flex h-24 items-center px-8 gap-8 max-w-[95%] mx-auto w-full">
                     <Link href="/requisitions/manage">
                         <Button variant="ghost" size="sm" className="gap-2 text-slate-500 hover:text-slate-900">
                             <ArrowLeft className="h-4 w-4" /> Back to JR
@@ -54,7 +54,7 @@ export default async function CandidateLogPage({ params }: { params: Promise<{ j
                 </div>
             </header>
 
-            <main className="flex-1 container py-8 px-8 max-w-[1400px] mx-auto">
+            <main className="flex-1 py-8 px-8 max-w-[95%] mx-auto w-full">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Left Column: Details & Feedback */}
                     <div className="lg:col-span-2 space-y-6">

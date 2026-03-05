@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { updateEmploymentRecord } from "@/app/actions/employment";
+import { updateEmploymentRecord, updateCandidateDOB } from "@/app/actions/employment";
 import { toast } from "sonner";
-import { CheckCircle2, Calculator, Loader2, Save } from "lucide-react";
+import { CheckCircle2, Calculator, Loader2, Save, CalendarIcon } from "lucide-react";
 
 interface EditPlacementDialogProps {
     open: boolean;
@@ -33,7 +33,8 @@ export function EditPlacementDialog({
         note: "",
         position: "",
         bu: "",
-        sub_bu: ""
+        sub_bu: "",
+        date_of_birth: ""
     });
 
     useEffect(() => {
@@ -47,7 +48,8 @@ export function EditPlacementDialog({
                 note: initialData.note || "",
                 position: initialData.position || "",
                 bu: initialData.bu || "",
-                sub_bu: initialData.sub_bu || ""
+                sub_bu: initialData.sub_bu || "",
+                date_of_birth: initialData.date_of_birth || ""
             });
         }
     }, [open, initialData]);
@@ -64,7 +66,7 @@ export function EditPlacementDialog({
             return;
         }
 
-        const res = await updateEmploymentRecord(initialData.employment_record_id, {
+        const recordRes = await updateEmploymentRecord(initialData.employment_record_id, {
             hire_date: formData.hire_date || null,
             base_salary: baseSalary || null,
             job_grade: formData.job_grade || null,
@@ -76,12 +78,18 @@ export function EditPlacementDialog({
             sub_bu: formData.sub_bu || null
         });
 
-        if (res.success) {
+        // Update Candidate DOB if candidate_id is present
+        let dobRes: { success: boolean; error?: string } = { success: true, error: "" };
+        if (initialData.candidate_id) {
+            dobRes = await updateCandidateDOB(initialData.candidate_id, formData.date_of_birth || null);
+        }
+
+        if (recordRes.success && dobRes.success) {
             toast.success("Placement details updated successfully!");
             onSuccess();
             onOpenChange(false);
         } else {
-            toast.error("Failed to update placement: " + res.error);
+            toast.error("Failed to update: " + (recordRes.error || dobRes.error));
         }
         setLoading(false);
     };
@@ -128,7 +136,7 @@ export function EditPlacementDialog({
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                         <div className="space-y-2">
                             <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Hire Date</Label>
                             <Input
@@ -139,6 +147,15 @@ export function EditPlacementDialog({
                             />
                         </div>
                         <div className="space-y-2">
+                            <Label className="text-xs font-black uppercase tracking-widest text-slate-500 flex items-center gap-1"><CalendarIcon className="w-3.5 h-3.5" /> Date of Birth</Label>
+                            <Input
+                                type="date"
+                                value={formData.date_of_birth}
+                                onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
+                                className="h-11 rounded-xl bg-indigo-50/50 border-indigo-100 text-indigo-900 focus:ring-indigo-500/20"
+                            />
+                        </div>
+                        <div className="space-y-2 col-span-2 lg:col-span-1">
                             <Label className="text-xs font-black uppercase tracking-widest text-slate-500">Base Salary (THB)</Label>
                             <Input
                                 type="number"

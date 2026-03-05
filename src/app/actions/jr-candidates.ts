@@ -99,6 +99,52 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
 
     const profileMap = new Map((profiles as any)?.map((p: any) => [p.candidate_id, p]));
 
+    // 2.5 Fetch Experiences (to get proper Position & Company)
+    const { data: experiences, error: expError } = await (supabase as any)
+        .from('candidate_experiences')
+        .select('candidate_id, company, position, is_current_job, start_date, country, note')
+        .in('candidate_id', candidateIds);
+
+    if (expError) {
+        console.error('[getJRCandidates] candidate_experiences fetch error:', expError);
+    }
+
+    // Build experience map: prefer is_current_job='Current', else take first row (by start_date desc)
+    const expMap = new Map<string, { company: string; position: string; label: string; country: string; note: string }>();
+    if (experiences && (experiences as any[]).length > 0) {
+        // Group by candidate_id
+        const groupedExp: Record<string, any[]> = {};
+        for (const exp of (experiences as any[])) {
+            const cid = exp.candidate_id;
+            if (!groupedExp[cid]) groupedExp[cid] = [];
+            groupedExp[cid].push(exp);
+        }
+
+        for (const [cid, exps] of Object.entries(groupedExp)) {
+            // Sort: Current first, then by start_date desc
+            exps.sort((a, b) => {
+                const aIsCurrent = (a.is_current_job || '').toString().trim().toLowerCase() === 'current';
+                const bIsCurrent = (b.is_current_job || '').toString().trim().toLowerCase() === 'current';
+                if (aIsCurrent && !bIsCurrent) return -1;
+                if (!aIsCurrent && bIsCurrent) return 1;
+                const dateA = new Date(a.start_date || 0).getTime();
+                const dateB = new Date(b.start_date || 0).getTime();
+                if (!isNaN(dateA) && !isNaN(dateB)) return dateB - dateA;
+                return 0;
+            });
+
+            const best = exps[0];
+            const isCurrent = (best.is_current_job || '').toString().trim().toLowerCase() === 'current';
+            expMap.set(cid, {
+                company: best.company || '',
+                position: best.position || '',
+                label: isCurrent ? 'Current' : 'Latest Position',
+                country: best.country || '',
+                note: best.note || ''
+            });
+        }
+    }
+
     // 3. Fetch Status Logs
     const jrCandIds = candidates.map(c => c.jr_candidate_id);
     const { data: logs } = await supabase
@@ -108,11 +154,15 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         .returns<{ log_id: number; jr_candidate_id: string; status: string; timestamp: string }[]>();
 
     return candidates.map((row) => {
-        // Resolve Profile
         const profile = profileMap.get(row.candidate_id) as any;
+        const exp = expMap.get(row.candidate_id);
 
-        // Determine status from logs
         const realStatus = getLatestStatus(logs || [], row.jr_candidate_id, row.temp_status || "Pool Candidate");
+
+        // Format country: "Thailand(Location from HQ location)"
+        const countryDisplay = exp
+            ? [exp.country, exp.note ? `(${exp.note})` : ''].filter(Boolean).join('')
+            : undefined;
 
         return {
             id: row.jr_candidate_id,
@@ -129,8 +179,10 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
             candidate_name: profile?.name || "Unknown",
             candidate_email: profile?.email || undefined,
             candidate_mobile: profile?.mobile_phone || undefined,
-            candidate_current_position: profile?.job_function || undefined,
-            candidate_current_company: "N/A",
+            candidate_current_position: exp?.position || undefined,
+            candidate_current_company: exp?.company || undefined,
+            candidate_is_current_job: exp ? exp.label : undefined,
+            candidate_country: countryDisplay || undefined,
             candidate_image_url: profile?.photo || undefined,
             candidate_age: profile?.age || undefined,
             candidate_gender: profile?.gender || undefined,

@@ -56,7 +56,7 @@ export default function ResignationsPage() {
     );
 
     return (
-        <div className="container mx-auto p-6 space-y-8 max-w-7xl animate-in fade-in duration-500">
+        <div className="mx-auto p-6 space-y-8 w-full max-w-[95%] animate-in fade-in duration-500">
             {/* Header Area */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-1">

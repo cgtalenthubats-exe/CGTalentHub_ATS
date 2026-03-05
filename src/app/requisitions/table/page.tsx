@@ -283,7 +283,7 @@ export default function RequisitionsPage() {
     };
 
     return (
-        <div className="container mx-auto p-6 space-y-8 min-h-screen bg-slate-50/50">
+        <div className="mx-auto p-6 space-y-8 min-h-screen bg-slate-50/50 w-full max-w-[95%]">
             <AtsBreadcrumb
                 items={[
                     { label: 'Job Requisition Menu', href: '/requisitions' },
@@ -453,11 +453,12 @@ export default function RequisitionsPage() {
                 </CardHeader>
                 <CardContent>
                     <div className="rounded-md border">
-                        <table className="w-full text-sm">
+                        <table className="w-full text-base">
                             <thead className="bg-muted/50">
                                 <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground w-[40px]">
+                                    <th className="h-14 px-4 text-left align-middle font-medium text-muted-foreground w-[40px]">
                                         <Checkbox
+                                            className="w-5 h-5"
                                             checked={selectedJrIds.size === filteredJrs.length && filteredJrs.length > 0}
                                             onCheckedChange={toggleAllSelection}
                                         />
@@ -467,10 +468,10 @@ export default function RequisitionsPage() {
                                     <SortableHeader label="BU" sortKey="division" currentSort={sortConfig} onSort={requestSort} />
                                     <SortableHeader label="Sub BU" sortKey="department" currentSort={sortConfig} onSort={requestSort} />
                                     <SortableHeader label="Created By" sortKey="created_by" currentSort={sortConfig} onSort={requestSort} />
-                                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Candidates</th>
+                                    <th className="h-14 px-4 text-left align-middle font-medium text-muted-foreground">Candidates</th>
                                     <SortableHeader label="Type" sortKey="jr_type" currentSort={sortConfig} onSort={requestSort} />
                                     <SortableHeader label="Active" sortKey="is_active" currentSort={sortConfig} onSort={requestSort} />
-                                    <th className="h-12 px-4 text-right align-middle font-medium text-muted-foreground">Action</th>
+                                    <th className="h-14 px-4 text-right align-middle font-medium text-muted-foreground">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -487,6 +488,7 @@ export default function RequisitionsPage() {
                                         <tr key={jr.id} className="border-b transition-colors hover:bg-muted/50">
                                             <td className="p-4">
                                                 <Checkbox
+                                                    className="w-5 h-5"
                                                     checked={selectedJrIds.has(jr.id)}
                                                     onCheckedChange={() => toggleSelection(jr.id)}
                                                 />
@@ -495,7 +497,7 @@ export default function RequisitionsPage() {
                                             <td className="p-4 font-semibold">{jr.job_title}</td>
                                             <td className="p-4 text-muted-foreground">{jr.division}</td>
                                             <td className="p-4 text-muted-foreground">{jr.department}</td>
-                                            <td className="p-4 text-sm text-muted-foreground">
+                                            <td className="p-4 text-base text-muted-foreground">
                                                 {userProfiles[jr.created_by || ""] || jr.created_by || "-"}
                                             </td>
                                             <td className="p-4">
@@ -506,7 +508,7 @@ export default function RequisitionsPage() {
                                                             style={{ width: `${Math.min((jr.headcount_hired / jr.headcount_total) * 100, 100)}%` }}
                                                         />
                                                     </div>
-                                                    <span className="text-[10px] text-muted-foreground">{jr.headcount_hired}/{jr.headcount_total}</span>
+                                                    <span className="text-xs text-muted-foreground">{jr.headcount_hired}/{jr.headcount_total}</span>
                                                 </div>
                                             </td>
                                             <td className="p-4">
@@ -624,7 +626,7 @@ function StatusBadge({ status }: { status: string }) {
 function SortableHeader({ label, sortKey, currentSort, onSort }: any) {
     return (
         <th
-            className="h-12 px-4 text-left align-middle font-medium text-muted-foreground cursor-pointer hover:text-foreground group"
+            className="h-14 px-4 text-left align-middle font-medium text-muted-foreground cursor-pointer hover:text-foreground group"
             onClick={() => onSort(sortKey)}
         >
             <div className="flex items-center gap-1">

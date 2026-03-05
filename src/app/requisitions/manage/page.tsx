@@ -158,7 +158,7 @@ export default function JRManagePage() {
                 }}
             />
 
-            <div className="container mx-auto p-6 space-y-6 flex-1">
+            <div className="mx-auto p-6 space-y-6 flex-1 w-full max-w-[95%]">
                 <AtsBreadcrumb
                     items={[
                         { label: 'Job Requisition Menu', href: '/requisitions' },

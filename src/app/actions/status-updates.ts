@@ -71,7 +71,8 @@ export async function updateCandidateStatus(
 export async function batchUpdateCandidateStatus(
     jrCandidateIds: string[],
     newStatus: string,
-    updatedBy?: string
+    updatedBy?: string,
+    note: string | null = null
 ) {
     const supabase = adminAuthClient;
     const resolvedUpdatedBy = updatedBy || await getCurrentUserEmail();
@@ -100,7 +101,7 @@ export async function batchUpdateCandidateStatus(
             status: newStatus,
             updated_By: resolvedUpdatedBy,
             timestamp: timestampStr,
-            note: "Batch update"
+            note: note || "Batch update"
         }));
 
         // 3. Batch Insert Logs

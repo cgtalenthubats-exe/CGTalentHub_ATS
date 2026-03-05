@@ -55,6 +55,7 @@ import {
 import Link from "next/link";
 import { AddFeedbackDialog } from "@/components/add-feedback-dialog";
 import { CandidateAvatar } from "@/components/candidate-avatar";
+import { StatusChangeDialog } from "@/components/status-change-dialog";
 
 interface CandidateListProps {
     jrId: string;
@@ -70,17 +71,28 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
     const [loading, setLoading] = useState(true);
     const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
     const [filterText, setFilterText] = useState("");
-    const [statusFilter, setStatusFilter] = useState<string>("All");
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [statusOptions, setStatusOptions] = useState<any[]>([]);
     const [allJRs, setAllJRs] = useState<any[]>([]);
 
-
+    // Per-column multi-select filters
+    const [filterStatus, setFilterStatus] = useState<string[]>([]);
+    const [filterSexAge, setFilterSexAge] = useState<string[]>([]);
+    const [filterCompany, setFilterCompany] = useState<string[]>([]);
+    const [filterPosition, setFilterPosition] = useState<string[]>([]);
+    const [filterIsCurrentJob, setFilterIsCurrentJob] = useState<string[]>([]);
+    const [filterCountry, setFilterCountry] = useState<string[]>([]);
 
     // Feedback Dialog State
     const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
     const [feedbackCandidate, setFeedbackCandidate] = useState<{ id: string, name: string } | null>(null);
     const [placementCandidate, setPlacementCandidate] = useState<{ id: string, name: string } | null>(null);
+
+    // Status Dialog State
+    const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+    const [pendingStatus, setPendingStatus] = useState<string>("");
+    const [pendingCandidateId, setPendingCandidateId] = useState<string | null>(null); // null if batch update
+    const [isBatchUpdate, setIsBatchUpdate] = useState(false);
 
     useEffect(() => {
         async function load() {
@@ -116,30 +128,50 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
             return;
         }
 
-        setStatusUpdating(jrCandId);
-        const { success, error } = await updateCandidateStatus(jrCandId, newStatus);
-        if (success) {
-            // Optimistic update or just refresh
-            const updated = await getJRCandidates(jrId);
-            setCandidates(updated);
-        } else {
-            alert("Error: " + error);
-        }
-        setStatusUpdating(null);
+        setPendingCandidateId(jrCandId);
+        setPendingStatus(newStatus);
+        setIsBatchUpdate(false);
+        setStatusDialogOpen(true);
     };
 
     const handleBatchStatusChange = async (newStatus: string) => {
         if (selectedIds.length === 0) return;
-        setLoading(true);
-        const { success, error } = await batchUpdateCandidateStatus(selectedIds, newStatus);
-        if (success) {
-            const updated = await getJRCandidates(jrId);
-            setCandidates(updated);
-            setSelectedIds([]);
-        } else {
-            alert("Batch error: " + error);
+
+        setPendingCandidateId(null);
+        setPendingStatus(newStatus);
+        setIsBatchUpdate(true);
+        setStatusDialogOpen(true);
+    };
+
+    const confirmStatusChange = async (note: string) => {
+        if (!pendingStatus) return;
+
+        if (isBatchUpdate) {
+            setLoading(true);
+            const { success, error } = await batchUpdateCandidateStatus(selectedIds, pendingStatus, undefined, note || null);
+            if (success) {
+                const updated = await getJRCandidates(jrId);
+                setCandidates(updated);
+                setSelectedIds([]);
+                toast.success(`Batch updated ${selectedIds.length} candidates to ${pendingStatus}`);
+            } else {
+                toast.error("Batch error: " + error);
+            }
+            setLoading(false);
+        } else if (pendingCandidateId) {
+            setStatusUpdating(pendingCandidateId);
+            const { success, error } = await updateCandidateStatus(pendingCandidateId, pendingStatus, undefined, note || null);
+            if (success) {
+                const updated = await getJRCandidates(jrId);
+                setCandidates(updated);
+                toast.success(`Updated status to ${pendingStatus}`);
+            } else {
+                toast.error("Error: " + error);
+            }
+            setStatusUpdating(null);
         }
-        setLoading(false);
+
+        setStatusDialogOpen(false);
     };
 
     const handleMetadataUpdate = async (jrCandId: string, updates: any) => {
@@ -195,22 +227,42 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
     const greyStatuses = ["Not fit", "Not Open", "Not Pass Interview", "Too Senior"];
     const redStatuses = ["Rejected"];
 
-    // Default Filters
+    // Unique option sets derived from all candidates
+    const uniqueStatuses = Array.from(new Set(candidates.map(c => c.status).filter(Boolean))).sort() as string[];
+    const uniqueGenders = Array.from(new Set(candidates.map(c => c.candidate_gender).filter(Boolean))).sort() as string[];
+    const uniqueCompanies = Array.from(new Set(candidates.map(c => c.candidate_current_company).filter(Boolean))).sort() as string[];
+    const uniquePositions = Array.from(new Set(candidates.map(c => c.candidate_current_position).filter(Boolean))).sort() as string[];
+    const uniqueCurrentJobs = ['Current', 'Latest Position'];
+    const uniqueCountries = Array.from(new Set(candidates.map(c => {
+        if (!c.candidate_country) return null;
+        const idx = c.candidate_country.indexOf('(');
+        return idx >= 0 ? c.candidate_country.slice(0, idx).trim() : c.candidate_country;
+    }).filter(Boolean))).sort() as string[];
+
+    // Multi-select filter logic (empty array = show all)
     const filteredCandidates = candidates.filter(c => {
         try {
-            const filter = (filterText || "").toLowerCase();
-            const matchesText =
-                (c.candidate_name || "").toLowerCase().includes(filter) ||
-                (c.candidate_id || "").toLowerCase().includes(filter) ||
-                (c.candidate_current_position || "").toLowerCase().includes(filter) ||
-                (c.candidate_current_company || "").toLowerCase().includes(filter);
+            const f = (filterText || "").toLowerCase();
+            const matchesGlobal = !f ||
+                (c.candidate_name || "").toLowerCase().includes(f) ||
+                (c.candidate_id || "").toLowerCase().includes(f) ||
+                (c.candidate_email || "").toLowerCase().includes(f) ||
+                (c.candidate_current_position || "").toLowerCase().includes(f) ||
+                (c.candidate_current_company || "").toLowerCase().includes(f) ||
+                (c.candidate_gender || "").toLowerCase().includes(f) ||
+                (c.status || "").toLowerCase().includes(f) ||
+                (c.candidate_country || "").toLowerCase().includes(f) ||
+                String(c.candidate_age || "").includes(f);
 
-            const matchesStatus = statusFilter === "All" || c.status === statusFilter;
+            const matchesStatus = filterStatus.length === 0 || filterStatus.includes(c.status || '');
+            const matchesSexAge = filterSexAge.length === 0 || filterSexAge.includes(c.candidate_gender || '');
+            const matchesCompany = filterCompany.length === 0 || filterCompany.includes(c.candidate_current_company || '');
+            const matchesPosition = filterPosition.length === 0 || filterPosition.includes(c.candidate_current_position || '');
+            const matchesCurrentJob = filterIsCurrentJob.length === 0 || filterIsCurrentJob.includes(c.candidate_is_current_job || '');
+            const matchesCountry = filterCountry.length === 0 || filterCountry.some(fc => (c.candidate_country || '').startsWith(fc));
 
-            return matchesText && matchesStatus;
-        } catch (e) {
-            return false;
-        }
+            return matchesGlobal && matchesStatus && matchesSexAge && matchesCompany && matchesPosition && matchesCurrentJob && matchesCountry;
+        } catch { return false; }
     });
 
     // Custom Sorting: Active > Grey > Red
@@ -220,18 +272,66 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
             if (greyStatuses.includes(s)) return 2;
             return 1;
         };
-
         const scoreA = getScore(a.status);
         const scoreB = getScore(b.status);
-
         if (scoreA !== scoreB) return scoreA - scoreB;
-
-        // Secondary Sort: Rank (Asc) or Name
         return (parseInt(a.rank || "999") - parseInt(b.rank || "999"));
     });
 
+    // Toggle value in a multi-select array
+    const toggleMulti = (arr: string[], val: string, setArr: (v: string[]) => void) => {
+        setArr(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]);
+    };
+
+    // Multi-select filter dropdown component
+    const MSFilter = ({ label, options, selected, setSelected }: {
+        label: string; options: string[]; selected: string[]; setSelected: (v: string[]) => void;
+    }) => (
+        <Popover>
+            <PopoverTrigger asChild>
+                <button className={cn(
+                    "h-8 inline-flex items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold shadow-sm whitespace-nowrap transition-all",
+                    selected.length > 0
+                        ? "bg-indigo-50 border-indigo-300 text-indigo-700"
+                        : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                )}>
+                    {selected.length > 0 ? `${label} (${selected.length})` : label}
+                    <ChevronDown className="h-3 w-3 opacity-50" />
+                </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-[220px] p-2 shadow-xl border-slate-100 rounded-xl z-50">
+                <div className="mb-1.5 px-1 text-[10px] font-black uppercase text-slate-400 tracking-widest">{label}</div>
+                <ScrollArea className="max-h-[240px] pr-1">
+                    <div className="flex flex-col gap-0.5">
+                        {options.length === 0 && <div className="text-xs text-slate-400 text-center py-3">No options</div>}
+                        {options.map(opt => (
+                            <label key={opt} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-xs font-medium text-slate-700">
+                                <Checkbox
+                                    checked={selected.includes(opt)}
+                                    onCheckedChange={() => toggleMulti(selected, opt, setSelected)}
+                                    className="border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600 shrink-0"
+                                />
+                                <span className="leading-snug">{opt}</span>
+                            </label>
+                        ))}
+                    </div>
+                </ScrollArea>
+                {selected.length > 0 && (
+                    <button className="mt-1 w-full text-[11px] text-red-500 hover:text-red-700 py-1 font-semibold border-t border-slate-100"
+                        onClick={() => setSelected([])}>
+                        Clear
+                    </button>
+                )}
+            </PopoverContent>
+        </Popover>
+    );
+
     // Row Style Helper
     const getRowClass = (status: string, isSelected: boolean) => {
+        if (status === "Successful Placement") return cn(
+            "border-b last:border-0 hover:bg-emerald-50/80 transition-all bg-emerald-50/30",
+            isSelected && "bg-emerald-100/50"
+        );
         if (redStatuses.includes(status)) return "bg-red-50/40 hover:bg-red-50/80 transition-colors border-b";
         if (greyStatuses.includes(status)) return "bg-slate-50/50 hover:bg-slate-100/80 transition-colors border-b";
         return cn(
@@ -240,7 +340,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
         );
     };
 
-    const uniqueStatuses = Array.from(new Set(candidates.map(c => c.status)));
+
 
     // Selection Logic
     const toggleSelectAll = () => {
@@ -339,26 +439,41 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
                         </div>
                     )}
                 </div>
-                <div className="flex gap-2.5">
-                    <div className="relative">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                        <input
-                            className="h-9 w-[220px] rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-xs shadow-sm transition-all placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/50"
-                            placeholder="Find by name, ID, or company..."
-                            value={filterText}
-                            onChange={(e) => setFilterText(e.target.value)}
-                        />
-                    </div>
-                    <div className="relative">
-                        <Filter className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                        <select
-                            className="h-9 rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-xs shadow-sm transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/50"
-                            value={statusFilter}
-                            onChange={(e) => setStatusFilter(e.target.value)}
-                        >
-                            <option value="All">All Statuses</option>
-                            {uniqueStatuses.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
+                {/* Per-column multi-select filter bar */}
+                <div className="border-t border-slate-100">
+                    <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-slate-50/50">
+                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest mr-1">Filters:</span>
+
+                        <MSFilter label="Status" options={uniqueStatuses} selected={filterStatus} setSelected={setFilterStatus} />
+                        <MSFilter label="Sex" options={uniqueGenders} selected={filterSexAge} setSelected={setFilterSexAge} />
+                        <MSFilter label="Company" options={uniqueCompanies} selected={filterCompany} setSelected={setFilterCompany} />
+                        <MSFilter label="Position" options={uniquePositions} selected={filterPosition} setSelected={setFilterPosition} />
+                        <MSFilter label="Experience Type" options={uniqueCurrentJobs} selected={filterIsCurrentJob} setSelected={setFilterIsCurrentJob} />
+                        <MSFilter label="Country" options={uniqueCountries} selected={filterCountry} setSelected={setFilterCountry} />
+
+                        {/* Global text search */}
+                        <div className="relative ml-auto">
+                            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                            <input
+                                className="h-8 w-[200px] rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-xs shadow-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+                                placeholder="Search all fields…"
+                                value={filterText}
+                                onChange={e => setFilterText(e.target.value)}
+                            />
+                        </div>
+
+                        {/* Clear all */}
+                        {(filterStatus.length > 0 || filterSexAge.length > 0 || filterCompany.length > 0 || filterPosition.length > 0 || filterIsCurrentJob.length > 0 || filterCountry.length > 0 || filterText) && (
+                            <Button size="sm" variant="ghost"
+                                className="h-8 px-3 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
+                                onClick={() => {
+                                    setFilterStatus([]); setFilterSexAge([]); setFilterCompany([]);
+                                    setFilterPosition([]); setFilterIsCurrentJob([]); setFilterCountry([]);
+                                    setFilterText("");
+                                }}>
+                                ✕ Clear All
+                            </Button>
+                        )}
                     </div>
                 </div>
             </CardHeader>
@@ -366,22 +481,25 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
                 <table className="w-full text-sm border-collapse">
                     <thead>
                         <tr className="bg-slate-50/80 dark:bg-slate-900/50 border-b border-slate-200 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-                            <th className="px-4 py-3.5 w-[40px]">
+                            <th className="px-5 py-4 w-[40px]">
                                 <Checkbox
                                     checked={filteredCandidates.length > 0 && selectedIds.length === filteredCandidates.length}
                                     onCheckedChange={toggleSelectAll}
                                     className="border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                                 />
                             </th>
-                            <th className="text-left font-black text-slate-500 text-[10px] uppercase tracking-widest px-4 py-3.5 w-[70px]">Rank</th>
-                            <th className="text-left font-black text-slate-500 text-[10px] uppercase tracking-widest px-4 py-3.5 w-[120px]">Type</th>
-                            <th className="text-left font-black text-slate-500 text-[10px] uppercase tracking-widest px-4 py-3.5 w-[160px]">Status</th>
-                            <th className="text-left font-black text-slate-500 text-[10px] uppercase tracking-widest px-4 py-3.5 w-[65px]">P</th>
-                            <th className="text-left font-black text-slate-500 text-[10px] uppercase tracking-widest px-4 py-3.5 w-[100px]">ID</th>
-                            <th className="text-left font-black text-slate-500 text-[10px] uppercase tracking-widest px-4 py-3.5 w-[240px]">Candidate Details</th>
-                            <th className="text-left font-black text-slate-500 text-[10px] uppercase tracking-widest px-4 py-3.5 w-[100px]">Sex/Age</th>
-                            <th className="text-left font-black text-slate-500 text-[10px] uppercase tracking-widest px-4 py-3.5">Experience & Talent Metadata</th>
-                            <th className="text-right font-black text-slate-500 text-[10px] uppercase tracking-widest px-4 py-3.5 w-[80px]">Action</th>
+                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[70px]">Rank</th>
+                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[120px]">Type</th>
+                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[185px]">Status</th>
+                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[65px]">P</th>
+                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[120px]">ID</th>
+                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[280px]">Candidate Details</th>
+                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[120px]">Sex/Age</th>
+                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[200px]">Company</th>
+                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[200px]">Position</th>
+                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[130px]">Is Current Job</th>
+                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[160px]">Country</th>
+                            <th className="text-right font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[80px]">Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -403,7 +521,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
                                         <Popover>
                                             <PopoverTrigger asChild>
                                                 <button className={cn(
-                                                    "font-black text-xs h-7 w-7 flex items-center justify-center rounded-md border transition-all hover:scale-110",
+                                                    "font-black text-sm h-8 w-8 flex items-center justify-center rounded-md border transition-all hover:scale-110",
                                                     isTopProfile ? "bg-amber-50 text-amber-600 border-amber-200 shadow-sm" : "bg-white text-slate-400 border-slate-100 hover:border-primary/30"
                                                 )}>
                                                     {c.rank || (isTopProfile ? "?" : "-")}
@@ -444,11 +562,11 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
                                             <DropdownMenuTrigger asChild>
                                                 <button className="flex items-center">
                                                     {isTopProfile ? (
-                                                        <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-200 border-none font-black text-[10px] px-2 py-0.5 rounded-lg shadow-sm transition-all">
+                                                        <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-200 border-none font-black text-xs px-2.5 py-1 rounded-lg shadow-sm transition-all">
                                                             ★ TOP PROFILE
                                                         </Badge>
                                                     ) : (
-                                                        <Badge variant="outline" className="border-slate-200 text-slate-500 hover:bg-slate-50 font-bold text-[10px] px-2 py-0.5 rounded-lg transition-all">
+                                                        <Badge variant="outline" className="border-slate-200 text-slate-500 hover:bg-slate-50 font-bold text-xs px-2.5 py-1 rounded-lg transition-all">
                                                             {c.list_type || "Longlist"}
                                                         </Badge>
                                                     )}
@@ -477,8 +595,10 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
                                             ) : (
                                                 <select
                                                     className={cn(
-                                                        "text-[11px] font-black h-8 pl-3 pr-8 rounded-xl border appearance-none focus:outline-none transition-all cursor-pointer w-full bg-white max-w-[140px]",
-                                                        getRowStatusClass(c.status)
+                                                        "text-[13px] font-black h-9 pl-4 pr-9 rounded-xl border appearance-none focus:outline-none transition-all cursor-pointer w-full bg-white min-w-[185px]",
+                                                        c.status === 'Successful Placement'
+                                                            ? "text-emerald-700 bg-emerald-50 border-emerald-200"
+                                                            : getRowStatusClass(c.status)
                                                     )}
                                                     value={c.status || ""}
                                                     onChange={(e) => handleStatusChange(c.id, e.target.value)}
@@ -501,48 +621,81 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
                                         <CandidateAvatar
                                             src={c.candidate_image_url}
                                             name={c.candidate_name}
-                                            className="h-14 w-14 ring-4 ring-white shadow-lg transition-transform hover:scale-105 border-2 border-slate-100"
-                                            fallbackClassName="text-lg"
+                                            className="h-16 w-16 ring-4 ring-white shadow-lg transition-transform hover:scale-105 border-2 border-slate-100"
+                                            fallbackClassName="text-xl"
                                         />
                                     </td>
                                     <td className="px-4 py-4">
                                         <Link href={`/candidates/${c.candidate_id}`}>
-                                            <span className="font-mono text-[13px] font-black py-1 px-2.5 bg-indigo-50 rounded-lg text-indigo-700 border border-indigo-100 shadow-sm hover:bg-indigo-100 transition-colors cursor-pointer">
+                                            <span className="font-mono text-[15px] font-black py-1.5 px-3 bg-indigo-50 rounded-lg text-indigo-700 border border-indigo-100 shadow-sm hover:bg-indigo-100 transition-colors cursor-pointer inline-block whitespace-nowrap">
                                                 {c.candidate_id}
                                             </span>
                                         </Link>
                                     </td>
                                     <td className="px-4 py-4">
                                         <div className="flex flex-col">
-                                            <span className="font-black text-lg text-slate-900 hover:text-primary cursor-pointer transition-colors leading-none tracking-tight">
+                                            <span className="font-black text-xl text-slate-900 hover:text-primary cursor-pointer transition-colors leading-none tracking-tight">
                                                 {c.candidate_name}
                                             </span>
-                                            <span className="text-[11px] font-bold text-slate-400 mt-0.5 truncate max-w-[200px]">
+                                            <span className="text-[13px] font-bold text-slate-400 mt-1 truncate max-w-[280px]">
                                                 {c.candidate_email || "No email recorded"}
                                             </span>
                                         </div>
                                     </td>
                                     <td className="px-4 py-4">
-                                        <div className="flex items-center gap-2 font-black text-[12px] text-slate-700 bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                                        <div className="inline-flex items-center gap-2 font-black text-sm text-slate-700 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100 whitespace-nowrap">
                                             {safeRender(c.candidate_gender)}
                                             {c.candidate_age ? `, ${c.candidate_age}` : ""}
                                         </div>
                                     </td>
+                                    {/* Company column */}
                                     <td className="px-4 py-4">
-                                        <div className="flex flex-col gap-1">
-                                            <div className="flex items-center gap-2 text-[11px] font-black text-slate-700">
-                                                <Briefcase className="h-3 w-3 text-primary/60" />
-                                                <span className="truncate max-w-[200px]" title={c.candidate_current_position}>
-                                                    {safeRender(c.candidate_current_position)}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400">
-                                                <Building2 className="h-3 w-3 text-slate-300" />
-                                                <span className="truncate max-w-[200px]" title={c.candidate_current_company}>
-                                                    {safeRender(c.candidate_current_company)}
-                                                </span>
-                                            </div>
+                                        <div className="flex items-start gap-2 text-[13px] font-bold text-slate-700">
+                                            <Building2 className="h-4 w-4 text-slate-300 shrink-0 mt-0.5" />
+                                            <span className="whitespace-normal leading-snug">
+                                                {safeRender(c.candidate_current_company)}
+                                            </span>
                                         </div>
+                                    </td>
+                                    {/* NEW: Separate Position column */}
+                                    <td className="px-4 py-4">
+                                        <div className="flex items-center gap-2 text-[13px] font-bold text-slate-700">
+                                            <Briefcase className="h-4 w-4 text-primary/60 shrink-0" />
+                                            <span className="truncate max-w-[180px]" title={c.candidate_current_position}>
+                                                {safeRender(c.candidate_current_position)}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    {/* NEW: Is Current Job column */}
+                                    <td className="px-4 py-4">
+                                        {c.candidate_is_current_job ? (
+                                            <span className={cn(
+                                                "text-xs font-black px-2.5 py-1 rounded-full border",
+                                                c.candidate_is_current_job === 'Current'
+                                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                                    : "bg-slate-50 text-slate-500 border-slate-200"
+                                            )}>
+                                                {c.candidate_is_current_job}
+                                            </span>
+                                        ) : (
+                                            <span className="text-slate-300 text-xs">—</span>
+                                        )}
+                                    </td>
+                                    {/* Country column */}
+                                    <td className="px-4 py-4">
+                                        {c.candidate_country ? (() => {
+                                            const parenIdx = c.candidate_country!.indexOf('(');
+                                            const countryName = parenIdx >= 0 ? c.candidate_country!.slice(0, parenIdx).trim() : c.candidate_country!;
+                                            const countryNote = parenIdx >= 0 ? c.candidate_country!.slice(parenIdx) : null;
+                                            return (
+                                                <div className="flex flex-col gap-0.5">
+                                                    <span className="text-[13px] font-bold text-slate-700 leading-snug">{countryName}</span>
+                                                    {countryNote && <span className="text-[11px] text-slate-400 leading-snug">{countryNote}</span>}
+                                                </div>
+                                            );
+                                        })() : (
+                                            <span className="text-slate-300 text-xs">—</span>
+                                        )}
                                     </td>
                                     <td className="px-4 py-4 text-right">
                                         <DropdownMenu>
@@ -623,6 +776,13 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
                     }}
                 />
             )}
+
+            <StatusChangeDialog
+                open={statusDialogOpen}
+                onOpenChange={setStatusDialogOpen}
+                targetStatus={pendingStatus}
+                onConfirm={confirmStatusChange}
+            />
         </Card>
     );
 }

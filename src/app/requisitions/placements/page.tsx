@@ -31,18 +31,23 @@ import {
     Briefcase,
     BadgeDollarSign,
     Calendar,
-    ArrowLeft
+    ArrowLeft,
+    Filter
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { EditPlacementDialog } from "@/components/edit-placement-dialog";
 import { Pencil } from "lucide-react";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
+import Link from "next/link";
 
 export default function PlacementsPage() {
     const [records, setRecords] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
+    const [buFilter, setBuFilter] = useState("All");
+    const [subBuFilter, setSubBuFilter] = useState("All");
+    const [positionFilter, setPositionFilter] = useState("All");
     const [selectedRecord, setSelectedRecord] = useState<any>(null);
     const [isResignDialogOpen, setIsResignDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -84,15 +89,27 @@ export default function PlacementsPage() {
         }
     };
 
-    const filteredRecords = records.filter(r =>
-        r.candidate_name?.toLowerCase().includes(search.toLowerCase()) ||
-        r.position?.toLowerCase().includes(search.toLowerCase()) ||
-        r.jr_id?.toLowerCase().includes(search.toLowerCase()) ||
-        r.bu?.toLowerCase().includes(search.toLowerCase())
-    );
+    const filteredRecords = records.filter(r => {
+        const matchesSearch = r.candidate_name?.toLowerCase().includes(search.toLowerCase()) ||
+            r.position?.toLowerCase().includes(search.toLowerCase()) ||
+            r.jr_id?.toLowerCase().includes(search.toLowerCase()) ||
+            r.bu?.toLowerCase().includes(search.toLowerCase());
+
+        const matchesBU = buFilter === "All" || r.bu === buFilter;
+        const matchesSubBU = subBuFilter === "All" || r.sub_bu === subBuFilter;
+        const matchesPosition = positionFilter === "All" || r.position === positionFilter;
+
+        return matchesSearch && matchesBU && matchesSubBU && matchesPosition;
+    });
+
+    const uniqueBUs = Array.from(new Set(records.map(r => r.bu).filter(Boolean)));
+    const uniqueSubBUs = Array.from(new Set(records.map(r => r.sub_bu).filter(Boolean)));
+    const uniquePositions = Array.from(new Set(records.map(r => r.position).filter(Boolean)));
+
+    const isFiltered = search !== "" || buFilter !== "All" || subBuFilter !== "All" || positionFilter !== "All";
 
     return (
-        <div className="container mx-auto p-6 space-y-8 max-w-7xl animate-in fade-in duration-500">
+        <div className="mx-auto p-6 space-y-8 max-w-[95%] animate-in fade-in duration-500">
             {/* Header Area */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-1">
@@ -111,15 +128,48 @@ export default function PlacementsPage() {
                     <p className="text-slate-500 font-medium">Manage active employees and track successful recruitment placements.</p>
                 </div>
 
-                <div className="relative w-full md:w-80">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <Input
-                        placeholder="Search name, position, JR ID..."
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        className="pl-10 h-12 bg-white border-slate-200 rounded-2xl shadow-sm focus:ring-primary/20 transition-all font-medium"
-                    />
+                <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
+                    <div className="relative w-full md:w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <Input
+                            placeholder="Search name, position, JR ID..."
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            className="pl-10 h-10 bg-white border-slate-200 rounded-xl shadow-sm focus:ring-primary/20 transition-all font-medium text-xs"
+                        />
+                    </div>
                 </div>
+            </div>
+
+            {/* Filters Area */}
+            <div className="flex flex-col md:flex-row gap-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-100 items-center">
+                <div className="flex items-center gap-2 text-slate-500 font-bold text-xs uppercase tracking-widest mr-2">
+                    <Filter className="w-4 h-4" /> Filters
+                </div>
+                <select
+                    value={buFilter}
+                    onChange={(e) => setBuFilter(e.target.value)}
+                    className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 shadow-sm focus:ring-2 focus:ring-primary/20 min-w-[140px]"
+                >
+                    <option value="All">All Business Units</option>
+                    {uniqueBUs.map(bu => <option key={String(bu)} value={String(bu)}>{String(bu)}</option>)}
+                </select>
+                <select
+                    value={subBuFilter}
+                    onChange={(e) => setSubBuFilter(e.target.value)}
+                    className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 shadow-sm focus:ring-2 focus:ring-primary/20 min-w-[140px]"
+                >
+                    <option value="All">All Sub BUs / Depts</option>
+                    {uniqueSubBUs.map(sub => <option key={String(sub)} value={String(sub)}>{String(sub)}</option>)}
+                </select>
+                <select
+                    value={positionFilter}
+                    onChange={(e) => setPositionFilter(e.target.value)}
+                    className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 shadow-sm focus:ring-2 focus:ring-primary/20 min-w-[140px]"
+                >
+                    <option value="All">All Positions</option>
+                    {uniquePositions.map(pos => <option key={String(pos)} value={String(pos)}>{String(pos)}</option>)}
+                </select>
             </div>
 
             {/* Stats Summary */}
@@ -127,8 +177,12 @@ export default function PlacementsPage() {
                 <Card className="border-none shadow-xl shadow-slate-200/50 bg-gradient-to-br from-green-500 to-emerald-600 text-white rounded-[2rem] overflow-hidden">
                     <CardContent className="p-8 flex items-center justify-between">
                         <div>
-                            <p className="text-green-100 text-xs font-black uppercase tracking-widest mb-1">Total Placements</p>
-                            <h3 className="text-4xl font-black">{records.length}</h3>
+                            <p className="text-green-100 text-xs font-black uppercase tracking-widest mb-1">
+                                {isFiltered ? "Filtered Placements" : "Total Placements"}
+                            </p>
+                            <h3 className="text-4xl font-black">
+                                {isFiltered ? `${filteredRecords.length} / ${records.length}` : records.length}
+                            </h3>
                         </div>
                         <CheckCircle2 className="w-16 h-16 text-white/20 -rotate-12" />
                     </CardContent>
@@ -172,10 +226,17 @@ export default function PlacementsPage() {
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs ring-2 ring-white shadow-sm">
+                                                <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold text-xs ring-2 ring-white shadow-sm flex-shrink-0">
                                                     {r.candidate_name?.charAt(0)}
                                                 </div>
-                                                <span className="font-bold text-slate-800">{r.candidate_name}</span>
+                                                <div className="flex flex-col">
+                                                    <span className="font-bold text-slate-800">{r.candidate_name}</span>
+                                                    {r.candidate_id && (
+                                                        <Link href={`/candidates/${r.candidate_id}`} target="_blank" rel="noopener noreferrer" className="text-xs font-mono font-bold text-black hover:text-black hover:underline">
+                                                            {r.candidate_id}
+                                                        </Link>
+                                                    )}
+                                                </div>
                                             </div>
                                         </TableCell>
                                         <TableCell>
@@ -183,7 +244,7 @@ export default function PlacementsPage() {
                                                 <span className="text-xs font-bold text-slate-700">
                                                     {r.date_of_birth ? new Date(r.date_of_birth).toLocaleDateString('en-GB') : '-'}
                                                 </span>
-                                                <span className="text-[10px] font-medium text-slate-400">
+                                                <span className="text-xs font-bold text-black">
                                                     {r.date_of_birth ? `${new Date().getFullYear() - new Date(r.date_of_birth).getFullYear()} yrs` : ''}
                                                 </span>
                                             </div>
