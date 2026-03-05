@@ -194,6 +194,45 @@ export async function deleteExperience(experienceId: string, candidateId: string
     return { success: true };
 }
 
+// Set (or toggle off) the 'Current' job for a candidate.
+// Clears is_current_job on all rows, then marks the chosen experience as 'Current'.
+// If the chosen experience is already 'Current', it will be cleared (toggled off).
+export async function setCurrentExperience(experienceId: string, candidateId: string, currentlyIsCurrent: boolean) {
+    const client = adminAuthClient as any;
+
+    // 1. Clear is_current_job for ALL experiences of this candidate
+    const { error: clearError } = await client
+        .from("candidate_experiences")
+        .update({ is_current_job: null })
+        .eq("candidate_id", candidateId);
+
+    if (clearError) {
+        console.error("setCurrentExperience clear error:", clearError);
+        return { error: clearError.message };
+    }
+
+    // 2. If toggling off: we're done (already cleared above)
+    if (currentlyIsCurrent) {
+        revalidatePath(`/candidates/${candidateId}`);
+        return { success: true };
+    }
+
+    // 3. Set the selected experience as 'Current'
+    const { error: setError } = await client
+        .from("candidate_experiences")
+        .update({ is_current_job: "Current" })
+        .eq("experience_id", experienceId);
+
+    if (setError) {
+        console.error("setCurrentExperience set error:", setError);
+        return { error: setError.message };
+    }
+
+    revalidatePath(`/candidates/${candidateId}`);
+    return { success: true };
+}
+
+
 export async function searchCandidates(query: string) {
     if (!query) return [];
     const trimmedQuery = query.trim();

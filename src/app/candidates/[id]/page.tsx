@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 import { BackButton, EditButton, AddPrescreenDialog, DeleteCandidateDialog } from "@/components/candidate-client-actions";
-import { AddExperienceDialog, DeleteExperienceButton } from "@/components/experience-dialog";
+import { AddExperienceDialog, DeleteExperienceButton, SetCurrentExperienceButton } from "@/components/experience-dialog";
 import { JobStatusDetailDialog } from "@/components/job-status-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ResumeManager } from "@/components/resume-manager";
@@ -315,32 +315,43 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                             <AddExperienceDialog candidateId={candidate.candidate_id} />
                         </CardHeader>
                         <CardContent className="relative pl-8 border-l-2 border-border/40 ml-8 space-y-10 py-8 pr-6">
-                            {candidate.experiences?.map((exp: any, i: number) => (
-                                <div key={i} className="relative group">
-                                    {/* Timeline Dot */}
-                                    <div className={`absolute -left-[2.6rem] top-1.5 h-4 w-4 rounded-full border-2 border-background shadow-sm ${i === 0 ? 'bg-primary ring-4 ring-primary/10' : 'bg-muted-foreground/30'}`} />
+                            {candidate.experiences?.map((exp: any, i: number) => {
+                                const isCurrent = exp.is_current_job === 'Current';
+                                return (
+                                    <div key={i} className="relative group">
+                                        {/* Timeline Dot — filled blue if Current, grey otherwise */}
+                                        <div className={`absolute -left-[2.6rem] top-1.5 h-4 w-4 rounded-full border-2 border-background shadow-sm ${isCurrent ? 'bg-primary ring-4 ring-primary/10' : 'bg-muted-foreground/30'
+                                            }`} />
 
-                                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1">
-                                        <div className="flex-1 space-y-1">
-                                            <h3 className="font-bold text-foreground text-lg">{exp.position}</h3>
-                                            <div className="text-primary font-semibold text-base">{exp.company_name_text || exp.company}</div>
-                                            <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1 font-medium">
-                                                <MapPin className="h-3 w-3" /> {exp.country || "No Location"}
-                                                {/* Visual separator */}
-                                                <span className="text-border">|</span>
-                                                {exp.company_industry && <span className="px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground text-[10px] border border-border">{exp.company_industry}</span>}
+                                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1">
+                                            <div className="flex-1 space-y-1">
+                                                <div className="flex items-center gap-2">
+                                                    <h3 className="font-bold text-foreground text-lg">{exp.position}</h3>
+                                                    <SetCurrentExperienceButton
+                                                        experienceId={exp.experience_id}
+                                                        candidateId={candidate.candidate_id}
+                                                        isCurrent={isCurrent}
+                                                    />
+                                                </div>
+                                                <div className="text-primary font-semibold text-base">{exp.company_name_text || exp.company}</div>
+                                                <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1 font-medium">
+                                                    <MapPin className="h-3 w-3" /> {exp.country || "No Location"}
+                                                    {/* Visual separator */}
+                                                    <span className="text-border">|</span>
+                                                    {exp.company_industry && <span className="px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground text-[10px] border border-border">{exp.company_industry}</span>}
+                                                </div>
+                                                {exp.description && <p className="text-sm text-foreground/70 mt-3 p-3 bg-muted/30 rounded-lg border border-border/50">{exp.description}</p>}
                                             </div>
-                                            {exp.description && <p className="text-sm text-foreground/70 mt-3 p-3 bg-muted/30 rounded-lg border border-border/50">{exp.description}</p>}
-                                        </div>
-                                        <div className="text-right flex flex-col items-end gap-2 pl-4">
-                                            <Badge variant={i === 0 ? "default" : "secondary"} className="font-mono text-xs shadow-none border border-border/50">
-                                                {exp.start_date} - {exp.end_date || "Present"}
-                                            </Badge>
-                                            <DeleteExperienceButton id={exp.experience_id} candidateId={candidate.candidate_id} />
+                                            <div className="text-right flex flex-col items-end gap-2 pl-4">
+                                                <Badge variant={isCurrent ? "default" : "secondary"} className="font-mono text-xs shadow-none border border-border/50">
+                                                    {exp.start_date} - {exp.end_date || "Present"}
+                                                </Badge>
+                                                <DeleteExperienceButton id={exp.experience_id} candidateId={candidate.candidate_id} />
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                             {(!candidate.experiences || candidate.experiences.length === 0) && (
                                 <div className="text-center py-8">
                                     <Briefcase className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />

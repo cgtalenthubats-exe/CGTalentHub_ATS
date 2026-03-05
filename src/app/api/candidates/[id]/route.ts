@@ -28,14 +28,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         if (profileError) throw profileError;
         if (!profile) throw new Error(`Candidate Profile '${candidateId}' not found in database (Table Count: ${count})`);
 
-        // 2. Fetch Experiences
-        const { data: experiences, error: expError } = await adminAuthClient
+        // 2. Fetch Experiences — fetch all by start_date DESC, then re-sort so 'Current' is always first
+        const { data: experiencesRaw, error: expError } = await adminAuthClient
             .from('candidate_experiences')
             .select('*')
             .eq('candidate_id', candidateId)
             .order('start_date', { ascending: false });
 
         if (expError) console.error("Experience Fetch Error:", expError);
+
+        // Sort: is_current_job='Current' → top; rest by start_date DESC (already ordered by DB)
+        const experiences = (experiencesRaw || []).sort((a: any, b: any) => {
+            const aIsCurrent = a.is_current_job === 'Current' ? 0 : 1;
+            const bIsCurrent = b.is_current_job === 'Current' ? 0 : 1;
+            return aIsCurrent - bIsCurrent;
+        });
+
 
         // 3. Fetch Enhancement Data (candidate_profile_enhance)
         const { data: enhanceResult, error: enhanceError } = await adminAuthClient

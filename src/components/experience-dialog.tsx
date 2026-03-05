@@ -13,8 +13,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Trash2, Check, ChevronsUpDown } from "lucide-react";
-import { addExperience, deleteExperience, searchCompanies, getCompanyDetails, getFieldSuggestions } from "@/app/actions/candidate";
+import { Plus, Trash2, Check, ChevronsUpDown, Star } from "lucide-react";
+import { addExperience, deleteExperience, searchCompanies, getCompanyDetails, getFieldSuggestions, setCurrentExperience } from "@/app/actions/candidate";
 import {
     Command,
     CommandEmpty,
@@ -327,4 +327,36 @@ export function DeleteExperienceButton({ id, candidateId }: { id: string, candid
             <Trash2 className="h-3 w-3" />
         </Button>
     )
+}
+
+// Button to set (or toggle off) the current job for a candidate
+export function SetCurrentExperienceButton({
+    experienceId, candidateId, isCurrent
+}: { experienceId: string; candidateId: string; isCurrent: boolean }) {
+    const [loading, setLoading] = useState(false);
+
+    async function handleClick(e: React.MouseEvent) {
+        e.preventDefault();
+        setLoading(true);
+        await setCurrentExperience(experienceId, candidateId, isCurrent);
+        setLoading(false);
+    }
+
+    return (
+        <button
+            onClick={handleClick}
+            disabled={loading}
+            title={isCurrent ? "Unset as Current Job" : "Set as Current Job"}
+            className={cn(
+                "flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border transition-all",
+                isCurrent
+                    ? "bg-amber-50 border-amber-300 text-amber-600 hover:bg-amber-100"
+                    : "bg-slate-50 border-slate-200 text-slate-400 hover:border-amber-300 hover:text-amber-500 hover:bg-amber-50",
+                loading && "opacity-50 cursor-not-allowed"
+            )}
+        >
+            <Star className={cn("h-3 w-3", isCurrent && "fill-amber-400")} />
+            {isCurrent ? "Current" : "Set Current"}
+        </button>
+    );
 }
