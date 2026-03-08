@@ -22,6 +22,7 @@ export interface BenchmarkCandidate {
     company: string | null;
     company_industry: string | null;
     company_group: string | null;
+    position: string | null;
 }
 
 export interface RawBenchmarkData {
@@ -32,10 +33,9 @@ export interface RawBenchmarkData {
 export async function getRawBenchmarkData(): Promise<RawBenchmarkData> {
     const supabase = adminAuthClient;
 
-    const [cpRes, expRes] = await Promise.all([
-        supabase
-            .from('Candidate Profile')
-            .select(`
+    const cpRes = await supabase
+        .from('Candidate Profile')
+        .select(`
                 candidate_id, name,
                 gross_salary_base_b_mth, other_income, bonus_mth,
                 car_allowance_b_mth, gasoline_b_mth, phone_b_mth,
@@ -43,34 +43,70 @@ export async function getRawBenchmarkData(): Promise<RawBenchmarkData> {
                 insurance, housing_for_expat_b_mth, others_benefit,
                 job_grouping, job_function
             `)
-            .not('gross_salary_base_b_mth', 'is', null)
-            .neq('gross_salary_base_b_mth', ''),
-        supabase
-            .from('candidate_experiences')
-            .select('candidate_id, company, company_industry, company_group')
-            .eq('is_current_job', 'Current'),
-    ]);
+        .not('gross_salary_base_b_mth', 'is', null)
+        .neq('gross_salary_base_b_mth', '');
 
     if (cpRes.error) console.error('benchmark cp error:', cpRes.error);
-    if (expRes.error) console.error('benchmark exp error:', expRes.error);
 
-    // Build lookup: candidate_id → current job
-    const currentJobMap: Record<string, { company: string; company_industry: string; company_group: string }> = {};
-    (expRes.data || []).forEach((exp: any) => {
-        if (!currentJobMap[exp.candidate_id]) {
-            currentJobMap[exp.candidate_id] = {
+    const candidatesWithSalary = cpRes.data || [];
+    if (candidatesWithSalary.length === 0) return { candidates: [] };
+
+    const candidateIds = candidatesWithSalary.map(c => c.candidate_id);
+
+    // Fetch experiences ONLY for these candidates to avoid hitting limits or fetching unnecessary data
+    const { data: expData, error: expError } = await supabase
+        .from('candidate_experiences')
+        .select('candidate_id, company, position, company_industry, company_group, is_current_job, start_date')
+        .in('candidate_id', candidateIds);
+
+    if (expError) console.error('benchmark exp error:', expError);
+
+    // Build experience map: prefer is_current_job='Current', else take latest by start_date
+    const expMap = new Map<string, any>();
+    const experiences = expData || [];
+
+    // Sort all experiences: Current first, then start_date desc
+    experiences.sort((a: any, b: any) => {
+        const aIsCurrent = (a.is_current_job || '').toString().trim().toLowerCase() === 'current';
+        const bIsCurrent = (b.is_current_job || '').toString().trim().toLowerCase() === 'current';
+        if (aIsCurrent && !bIsCurrent) return -1;
+        if (!aIsCurrent && bIsCurrent) return 1;
+
+        // Try to parse dates robustly
+        const parseDate = (d: any) => {
+            if (!d) return 0;
+            const parts = d.toString().split('/');
+            if (parts.length === 3) {
+                // Assume M/D/YYYY from DB screenshot
+                const [m, day, y] = parts.map((p: string) => parseInt(p));
+                return new Date(y, m - 1, day).getTime();
+            }
+            const date = new Date(d).getTime();
+            return isNaN(date) ? 0 : date;
+        };
+
+        const dateA = parseDate(a.start_date);
+        const dateB = parseDate(b.start_date);
+        return dateB - dateA;
+    });
+
+    experiences.forEach((exp: any) => {
+        if (!expMap.has(exp.candidate_id)) {
+            expMap.set(exp.candidate_id, {
                 company: exp.company || '',
+                position: exp.position || '',
                 company_industry: exp.company_industry || '',
                 company_group: exp.company_group || '',
-            };
+            });
         }
     });
 
-    const candidates: BenchmarkCandidate[] = (cpRes.data || []).map((cp: any) => {
-        const job = currentJobMap[cp.candidate_id] || { company: null, company_industry: null, company_group: null };
+    const candidates: BenchmarkCandidate[] = candidatesWithSalary.map((cp: any) => {
+        const job = expMap.get(cp.candidate_id) || { company: null, position: null, company_industry: null, company_group: null };
         return {
             ...cp,
             company: job.company || null,
+            position: job.position || null,
             company_industry: job.company_industry || null,
             company_group: job.company_group || null,
         };

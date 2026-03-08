@@ -288,16 +288,22 @@ export default function PlacementTab() {
                         <tbody>
                             <tr className="bg-indigo-950/10 border-b border-slate-200 font-bold">
                                 <td className="px-4 py-3 text-xs font-bold text-indigo-700 uppercase">Total</td>
-                                <td className="px-2 py-3 text-center border-l border-slate-100"><span className="bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded font-bold text-sm">{totalSearch}</span></td>
-                                <td className="px-2 py-3 text-center"><span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-bold text-sm">{totalPlacement}</span></td>
-                                <td className="px-2 py-3 text-center text-purple-700 font-bold text-sm">{formatMillion(totalSaving)}</td>
+                                <td className="px-2 py-3 text-center border-l border-slate-100"><span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-bold text-sm">{totalSearch}</span></td>
+                                <td className="px-2 py-3 text-center"><span className="text-emerald-700 font-bold text-sm">{totalPlacement}</span></td>
+                                <td className="px-2 py-3 text-center"><span className="bg-purple-600 text-white px-2 py-1 rounded-lg font-bold text-sm shadow-sm">{formatMillion(totalSaving)}</span></td>
                                 {buList.map(bu => {
                                     const s = byBU[bu] || { search: 0, placement: 0, saving: 0 };
                                     return (
                                         <React.Fragment key={bu}>
-                                            <td className="px-2 py-3 text-center border-l border-slate-100"><span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-sm">{s.search || "-"}</span></td>
-                                            <td className="px-2 py-3 text-center"><span className={`px-2 py-0.5 rounded text-sm font-bold ${s.placement > 0 ? "bg-slate-800 text-white" : "text-slate-300"}`}>{s.placement || "-"}</span></td>
-                                            <td className="px-2 py-3 text-center text-purple-700 font-semibold text-sm">{s.saving > 0 ? formatMillion(s.saving) : "-"}</td>
+                                            <td className="px-2 py-3 text-center border-l border-slate-100"><span className="text-slate-600 font-medium text-sm">{s.search || "-"}</span></td>
+                                            <td className="px-2 py-3 text-center"><span className={`text-sm font-bold ${s.placement > 0 ? "text-slate-800" : "text-slate-300"}`}>{s.placement || "-"}</span></td>
+                                            <td className="px-2 py-3 text-center">
+                                                {s.saving > 0 ? (
+                                                    <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-bold text-sm">{formatMillion(s.saving)}</span>
+                                                ) : (
+                                                    <span className="text-slate-300">-</span>
+                                                )}
+                                            </td>
                                         </React.Fragment>
                                     );
                                 })}
@@ -307,16 +313,28 @@ export default function PlacementTab() {
                                 return (
                                     <tr key={year} className={`border-b border-slate-100 hover:bg-slate-50/70 ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/30"}`}>
                                         <td className="px-4 py-3 text-xs font-bold text-slate-600">{year}</td>
-                                        <td className="px-2 py-3 text-center border-l border-slate-100 text-indigo-700 font-semibold">{allStat.search || "-"}</td>
-                                        <td className="px-2 py-3 text-center"><span className={`px-2 py-0.5 rounded font-bold text-sm ${allStat.placement > 0 ? "bg-slate-800 text-white" : "text-slate-300"}`}>{allStat.placement || "-"}</span></td>
-                                        <td className="px-2 py-3 text-center text-purple-600 font-medium text-sm">{allStat.saving > 0 ? formatMillion(allStat.saving) : "-"}</td>
+                                        <td className="px-2 py-3 text-center border-l border-slate-100 text-indigo-700 font-medium">{allStat.search || "-"}</td>
+                                        <td className="px-2 py-3 text-center"><span className={`font-bold text-sm ${allStat.placement > 0 ? "text-slate-700" : "text-slate-300"}`}>{allStat.placement || "-"}</span></td>
+                                        <td className="px-2 py-3 text-center">
+                                            {allStat.saving > 0 ? (
+                                                <span className="bg-purple-100 text-purple-600 px-2 py-0.5 rounded font-bold text-sm">{formatMillion(allStat.saving)}</span>
+                                            ) : (
+                                                <span className="text-slate-300">-</span>
+                                            )}
+                                        </td>
                                         {buList.map(bu => {
                                             const s = (byYearBU[year] || {})[bu] || { search: 0, placement: 0, saving: 0 };
                                             return (
                                                 <React.Fragment key={bu}>
-                                                    <td className="px-2 py-3 text-center border-l border-slate-100 text-slate-600">{s.search || "-"}</td>
-                                                    <td className="px-2 py-3 text-center"><span className={`px-2 py-0.5 rounded text-sm font-bold ${s.placement > 0 ? "bg-slate-700 text-white" : "text-slate-300"}`}>{s.placement || "-"}</span></td>
-                                                    <td className="px-2 py-3 text-center text-purple-600 text-sm">{s.saving > 0 ? formatMillion(s.saving) : "-"}</td>
+                                                    <td className="px-2 py-3 text-center border-l border-slate-100 text-slate-500">{s.search || "-"}</td>
+                                                    <td className="px-2 py-3 text-center"><span className={`text-sm font-semibold ${s.placement > 0 ? "text-slate-700" : "text-slate-300"}`}>{s.placement || "-"}</span></td>
+                                                    <td className="px-2 py-3 text-center">
+                                                        {s.saving > 0 ? (
+                                                            <span className="bg-purple-50 text-purple-600 px-2 py-0.5 rounded font-bold text-xs">{formatMillion(s.saving)}</span>
+                                                        ) : (
+                                                            <span className="text-slate-300">-</span>
+                                                        )}
+                                                    </td>
                                                 </React.Fragment>
                                             );
                                         })}

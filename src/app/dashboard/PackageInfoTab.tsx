@@ -3,11 +3,12 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { getRawBenchmarkData, BenchmarkCandidate } from "@/app/actions/benchmark-actions";
 import { parseSalary, hasBenefit } from "@/lib/benchmark-utils";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RotateCcw, RefreshCw, CheckCircle2, Minus } from "lucide-react";
+import { Loader2, RotateCcw, RefreshCw, CheckCircle2, Minus, Search, Building2, Briefcase, Factory, Info } from "lucide-react";
 
 // ---- Benefit row definitions ----
 const BENEFIT_ROWS = [
@@ -106,10 +107,19 @@ export default function PackageInfoTab() {
     const [loading, setLoading] = useState(true);
 
     // Filters
-    const [selIndustry, setSelIndustry] = useState("all");
-    const [selGroup, setSelGroup] = useState("all");
-    const [selJobGrouping, setSelJobGrouping] = useState("all");
-    const [selJobFunction, setSelJobFunction] = useState("all");
+    const [selIndustry, setSelIndustry] = useState<string[]>([]);
+    const [selGroup, setSelGroup] = useState<string[]>([]);
+    const [selJobGrouping, setSelJobGrouping] = useState<string[]>([]);
+    const [selJobFunction, setSelJobFunction] = useState<string[]>([]);
+    const [selCompany, setSelCompany] = useState<string[]>([]);
+    const [selPosition, setSelPosition] = useState<string[]>([]);
+
+    // Detail Dialog State
+    const [detailDialog, setDetailDialog] = useState<{ open: boolean; title: string; content: string }>({
+        open: false,
+        title: "",
+        content: ""
+    });
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -120,20 +130,91 @@ export default function PackageInfoTab() {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
-    // Filter options
-    const industryOptions = useMemo(() => Array.from(new Set(rawData.map(c => c.company_industry).filter(Boolean))).sort() as string[], [rawData]);
-    const groupOptions = useMemo(() => Array.from(new Set(rawData.filter(c => selIndustry === "all" || c.company_industry === selIndustry).map(c => c.company_group).filter(Boolean))).sort() as string[], [rawData, selIndustry]);
-    const jobGroupingOptions = useMemo(() => Array.from(new Set(rawData.map(c => c.job_grouping).filter(v => v && v !== 'NA' && v !== 'Not found exp'))).sort() as string[], [rawData]);
-    const jobFunctionOptions = useMemo(() => Array.from(new Set(rawData.filter(c => selJobGrouping === "all" || c.job_grouping === selJobGrouping).map(c => c.job_function).filter(v => v && v !== 'NA' && v !== 'Not found exp'))).sort() as string[], [rawData, selJobGrouping]);
+    // All possible filter options from raw data
+    const allOptions = useMemo(() => {
+        const industries = Array.from(new Set(rawData.map(c => c.company_industry).filter(Boolean))).sort() as string[];
+        const companyGroups = Array.from(new Set(rawData.map(c => c.company_group).filter(Boolean))).sort() as string[];
+        const jobGroupings = Array.from(new Set(rawData.map(c => c.job_grouping).filter(v => v && v !== 'NA' && v !== 'Not found exp'))).sort() as string[];
+        const jobFunctions = Array.from(new Set(rawData.map(c => c.job_function).filter(v => v && v !== 'NA' && v !== 'Not found exp'))).sort() as string[];
+        const companies = Array.from(new Set(rawData.map(c => c.company).filter(Boolean))).sort() as string[];
+        const positions = Array.from(new Set(rawData.map(c => c.position).filter(Boolean))).sort() as string[];
+        return { industries, companyGroups, jobGroupings, jobFunctions, companies, positions };
+    }, [rawData]);
 
     // Filtered candidates
-    const filtered = useMemo(() => rawData.filter(c => {
-        if (selIndustry !== "all" && c.company_industry !== selIndustry) return false;
-        if (selGroup !== "all" && c.company_group !== selGroup) return false;
-        if (selJobGrouping !== "all" && c.job_grouping !== selJobGrouping) return false;
-        if (selJobFunction !== "all" && c.job_function !== selJobFunction) return false;
-        return true;
-    }), [rawData, selIndustry, selGroup, selJobGrouping, selJobFunction]);
+    const filtered = useMemo(() => {
+        let tempFiltered = rawData;
+        if (selIndustry.length > 0) tempFiltered = tempFiltered.filter(c => selIndustry.includes(c.company_industry || ''));
+        if (selGroup.length > 0) tempFiltered = tempFiltered.filter(c => selGroup.includes(c.company_group || ''));
+        if (selJobGrouping.length > 0) tempFiltered = tempFiltered.filter(c => selJobGrouping.includes(c.job_grouping || ''));
+        if (selJobFunction.length > 0) tempFiltered = tempFiltered.filter(c => selJobFunction.includes(c.job_function || ''));
+        if (selCompany.length > 0) tempFiltered = tempFiltered.filter(c => selCompany.includes(c.company || ''));
+        if (selPosition.length > 0) tempFiltered = tempFiltered.filter(c => selPosition.includes(c.position || ''));
+        return tempFiltered;
+    }, [rawData, selIndustry, selGroup, selJobGrouping, selJobFunction, selCompany, selPosition]);
+
+    // Interdependent Filter Options Logic
+    // For each filter, options = all unique values of that field from candidates filtering by ALL OTHER filters.
+
+    const industryOptions = useMemo(() => {
+        let temp = rawData;
+        if (selGroup.length > 0) temp = temp.filter(c => selGroup.includes(c.company_group || ''));
+        if (selJobGrouping.length > 0) temp = temp.filter(c => selJobGrouping.includes(c.job_grouping || ''));
+        if (selJobFunction.length > 0) temp = temp.filter(c => selJobFunction.includes(c.job_function || ''));
+        if (selCompany.length > 0) temp = temp.filter(c => selCompany.includes(c.company || ''));
+        if (selPosition.length > 0) temp = temp.filter(c => selPosition.includes(c.position || ''));
+        return Array.from(new Set(temp.map(c => c.company_industry).filter(Boolean))).sort() as string[];
+    }, [rawData, selGroup, selJobGrouping, selJobFunction, selCompany, selPosition]);
+
+    const groupOptions = useMemo(() => {
+        let temp = rawData;
+        if (selIndustry.length > 0) temp = temp.filter(c => selIndustry.includes(c.company_industry || ''));
+        if (selJobGrouping.length > 0) temp = temp.filter(c => selJobGrouping.includes(c.job_grouping || ''));
+        if (selJobFunction.length > 0) temp = temp.filter(c => selJobFunction.includes(c.job_function || ''));
+        if (selCompany.length > 0) temp = temp.filter(c => selCompany.includes(c.company || ''));
+        if (selPosition.length > 0) temp = temp.filter(c => selPosition.includes(c.position || ''));
+        return Array.from(new Set(temp.map(c => c.company_group).filter(Boolean))).sort() as string[];
+    }, [rawData, selIndustry, selJobGrouping, selJobFunction, selCompany, selPosition]);
+
+    const jobGroupingOptions = useMemo(() => {
+        let temp = rawData;
+        if (selIndustry.length > 0) temp = temp.filter(c => selIndustry.includes(c.company_industry || ''));
+        if (selGroup.length > 0) temp = temp.filter(c => selGroup.includes(c.company_group || ''));
+        if (selJobFunction.length > 0) temp = temp.filter(c => selJobFunction.includes(c.job_function || ''));
+        if (selCompany.length > 0) temp = temp.filter(c => selCompany.includes(c.company || ''));
+        if (selPosition.length > 0) temp = temp.filter(c => selPosition.includes(c.position || ''));
+        return Array.from(new Set(temp.map(c => c.job_grouping).filter(v => v && v !== 'NA' && v !== 'Not found exp'))).sort() as string[];
+    }, [rawData, selIndustry, selGroup, selJobFunction, selCompany, selPosition]);
+
+    const jobFunctionOptions = useMemo(() => {
+        let temp = rawData;
+        if (selIndustry.length > 0) temp = temp.filter(c => selIndustry.includes(c.company_industry || ''));
+        if (selGroup.length > 0) temp = temp.filter(c => selGroup.includes(c.company_group || ''));
+        if (selJobGrouping.length > 0) temp = temp.filter(c => selJobGrouping.includes(c.job_grouping || ''));
+        if (selCompany.length > 0) temp = temp.filter(c => selCompany.includes(c.company || ''));
+        if (selPosition.length > 0) temp = temp.filter(c => selPosition.includes(c.position || ''));
+        return Array.from(new Set(temp.map(c => c.job_function).filter(v => v && v !== 'NA' && v !== 'Not found exp'))).sort() as string[];
+    }, [rawData, selIndustry, selGroup, selJobGrouping, selCompany, selPosition]);
+
+    const companyOptions = useMemo(() => {
+        let temp = rawData;
+        if (selIndustry.length > 0) temp = temp.filter(c => selIndustry.includes(c.company_industry || ''));
+        if (selGroup.length > 0) temp = temp.filter(c => selGroup.includes(c.company_group || ''));
+        if (selJobGrouping.length > 0) temp = temp.filter(c => selJobGrouping.includes(c.job_grouping || ''));
+        if (selJobFunction.length > 0) temp = temp.filter(c => selJobFunction.includes(c.job_function || ''));
+        if (selPosition.length > 0) temp = temp.filter(c => selPosition.includes(c.position || ''));
+        return Array.from(new Set(temp.map(c => c.company).filter(Boolean))).sort() as string[];
+    }, [rawData, selIndustry, selGroup, selJobGrouping, selJobFunction, selPosition]);
+
+    const positionOptions = useMemo(() => {
+        let temp = rawData;
+        if (selIndustry.length > 0) temp = temp.filter(c => selIndustry.includes(c.company_industry || ''));
+        if (selGroup.length > 0) temp = temp.filter(c => selGroup.includes(c.company_group || ''));
+        if (selJobGrouping.length > 0) temp = temp.filter(c => selJobGrouping.includes(c.job_grouping || ''));
+        if (selJobFunction.length > 0) temp = temp.filter(c => selJobFunction.includes(c.job_function || ''));
+        if (selCompany.length > 0) temp = temp.filter(c => selCompany.includes(c.company || ''));
+        return Array.from(new Set(temp.map(c => c.position).filter(Boolean))).sort() as string[];
+    }, [rawData, selIndustry, selGroup, selJobGrouping, selJobFunction, selCompany]);
 
     // Companies sorted by avg salary (ascending)
     const companies = useMemo(() => {
@@ -187,10 +268,12 @@ export default function PackageInfoTab() {
     }, [companies, filtered]);
 
     const handleReset = () => {
-        setSelIndustry("all");
-        setSelGroup("all");
-        setSelJobGrouping("all");
-        setSelJobFunction("all");
+        setSelIndustry([]);
+        setSelGroup([]);
+        setSelJobGrouping([]);
+        setSelJobFunction([]);
+        setSelCompany([]);
+        setSelPosition([]);
     };
 
     if (loading) return (
@@ -217,34 +300,57 @@ export default function PackageInfoTab() {
 
             {/* Filters */}
             <div className="flex flex-wrap gap-3 items-center p-4 bg-muted/30 rounded-lg border">
-                <Select value={selIndustry} onValueChange={v => { setSelIndustry(v); setSelGroup("all"); }}>
-                    <SelectTrigger className="w-[180px] text-sm"><SelectValue placeholder="Industry" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Industry</SelectItem>
-                        {industryOptions.map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                <Select value={selGroup} onValueChange={setSelGroup} disabled={selIndustry === "all"}>
-                    <SelectTrigger className="w-[200px] text-sm"><SelectValue placeholder="Company Group" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Groups</SelectItem>
-                        {groupOptions.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                <Select value={selJobGrouping} onValueChange={v => { setSelJobGrouping(v); setSelJobFunction("all"); }}>
-                    <SelectTrigger className="w-[200px] text-sm"><SelectValue placeholder="Job Grouping" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Job Groupings</SelectItem>
-                        {jobGroupingOptions.map(j => <SelectItem key={j} value={j}>{j}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                <Select value={selJobFunction} onValueChange={setSelJobFunction} disabled={selJobGrouping === "all"}>
-                    <SelectTrigger className="w-[220px] text-sm"><SelectValue placeholder="Job Function" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Functions</SelectItem>
-                        {jobFunctionOptions.map(j => <SelectItem key={j} value={j}>{j}</SelectItem>)}
-                    </SelectContent>
-                </Select>
+                <FilterMultiSelect
+                    label="Industry"
+                    icon={Factory}
+                    options={industryOptions}
+                    selected={selIndustry}
+                    onChange={(val) => {
+                        setSelIndustry(prev => prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]);
+                    }}
+                />
+                <FilterMultiSelect
+                    label="Company Group"
+                    icon={Building2}
+                    options={groupOptions}
+                    selected={selGroup}
+                    onChange={(val) => {
+                        setSelGroup(prev => prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]);
+                    }}
+                />
+                <FilterMultiSelect
+                    label="Job Grouping"
+                    icon={Briefcase}
+                    options={jobGroupingOptions}
+                    selected={selJobGrouping}
+                    onChange={(val) => {
+                        setSelJobGrouping(prev => prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]);
+                    }}
+                />
+                <FilterMultiSelect
+                    label="Job Function"
+                    options={jobFunctionOptions}
+                    selected={selJobFunction}
+                    onChange={(val) => {
+                        setSelJobFunction(prev => prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]);
+                    }}
+                />
+                <FilterMultiSelect
+                    label="Company"
+                    options={companyOptions}
+                    selected={selCompany}
+                    onChange={(val) => {
+                        setSelCompany(prev => prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]);
+                    }}
+                />
+                <FilterMultiSelect
+                    label="Position"
+                    options={positionOptions}
+                    selected={selPosition}
+                    onChange={(val) => {
+                        setSelPosition(prev => prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]);
+                    }}
+                />
                 <Button variant="ghost" size="sm" onClick={handleReset} className="gap-2 text-slate-500 hover:text-red-500">
                     <RotateCcw className="h-3 w-3" /> Reset
                 </Button>
@@ -302,11 +408,14 @@ export default function PackageInfoTab() {
                                             {companies.map(c => {
                                                 const val = benefitsByCompany[c]?.[row.key] ?? null;
                                                 return (
-                                                    <td key={c} className="px-2 py-2.5 text-center border-l border-slate-100">
+                                                    <td key={c}
+                                                        className={`px-2 py-2.5 text-center border-l border-slate-100 ${val ? "cursor-pointer hover:bg-slate-100/50 transition-colors" : ""}`}
+                                                        onClick={() => val && setDetailDialog({ open: true, title: `${row.label} - ${c}`, content: val })}
+                                                    >
                                                         {val ? (
                                                             <span className="inline-flex items-center justify-center gap-0.5 text-emerald-700 font-medium">
                                                                 <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
-                                                                <span className="text-[10px] max-w-[80px] truncate" title={val}>
+                                                                <span className="text-[10px] max-w-[80px] truncate">
                                                                     {val.length > 10 ? val.slice(0, 10) + '…' : val}
                                                                 </span>
                                                             </span>
@@ -338,6 +447,7 @@ export default function PackageInfoTab() {
                                         <tr>
                                             <th className="px-4 py-2.5 text-left font-semibold">ID</th>
                                             <th className="px-4 py-2.5 text-left font-semibold">Name</th>
+                                            <th className="px-4 py-2.5 text-left font-semibold">Position</th>
                                             <th className="px-4 py-2.5 text-left font-semibold">Company</th>
                                             <th className="px-4 py-2.5 text-left font-semibold">Industry</th>
                                             <th className="px-4 py-2.5 text-left font-semibold">Job Grouping</th>
@@ -353,6 +463,7 @@ export default function PackageInfoTab() {
                                             <tr key={c.candidate_id} className={`hover:bg-slate-50 ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}>
                                                 <td className="px-4 py-2 font-mono text-slate-500">{c.candidate_id}</td>
                                                 <td className="px-4 py-2 font-medium text-slate-800">{c.name}</td>
+                                                <td className="px-4 py-2 text-slate-700 font-medium max-w-[150px] truncate" title={c.position || ''}>{c.position || '-'}</td>
                                                 <td className="px-4 py-2 text-slate-600 max-w-[150px] truncate" title={c.company || ''}>{c.company || '-'}</td>
                                                 <td className="px-4 py-2 text-slate-500 max-w-[130px] truncate" title={c.company_industry || ''}>{c.company_industry || '-'}</td>
                                                 <td className="px-4 py-2 text-slate-500">{c.job_grouping || '-'}</td>
@@ -377,6 +488,32 @@ export default function PackageInfoTab() {
                     </Card>
                 </>
             )}
+            {/* Benefit Detail Dialog */}
+            <Dialog open={detailDialog.open} onOpenChange={(o) => setDetailDialog(prev => ({ ...prev, open: o }))}>
+                <DialogContent className="sm:max-w-[500px] rounded-3xl p-0 overflow-hidden border-none shadow-2xl">
+                    <div className="bg-slate-900 p-6 text-white">
+                        <DialogHeader>
+                            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+                                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                                {detailDialog.title}
+                            </DialogTitle>
+                            <DialogDescription className="text-slate-400 font-medium">
+                                Full details recorded for this package item
+                            </DialogDescription>
+                        </DialogHeader>
+                    </div>
+                    <div className="p-8 bg-white text-slate-700">
+                        <div className="bg-slate-50 rounded-2xl p-6 border border-slate-100 min-h-[120px] shadow-inner text-sm leading-relaxed whitespace-pre-wrap">
+                            {detailDialog.content}
+                        </div>
+                        <div className="mt-6 flex justify-end">
+                            <Button variant="outline" onClick={() => setDetailDialog(prev => ({ ...prev, open: false }))} className="rounded-xl px-8">
+                                Close
+                            </Button>
+                        </div>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
