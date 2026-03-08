@@ -39,7 +39,8 @@ export function EditResignationDialog({
         company_destination: "",
         new_position: "",
         resign_job_grade: "",
-        resign_bu: ""
+        resign_bu: "",
+        tracking_status: "pending"
     });
 
     const [reasons, setReasons] = useState<string[]>([]);
@@ -58,7 +59,8 @@ export function EditResignationDialog({
                 company_destination: initialData.company_destination || "",
                 new_position: initialData.new_position || "",
                 resign_job_grade: initialData.resign_job_grade || "",
-                resign_bu: initialData.resign_bu || ""
+                resign_bu: initialData.resign_bu || "",
+                tracking_status: initialData.tracking_status || "pending"
             });
             fetchReasons();
         }
@@ -87,7 +89,8 @@ export function EditResignationDialog({
             company_destination: formData.company_destination || null,
             new_position: formData.new_position || null,
             resign_job_grade: formData.resign_job_grade || null,
-            resign_bu: formData.resign_bu || null
+            resign_bu: formData.resign_bu || null,
+            tracking_status: formData.tracking_status
         });
 
         if (res.success) {
@@ -110,6 +113,19 @@ export function EditResignationDialog({
                     <DialogTitle className="text-2xl font-black mb-1">Edit Resignation</DialogTitle>
                     <DialogDescription className="text-red-700/80 font-medium">
                         Update resignation details for <b>{initialData?.candidate_name}</b>.
+                        {formData.tracking_status && (
+                            <div className="mt-2">
+                                <Badge className={cn(
+                                    "text-[10px] uppercase font-black tracking-tighter",
+                                    formData.tracking_status === 'manual' ? "bg-emerald-500 text-white" :
+                                        formData.tracking_status === 'auto' ? "bg-amber-500 text-white animate-pulse" :
+                                            formData.tracking_status === 'ref_set' ? "bg-blue-500 text-white" :
+                                                "bg-slate-400 text-white"
+                                )}>
+                                    Status: {formData.tracking_status}
+                                </Badge>
+                            </div>
+                        )}
                     </DialogDescription>
                 </div>
 
@@ -242,7 +258,11 @@ export function EditResignationDialog({
                                 <Input
                                     placeholder="New Company..."
                                     value={formData.company_destination}
-                                    onChange={(e) => setFormData({ ...formData, company_destination: e.target.value })}
+                                    onChange={(e) => setFormData({
+                                        ...formData,
+                                        company_destination: e.target.value,
+                                        tracking_status: 'manual'
+                                    })}
                                     className="h-10 rounded-xl bg-slate-50 border-slate-200 text-xs"
                                 />
                             </div>
@@ -253,7 +273,11 @@ export function EditResignationDialog({
                                 <Input
                                     placeholder="Job Title..."
                                     value={formData.new_position}
-                                    onChange={(e) => setFormData({ ...formData, new_position: e.target.value })}
+                                    onChange={(e) => setFormData({
+                                        ...formData,
+                                        new_position: e.target.value,
+                                        tracking_status: 'manual'
+                                    })}
                                     className="h-10 rounded-xl bg-slate-50 border-slate-200 text-xs"
                                 />
                             </div>
