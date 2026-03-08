@@ -54,8 +54,8 @@ export async function markAsResigned(id: string, resignData: {
             hiring_status: 'Resigned',
             resign_date: resignData.resign_date,
             resign_note: resignData.resign_note,
-            // the schema had resignation_reason_test, check if it exists or use resignation_reason
-            resignation_reason_test: resignData.resignation_reason
+            // use resignation_reason column
+            resignation_reason: resignData.resignation_reason
         })
         .eq('employment_record_id', id);
 

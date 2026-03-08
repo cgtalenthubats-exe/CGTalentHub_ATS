@@ -89,10 +89,13 @@ export default function JRManagePage() {
 
 
     // Handle create tab selection (if coming from history/url in future)
-    // Handle url/history (simplified)
+    // Handle url/history
     useEffect(() => {
-        // No special new tab logic needed on load anymore
-    }, []);
+        const jrId = searchParams.get('jr_id');
+        if (jrId) {
+            handleTabSelect(jrId);
+        }
+    }, [searchParams]);
 
     const handleTabSelect = (id: string) => {
         if (id === 'new') {

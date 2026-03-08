@@ -51,7 +51,7 @@ export function EditResignationDialog({
         if (open && initialData) {
             setFormData({
                 resign_date: initialData.resign_date || "",
-                resignation_reason: initialData.resignation_reason_test || initialData.resignation_reason || "",
+                resignation_reason: initialData.resignation_reason || "",
                 resign_note: initialData.resign_note || "",
                 position: initialData.position || "",
                 bu: initialData.bu || "",
@@ -81,7 +81,7 @@ export function EditResignationDialog({
 
         const res = await updateEmploymentRecord(initialData.employment_record_id, {
             resign_date: formData.resign_date || null,
-            resignation_reason_test: formData.resignation_reason || null,
+            resignation_reason: formData.resignation_reason || null,
             resign_note: formData.resign_note || null,
             position: formData.position || null,
             bu: formData.bu || null,

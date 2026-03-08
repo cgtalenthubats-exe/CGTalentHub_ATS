@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 import { BackButton, EditButton, AddPrescreenDialog, DeleteCandidateDialog } from "@/components/candidate-client-actions";
@@ -482,7 +483,14 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
 
                                                 return (
                                                     <tr key={i} className="hover:bg-muted/20 transition-colors">
-                                                        <td className="p-4 font-bold text-primary">{job.jr_id}</td>
+                                                        <td className="p-4">
+                                                            <Link
+                                                                href={`/requisitions/manage?jr_id=${job.jr_id}`}
+                                                                className="font-bold text-primary hover:underline"
+                                                            >
+                                                                {job.jr_id}
+                                                            </Link>
+                                                        </td>
                                                         <td className="p-4 font-medium text-foreground">{job.position_jr}</td>
                                                         <td className="p-4 text-xs text-muted-foreground">
                                                             {job.bu && <div><span className="font-semibold text-foreground/70">BU:</span> {job.bu}</div>}

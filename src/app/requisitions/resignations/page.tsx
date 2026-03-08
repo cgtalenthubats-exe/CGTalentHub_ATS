@@ -93,13 +93,13 @@ export default function ResignationsPage() {
             r.jr_id?.toLowerCase().includes(search.toLowerCase());
 
         const matchesBU = buFilter === "all" || r.bu === buFilter;
-        const matchesReason = reasonFilter === "all" || (r.resignation_reason_test || "Other") === reasonFilter;
+        const matchesReason = reasonFilter === "all" || (r.resignation_reason || "Other") === reasonFilter;
 
         return matchesSearch && matchesBU && matchesReason;
     });
 
     const uniqueBUs = Array.from(new Set(records.map(r => r.bu).filter(Boolean))).sort();
-    const uniqueReasons = Array.from(new Set(records.map(r => r.resignation_reason_test || "Other"))).sort();
+    const uniqueReasons = Array.from(new Set(records.map(r => r.resignation_reason || "Other"))).sort();
 
     return (
         <div className="mx-auto p-6 space-y-8 w-full max-w-[95%] animate-in fade-in duration-500">
@@ -341,7 +341,7 @@ export default function ResignationsPage() {
                                         <TableCell>
                                             <div className="max-w-[120px]">
                                                 <Badge variant="outline" className="border-slate-200 text-slate-600 font-bold text-[10px] uppercase py-1 px-2">
-                                                    {r.resignation_reason_test || 'Unspecified'}
+                                                    {r.resignation_reason || 'Unspecified'}
                                                 </Badge>
                                             </div>
                                         </TableCell>
@@ -420,7 +420,7 @@ export default function ResignationsPage() {
 function getTopReason(records: any[]) {
     if (records.length === 0) return "N/A";
     const counts = records.reduce((acc: any, curr: any) => {
-        const reason = curr.resignation_reason_test || "Unspecified";
+        const reason = curr.resignation_reason || "Unspecified";
         acc[reason] = (acc[reason] || 0) + 1;
         return acc;
     }, {});
@@ -442,9 +442,9 @@ function getAvgTenure(records: any[]) {
 }
 
 function getResignationBreakdown(records: any[]) {
-    const reasons = Array.from(new Set(records.map(r => r.resignation_reason_test || "Other")));
+    const reasons = Array.from(new Set(records.map(r => r.resignation_reason || "Other")));
     return reasons.map(reason => {
-        const filtered = records.filter(r => (r.resignation_reason_test || "Other") === reason);
+        const filtered = records.filter(r => (r.resignation_reason || "Other") === reason);
         const getTenure = (r: any) => {
             if (!r.hire_date || !r.resign_date) return 0;
             return (new Date(r.resign_date).getTime() - new Date(r.hire_date).getTime()) / (1000 * 60 * 60 * 24 * 365.25);
