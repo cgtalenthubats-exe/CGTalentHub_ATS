@@ -367,13 +367,21 @@ export async function bulkAddCandidatesToJR(
         const candidateIdsToCheck = candidates.map(c => c.id);
         const { data: blacklistData, error: blError } = await supabase
             .from('Candidate Profile')
-            .select('candidate_id, blacklist_note')
+            .select('candidate_id, candidate_status, blacklist_note')
             .in('candidate_id', candidateIdsToCheck)
-            .not('blacklist_note', 'is', null);
+            .or('candidate_status.eq.Blacklist,blacklist_note.neq.null');
 
         if (blError) throw blError;
 
-        const blacklistedIds = new Set(blacklistData?.map((b: any) => b.candidate_id));
+        // Final filter in JS to be extra safe with 'EMPTY' strings in blacklist_note
+        const blacklistedIds = new Set(
+            blacklistData
+                ?.filter((b: any) =>
+                    b.candidate_status === 'Blacklist' ||
+                    (b.blacklist_note !== null && b.blacklist_note !== undefined && String(b.blacklist_note).trim() !== '')
+                )
+                .map((b: any) => b.candidate_id)
+        );
         const blacklistedNames: string[] = [];
 
         // Filter out blacklisted

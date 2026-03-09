@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { getStatuses } from "@/app/actions/candidate-filters";
+import { getEffectiveAge, formatDateForInput, extractYear } from "@/lib/date-utils";
 
 export default function EditCandidatePage({ params }: { params: Promise<{ id: string }> }) {
     const router = useRouter();
@@ -103,10 +104,10 @@ export default function EditCandidatePage({ params }: { params: Promise<{ id: st
                     nationality: data.nationality || "",
                     gender: data.gender || "",
                     linkedin: data.linkedin || "",
-                    age_input_type: "dob",
-                    date_of_birth: data.date_of_birth || "",
-                    year_of_bachelor_education: data.year_of_bachelor_education || "",
-                    age: data.age || "",
+                    age_input_type: data.date_of_birth ? "dob" : (data.year_of_bachelor_education ? "bachelor" : "dob"),
+                    date_of_birth: formatDateForInput(data.date_of_birth),
+                    year_of_bachelor_education: extractYear(data.year_of_bachelor_education)?.toString() || "",
+                    age: data.age?.toString() || "",
                     skills: data.other_skill || data.enhancement?.skills || "",
                     education: data.enhancement?.education_summary || "",
                     languages: data.language_skill || data.enhancement?.languages || "",
@@ -139,22 +140,12 @@ export default function EditCandidatePage({ params }: { params: Promise<{ id: st
         loadData();
     }, [candidateId]);
 
-    // Age Calculation Effect (Same as New Page)
+    // Age Calculation Effect (Uses Dynamic Logic)
     useEffect(() => {
-        const currentYear = new Date().getFullYear();
-        let calculatedAge = formData.age; // Keep existing if no change
-
-        if (formData.age_input_type === 'dob' && formData.date_of_birth) {
-            const birthYear = new Date(formData.date_of_birth).getFullYear();
-            if (!isNaN(birthYear)) {
-                calculatedAge = (currentYear - birthYear).toString();
-            }
-        } else if (formData.age_input_type === 'bachelor' && formData.year_of_bachelor_education) {
-            const gradYear = parseInt(formData.year_of_bachelor_education);
-            if (!isNaN(gradYear)) {
-                calculatedAge = (currentYear - gradYear + 22).toString();
-            }
-        }
+        const calculatedAge = getEffectiveAge(
+            formData.age_input_type === 'dob' ? formData.date_of_birth : null,
+            formData.age_input_type === 'bachelor' ? formData.year_of_bachelor_education : null
+        );
 
         if (calculatedAge !== formData.age) {
             setFormData(prev => ({ ...prev, age: calculatedAge }));

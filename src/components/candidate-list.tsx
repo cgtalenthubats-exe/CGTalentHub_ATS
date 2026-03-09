@@ -185,8 +185,17 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
     };
 
     const handleRefreshData = async (ids: string[]) => {
+        const selectedCandidates = ids.map(id => {
+            const c = candidates.find(cand => cand.id === id);
+            return {
+                id: c?.candidate_id || id,
+                name: c?.candidate_name || "",
+                linkedin: c?.candidate_linkedin_url || ""
+            };
+        });
+
         toast.promise(
-            triggerCandidateRefresh(ids, "JR Manager (Manual Trigger)"),
+            triggerCandidateRefresh(selectedCandidates, "JR Manager (Manual Trigger)"),
             {
                 loading: `Sending ${ids.length} candidates to n8n for refresh...`,
                 success: (data: any) => {

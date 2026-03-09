@@ -111,7 +111,7 @@ export async function getAllReports() {
 
 // --- New: Candidate Data Refresh ---
 
-export async function triggerCandidateRefresh(candidateIds: string[], requester: string) {
+export async function triggerCandidateRefresh(candidates: { id: string, name?: string, linkedin?: string }[], requester: string) {
     try {
         // 1. Fetch Config
         const config = await getN8nUrl('Candidate Refresh');
@@ -124,8 +124,14 @@ export async function triggerCandidateRefresh(candidateIds: string[], requester:
 
         // 2. Prepare Payload
         const payload = {
-            candidate_ids: candidateIds,
+            batch_id: crypto.randomUUID(), // Generate a unique ID for this batch
             requester: requester,
+            candidate_count: candidates.length,
+            candidates: candidates.map(c => ({
+                id: c.id,
+                name: c.name || "",
+                linkedin: c.linkedin || ""
+            })),
             request_date: requestDate
         };
 
@@ -140,10 +146,10 @@ export async function triggerCandidateRefresh(candidateIds: string[], requester:
         if (config.method === 'POST') {
             fetchOptions.body = JSON.stringify(payload);
         } else {
-            // For GET, we might hit URL length limits with many IDs, but let's support it basic
+            // For GET, we'll just send the IDs to avoid extremely long URLs
             url.searchParams.append("requester", requester);
             url.searchParams.append("request_date", requestDate);
-            url.searchParams.append("candidate_ids", candidateIds.join(','));
+            url.searchParams.append("candidate_ids", candidates.map(c => c.id).join(','));
         }
 
         const fullUrl = config.method === 'GET' ? url.toString() : config.url;
@@ -154,7 +160,7 @@ export async function triggerCandidateRefresh(candidateIds: string[], requester:
             return { success: false, error: `n8n failed with status: ${response.status}` };
         }
 
-        return { success: true, count: candidateIds.length };
+        return { success: true, count: candidates.length };
     } catch (error: any) {
         console.error("Trigger Candidate Refresh Error:", error);
         return { success: false, error: error.message };

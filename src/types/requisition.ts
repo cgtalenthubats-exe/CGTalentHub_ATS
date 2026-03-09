@@ -42,6 +42,7 @@ export interface JRCandidate {
     candidate_image_url?: string; // photo
     candidate_age?: number;
     candidate_gender?: string;
+    candidate_linkedin_url?: string; // [NEW] Added for Refresh Data payload
 }
 
 export interface JRAnalytics {

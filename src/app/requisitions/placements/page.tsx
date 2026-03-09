@@ -39,6 +39,7 @@ import { Badge } from "@/components/ui/badge";
 import { EditPlacementDialog } from "@/components/edit-placement-dialog";
 import { Pencil } from "lucide-react";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
+import { formatDateForDisplay } from "@/lib/date-utils";
 import Link from "next/link";
 
 export default function PlacementsPage() {
@@ -242,7 +243,7 @@ export default function PlacementsPage() {
                                         <TableCell>
                                             <div className="flex flex-col">
                                                 <span className="text-xs font-bold text-slate-700">
-                                                    {r.date_of_birth ? new Date(r.date_of_birth).toLocaleDateString('en-GB') : '-'}
+                                                    {formatDateForDisplay(r.date_of_birth)}
                                                 </span>
                                                 <span className="text-xs font-bold text-black">
                                                     {r.date_of_birth ? `${new Date().getFullYear() - new Date(r.date_of_birth).getFullYear()} yrs` : ''}
@@ -273,9 +274,9 @@ export default function PlacementsPage() {
                                             <span className="font-mono text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{r.employee_id || "-"}</span>
                                         </TableCell>
                                         <TableCell>
-                                            <div className="flex items-center gap-2 text-slate-600 font-bold text-xs">
+                                            <div className="flex items-center gap-2 text-slate-600 font-bold text-xs whitespace-nowrap">
                                                 <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                                                {r.hire_date}
+                                                {formatDateForDisplay(r.hire_date)}
                                             </div>
                                         </TableCell>
                                         <TableCell>

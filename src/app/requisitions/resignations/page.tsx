@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { Pencil, PieChart, Users } from "lucide-react";
 import { EditResignationDialog } from "@/components/edit-resignation-dialog";
 import { getEmploymentCounts } from "@/app/actions/employment";
+import { parseAnyDate, formatDateForDisplay } from "@/lib/date-utils";
 import {
     PieChart as RePieChart,
     Pie,
@@ -48,8 +49,11 @@ import {
 
 function calculateYoS(hireDate: string, resignDate: string) {
     if (!hireDate || !resignDate) return "N/A";
-    const start = new Date(hireDate);
-    const end = new Date(resignDate);
+    const start = parseAnyDate(hireDate);
+    const end = parseAnyDate(resignDate);
+
+    if (!start || !end) return "N/A";
+
     let years = end.getFullYear() - start.getFullYear();
     let months = end.getMonth() - start.getMonth();
     if (months < 0) {
@@ -362,9 +366,9 @@ export default function ResignationsPage() {
                                             )}
                                         </TableCell>
                                         <TableCell>
-                                            <div className="flex items-center gap-2 text-slate-600">
+                                            <div className="flex items-center gap-2 text-slate-600 whitespace-nowrap">
                                                 <Calendar className="w-4 h-4 text-red-400" />
-                                                <span className="text-sm font-bold">{r.resign_date ? new Date(r.resign_date).toLocaleDateString() : 'N/A'}</span>
+                                                <span className="text-sm font-bold">{formatDateForDisplay(r.resign_date)}</span>
                                             </div>
                                         </TableCell>
                                         <TableCell>

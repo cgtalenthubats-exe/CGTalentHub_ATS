@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { adminAuthClient } from '@/lib/supabase/admin';
 import { getCandidateIdsByExperienceFilters } from '@/lib/candidate-service';
+import { getEffectiveAge } from '@/lib/date-utils';
 
 export async function POST(req: Request) {
     try {
@@ -165,6 +166,7 @@ export async function POST(req: Request) {
                         blacklist_note: extraData.blacklist_note || null,
                         linkedin: extraData.linkedin || p.linkedin,
                         checked: extraData.checked || p.checked,
+                        age: getEffectiveAge(p.date_of_birth, p.year_of_bachelor_education),
                         experiences: fullExp.filter((e: any) => e.candidate_id === p.candidate_id)
                     };
                 }
@@ -172,7 +174,8 @@ export async function POST(req: Request) {
             return {
                 ...p,
                 blacklist_note: null,
-                experiences: []
+                experiences: [],
+                age: getEffectiveAge(p.date_of_birth, p.year_of_bachelor_education)
             };
         });
 

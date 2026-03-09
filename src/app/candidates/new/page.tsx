@@ -23,7 +23,8 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
-import { toast } from "sonner"; // Assuming sonner is available as used in Edit page
+import { toast } from "sonner";
+import { getEffectiveAge, extractYear } from "@/lib/date-utils";
 
 export default function NewCandidatePage() {
     const router = useRouter();
@@ -74,22 +75,12 @@ export default function NewCandidatePage() {
         fetchNat();
     }, []);
 
-    // Age Calculation Effect
+    // Age Calculation Effect (Uses Dynamic Logic)
     useEffect(() => {
-        const currentYear = new Date().getFullYear();
-        let calculatedAge = "";
-
-        if (formData.age_input_type === 'dob' && formData.date_of_birth) {
-            const birthYear = new Date(formData.date_of_birth).getFullYear();
-            if (!isNaN(birthYear)) {
-                calculatedAge = (currentYear - birthYear).toString();
-            }
-        } else if (formData.age_input_type === 'bachelor' && formData.year_of_bachelor_education) {
-            const gradYear = parseInt(formData.year_of_bachelor_education);
-            if (!isNaN(gradYear)) {
-                calculatedAge = (currentYear - gradYear + 22).toString();
-            }
-        }
+        const calculatedAge = getEffectiveAge(
+            formData.age_input_type === 'dob' ? formData.date_of_birth : null,
+            formData.age_input_type === 'bachelor' ? formData.year_of_bachelor_education : null
+        );
 
         setFormData(prev => ({ ...prev, age: calculatedAge }));
     }, [formData.date_of_birth, formData.year_of_bachelor_education, formData.age_input_type]);

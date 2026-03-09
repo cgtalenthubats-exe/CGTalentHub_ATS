@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { adminAuthClient } from '@/lib/supabase/admin';
+import { getEffectiveAge, extractYear, formatDateForInput } from '@/lib/date-utils';
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const candidateId = (await params).id;
@@ -202,20 +203,23 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         if (candidate_status !== undefined) updateData.candidate_status = candidate_status;
         if (resume_url !== undefined) updateData.resume_url = resume_url;
         if (body.photo !== undefined) updateData.photo = body.photo;
-        if (body.blacklist_note !== undefined) updateData.blacklist_note = body.blacklist_note;
-
         // Map other fields carefully to match DB columns
         if (name !== undefined) updateData.name = name;
         if (email !== undefined) updateData.email = email;
         if (mobile_phone !== undefined) updateData.mobile_phone = mobile_phone;
-        if (linkedin !== undefined) updateData.linkedin = linkedin;
+        if (linkedin !== undefined) updateData.linkedin = linkedin || null;
+
+        if (body.blacklist_note !== undefined) {
+            const note = String(body.blacklist_note).trim();
+            updateData.blacklist_note = note === '' ? null : note;
+        }
 
         // Profile fields
         if (body.nationality !== undefined) updateData.nationality = body.nationality || null;
         if (body.gender !== undefined) updateData.gender = body.gender || null;
-        if (body.date_of_birth !== undefined) updateData.date_of_birth = body.date_of_birth || null;
-        if (body.year_of_bachelor_education !== undefined) updateData.year_of_bachelor_education = body.year_of_bachelor_education || null;
-        if (body.age !== undefined) updateData.age = body.age || null;
+        if (body.date_of_birth !== undefined) updateData.date_of_birth = formatDateForInput(body.date_of_birth) || null;
+        if (body.year_of_bachelor_education !== undefined) updateData.year_of_bachelor_education = extractYear(body.year_of_bachelor_education) || null;
+        if (body.age !== undefined) updateData.age = body.age ? parseInt(body.age) : null;
         if (body.checked !== undefined) updateData.checked = body.checked || null;
 
         // Compensation & Benefits fields

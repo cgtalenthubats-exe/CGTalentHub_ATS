@@ -16,7 +16,8 @@ import { cn } from "@/lib/utils";
 
 interface CreateJobRequisitionFormProps {
     onCancel: () => void;
-    onSuccess: (newJR: any) => void;
+    onSuccess: (updatedJR: any) => void;
+    initialData?: any; // [NEW] For Edit Mode
 }
 
 interface ComboboxProps {
@@ -81,8 +82,9 @@ function CreatableCombobox({ value, onChange, options, placeholder, allowCustom 
     );
 }
 
-export function CreateJobRequisitionForm({ onCancel, onSuccess }: CreateJobRequisitionFormProps) {
+export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData }: CreateJobRequisitionFormProps) {
     const [isLoading, setIsLoading] = useState(false);
+    const isEdit = !!initialData;
 
     // Dynamic Options State
     const [options, setOptions] = useState<{
@@ -98,15 +100,15 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess }: CreateJobRequi
     });
 
     const [formData, setFormData] = useState({
-        position_jr: "",
-        bu: "",
-        sub_bu: "",
-        request_date: new Date().toISOString().split('T')[0], // Default to today YYYY-MM-DD
-        jr_type: "New",
-        original_jr_id: "",
-        job_description: "",
-        feedback_file: "",
-        create_by: "Admin" // Simple default as per current context
+        position_jr: initialData?.job_title || "",
+        bu: initialData?.division || "",
+        sub_bu: initialData?.department || "",
+        request_date: initialData?.opened_date || new Date().toISOString().split('T')[0],
+        jr_type: initialData?.jr_type || "New",
+        original_jr_id: initialData?.original_jr_id || "",
+        job_description: initialData?.job_description || "",
+        feedback_file: initialData?.feedback_file || "",
+        create_by: initialData?.created_by || "Admin"
     });
 
     // Load Distinct Values on Mount
@@ -142,13 +144,17 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess }: CreateJobRequi
         setIsLoading(true);
 
         try {
-            const { createJobRequisition } = await import("@/app/actions/requisitions");
-            const newJR = await createJobRequisition(formData);
-            if (newJR) {
-                onSuccess(newJR);
+            if (isEdit) {
+                const { updateJobRequisition } = await import("@/app/actions/requisitions");
+                const updatedJR = await updateJobRequisition(initialData.id, formData);
+                if (updatedJR) onSuccess(updatedJR);
+            } else {
+                const { createJobRequisition } = await import("@/app/actions/requisitions");
+                const newJR = await createJobRequisition(formData);
+                if (newJR) onSuccess(newJR);
             }
         } catch (error) {
-            console.error("Failed to create JR", error);
+            console.error("Failed to save JR", error);
         } finally {
             setIsLoading(false);
         }
@@ -158,15 +164,25 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess }: CreateJobRequi
         <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-                {/* Position Title: Combobox (Customizable) */}
+                {/* Position (JR) */}
                 <div className="space-y-2">
                     <Label htmlFor="position_jr">Position (JR) <span className="text-red-500">*</span></Label>
-                    <CreatableCombobox
-                        value={formData.position_jr}
-                        onChange={(v) => handleChange("position_jr", v)}
-                        options={options.positions}
-                        placeholder="Select or Type Position"
-                    />
+                    {isEdit ? (
+                        <Input
+                            id="position_jr"
+                            value={formData.position_jr}
+                            onChange={(e) => handleChange("position_jr", e.target.value)}
+                            placeholder="Enter position title"
+                            className="h-10 px-3 bg-white border-slate-200 focus:ring-primary/20"
+                        />
+                    ) : (
+                        <CreatableCombobox
+                            value={formData.position_jr}
+                            onChange={(v) => handleChange("position_jr", v)}
+                            options={options.positions}
+                            placeholder="Select or Type Position"
+                        />
+                    )}
                 </div>
 
                 {/* BU: Combobox */}
@@ -191,15 +207,15 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess }: CreateJobRequi
                     />
                 </div>
 
-                {/* Request Date */}
-                <div className="space-y-2">
+                {/* Request Date - REMOVED from UI but kept in state for action */}
+                {/* <div className="space-y-2">
                     <Label htmlFor="request_date">Request Date <span className="text-red-500">*</span></Label>
                     <Input
                         type="date"
                         value={formData.request_date}
                         onChange={(e) => handleChange("request_date", e.target.value)}
                     />
-                </div>
+                </div> */}
 
                 {/* JR Type: New / Replacement */}
                 <div className="space-y-2">
@@ -241,8 +257,8 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess }: CreateJobRequi
                     </div>
                 )}
 
-                {/* Create By */}
-                <div className="space-y-2">
+                {/* Create By - REMOVED from UI but kept in state for action */}
+                {/* <div className="space-y-2">
                     <Label htmlFor="create_by">Create By <span className="text-red-500">*</span></Label>
                     <Select onValueChange={(v) => handleChange("create_by", v)} defaultValue={formData.create_by}>
                         <SelectTrigger>
@@ -253,7 +269,7 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess }: CreateJobRequi
                             <SelectItem value="HR Manager">HR Manager</SelectItem>
                         </SelectContent>
                     </Select>
-                </div>
+                </div> */}
 
                 {/* Feedback File (PDF Link) */}
                 <div className="space-y-2">
@@ -285,10 +301,10 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess }: CreateJobRequi
                 <Button type="submit" disabled={isLoading} className="bg-primary text-primary-foreground">
                     {isLoading ? (
                         <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating...
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {isEdit ? "Saving..." : "Creating..."}
                         </>
                     ) : (
-                        "Create Requisition"
+                        isEdit ? "Update Requisition" : "Create Requisition"
                     )}
                 </Button>
             </div>

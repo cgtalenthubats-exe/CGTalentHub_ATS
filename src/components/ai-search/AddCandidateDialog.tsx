@@ -126,7 +126,7 @@ export function AddCandidateDialog({
         setLoading(true);
         try {
             const data = await getJobRequisitions();
-            setJrs(data.filter(j => j.is_active));
+            setJrs(data); // Show all, including inactive
         } catch (error) {
             console.error("Failed to load JRs", error);
         } finally {
@@ -142,16 +142,30 @@ export function AddCandidateDialog({
     });
 
     const uniqueOptions = React.useMemo(() => {
-        const positions = Array.from(new Set(jrs.map(j => j.title).filter(Boolean))).sort();
-        const bus = Array.from(new Set(jrs.map(j => j.division).filter(Boolean))).sort();
-        const depts = Array.from(new Set(jrs.map(j => j.department).filter(Boolean))).sort();
-        const statuses = Array.from(new Set(jrs.map(j => j.status).filter(Boolean))).sort();
+        // Interrelated filters: options for each field should be based on other selected filters
+        const getFiltered = (excludeKey: string) => {
+            return jrs.filter(jr => {
+                const matchPos = excludeKey === 'position' || jrFilters.position === "All" || jr.title === jrFilters.position;
+                const matchBu = excludeKey === 'bu' || jrFilters.bu === "All" || jr.division === jrFilters.bu;
+                const matchDept = excludeKey === 'dept' || jrFilters.dept === "All" || jr.department === jrFilters.dept;
+                const matchStatus = excludeKey === 'status' || jrFilters.status === "All" || jr.status === jrFilters.status;
+                return matchPos && matchBu && matchDept && matchStatus;
+            });
+        };
+
+        const positions = Array.from(new Set(getFiltered('position').map(j => j.title).filter(Boolean))).sort();
+        const bus = Array.from(new Set(getFiltered('bu').map(j => j.division).filter(Boolean))).sort();
+        const depts = Array.from(new Set(getFiltered('dept').map(j => j.department).filter(Boolean))).sort();
+        const statuses = Array.from(new Set(getFiltered('status').map(j => j.status).filter(Boolean))).sort();
+
         return { positions, bus, depts, statuses };
-    }, [jrs]);
+    }, [jrs, jrFilters]);
 
     const filteredJrs = jrs.filter(jr => {
-        const matchSearch = jr.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            jr.id.toLowerCase().includes(searchQuery.toLowerCase());
+        const search = searchQuery.toLowerCase();
+        const matchSearch = jr.title.toLowerCase().includes(search) ||
+            jr.id.toLowerCase().includes(search);
+
         const matchPos = jrFilters.position === "All" || jr.title === jrFilters.position;
         const matchBu = jrFilters.bu === "All" || jr.division === jrFilters.bu;
         const matchDept = jrFilters.dept === "All" || jr.department === jrFilters.dept;

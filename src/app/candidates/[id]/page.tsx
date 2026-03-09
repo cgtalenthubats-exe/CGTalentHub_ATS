@@ -21,6 +21,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ResumeManager } from "@/components/resume-manager";
 import { CandidateLinkedinButton } from "@/components/candidate-linkedin-button";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
+import { formatDateForDisplay } from "@/lib/date-utils";
 
 export default function CandidateDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = React.use(params);
@@ -115,7 +116,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
 
                         <div className="flex flex-wrap gap-4 text-sm text-foreground/80 font-medium">
                             <div className="flex items-center gap-1.5"><MapPin className="h-4 w-4 text-primary" /> {candidate.nationality || "N/A"}</div>
-                            <div className="flex items-center gap-1.5"><Calendar className="h-4 w-4 text-primary" /> {candidate.date_of_birth ? new Date(candidate.date_of_birth).toLocaleDateString('en-GB') : "DOB N/A"} {candidate.age && `(${candidate.age} Years)`}</div>
+                            <div className="flex items-center gap-1.5"><Calendar className="h-4 w-4 text-primary" /> {candidate.date_of_birth ? formatDateForDisplay(candidate.date_of_birth) : "DOB N/A"} {candidate.age && `(${candidate.age} Years)`}</div>
                             <div className="flex items-center gap-1.5"><Briefcase className="h-4 w-4 text-primary" /> {candidate.total_years_exp ? `${candidate.total_years_exp} Years Exp` : "Exp N/A"}</div>
                         </div>
                     </div>

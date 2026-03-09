@@ -7,13 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Users, Clock, Briefcase, Filter, TrendingUp, ArrowUpDown, Copy, MoreHorizontal, FileText, CheckSquare, Square, Trophy, Trash2 } from "lucide-react";
+import { Search, Plus, Users, Clock, Briefcase, Filter, TrendingUp, ArrowUpDown, Copy, MoreHorizontal, FileText, CheckSquare, Square, Trophy, Trash2, Edit } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { CreateJobRequisitionForm } from "@/components/create-jr-form";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -46,6 +46,10 @@ export default function RequisitionsPage() {
     // Copy Dialog State
     const [copyDialogOpen, setCopyDialogOpen] = useState(false);
     const [jrToCopy, setJrToCopy] = useState<JobRequisition | null>(null);
+
+    // Edit Dialog State
+    const [editDialogOpen, setEditDialogOpen] = useState(false);
+    const [jrToEdit, setJrToEdit] = useState<JobRequisition | null>(null);
 
     // Delete Dialog State
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -260,6 +264,12 @@ export default function RequisitionsPage() {
     const handleCopyClick = (jr: JobRequisition) => {
         setJrToCopy(jr);
         setCopyDialogOpen(true);
+    };
+
+    // Handle Edit
+    const handleEditClick = (jr: JobRequisition) => {
+        setJrToEdit(jr);
+        setEditDialogOpen(true);
     };
 
     // Handle Delete
@@ -530,6 +540,9 @@ export default function RequisitionsPage() {
                                                         <DropdownMenuItem onClick={() => router.push(`/requisitions/manage?selected=${jr.id}`)}>
                                                             View Details
                                                         </DropdownMenuItem>
+                                                        <DropdownMenuItem onClick={() => handleEditClick(jr)}>
+                                                            <Edit className="mr-2 h-4 w-4" /> Edit Details
+                                                        </DropdownMenuItem>
                                                         <DropdownMenuItem onClick={() => handleCopyClick(jr)}>
                                                             <Copy className="mr-2 h-4 w-4" /> Copy Job Requisition
                                                         </DropdownMenuItem>
@@ -567,6 +580,26 @@ export default function RequisitionsPage() {
                     }}
                 />
             )}
+
+            {/* Edit Dialog */}
+            <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader className="text-center mb-6">
+                        <DialogTitle className="text-2xl font-bold">Edit Requisition</DialogTitle>
+                        <DialogDescription className="text-muted-foreground">Updating <strong>{jrToEdit?.id}</strong> details.</DialogDescription>
+                    </DialogHeader>
+                    {jrToEdit && (
+                        <CreateJobRequisitionForm
+                            initialData={jrToEdit}
+                            onCancel={() => setEditDialogOpen(false)}
+                            onSuccess={(updatedJR) => {
+                                setEditDialogOpen(false);
+                                setJrs(prev => prev.map(j => j.id === updatedJR.id ? updatedJR : j));
+                            }}
+                        />
+                    )}
+                </DialogContent>
+            </Dialog>
 
             {/* Delete JR Confirm Dialog */}
             <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

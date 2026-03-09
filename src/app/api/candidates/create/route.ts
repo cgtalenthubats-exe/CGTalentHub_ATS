@@ -9,6 +9,8 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!; // Use Service Key f
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+import { extractYear, formatDateForInput } from '@/lib/date-utils';
+
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
@@ -45,8 +47,8 @@ export async function POST(req: NextRequest) {
                     nationality: nationality || null,
                     gender: body.gender || null,
                     linkedin: body.linkedin || null,
-                    date_of_birth: body.date_of_birth || null,
-                    year_of_bachelor_education: body.year_of_bachelor_education ? parseInt(body.year_of_bachelor_education) : null,
+                    date_of_birth: formatDateForInput(body.date_of_birth) || null,
+                    year_of_bachelor_education: extractYear(body.year_of_bachelor_education) || null,
                     age: body.age ? parseInt(body.age) : null,
                     // Compensation & Benefits (all optional)
                     gross_salary_base_b_mth: body.gross_salary_base_b_mth || null,

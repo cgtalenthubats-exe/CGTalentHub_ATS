@@ -28,11 +28,11 @@ export async function getJobRequisitions(): Promise<JobRequisition[]> {
         hiring_manager_name: row.hiring_manager_name || "Unknown",
         department: row.sub_bu || "General",
         division: row.bu || "Corporate",
-        status: normalizeStatus(row.is_active),
+        status: row.status || row.is_active || "Open",
         headcount_total: row.headcount || 1,
         headcount_hired: row.hired_count || 0,
         opened_date: row.request_date,
-        is_active: row.is_active === 'Active' || row.is_active === 'active',
+        is_active: String(row.is_active).toLowerCase() === 'active',
         location: row.location || "Bangkok",
         created_at: row.created_at || new Date().toISOString(),
         updated_at: row.updated_at || new Date().toISOString(),
@@ -63,11 +63,11 @@ export async function getRequisition(id: string): Promise<JobRequisition | null>
         hiring_manager_name: row.hiring_manager_name || "Unknown", // Would need join usually
         department: row.sub_bu || "General",
         division: row.bu || "Corporate",
-        status: normalizeStatus(row.is_active),
+        status: row.status || row.is_active || "Open",
         headcount_total: row.headcount || 1,
         headcount_hired: row.hired_count || 0,
         opened_date: row.request_date,
-        is_active: row.is_active === 'Active' || row.is_active === 'active',
+        is_active: String(row.is_active).toLowerCase() === 'active',
         location: row.location,
         created_at: row.created_at || new Date().toISOString(),
         updated_at: row.updated_at || new Date().toISOString(),
@@ -126,6 +126,61 @@ export async function getDistinctFieldValues(field: string): Promise<string[]> {
     // Extract, Filter Nulls/Duplicates
     const values = data.map((row: any) => row[field]).filter((v: any) => v).map((v: any) => String(v));
     return [...new Set(values)];
+}
+
+export async function updateJobRequisition(jrId: string, data: any): Promise<JobRequisition | null> {
+    const supabase = adminAuthClient;
+
+    try {
+        const updatePayload = {
+            position_jr: data.position_jr,
+            bu: data.bu,
+            sub_bu: data.sub_bu,
+            jr_type: data.jr_type,
+            original_jr_id: data.original_jr_id || null,
+            request_date: data.request_date,
+            job_description: data.job_description,
+            feedback_file: data.feedback_file,
+            create_by: data.create_by,
+            updated_at: new Date().toISOString()
+        };
+
+        const { data: updated, error: updateError } = await (supabase
+            .from('job_requisitions') as any)
+            .update(updatePayload)
+            .eq('jr_id', jrId)
+            .select()
+            .single();
+
+        if (updateError) {
+            console.error("Error updating JR:", updateError);
+            throw updateError;
+        }
+
+        const updatedData = updated as any;
+
+        return {
+            id: updatedData.jr_id,
+            job_title: updatedData.position_jr,
+            title: updatedData.position_jr,
+            hiring_manager_id: "",
+            hiring_manager_name: updatedData.create_by,
+            department: updatedData.sub_bu,
+            division: updatedData.bu,
+            status: updatedData.status || updatedData.is_active || "Open",
+            headcount_total: 1, // Assuming fixed for now as per schema
+            headcount_hired: 0,
+            opened_date: updatedData.request_date,
+            is_active: String(updatedData.is_active).toLowerCase() === 'active',
+            location: "Bangkok",
+            created_at: updatedData.created_at,
+            updated_at: updatedData.updated_at,
+            jr_type: updatedData.jr_type || "New",
+        };
+    } catch (e) {
+        console.error("Update JR Failed", e);
+        return null;
+    }
 }
 
 export async function createJobRequisition(data: any): Promise<JobRequisition | null> {

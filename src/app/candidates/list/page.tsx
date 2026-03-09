@@ -295,8 +295,17 @@ export default function CandidateListPage() {
     };
 
     const handleRefreshData = async (ids: string[]) => {
+        const selectedCandidates = ids.map(id => {
+            const c = candidates.find(cand => cand.candidate_id === id);
+            return {
+                id: id,
+                name: c?.name || "",
+                linkedin: c?.linkedin || ""
+            };
+        });
+
         toast.promise(
-            triggerCandidateRefresh(ids, "Recruiter (Manual Trigger)"),
+            triggerCandidateRefresh(selectedCandidates, "Recruiter (Manual Trigger)"),
             {
                 loading: `Sending ${ids.length} candidates to n8n for refresh...`,
                 success: (data: any) => {
