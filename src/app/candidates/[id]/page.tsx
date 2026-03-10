@@ -397,15 +397,15 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                             </Button>
                         </CardHeader>
                         <CardContent className="pt-6">
-                            {(candidate.gross_salary || candidate.other_income || candidate.bonus || candidate.car_allowance || candidate.medical_allowance || candidate.provident_fund || candidate.gasoline || candidate.phone_allowance || candidate.insurance || candidate.housing_expat || candidate.other_benefits) ? (
+                            {(candidate.gross_salary_base_b_mth || candidate.other_income || candidate.bonus_mth || candidate.car_allowance_b_mth || candidate.medical_b_annual || candidate.provident_fund_pct || candidate.gasoline_b_mth || candidate.phone_b_mth || candidate.insurance || candidate.housing_for_expat_b_mth || candidate.others_benefit) ? (
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-6 text-sm">
                                     <div className="space-y-1.5">
                                         <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Gross Salary (฿/mth)</p>
-                                        <p className="font-bold text-base text-emerald-700">{candidate.gross_salary || "-"}</p>
+                                        <p className="font-bold text-base text-emerald-700">{candidate.gross_salary_base_b_mth || "-"}</p>
                                     </div>
                                     <div className="space-y-1.5">
                                         <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Performance Bonus</p>
-                                        <p className="font-semibold text-foreground/80">{candidate.bonus ? `${candidate.bonus} Months` : "-"}</p>
+                                        <p className="font-semibold text-foreground/80">{candidate.bonus_mth ? `${candidate.bonus_mth} Months` : "-"}</p>
                                     </div>
                                     <div className="space-y-1.5">
                                         <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Other Income</p>
@@ -413,23 +413,23 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                                     </div>
                                     <div className="space-y-1.5">
                                         <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Car Allowance (฿/mth)</p>
-                                        <p className="font-semibold text-foreground/80">{candidate.car_allowance || "-"}</p>
+                                        <p className="font-semibold text-foreground/80">{candidate.car_allowance_b_mth || "-"}</p>
                                     </div>
                                     <div className="space-y-1.5">
                                         <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Gasoline (฿/mth)</p>
-                                        <p className="font-semibold text-foreground/80">{candidate.gasoline || "-"}</p>
+                                        <p className="font-semibold text-foreground/80">{candidate.gasoline_b_mth || "-"}</p>
                                     </div>
                                     <div className="space-y-1.5">
                                         <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Phone Allowance (฿/mth)</p>
-                                        <p className="font-semibold text-foreground/80">{candidate.phone_allowance || "-"}</p>
+                                        <p className="font-semibold text-foreground/80">{candidate.phone_b_mth || "-"}</p>
                                     </div>
                                     <div className="space-y-1.5">
                                         <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Provident Fund (%)</p>
-                                        <p className="font-semibold text-foreground/80">{candidate.provident_fund || "-"}</p>
+                                        <p className="font-semibold text-foreground/80">{candidate.provident_fund_pct || "-"}</p>
                                     </div>
                                     <div className="space-y-1.5">
                                         <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Medical (Annual/Mth)</p>
-                                        <p className="font-semibold text-foreground/80">{[candidate.medical_allowance, candidate.medical_mth_allowance].filter(Boolean).join(" / ") || "-"}</p>
+                                        <p className="font-semibold text-foreground/80">{[candidate.medical_b_annual, candidate.medical_b_mth].filter(Boolean).join(" / ") || "-"}</p>
                                     </div>
                                     <div className="space-y-1.5">
                                         <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Insurance</p>
@@ -437,11 +437,11 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                                     </div>
                                     <div className="space-y-1.5">
                                         <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Housing / Expat</p>
-                                        <p className="font-semibold text-foreground/80">{candidate.housing_expat || "-"}</p>
+                                        <p className="font-semibold text-foreground/80">{candidate.housing_for_expat_b_mth || "-"}</p>
                                     </div>
                                     <div className="space-y-1.5 md:col-span-2">
                                         <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Other Benefits</p>
-                                        <p className="font-semibold text-foreground/80">{candidate.other_benefits || "-"}</p>
+                                        <p className="font-semibold text-foreground/80">{candidate.others_benefit || "-"}</p>
                                     </div>
                                 </div>
                             ) : (
