@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { adminAuthClient } from '@/lib/supabase/admin';
 import { getEffectiveAge, extractYear, formatDateForInput } from '@/lib/date-utils';
+import { getCheckedStatus } from '@/lib/candidate-utils';
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const candidateId = (await params).id;
@@ -207,7 +208,11 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         if (name !== undefined) updateData.name = name;
         if (email !== undefined) updateData.email = email;
         if (mobile_phone !== undefined) updateData.mobile_phone = mobile_phone;
-        if (linkedin !== undefined) updateData.linkedin = linkedin || null;
+        if (linkedin !== undefined) {
+            updateData.linkedin = linkedin || null;
+            // Auto-update checked status based on new linkedin URL
+            updateData.checked = getCheckedStatus(linkedin);
+        }
 
         if (body.blacklist_note !== undefined) {
             const note = String(body.blacklist_note).trim();

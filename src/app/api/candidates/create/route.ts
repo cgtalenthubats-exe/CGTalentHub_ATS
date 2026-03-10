@@ -10,6 +10,7 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!; // Use Service Key f
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 import { extractYear, formatDateForInput } from '@/lib/date-utils';
+import { getCheckedStatus } from '@/lib/candidate-utils';
 
 export async function POST(req: NextRequest) {
     try {
@@ -50,6 +51,7 @@ export async function POST(req: NextRequest) {
                     date_of_birth: formatDateForInput(body.date_of_birth) || null,
                     year_of_bachelor_education: extractYear(body.year_of_bachelor_education) || null,
                     age: body.age ? parseInt(body.age) : null,
+                    checked: getCheckedStatus(body.linkedin),
                     // Compensation & Benefits (all optional)
                     gross_salary_base_b_mth: body.gross_salary_base_b_mth || null,
                     other_income: body.other_income || null,

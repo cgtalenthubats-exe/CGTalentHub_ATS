@@ -3,6 +3,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { v4 as uuidv4 } from 'uuid';
 import { getN8nUrl } from "./admin-actions";
+import { getCheckedStatus } from "@/lib/candidate-utils";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!; // Service role for writing
@@ -207,6 +208,7 @@ export async function processCsvUpload(rows: CsvRow[], uploaderEmail: string) {
                 name: item.name,
                 linkedin: item.linkedin,
                 email: item.email || null, // Insert email if available
+                checked: getCheckedStatus(item.linkedin),
                 created_date: new Date().toISOString(),
                 modify_date: new Date().toISOString()
             });
