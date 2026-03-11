@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/popover";
 import { toast } from "sonner";
 import { getStatuses } from "@/app/actions/candidate-filters";
-import { getEffectiveAge, formatDateForInput, extractYear } from "@/lib/date-utils";
+import { getEffectiveAge, formatDateForInput, extractYear, calculateBachelorYearFromAge } from "@/lib/date-utils";
 
 export default function EditCandidatePage({ params }: { params: Promise<{ id: string }> }) {
     const router = useRouter();
@@ -142,6 +142,8 @@ export default function EditCandidatePage({ params }: { params: Promise<{ id: st
 
     // Age Calculation Effect (Uses Dynamic Logic)
     useEffect(() => {
+        if (formData.age_input_type === 'manual') return; // Handled separately
+
         const calculatedAge = getEffectiveAge(
             formData.age_input_type === 'dob' ? formData.date_of_birth : null,
             formData.age_input_type === 'bachelor' ? formData.year_of_bachelor_education : null
@@ -151,6 +153,16 @@ export default function EditCandidatePage({ params }: { params: Promise<{ id: st
             setFormData(prev => ({ ...prev, age: calculatedAge }));
         }
     }, [formData.date_of_birth, formData.year_of_bachelor_education, formData.age_input_type]);
+
+    // Manual Age -> Bachelor Year Sync
+    useEffect(() => {
+        if (formData.age_input_type === 'manual' && formData.age) {
+            const bachYear = calculateBachelorYearFromAge(formData.age);
+            if (bachYear) {
+                setFormData(prev => ({ ...prev, year_of_bachelor_education: bachYear.toString() }));
+            }
+        }
+    }, [formData.age, formData.age_input_type]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { id, value } = e.target;
@@ -408,7 +420,7 @@ export default function EditCandidatePage({ params }: { params: Promise<{ id: st
 
                                 {/* Age Section */}
                                 <div className="p-4 bg-slate-50 rounded-xl border space-y-4">
-                                    <div className="flex gap-4">
+                                    <div className="flex flex-wrap gap-4">
                                         <label className="flex items-center gap-2 cursor-pointer">
                                             <input type="radio" name="age_type" className="accent-indigo-600"
                                                 checked={formData.age_input_type === 'dob'}
@@ -423,22 +435,41 @@ export default function EditCandidatePage({ params }: { params: Promise<{ id: st
                                             />
                                             <span className="text-sm font-medium">Use Bachelor Year</span>
                                         </label>
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input type="radio" name="age_type" className="accent-indigo-600"
+                                                checked={formData.age_input_type === 'manual'}
+                                                onChange={() => setFormData(prev => ({ ...prev, age_input_type: 'manual' }))}
+                                            />
+                                            <span className="text-sm font-medium">Manual Input (Age)</span>
+                                        </label>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
-                                        {formData.age_input_type === 'dob' ? (
+                                        {formData.age_input_type === 'dob' && (
                                             <div className="space-y-1">
                                                 <Label className="text-xs">Date of Birth</Label>
                                                 <Input type="date" value={formData.date_of_birth} onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })} className="bg-white" />
                                             </div>
-                                        ) : (
+                                        )}
+                                        {formData.age_input_type === 'bachelor' && (
                                             <div className="space-y-1">
                                                 <Label className="text-xs">Grad Year</Label>
                                                 <Input type="number" placeholder="YYYY" value={formData.year_of_bachelor_education} onChange={(e) => setFormData({ ...formData, year_of_bachelor_education: e.target.value })} className="bg-white" />
                                             </div>
                                         )}
+                                        {formData.age_input_type === 'manual' && (
+                                            <div className="space-y-1">
+                                                <Label className="text-xs">Enter Age</Label>
+                                                <Input type="number" placeholder="e.g. 25" id="age" value={formData.age} onChange={handleChange} className="bg-white font-bold text-indigo-600" />
+                                            </div>
+                                        )}
+
                                         <div className="space-y-1">
-                                            <Label className="text-xs">Age</Label>
-                                            <Input value={formData.age} readOnly className="bg-slate-100 font-bold text-slate-700" />
+                                            <Label className="text-xs">{formData.age_input_type === 'manual' ? 'Bachelor Year (Calculated)' : 'Age'}</Label>
+                                            {formData.age_input_type === 'manual' ? (
+                                                <Input value={formData.year_of_bachelor_education} readOnly className="bg-slate-100 font-bold text-slate-700" placeholder="Auto-calculated" />
+                                            ) : (
+                                                <Input value={formData.age} readOnly className="bg-slate-100 font-bold text-slate-700" placeholder="Auto-calculated" />
+                                            )}
                                         </div>
                                     </div>
                                 </div>

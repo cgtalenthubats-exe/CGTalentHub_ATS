@@ -59,3 +59,96 @@ export async function getJRCandidateDetails(jrCandidateId: string) {
         feedback: feedback || []
     };
 }
+
+export async function addActivityLog(jrCandidateId: string, status: string, note: string | null = null, updatedBy: string = "System") {
+    const supabase = adminAuthClient;
+
+    try {
+        const { data: maxResult } = await supabase
+            .from('status_log')
+            .select('log_id')
+            .order('log_id', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        let nextId = 1;
+        if (maxResult && (maxResult as any).log_id) {
+            nextId = parseInt((maxResult as any).log_id) + 1;
+        }
+
+        const now = new Date();
+        const timestampStr = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()}`;
+
+        const { error } = await supabase
+            .from('status_log')
+            .insert({
+                log_id: nextId,
+                jr_candidate_id: jrCandidateId,
+                status,
+                updated_By: updatedBy,
+                timestamp: timestampStr,
+                note
+            } as any);
+
+        if (error) throw error;
+        return { success: true };
+    } catch (e: any) {
+        console.error("Error adding activity log:", e);
+        return { success: false, error: e.message };
+    }
+}
+
+export async function updateActivityLog(logId: number, status: string, note: string | null = null) {
+    const supabase = adminAuthClient;
+
+    try {
+        const { error } = await supabase
+            .from('status_log')
+            .update({
+                status,
+                note,
+                // We keep original timestamp or could add updated_at if schema supports it
+            } as any)
+            .eq('log_id', logId);
+
+        if (error) throw error;
+        return { success: true };
+    } catch (e: any) {
+        console.error("Error updating activity log:", e);
+        return { success: false, error: e.message };
+    }
+}
+
+export async function deleteActivityLog(logId: number) {
+    const supabase = adminAuthClient;
+
+    try {
+        const { error } = await supabase
+            .from('status_log')
+            .delete()
+            .eq('log_id', logId);
+
+        if (error) throw error;
+        return { success: true };
+    } catch (e: any) {
+        console.error("Error deleting activity log:", e);
+        return { success: false, error: e.message };
+    }
+}
+
+export async function deleteInterviewFeedback(feedbackId: string | number) {
+    const supabase = adminAuthClient;
+
+    try {
+        const { error } = await (supabase as any)
+            .from('interview_feedback')
+            .delete()
+            .eq('feedback_id', feedbackId);
+
+        if (error) throw error;
+        return { success: true };
+    } catch (e: any) {
+        console.error("Error deleting interview feedback:", e);
+        return { success: false, error: e.message };
+    }
+}

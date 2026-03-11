@@ -5,9 +5,18 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Star, FileText, Plus, Pencil } from "lucide-react";
+import { MessageSquare, Star, FileText, Plus, Pencil, MoreVertical, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AddFeedbackDialog } from "@/components/add-feedback-dialog";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { deleteInterviewFeedback } from "@/app/actions/jr-candidate-logs";
+import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 interface FeedbackSectionProps {
     jrCandidateId: string;
@@ -16,6 +25,7 @@ interface FeedbackSectionProps {
 }
 
 export function FeedbackSection({ jrCandidateId, candidateName, feedback }: FeedbackSectionProps) {
+    const router = useRouter();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [selectedFeedback, setSelectedFeedback] = useState<any | null>(null);
 
@@ -27,6 +37,22 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback }: Feed
     const handleEdit = (item: any) => {
         setSelectedFeedback(item);
         setIsDialogOpen(true);
+    };
+
+    const handleDelete = async (feedbackId: number) => {
+        if (!confirm("Are you sure you want to delete this feedback?")) return;
+
+        try {
+            const res = await deleteInterviewFeedback(feedbackId);
+            if (res.success) {
+                toast.success("Feedback deleted successfully");
+                router.refresh();
+            } else {
+                toast.error(res.error || "Failed to delete feedback");
+            }
+        } catch (e) {
+            toast.error("An error occurred");
+        }
     };
 
     return (
@@ -56,16 +82,30 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback }: Feed
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {feedback.map((f: any) => (
                         <Card key={f.feedback_id} className="rounded-2xl border-none shadow-sm shadow-indigo-100 hover:shadow-md transition-shadow group relative">
-                            {/* Edit Button */}
+                            {/* Actions Button */}
                             <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="h-6 w-6 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full"
-                                    onClick={() => handleEdit(f)}
-                                >
-                                    <Pencil className="h-3 w-3" />
-                                </Button>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-6 w-6 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full"
+                                        >
+                                            <MoreVertical className="h-3 w-3" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-32">
+                                        <DropdownMenuItem onClick={() => handleEdit(f)} className="text-xs font-bold gap-2">
+                                            <Pencil className="h-3 w-3" /> Edit
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                            onClick={() => handleDelete(f.feedback_id)}
+                                            className="text-xs font-bold gap-2 text-red-600 focus:text-red-700 focus:bg-red-50"
+                                        >
+                                            <Trash2 className="h-3 w-3" /> Delete
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </div>
 
                             <CardHeader className="pb-3 border-b border-slate-50">

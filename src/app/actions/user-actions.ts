@@ -2,6 +2,7 @@
 
 import { adminAuthClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { getCurrentUserEmail } from "./status-updates";
 
 export interface UserProfile {
     email: string;
@@ -28,7 +29,7 @@ export async function getUserProfiles() {
 export async function upsertUserProfile(profile: UserProfile) {
     const supabase = adminAuthClient;
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
         .from('user_profiles')
         .upsert({
             email: profile.email,
@@ -51,7 +52,7 @@ export async function upsertUserProfile(profile: UserProfile) {
 export async function deleteUserProfile(email: string) {
     const supabase = adminAuthClient;
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
         .from('user_profiles')
         .delete()
         .eq('email', email);
@@ -79,4 +80,26 @@ export async function getUserMap() {
     }
 
     return map;
+}
+
+export async function getCurrentUserRealName(): Promise<string> {
+    const email = await getCurrentUserEmail();
+    if (email === 'System') return 'System';
+
+    try {
+        const supabase = adminAuthClient;
+        const { data, error } = await (supabase as any)
+            .from('user_profiles')
+            .select('real_name')
+            .eq('email', email)
+            .single();
+
+        if (error || !data) {
+            return email; // Fallback to email
+        }
+
+        return (data as any).real_name || email;
+    } catch {
+        return email;
+    }
 }

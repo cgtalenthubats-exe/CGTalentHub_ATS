@@ -497,6 +497,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
                                     className="border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                                 />
                             </th>
+                            <th className="text-right font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[80px]">Action</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[70px]">Rank</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[120px]">Type</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[185px]">Status</th>
@@ -508,7 +509,6 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[200px]">Position</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[130px]">Is Current Job</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[160px]">Country</th>
-                            <th className="text-right font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[80px]">Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -525,6 +525,49 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
                                             onCheckedChange={() => toggleSelect(c.id)}
                                             className="border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                                         />
+                                    </td>
+                                    <td className="px-4 py-4 text-left">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-100 hover:text-primary transition-all">
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="start" className="w-[200px] rounded-xl shadow-2xl border-slate-100">
+                                                <DropdownMenuLabel className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-3 py-2">Quick Actions</DropdownMenuLabel>
+
+                                                <Link href={`/requisitions/manage/candidate/${c.id}`}>
+                                                    <DropdownMenuItem className="py-2.5 font-bold text-xs cursor-pointer rounded-lg mx-1 group">
+                                                        <History className="mr-2 h-4 w-4 text-indigo-500 group-hover:scale-110 transition-transform" /> Full Activity & Logs
+                                                    </DropdownMenuItem>
+                                                </Link>
+
+                                                <Link href={`/candidates/${c.candidate_id}`}>
+                                                    <DropdownMenuItem className="py-2.5 font-bold text-xs cursor-pointer rounded-lg mx-1 group">
+                                                        <UserCircle2 className="mr-2 h-4 w-4 text-slate-400 group-hover:text-primary" /> View Global Profile
+                                                    </DropdownMenuItem>
+                                                </Link>
+                                                <DropdownMenuItem
+                                                    className="py-2.5 font-bold text-xs cursor-pointer rounded-lg mx-1"
+                                                    onClick={() => {
+                                                        setFeedbackCandidate({ id: c.id, name: c.candidate_name || "Unknown" });
+                                                        setIsFeedbackOpen(true);
+                                                    }}
+                                                >
+                                                    <MessageSquare className="mr-2 h-4 w-4 text-primary" /> Add Feedback
+                                                </DropdownMenuItem>
+                                                <DropdownMenuItem className="py-2.5 font-bold text-xs cursor-pointer rounded-lg mx-1">
+                                                    <ArrowRight className="mr-2 h-4 w-4 text-primary" /> Move Stage
+                                                </DropdownMenuItem>
+                                                <DropdownMenuSeparator className="bg-slate-50" />
+                                                <DropdownMenuItem
+                                                    className="py-2.5 font-bold text-xs cursor-pointer text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg mx-1"
+                                                    onClick={() => handleRemove([c.id])}
+                                                >
+                                                    <UserMinus className="mr-2 h-4 w-4" /> Remove from JR
+                                                </DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </td>
                                     <td className="px-4 py-4">
                                         <Popover>
@@ -705,49 +748,6 @@ export function CandidateList({ jrId, jobTitle, bu, subBu }: CandidateListProps)
                                         })() : (
                                             <span className="text-slate-300 text-xs">—</span>
                                         )}
-                                    </td>
-                                    <td className="px-4 py-4 text-right">
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-lg hover:bg-slate-100 hover:text-primary transition-all">
-                                                    <MoreHorizontal className="h-4 w-4" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end" className="w-[200px] rounded-xl shadow-2xl border-slate-100">
-                                                <DropdownMenuLabel className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-3 py-2">Quick Actions</DropdownMenuLabel>
-
-                                                <Link href={`/requisitions/manage/candidate/${c.id}`}>
-                                                    <DropdownMenuItem className="py-2.5 font-bold text-xs cursor-pointer rounded-lg mx-1 group">
-                                                        <History className="mr-2 h-4 w-4 text-indigo-500 group-hover:scale-110 transition-transform" /> Full Activity & Logs
-                                                    </DropdownMenuItem>
-                                                </Link>
-
-                                                <Link href={`/candidates/${c.candidate_id}`}>
-                                                    <DropdownMenuItem className="py-2.5 font-bold text-xs cursor-pointer rounded-lg mx-1 group">
-                                                        <UserCircle2 className="mr-2 h-4 w-4 text-slate-400 group-hover:text-primary" /> View Global Profile
-                                                    </DropdownMenuItem>
-                                                </Link>
-                                                <DropdownMenuItem
-                                                    className="py-2.5 font-bold text-xs cursor-pointer rounded-lg mx-1"
-                                                    onClick={() => {
-                                                        setFeedbackCandidate({ id: c.id, name: c.candidate_name || "Unknown" });
-                                                        setIsFeedbackOpen(true);
-                                                    }}
-                                                >
-                                                    <MessageSquare className="mr-2 h-4 w-4 text-primary" /> Add Feedback
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem className="py-2.5 font-bold text-xs cursor-pointer rounded-lg mx-1">
-                                                    <ArrowRight className="mr-2 h-4 w-4 text-primary" /> Move Stage
-                                                </DropdownMenuItem>
-                                                <DropdownMenuSeparator className="bg-slate-50" />
-                                                <DropdownMenuItem
-                                                    className="py-2.5 font-bold text-xs cursor-pointer text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg mx-1"
-                                                    onClick={() => handleRemove([c.id])}
-                                                >
-                                                    <UserMinus className="mr-2 h-4 w-4" /> Remove from JR
-                                                </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
                                     </td>
                                 </tr>
                             );

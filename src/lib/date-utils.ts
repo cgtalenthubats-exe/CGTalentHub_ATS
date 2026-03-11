@@ -9,32 +9,40 @@
  */
 export function parseAnyDate(dateStr: string | null | undefined): Date | null {
     if (!dateStr || typeof dateStr !== 'string') return null;
+    const trimmed = dateStr.trim();
+    if (!trimmed) return null;
+
+    // Handle M-YYYY or MM-YYYY (with - or /)
+    const shortDateMatch = trimmed.match(/^(\d{1,2})[-/](\d{4})$/);
+    if (shortDateMatch) {
+        const month = parseInt(shortDateMatch[1]);
+        const year = parseInt(shortDateMatch[2]);
+        if (month >= 1 && month <= 12) {
+            return new Date(year, month - 1, 1);
+        }
+    }
 
     // Handle ISO or YYYY-MM-DD
-    if (dateStr.includes('-')) {
-        const d = new Date(dateStr);
+    if (trimmed.includes('-')) {
+        const d = new Date(trimmed);
         return isNaN(d.getTime()) ? null : d;
     }
 
     // Handle M/D/YYYY or D/M/YYYY
-    if (dateStr.includes('/')) {
-        const parts = dateStr.split('/');
+    if (trimmed.includes('/')) {
+        const parts = trimmed.split('/');
         if (parts.length === 3) {
-            // Check if first part is month or day. Higher chance of M/D in legacy Excel data.
-            // But let's try standard JS parsing first which often handles slash separated.
-            const d = new Date(dateStr);
+            const d = new Date(trimmed);
             if (!isNaN(d.getTime())) return d;
 
-            // Manual fallback for specific M/D/YYYY parts
             const [m, dPart, y] = parts.map(p => parseInt(p));
             if (!isNaN(m) && !isNaN(dPart) && !isNaN(y)) {
-                // Note: Month is 0-indexed in JS Date
                 return new Date(y, m - 1, dPart);
             }
         }
     }
 
-    const d = new Date(dateStr);
+    const d = new Date(trimmed);
     return isNaN(d.getTime()) ? null : d;
 }
 
@@ -129,4 +137,55 @@ export function formatDateForDisplay(date: string | Date | null | undefined): st
         month: 'short',
         year: 'numeric'
     });
+}
+
+/**
+ * Calculates Bachelor Year from Age (CurrentYear - Age + 22)
+ */
+export function calculateBachelorYearFromAge(age: number | string): number | null {
+    const ageNum = typeof age === 'string' ? parseInt(age) : age;
+    if (isNaN(ageNum)) return null;
+
+    const currentYear = new Date().getFullYear();
+    // Formula: Current Year - Age + 22
+    return currentYear - ageNum + 22;
+}
+
+/**
+ * Formats a date string or Date object to mm-YYYY.
+ */
+export function formatMonthYear(date: string | Date | null | undefined): string {
+    if (!date) return "";
+    let d: Date | null = null;
+    if (date instanceof Date) {
+        d = date;
+    } else {
+        d = parseAnyDate(date);
+    }
+    // If not a valid date, just return the string as is (might already be mm-YYYY)
+    if (!d || isNaN(d.getTime())) {
+        if (typeof date === 'string') {
+            const match = date.match(/^(\d{2})[-/](\d{4})$/);
+            if (match) return `${match[1]}-${match[2]}`;
+            return date;
+        }
+        return "";
+    }
+
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${month}-${year}`;
+}
+
+/**
+ * Parses mm-YYYY (or mm/YYYY) string to YYYY-MM-DD.
+ */
+export function parseMonthYearToInput(val: string): string {
+    const match = val.match(/^(\d{1,2})[-/](\d{4})$/);
+    if (match) {
+        const month = match[1].padStart(2, '0');
+        const year = match[2];
+        return `${year}-${month}-01`;
+    }
+    return val;
 }

@@ -177,7 +177,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
                 education_summary: enhance.education_summary,
                 languages: enhance.languages,
                 skills: enhance.skills_list,
-                alt_email: enhance.email
+                alt_email: enhance.email,
+                country: enhance.country,
+                full_address: enhance.full_address
             } : null
         };
 

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, ChevronsUpDown, PlusCircle, Loader2 } from "lucide-react";
+import { Check, ChevronsUpDown, PlusCircle, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -129,12 +129,28 @@ export function StatusSelect({ value, onChange, placeholder = "Select status..."
                         <CommandList>
                             <CommandEmpty>No status found.</CommandEmpty>
                             <CommandGroup>
-                                {statuses.map((status) => (
+                                <CommandItem
+                                    value="none_status_clear"
+                                    onSelect={() => {
+                                        onChange("");
+                                        setOpen(false);
+                                    }}
+                                    className="cursor-pointer text-muted-foreground italic"
+                                >
+                                    <X className="mr-2 h-4 w-4" />
+                                    None (Clear Status)
+                                </CommandItem>
+                                {loading && (
+                                    <div className="p-4 flex justify-center">
+                                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                    </div>
+                                )}
+                                {!loading && statuses.map((status) => (
                                     <CommandItem
                                         key={status.status}
                                         value={status.status}
-                                        onSelect={(currentValue) => {
-                                            onChange(currentValue === value ? "" : currentValue);
+                                        onSelect={() => {
+                                            onChange(status.status);
                                             setOpen(false);
                                         }}
                                     >

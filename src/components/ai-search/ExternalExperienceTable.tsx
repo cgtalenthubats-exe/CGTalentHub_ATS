@@ -45,7 +45,7 @@ export function ExternalExperienceTable({ experiences }: Props) {
                     {experiences.map((exp, index) => (
                         <TableRow key={exp.experience_id || `exp-${index}`} className="hover:bg-slate-50/50">
                             <TableCell className="font-bold text-slate-800 align-top">
-                                {exp.company_name_text || "Unknown Company"}
+                                {exp.company || "Unknown Company"}
                             </TableCell>
                             <TableCell className="text-slate-600 align-top font-medium">{exp.position}</TableCell>
                             <TableCell className="text-right align-top">

@@ -68,6 +68,8 @@ interface Candidate {
     photo?: string;
     linkedin?: string;
     checked?: string;
+    date_of_birth?: string;
+    year_of_bachelor_education?: string | number;
     created_date: string;
     modify_date: string;
     experiences: Experience[];
@@ -81,7 +83,7 @@ interface Experience {
     end_date: string;
     country: string;
     company_industry?: string;
-    is_current_job?: boolean;
+    is_current_job?: string;
 }
 
 export default function CandidateListPage() {
@@ -872,18 +874,17 @@ function ProfileAgeIndicator({ created, modified }: { created: string, modified:
 function sortExperiences(exps: Experience[]) {
     if (!exps) return [];
     return [...exps].sort((a, b) => {
-        const isAPresent = !a.end_date || a.end_date.toLowerCase() === 'present';
-        const isBPresent = !b.end_date || b.end_date.toLowerCase() === 'present';
+        // 1. Present first (is_current_job === true or 'Current' - detail page uses 'Current' string comparison)
+        const aCurrent = a.is_current_job === 'Current' || (a as any).is_current === true;
+        const bCurrent = b.is_current_job === 'Current' || (b as any).is_current === true;
 
-        if (isAPresent && !isBPresent) return -1;
-        if (!isAPresent && isBPresent) return 1;
-        if (isAPresent && isBPresent) return 0;
+        if (aCurrent && !bCurrent) return -1;
+        if (!aCurrent && bCurrent) return 1;
 
-        // Compare dates (assuming string format like "1/2023" or "2023-01")
-        // Try parsing
-        const dateA = new Date(a.end_date);
-        const dateB = new Date(b.end_date);
-        return dateB.getTime() - dateA.getTime();
+        // 2. start_date descending (newest first) - using logic similar to detail page
+        const dateA = a.start_date ? new Date(a.start_date).getTime() : 0;
+        const dateB = b.start_date ? new Date(b.start_date).getTime() : 0;
+        return dateB - dateA;
     });
 }
 
@@ -899,7 +900,7 @@ function CandidateRichCard({
     const [expanded, setExpanded] = useState(true);
     // Sort experiences: Present first, then by End Date descending
     const sortedExperiences = useMemo(() => sortExperiences(candidate.experiences), [candidate.experiences]);
-    const currentJob = sortedExperiences.find(e => e.is_current_job) || sortedExperiences[0];
+    const currentJob = sortedExperiences.find(e => e.is_current_job === 'Current' || (e as any).is_current) || sortedExperiences[0];
 
     return (
         <Card className={cn(
@@ -954,7 +955,7 @@ function CandidateRichCard({
                         </span>
                         <span className="flex items-center gap-1">{candidate.nationality || "N/A"}</span>
                         <span className="w-1 h-1 rounded-full bg-border" />
-                        <span>{candidate.age ? `${candidate.age} Years` : "Age -"}</span>
+                        <span>{candidate.age ? `${candidate.age} Years - ${candidate.date_of_birth ? "DoB" : "Bachelor year"}` : "Age -"}</span>
                         <span className="w-1 h-1 rounded-full bg-border" />
                         <span>{candidate.gender || "Gender -"}</span>
                         <span className="w-1 h-1 rounded-full bg-border" />
@@ -982,20 +983,27 @@ function CandidateRichCard({
                         <div className="col-span-3 text-right pr-4">Period</div>
                     </div>
                     <div className="divide-y divide-border/50">
-                        {sortedExperiences.map((exp) => (
-                            <div key={exp.id} className="grid grid-cols-12 gap-4 px-6 py-2.5 text-xs hover:bg-white/50 transition-colors items-center">
-                                <div className="col-span-4 font-semibold text-foreground truncate" title={exp.position}>{exp.position}</div>
-                                <div className="col-span-3 text-muted-foreground truncate" title={exp.company}>{exp.company}</div>
-                                <div className="col-span-2 text-muted-foreground truncate" title={exp.country}>{exp.country}</div>
-                                <div className="col-span-3 text-right pr-4 font-mono text-[11px]">
-                                    <span className="text-muted-foreground">{exp.start_date || "?"}</span>
-                                    <span className="mx-1 text-muted-foreground/50">-</span>
-                                    <span className={!exp.end_date || exp.end_date.toLowerCase() === 'present' ? "text-emerald-600 font-bold" : "text-muted-foreground"}>
-                                        {!exp.end_date || exp.end_date.toLowerCase() === 'present' ? 'Present' : exp.end_date}
-                                    </span>
+                        {sortedExperiences.map((exp) => {
+                            const isCurrent = exp.is_current_job === 'Current' || (exp as any).is_current === true;
+                            return (
+                                <div key={exp.id} className={cn(
+                                    "grid grid-cols-12 gap-4 px-6 py-2.5 text-xs transition-colors items-center",
+                                    isCurrent ? "bg-blue-50/50" : "hover:bg-white/50"
+                                )}>
+                                    <div className="col-span-4 font-semibold text-foreground truncate flex items-center gap-2" title={exp.position}>
+                                        {exp.position}
+                                        {isCurrent && <Badge variant="default" className="text-[10px] h-4 px-1 bg-blue-600 hover:bg-blue-700">Current</Badge>}
+                                    </div>
+                                    <div className="col-span-3 text-muted-foreground truncate" title={exp.company}>{exp.company}</div>
+                                    <div className="col-span-2 text-muted-foreground truncate" title={exp.country}>{exp.country}</div>
+                                    <div className="col-span-3 text-right pr-4 font-mono text-[11px]">
+                                        <Badge variant={isCurrent ? "default" : "secondary"} className="font-mono text-[10px] px-1.5 py-0 h-5 shadow-none border border-border/50">
+                                            {exp.start_date || "?"} - {isCurrent ? 'Present' : (exp.end_date || "?")}
+                                        </Badge>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
                         {sortedExperiences.length === 0 && (
                             <div className="p-4 text-center text-xs text-muted-foreground">No experience recorded.</div>
                         )}

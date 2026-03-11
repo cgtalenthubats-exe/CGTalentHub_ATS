@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -108,32 +109,45 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData }: C
         original_jr_id: initialData?.original_jr_id || "",
         job_description: initialData?.job_description || "",
         feedback_file: initialData?.feedback_file || "",
-        create_by: initialData?.created_by || "Admin"
+        create_by: initialData?.created_by || ""
     });
 
+    const [currentUserName, setCurrentUserName] = useState<string>("");
+
     // Load Distinct Values on Mount
-    useState(() => {
+    useEffect(() => {
         async function loadOptions() {
             try {
-                const { getDistinctFieldValues } = await import("@/app/actions/requisitions");
-                const [pos, bus, subs, jrs] = await Promise.all([
+                const [{ getDistinctFieldValues }, { getCurrentUserRealName }] = await Promise.all([
+                    import("@/app/actions/requisitions"),
+                    import("@/app/actions/user-actions")
+                ]);
+
+                const [pos, bus, subs, jrs, name] = await Promise.all([
                     getDistinctFieldValues('position_jr'),
                     getDistinctFieldValues('bu'),
                     getDistinctFieldValues('sub_bu'),
-                    getDistinctFieldValues('jr_id')
+                    getDistinctFieldValues('jr_id'),
+                    getCurrentUserRealName()
                 ]);
+
                 setOptions({
                     positions: pos,
                     divisions: bus,
                     subDivisions: subs,
                     originalJrs: jrs
                 });
+
+                setCurrentUserName(name);
+                if (!isEdit) {
+                    setFormData(prev => ({ ...prev, create_by: name }));
+                }
             } catch (e) {
                 console.error("Failed to load options", e);
             }
         }
         loadOptions();
-    });
+    }, []);
 
     const handleChange = (key: string, value: any) => {
         setFormData(prev => ({ ...prev, [key]: value }));
@@ -146,15 +160,26 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData }: C
         try {
             if (isEdit) {
                 const { updateJobRequisition } = await import("@/app/actions/requisitions");
-                const updatedJR = await updateJobRequisition(initialData.id, formData);
-                if (updatedJR) onSuccess(updatedJR);
+                const result = await updateJobRequisition(initialData.id, formData);
+                if (result.success && result.data) {
+                    toast.success("Job Requisition updated successfully");
+                    onSuccess(result.data);
+                } else {
+                    toast.error(result.error || "Failed to update Job Requisition. Check if required fields like Original JR ID are correct.");
+                }
             } else {
                 const { createJobRequisition } = await import("@/app/actions/requisitions");
                 const newJR = await createJobRequisition(formData);
-                if (newJR) onSuccess(newJR);
+                if (newJR) {
+                    toast.success("Job Requisition created successfully");
+                    onSuccess(newJR);
+                } else {
+                    toast.error("Failed to create Job Requisition");
+                }
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to save JR", error);
+            toast.error(error.message || "An unexpected error occurred");
         } finally {
             setIsLoading(false);
         }
@@ -294,19 +319,25 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData }: C
                 />
             </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t">
-                <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
-                    Cancel
-                </Button>
-                <Button type="submit" disabled={isLoading} className="bg-primary text-primary-foreground">
-                    {isLoading ? (
-                        <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {isEdit ? "Saving..." : "Creating..."}
-                        </>
-                    ) : (
-                        isEdit ? "Update Requisition" : "Create Requisition"
-                    )}
-                </Button>
+            <div className="flex items-center justify-between pt-4 border-t">
+                <div className="flex flex-col">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Created By</span>
+                    <span className="text-sm font-black text-indigo-600">{currentUserName || "Loading..."}</span>
+                </div>
+                <div className="flex gap-3">
+                    <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
+                        Cancel
+                    </Button>
+                    <Button type="submit" disabled={isLoading} className="bg-primary text-primary-foreground">
+                        {isLoading ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {isEdit ? "Saving..." : "Creating..."}
+                            </>
+                        ) : (
+                            isEdit ? "Update Requisition" : "Create Requisition"
+                        )}
+                    </Button>
+                </div>
             </div>
         </form>
     );

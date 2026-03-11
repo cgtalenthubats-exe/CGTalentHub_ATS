@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 
 // Get current logged-in user email from session
-async function getCurrentUserEmail(): Promise<string> {
+export async function getCurrentUserEmail(): Promise<string> {
     try {
         const supabase = await createClient();
         const { data: { user } } = await supabase.auth.getUser();

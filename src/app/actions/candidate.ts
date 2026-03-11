@@ -14,9 +14,9 @@ export async function addExperience(candidateId: string, formData: FormData) {
     const industry = formData.get("industry") as string;
     const group = formData.get("group") as string;
 
-    if (!candidateId || !position || !companyName) {
-        return { error: "Missing required fields" };
-    }
+    if (!candidateId) return { error: "Missing Candidate ID" };
+    if (!position) return { error: "Missing Position" };
+    if (!companyName) return { error: "Missing Company Name" };
 
     let finalCompanyId = companyIdInput;
     let finalIndustry = industry;
@@ -66,15 +66,14 @@ export async function addExperience(candidateId: string, formData: FormData) {
     const { error } = await client.from("candidate_experiences").insert({
         candidate_id: candidateId,
         position: position,
-        company_name_text: companyName, // Keep text valid
-        company: companyName, // Also update 'company' column if it exists and is used
+        company: companyName,
         company_id: finalCompanyId || null,
         company_industry: finalIndustry || null,
         company_group: finalGroup || null,
         country: country || null,
         start_date: startDate || null,
         end_date: isCurrent ? null : (endDate || null),
-        is_current: isCurrent
+        is_current_job: isCurrent ? "Current" : "Past"
     });
 
     if (error) {
@@ -184,7 +183,7 @@ export async function deleteExperience(experienceId: string, candidateId: string
     const { error } = await client
         .from("candidate_experiences")
         .delete()
-        .eq("experience_id", experienceId);
+        .eq("id", experienceId);
 
     if (error) {
         return { error: error.message };
@@ -195,37 +194,105 @@ export async function deleteExperience(experienceId: string, candidateId: string
 }
 
 // Set (or toggle off) the 'Current' job for a candidate.
-// Clears is_current_job on all rows, then marks the chosen experience as 'Current'.
-// If the chosen experience is already 'Current', it will be cleared (toggled off).
-export async function setCurrentExperience(experienceId: string, candidateId: string, currentlyIsCurrent: boolean) {
+// Simplified: Just set the selected experience as 'Current'.
+export async function setCurrentExperience(experienceId: string, candidateId: string) {
     const client = adminAuthClient as any;
 
-    // 1. Clear is_current_job for ALL experiences of this candidate
-    const { error: clearError } = await client
+    // 1. Fetch current state to ensure toggle is accurate
+    const { data: currentExp } = await client
         .from("candidate_experiences")
-        .update({ is_current_job: null })
-        .eq("candidate_id", candidateId);
+        .select("is_current_job")
+        .eq("id", experienceId)
+        .single();
 
-    if (clearError) {
-        console.error("setCurrentExperience clear error:", clearError);
-        return { error: clearError.message };
+    const currentlyIsCurrent = currentExp?.is_current_job === 'Current';
+
+    // 2. Toggle logic: Current -> Past, anything else -> Current
+    const newStatus = currentlyIsCurrent ? "Past" : "Current";
+    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+    const updateData: any = {
+        is_current_job: newStatus,
+        is_current: newStatus === "Current"
+    };
+
+    if (newStatus === "Current") {
+        updateData.end_date = null; // null displays as "Present"
+    } else {
+        updateData.end_date = today; // Set end_date to today when moving to "Past"
     }
 
-    // 2. If toggling off: we're done (already cleared above)
-    if (currentlyIsCurrent) {
-        revalidatePath(`/candidates/${candidateId}`);
-        return { success: true };
-    }
-
-    // 3. Set the selected experience as 'Current'
     const { error: setError } = await client
         .from("candidate_experiences")
-        .update({ is_current_job: "Current" })
-        .eq("experience_id", experienceId);
+        .update(updateData)
+        .eq("id", experienceId);
 
     if (setError) {
         console.error("setCurrentExperience set error:", setError);
         return { error: setError.message };
+    }
+
+    revalidatePath(`/candidates/${candidateId}`);
+    return { success: true };
+}
+
+export async function updateExperience(experienceId: string, candidateId: string, formData: FormData) {
+    const position = formData.get("position") as string;
+    const companyName = formData.get("company") as string;
+    const companyIdInput = formData.get("company_id") as string;
+    const startDate = formData.get("start_date") as string;
+    const endDate = formData.get("end_date") as string;
+    const isCurrent = formData.get("is_current") === "on";
+    const country = formData.get("country") as string;
+    const industry = formData.get("industry") as string;
+    const group = formData.get("group") as string;
+
+    if (!experienceId) return { error: "Missing Experience ID" };
+    if (!candidateId) return { error: "Missing Candidate ID" };
+    if (!position) return { error: "Missing Position" };
+    if (!companyName) return { error: "Missing Company Name" };
+
+    const client = adminAuthClient as any;
+
+    let finalCompanyId = companyIdInput;
+
+    // Simple company check (similar to addExperience but simplified for update)
+    if (!finalCompanyId) {
+        const { data: existing } = await client
+            .from("company_master")
+            .select("company_id")
+            .ilike("company_master", companyName)
+            .maybeSingle();
+
+        if (existing) {
+            finalCompanyId = existing.company_id;
+        } else {
+            const { data: newComp } = await client
+                .from("company_master")
+                .insert({ company_master: companyName, industry: industry || null, group: group || null })
+                .select("company_id")
+                .single();
+            if (newComp) finalCompanyId = newComp.company_id;
+        }
+    }
+
+    const { error } = await client
+        .from("candidate_experiences")
+        .update({
+            position,
+            company: companyName,
+            company_id: finalCompanyId || null,
+            company_industry: industry || null,
+            company_group: group || null,
+            country: country || null,
+            start_date: startDate || null,
+            end_date: isCurrent ? null : (endDate || null),
+            is_current_job: isCurrent ? "Current" : "Past"
+        })
+        .eq("id", experienceId);
+
+    if (error) {
+        return { error: error.message };
     }
 
     revalidatePath(`/candidates/${candidateId}`);
@@ -265,4 +332,32 @@ export async function searchCandidates(query: string) {
     }
 
     return data;
+}
+
+export async function getIndustryGroupMaster() {
+    const client = adminAuthClient as any;
+    const { data, error } = await client
+        .from("industry_group")
+        .select("industry, group")
+        .order("industry", { ascending: true });
+
+    if (error) {
+        console.error("Error fetching industry_group master:", error);
+        return [];
+    }
+    return data;
+}
+
+export async function getCountryMaster() {
+    const client = adminAuthClient as any;
+    const { data, error } = await client
+        .from("country")
+        .select("country")
+        .order("country", { ascending: true });
+
+    if (error) {
+        console.error("Error fetching country master:", error);
+        return [];
+    }
+    return data.map((c: any) => c.country).filter(Boolean);
 }

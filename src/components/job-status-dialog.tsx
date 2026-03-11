@@ -5,6 +5,7 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -22,6 +23,7 @@ export function JobStatusDetailDialog({ log, status, date }: { log: any, status:
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Status Details</DialogTitle>
+                    <DialogDescription>Viewing detailed notes and metadata for this status change log.</DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-2">
                     <div className="flex items-center justify-between">

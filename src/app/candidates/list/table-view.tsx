@@ -27,7 +27,7 @@ export interface Experience {
     end_date: string;
     country: string;
     company_industry?: string;
-    is_current_job?: boolean;
+    is_current_job?: string;
 }
 
 export interface Candidate {
@@ -44,6 +44,8 @@ export interface Candidate {
     photo?: string;
     linkedin?: string;
     checked?: string;
+    date_of_birth?: string;
+    year_of_bachelor_education?: string | number;
     created_date: string;
     modify_date: string;
     experiences: Experience[];
@@ -60,16 +62,17 @@ interface CandidateTableViewProps {
 function sortExperiences(exps: Experience[]) {
     if (!exps) return [];
     return [...exps].sort((a, b) => {
-        const isAPresent = !a.end_date || a.end_date.toLowerCase() === 'present';
-        const isBPresent = !b.end_date || b.end_date.toLowerCase() === 'present';
+        // 1. Present first (is_current_job === true or 'Current')
+        const aCurrent = a.is_current_job === 'Current' || (a as any).is_current === true;
+        const bCurrent = b.is_current_job === 'Current' || (b as any).is_current === true;
 
-        if (isAPresent && !isBPresent) return -1;
-        if (!isAPresent && isBPresent) return 1;
-        if (isAPresent && isBPresent) return 0;
+        if (aCurrent && !bCurrent) return -1;
+        if (!aCurrent && bCurrent) return 1;
 
-        const dateA = new Date(a.end_date);
-        const dateB = new Date(b.end_date);
-        return dateB.getTime() - dateA.getTime();
+        // 2. start_date descending (newest first)
+        const dateA = a.start_date ? new Date(a.start_date).getTime() : 0;
+        const dateB = b.start_date ? new Date(b.start_date).getTime() : 0;
+        return dateB - dateA;
     });
 }
 
@@ -86,7 +89,7 @@ const CandidateRow = ({
 
     // Sort experiences
     const sortedExperiences = sortExperiences(candidate.experiences);
-    const latestExp = sortedExperiences.find(e => e.is_current_job) || sortedExperiences[0];
+    const latestExp = sortedExperiences.find(e => e.is_current_job === 'Current' || (e as any).is_current) || sortedExperiences[0];
 
     return (
         <>
@@ -131,7 +134,7 @@ const CandidateRow = ({
                                 <CandidateLinkedinButton checked={candidate.checked} linkedin={candidate.linkedin} candidateId={candidate.candidate_id} className="h-6 w-6 [&_svg]:h-3 [&_svg]:w-3" />
                             </div>
                             <span className="text-[11px] text-slate-500 mt-1">
-                                {candidate.nationality} • {candidate.age} yrs • {candidate.gender}
+                                {candidate.nationality} • {candidate.age ? `${candidate.age} yrs - ${candidate.date_of_birth ? "DoB" : "Bachelor year"}` : "Age -"} • {candidate.gender}
                             </span>
                         </div>
                     </div>
@@ -201,17 +204,25 @@ const CandidateRow = ({
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {sortedExperiences.map((exp) => (
-                                            <TableRow key={exp.id} className="hover:bg-slate-50 border-b-slate-50">
-                                                <TableCell className="py-2 text-xs font-medium text-slate-700">{exp.position}</TableCell>
-                                                <TableCell className="py-2 text-xs text-slate-600">{exp.company}</TableCell>
-                                                <TableCell className="py-2 text-xs text-slate-500">{exp.company_industry || '-'}</TableCell>
-                                                <TableCell className="py-2 text-xs text-slate-500">{exp.country}</TableCell>
-                                                <TableCell className="py-2 text-xs text-right font-mono text-slate-500">
-                                                    {exp.start_date} - {exp.end_date}
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
+                                        {sortedExperiences.map((exp) => {
+                                            const isCurrent = exp.is_current_job === 'Current' || (exp as any).is_current === true;
+                                            return (
+                                                <TableRow key={exp.id} className={cn("border-b-slate-50", isCurrent ? "bg-blue-50/50 hover:bg-blue-50/70" : "hover:bg-slate-50")}>
+                                                    <TableCell className="py-2 text-xs font-medium text-slate-700 flex items-center gap-2">
+                                                        {exp.position}
+                                                        {isCurrent && <Badge variant="default" className="text-[9px] h-3.5 px-1 bg-blue-600">Current</Badge>}
+                                                    </TableCell>
+                                                    <TableCell className="py-2 text-xs text-slate-600">{exp.company}</TableCell>
+                                                    <TableCell className="py-2 text-xs text-slate-500">{exp.company_industry || '-'}</TableCell>
+                                                    <TableCell className="py-2 text-xs text-slate-500">{exp.country}</TableCell>
+                                                    <TableCell className="py-2 text-xs text-right font-mono text-slate-500">
+                                                        <Badge variant={isCurrent ? "default" : "secondary"} className="font-mono text-[10px] px-1.5 py-0 h-5 shadow-none border border-border/50">
+                                                            {exp.start_date} - {isCurrent ? 'Present' : exp.end_date}
+                                                        </Badge>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
                                         {sortedExperiences.length === 0 && (
                                             <TableRow>
                                                 <TableCell colSpan={5} className="text-center py-4 text-xs text-muted-foreground">No experience recorded.</TableCell>

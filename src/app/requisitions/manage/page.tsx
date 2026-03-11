@@ -12,7 +12,7 @@ import { KanbanBoard } from "@/components/kanban-board";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, List, Kanban, MessageSquare, Briefcase, Share2, Loader2, Copy, Trophy, Trash2 } from "lucide-react";
+import { Plus, List, Kanban, MessageSquare, Briefcase, Share2, Loader2, Copy, Trophy, Trash2, Edit } from "lucide-react";
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
 } from "recharts";
@@ -57,6 +57,7 @@ export default function JRManagePage() {
     const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [isEditOpen, setIsEditOpen] = useState(false);
 
     // Sync URL with Tab
     const handleTabChange = (val: string) => {
@@ -190,9 +191,9 @@ export default function JRManagePage() {
                         </div>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row lg:flex-row gap-4">
-                        {/* Primary Action Group: Create & Copy */}
-                        <div className="flex flex-col gap-2 min-w-[200px]">
+                    <div className="w-full lg:w-auto">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            {/* Row 1 */}
                             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                                 <DialogTrigger asChild>
                                     <Button className="bg-primary text-primary-foreground w-full">
@@ -215,31 +216,10 @@ export default function JRManagePage() {
                             </Dialog>
 
                             <Button
-                                disabled={!selectedJR}
-                                onClick={() => setIsCopyDialogOpen(true)}
-                                className="bg-amber-500 hover:bg-amber-600 text-white w-full"
-                            >
-                                <Copy className="mr-2 h-4 w-4" /> Copy Job Requisition
-                            </Button>
-
-                            {selectedJR && (
-                                <Button
-                                    variant="destructive"
-                                    className="w-full"
-                                    onClick={() => setIsDeleteDialogOpen(true)}
-                                >
-                                    <Trash2 className="mr-2 h-4 w-4" /> Delete This JR
-                                </Button>
-                            )}
-                        </div>
-
-                        {/* Secondary Action Group */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 lg:flex lg:flex-row gap-2 h-fit">
-                            <Button
                                 disabled={!selectedJR || isTriggeringReport}
                                 variant="outline"
                                 onClick={handleCreateReport}
-                                className="border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                                className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 w-full"
                             >
                                 {isTriggeringReport ? (
                                     <>
@@ -251,27 +231,76 @@ export default function JRManagePage() {
                                     </>
                                 )}
                             </Button>
+
                             <Button
                                 disabled={!selectedJR}
                                 variant="outline"
                                 onClick={() => setIsReportViewOpen(true)}
-                                className="border-slate-200"
+                                className="border-slate-200 w-full"
                             >
                                 <BarChart className="mr-2 h-4 w-4" /> View History
                             </Button>
+
                             <Button
                                 variant="outline"
                                 onClick={() => router.push('/requisitions/placements')}
-                                className="border-amber-200 text-amber-700 hover:bg-amber-50"
+                                className="border-amber-200 text-amber-700 hover:bg-amber-50 w-full"
                             >
                                 <Trophy className="mr-2 h-4 w-4" /> Placements
                             </Button>
+
+                            {/* Row 2 */}
                             <Button
                                 disabled={!selectedJR}
                                 onClick={() => setIsAddCandOpen(true)}
-                                className="shadow-sm"
+                                className="shadow-sm w-full bg-slate-900 hover:bg-slate-800 text-white"
                             >
                                 <Plus className="mr-2 h-4 w-4" /> Add Candidate
+                            </Button>
+
+                            <Button
+                                disabled={!selectedJR}
+                                onClick={() => setIsCopyDialogOpen(true)}
+                                className="bg-amber-500 hover:bg-amber-600 text-white w-full"
+                            >
+                                <Copy className="mr-2 h-4 w-4" /> Copy Job Requisition
+                            </Button>
+
+                            <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+                                <DialogTrigger asChild>
+                                    <Button
+                                        disabled={!selectedJR}
+                                        variant="outline"
+                                        className="border-blue-200 text-blue-700 hover:bg-blue-50 w-full"
+                                    >
+                                        <Edit className="mr-2 h-4 w-4" /> Edit Job Requisition
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                                    <DialogHeader className="mb-6 text-center">
+                                        <DialogTitle className="text-2xl font-bold">Edit Requisition</DialogTitle>
+                                        <DialogDescription>Updating <strong>{selectedJR?.id}</strong> details.</DialogDescription>
+                                    </DialogHeader>
+                                    {selectedJR && (
+                                        <CreateJobRequisitionForm
+                                            initialData={selectedJR}
+                                            onCancel={() => setIsEditOpen(false)}
+                                            onSuccess={(updatedJR) => {
+                                                setIsEditOpen(false);
+                                                setSelectedJR(updatedJR);
+                                            }}
+                                        />
+                                    )}
+                                </DialogContent>
+                            </Dialog>
+
+                            <Button
+                                disabled={!selectedJR}
+                                variant="destructive"
+                                className="w-full"
+                                onClick={() => setIsDeleteDialogOpen(true)}
+                            >
+                                <Trash2 className="mr-2 h-4 w-4" /> Delete This JR
                             </Button>
                         </div>
                     </div>

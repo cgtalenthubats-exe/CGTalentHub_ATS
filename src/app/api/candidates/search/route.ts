@@ -147,7 +147,7 @@ export async function POST(req: Request) {
 
                 adminAuthClient
                     .from('Candidate Profile')
-                    .select('candidate_id, blacklist_note, linkedin, checked')
+                    .select('candidate_id, blacklist_note, linkedin, checked, date_of_birth, year_of_bachelor_education')
                     .in('candidate_id', pageCandidateIds)
             ]);
 
@@ -166,7 +166,9 @@ export async function POST(req: Request) {
                         blacklist_note: extraData.blacklist_note || null,
                         linkedin: extraData.linkedin || p.linkedin,
                         checked: extraData.checked || p.checked,
-                        age: getEffectiveAge(p.date_of_birth, p.year_of_bachelor_education),
+                        date_of_birth: extraData.date_of_birth || p.date_of_birth,
+                        year_of_bachelor_education: extraData.year_of_bachelor_education || p.year_of_bachelor_education,
+                        age: getEffectiveAge(extraData.date_of_birth || p.date_of_birth, extraData.year_of_bachelor_education || p.year_of_bachelor_education),
                         experiences: fullExp.filter((e: any) => e.candidate_id === p.candidate_id)
                     };
                 }

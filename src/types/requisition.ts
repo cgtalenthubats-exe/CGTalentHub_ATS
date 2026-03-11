@@ -18,6 +18,8 @@ export interface JobRequisition {
     title: string; // Alias for job_title
     jr_type: string; // New or Replacement
     created_by?: string;
+    original_jr_id?: string;
+    feedback_file?: string;
 }
 
 export interface JRCandidate {
@@ -51,13 +53,12 @@ export interface JRAnalytics {
 }
 
 export interface StatusLog {
-    id: string; // log_id
+    log_id: number;
     jr_candidate_id: string;
-    status_from: string;
-    status_to: string;
-    changed_by: string; // user_id or name
-    changed_at: string;
-    remark?: string;
+    status: string;
+    timestamp: string;
+    updated_By: string;
+    note: string | null;
 }
 
 export interface InterviewFeedback {

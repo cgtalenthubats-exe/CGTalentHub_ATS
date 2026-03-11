@@ -10,6 +10,7 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -55,6 +56,7 @@ export function AddPrescreenDialog({ candidateId }: { candidateId: string }) {
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                     <DialogTitle>Add Pre-Screen Log</DialogTitle>
+                    <DialogDescription>Record a new screening session for this candidate.</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4 py-4">
                     <div className="grid grid-cols-2 gap-4">
@@ -126,10 +128,13 @@ export function DeleteCandidateDialog({ id, name }: { id: string, name: string }
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Confirm Deletion</DialogTitle>
+                    <DialogDescription>
+                        Are you sure you want to delete <span className="font-bold">{name}</span> ({id})?
+                        This action cannot be undone and will remove all associated data.
+                    </DialogDescription>
                 </DialogHeader>
-                <div className="py-4">
-                    <p>Are you sure you want to delete <span className="font-bold">{name}</span> ({id})?</p>
-                    <p className="text-sm text-muted-foreground mt-2">This action cannot be undone.</p>
+                <div className="py-4 sr-only">
+                    {/* Hidden div if we wanted to keep the old structure, but DialogDescription is better */}
                 </div>
                 <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>

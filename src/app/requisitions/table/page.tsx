@@ -18,6 +18,7 @@ import { CreateJobRequisitionForm } from "@/components/create-jr-form";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CopyJRDialog } from "@/components/copy-jr-dialog";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { deleteJobRequisition } from "@/app/actions/requisitions";
 import {
@@ -285,10 +286,11 @@ export default function RequisitionsPage() {
         setIsDeleting(false);
         setDeleteDialogOpen(false);
         if (result.success) {
+            toast.success(`Deleted ${jrToDelete.id} successfully.`);
             setJrs(prev => prev.filter(j => j.id !== jrToDelete.id));
             setJrToDelete(null);
         } else {
-            alert('Error deleting JR: ' + result.error);
+            toast.error('Error deleting JR: ' + result.error);
         }
     };
 
@@ -323,10 +325,10 @@ export default function RequisitionsPage() {
                             </Button>
                         </DialogTrigger>
                         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-                            <div className="text-center mb-6">
-                                <h2 className="text-2xl font-bold">Create New Requisition</h2>
-                                <p className="text-muted-foreground">Drafting a new job requisition. ID will be generated automatically.</p>
-                            </div>
+                            <DialogHeader className="text-center mb-6">
+                                <DialogTitle className="text-2xl font-bold">Create New Requisition</DialogTitle>
+                                <DialogDescription>Drafting a new job requisition. ID will be generated automatically.</DialogDescription>
+                            </DialogHeader>
                             <CreateJobRequisitionForm
                                 onCancel={() => setIsCreateOpen(false)}
                                 onSuccess={(newJR) => {

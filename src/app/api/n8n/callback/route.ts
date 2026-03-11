@@ -199,7 +199,6 @@ export async function POST(req: NextRequest) {
                     candidate_id: newCandidateId,
                     name: candidateName,
                     company: companyName, // Verified column: 'company'
-                    // company_name_text: companyName, // Removed: Not in DB
                     position: exp.Position || exp.position || "Unknown Position",
                     start_date: parseDate(startDateStr),
                     end_date: parseDate(endDateStr),

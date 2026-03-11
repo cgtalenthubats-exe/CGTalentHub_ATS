@@ -161,7 +161,7 @@ export async function getInternalCandidateDetails(candidateId: string) {
             .from('candidate_experiences')
             .select('*')
             .eq('candidate_id', candidateId)
-            .order('experience_id', { ascending: true });
+            .order('id', { ascending: true });
 
 
         if (expError) throw expError;
@@ -186,11 +186,11 @@ export async function getInternalCandidateDetails(candidateId: string) {
                 ...(enhance || {}),
                 experiences: (experiences || []).map((e: any) => ({
                     ...e,
-                    // Ensure company name is mapped to company_name_text
-                    company_name_text: e.company_name_text || e.company_name || e.company || 'Unknown Company',
+                    // Ensure company name is mapped to company
+                    company: e.company || e.company_name || 'Unknown Company',
                     start_date: e.start_date,
                     end_date: e.end_date,
-                    is_current: e.is_current,
+                    is_current: e.is_current_job === 'Current',
                     description: e.description,
                     position: e.position
                 }))
@@ -260,10 +260,10 @@ export async function getExternalCandidateDetails(extCandidateId: string) {
                 ...(enhance || {}), // Spread enhance if exists, otherwise empty
                 experiences: (experiences || []).map((e: any) => ({
                     ...e,
-                    company_name_text: e.company_name_text || e.company_name || e.company || 'Unknown Company',
+                    company: e.company || e.company_name || 'Unknown Company',
                     start_date: e.start_date,
                     end_date: e.end_date,
-                    is_current: e.is_current,
+                    is_current: e.is_current_job === 'Current',
                     description: e.description,
                     position: e.position
                 }))

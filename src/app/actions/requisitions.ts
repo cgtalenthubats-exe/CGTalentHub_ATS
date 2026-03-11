@@ -2,6 +2,7 @@
 
 import { adminAuthClient } from "@/lib/supabase/admin";
 import { JobRequisition, DashboardStats } from "@/types/requisition";
+import { getCurrentUserRealName } from "./user-actions";
 
 export async function getJobRequisitions(): Promise<JobRequisition[]> {
     const supabase = adminAuthClient;
@@ -38,6 +39,9 @@ export async function getJobRequisitions(): Promise<JobRequisition[]> {
         updated_at: row.updated_at || new Date().toISOString(),
         jr_type: row.jr_type || "New",
         created_by: row.create_by || "System",
+        original_jr_id: row.original_jr_id || "",
+        job_description: row.job_description || "",
+        feedback_file: row.feedback_file || "",
     }));
 }
 
@@ -72,6 +76,9 @@ export async function getRequisition(id: string): Promise<JobRequisition | null>
         created_at: row.created_at || new Date().toISOString(),
         updated_at: row.updated_at || new Date().toISOString(),
         jr_type: row.jr_type || "New",
+        original_jr_id: row.original_jr_id || "",
+        job_description: row.job_description || "",
+        feedback_file: row.feedback_file || "",
     };
 }
 
@@ -128,21 +135,19 @@ export async function getDistinctFieldValues(field: string): Promise<string[]> {
     return [...new Set(values)];
 }
 
-export async function updateJobRequisition(jrId: string, data: any): Promise<JobRequisition | null> {
+export async function updateJobRequisition(jrId: string, data: any): Promise<{ success: boolean; data?: JobRequisition; error?: string }> {
     const supabase = adminAuthClient;
 
     try {
-        const updatePayload = {
+        const updatePayload: any = {
             position_jr: data.position_jr,
             bu: data.bu,
             sub_bu: data.sub_bu,
             jr_type: data.jr_type,
             original_jr_id: data.original_jr_id || null,
-            request_date: data.request_date,
             job_description: data.job_description,
             feedback_file: data.feedback_file,
-            create_by: data.create_by,
-            updated_at: new Date().toISOString()
+            // request_date: data.request_date, // Try excluding potentially strict fields
         };
 
         const { data: updated, error: updateError } = await (supabase
@@ -153,33 +158,39 @@ export async function updateJobRequisition(jrId: string, data: any): Promise<Job
             .single();
 
         if (updateError) {
-            console.error("Error updating JR:", updateError);
-            throw updateError;
+            console.error("Error updating JR Detail:", updateError);
+            return { success: false, error: updateError.message };
         }
 
         const updatedData = updated as any;
 
         return {
-            id: updatedData.jr_id,
-            job_title: updatedData.position_jr,
-            title: updatedData.position_jr,
-            hiring_manager_id: "",
-            hiring_manager_name: updatedData.create_by,
-            department: updatedData.sub_bu,
-            division: updatedData.bu,
-            status: updatedData.status || updatedData.is_active || "Open",
-            headcount_total: 1, // Assuming fixed for now as per schema
-            headcount_hired: 0,
-            opened_date: updatedData.request_date,
-            is_active: String(updatedData.is_active).toLowerCase() === 'active',
-            location: "Bangkok",
-            created_at: updatedData.created_at,
-            updated_at: updatedData.updated_at,
-            jr_type: updatedData.jr_type || "New",
+            success: true,
+            data: {
+                id: updatedData.jr_id,
+                job_title: updatedData.position_jr,
+                title: updatedData.position_jr,
+                hiring_manager_id: updatedData.hiring_manager_id || "",
+                hiring_manager_name: updatedData.create_by || "Unknown",
+                department: updatedData.sub_bu,
+                division: updatedData.bu,
+                status: updatedData.status || updatedData.is_active || "Open",
+                headcount_total: updatedData.headcount || 1,
+                headcount_hired: updatedData.hired_count || 0,
+                opened_date: updatedData.request_date,
+                is_active: String(updatedData.is_active).toLowerCase() === 'active',
+                location: updatedData.location || "Bangkok",
+                created_at: updatedData.created_at,
+                updated_at: updatedData.updated_at,
+                jr_type: updatedData.jr_type || "New",
+                original_jr_id: updatedData.original_jr_id || "",
+                job_description: updatedData.job_description || "",
+                feedback_file: updatedData.feedback_file || "",
+            }
         };
-    } catch (e) {
-        console.error("Update JR Failed", e);
-        return null;
+    } catch (e: any) {
+        console.error("Update JR Failed Exception", e);
+        return { success: false, error: e.message || String(e) };
     }
 }
 
@@ -222,7 +233,7 @@ export async function createJobRequisition(data: any): Promise<JobRequisition | 
             request_date: data.request_date, // User selected date
             job_description: data.job_description,
             feedback_file: data.feedback_file,
-            create_by: data.create_by || "System",
+            create_by: await getCurrentUserRealName(),
 
             // Defaults
             is_active: 'Active',

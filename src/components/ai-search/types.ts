@@ -59,7 +59,7 @@ export interface ExternalCandidateDetail {
 export interface ExternalExperience {
     experience_id: string;
     candidate_id: string;
-    company_name_text: string;
+    company: string;
     position: string;
     start_date?: string;
     end_date?: string;

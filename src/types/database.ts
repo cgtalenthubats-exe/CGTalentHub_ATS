@@ -58,14 +58,14 @@ export interface Database {
             }
             candidate_experiences: {
                 Row: {
-                    experience_id: string
+                    id: string
                     candidate_id: string
                     company_id?: string | null
-                    company_name_text: string
+                    company: string
                     position: string
                     start_date: string | null
                     end_date: string | null
-                    is_current: boolean
+                    is_current_job: string
                     description?: string | null
                 }
             }

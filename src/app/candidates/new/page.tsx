@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import React, { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft, Save, UserPlus, Briefcase, Mail, Phone, Globe, Check, ChevronsUpDown, Camera, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,10 +24,19 @@ import {
     PopoverTrigger,
 } from "@/components/ui/popover";
 import { toast } from "sonner";
-import { getEffectiveAge, extractYear } from "@/lib/date-utils";
+import { getEffectiveAge, extractYear, calculateBachelorYearFromAge } from "@/lib/date-utils";
 
 export default function NewCandidatePage() {
+    return (
+        <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><Loader2 className="animate-spin" /></div>}>
+            <CandidateForm />
+        </Suspense>
+    );
+}
+
+function CandidateForm() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const [loading, setLoading] = useState(false);
 
     // Master Data
@@ -75,8 +84,26 @@ export default function NewCandidatePage() {
         fetchNat();
     }, []);
 
+    // Effect for pre-filling data from query params (e.g., from OrgChart)
+    useEffect(() => {
+        const name = searchParams.get('name');
+        const linkedin = searchParams.get('linkedin');
+        const title = searchParams.get('title');
+
+        if (name || linkedin) {
+            setFormData(prev => ({
+                ...prev,
+                name: name || prev.name,
+                linkedin: linkedin || prev.linkedin,
+                education: title ? `Target Position: ${title}` : prev.education
+            }));
+        }
+    }, [searchParams]);
+
     // Age Calculation Effect (Uses Dynamic Logic)
     useEffect(() => {
+        if (formData.age_input_type === 'manual') return; // Handled separately
+
         const calculatedAge = getEffectiveAge(
             formData.age_input_type === 'dob' ? formData.date_of_birth : null,
             formData.age_input_type === 'bachelor' ? formData.year_of_bachelor_education : null
@@ -84,6 +111,16 @@ export default function NewCandidatePage() {
 
         setFormData(prev => ({ ...prev, age: calculatedAge }));
     }, [formData.date_of_birth, formData.year_of_bachelor_education, formData.age_input_type]);
+
+    // Manual Age -> Bachelor Year Sync
+    useEffect(() => {
+        if (formData.age_input_type === 'manual' && formData.age) {
+            const bachYear = calculateBachelorYearFromAge(formData.age);
+            if (bachYear) {
+                setFormData(prev => ({ ...prev, year_of_bachelor_education: bachYear.toString() }));
+            }
+        }
+    }, [formData.age, formData.age_input_type]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { id, value } = e.target;
@@ -270,7 +307,7 @@ export default function NewCandidatePage() {
 
                             {/* Age Logic */}
                             <div className="p-4 bg-secondary/10 rounded-lg space-y-4 border border-border/50">
-                                <div className="flex gap-4">
+                                <div className="flex flex-wrap gap-4">
                                     <label className="flex items-center gap-2 cursor-pointer">
                                         <input
                                             type="radio"
@@ -289,27 +326,49 @@ export default function NewCandidatePage() {
                                             checked={formData.age_input_type === 'bachelor'}
                                             onChange={() => setFormData(prev => ({ ...prev, age_input_type: 'bachelor', year_of_bachelor_education: '', date_of_birth: '' }))}
                                         />
-                                        <span className="text-sm font-medium">Use Bachelor Grad Year</span>
+                                        <span className="text-sm font-medium">Use Bachelor Year</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input
+                                            type="radio"
+                                            name="age_type"
+                                            className="accent-primary"
+                                            checked={formData.age_input_type === 'manual'}
+                                            onChange={() => setFormData(prev => ({ ...prev, age_input_type: 'manual', date_of_birth: '' }))}
+                                        />
+                                        <span className="text-sm font-medium">Manual Input (Age)</span>
                                     </label>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                                    {formData.age_input_type === 'dob' ? (
+                                    {formData.age_input_type === 'dob' && (
                                         <div className="space-y-2">
                                             <Label>Date of Birth</Label>
                                             <Input type="date" value={formData.date_of_birth} onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })} className="bg-background" />
                                         </div>
-                                    ) : (
+                                    )}
+                                    {formData.age_input_type === 'bachelor' && (
                                         <div className="space-y-2">
                                             <Label>Year of Bachelor Graduation</Label>
                                             <Input type="number" placeholder="YYYY (e.g. 2020)" value={formData.year_of_bachelor_education} onChange={(e) => setFormData({ ...formData, year_of_bachelor_education: e.target.value })} className="bg-background" />
                                             <p className="text-[10px] text-muted-foreground">Formula: Current Year - Grad Year + 22</p>
                                         </div>
                                     )}
+                                    {formData.age_input_type === 'manual' && (
+                                        <div className="space-y-2">
+                                            <Label>Enter Age</Label>
+                                            <Input type="number" placeholder="e.g. 25" id="age" value={formData.age} onChange={handleChange} className="bg-background font-bold text-primary" />
+                                            <p className="text-[10px] text-muted-foreground">Bachelor Year will be auto-calculated.</p>
+                                        </div>
+                                    )}
 
                                     <div className="space-y-2">
-                                        <Label>Calculated Age</Label>
-                                        <Input value={formData.age} readOnly className="bg-secondary/50 font-mono text-primary font-bold" placeholder="Auto-calculated" />
+                                        <Label>{formData.age_input_type === 'manual' ? 'Bachelor Year (Calculated)' : 'Calculated Age'}</Label>
+                                        {formData.age_input_type === 'manual' ? (
+                                            <Input value={formData.year_of_bachelor_education} readOnly className="bg-secondary/50 font-mono text-primary font-bold" placeholder="Auto-calculated" />
+                                        ) : (
+                                            <Input value={formData.age} readOnly className="bg-secondary/50 font-mono text-primary font-bold" placeholder="Auto-calculated" />
+                                        )}
                                     </div>
                                 </div>
                             </div>
