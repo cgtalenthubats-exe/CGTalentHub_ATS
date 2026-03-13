@@ -98,7 +98,7 @@ export default function EditCandidatePage({ params }: { params: Promise<{ id: st
                 // Map Data to Form
                 setFormData({
                     name: data.name || "",
-                    candidate_status: data.candidate_status || "New",
+                    candidate_status: data.candidate_status || "",
                     email: data.email || "",
                     phone: data.mobile_phone || "",
                     nationality: data.nationality || "",
@@ -410,7 +410,7 @@ export default function EditCandidatePage({ params }: { params: Promise<{ id: st
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
                                         <Label htmlFor="email">Email</Label>
-                                        <Input id="email" type="email" value={formData.email} onChange={handleChange} />
+                                        <Input id="email" type="text" value={formData.email} onChange={handleChange} />
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="phone">Mobile Phone</Label>
