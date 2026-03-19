@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { checkDuplicateCandidate, checkActiveProcessing } from '@/app/actions/candidate-check';
 import { updateUploadStatus } from '@/app/actions/resume-actions';
+import { parseAnyDate } from '@/lib/date-utils';
 
 // Initialize Supabase Client (Service Role for backend ops)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -27,7 +28,12 @@ export async function POST(req: NextRequest) {
             // Industry, Level, LatestSalary, // Skipped per user feedback
             Experience, // Array from "code that separates Experience"
             Full_Experience,
-            normallizedfullname
+            normallizedfullname,
+            nomalizedfullname,
+            LinkedIn,
+            linkedin: linkedinValue, // Support both
+            Education,
+            education: educationValue // Support both
         } = body;
 
         // Fallback for name: Combined > Normalized > Profile.name (legacy)
@@ -35,7 +41,7 @@ export async function POST(req: NextRequest) {
         // Check legacy structure just in case
         const legacyName = body.profile?.name;
 
-        const candidateName = combinedName || normallizedfullname || legacyName || "Unknown Candidate";
+        const candidateName = combinedName || normallizedfullname || nomalizedfullname || legacyName || "Unknown Candidate";
 
         // Validation
         if (!upload_id || !candidateName) {
@@ -125,6 +131,8 @@ export async function POST(req: NextRequest) {
             year_of_bachelor_education: body['bachelor degree date'] || null,
             gross_salary_base_b_mth: body['LatestSalary'] || null,
             resume_url: resume_url || null,
+            linkedin: LinkedIn || linkedinValue || null,
+            checked: (LinkedIn || linkedinValue) ? "LinkedIN profile" : "No Profile",
             created_date: now,
             modify_date: now,
             created_by: createdBy  // ← email ของคนที่ upload resume
@@ -151,6 +159,7 @@ export async function POST(req: NextRequest) {
             current_company: Company || null,
             country: Array.isArray(Experience) && Experience.length > 0 ? (Experience[0].Work_locator || Experience[0].work_location) : null,
             experience_summary: Full_Experience || null,
+            education_summary: Education || educationValue || body['Education'] || null,
         };
 
         const { error: enhanceError } = await supabase
@@ -164,25 +173,14 @@ export async function POST(req: NextRequest) {
         // 4. Insert Experiences
         const experienceList = Experience || [];
 
-        // Helper to convert DD/MM/YYYY to YYYY-MM-DD
-        const parseDate = (dateStr: string | null) => {
+        // Helper to convert DD/MM/YYYY or MM-YYYY to YYYY-MM-DD
+        const parseDateHelper = (dateStr: string | null) => {
             if (!dateStr || typeof dateStr !== 'string') return null;
             if (dateStr.toLowerCase() === 'present') return null;
 
-            // Try explicit DD/MM/YYYY format
-            const parts = dateStr.split('/');
-            if (parts.length === 3) {
-                const [day, month, year] = parts;
-                // Ensure valid numbers
-                if (!isNaN(Number(day)) && !isNaN(Number(month)) && !isNaN(Number(year))) {
-                    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-                }
-            }
-
-            // Fallback for other formats or already ISO
-            const parsed = Date.parse(dateStr);
-            if (!isNaN(parsed)) {
-                return new Date(parsed).toISOString().split('T')[0];
+            const parsed = parseAnyDate(dateStr);
+            if (parsed && !isNaN(parsed.getTime())) {
+                return parsed.toISOString().split('T')[0];
             }
 
             return null; // Invalid date
@@ -192,7 +190,7 @@ export async function POST(req: NextRequest) {
             const expData = experienceList.map((exp: any) => {
                 const companyName = exp.Company || exp.company || "Unknown Company";
                 const location = exp.Work_locator || exp.work_location || exp.location || null;
-                const startDateStr = exp.StartDate || null;
+                const startDateStr = exp.StartDate || exp.startDate || null;
                 const endDateStr = exp.EndDate || exp.endDate || null;
 
                 return {
@@ -200,10 +198,10 @@ export async function POST(req: NextRequest) {
                     name: candidateName,
                     company: companyName, // Verified column: 'company'
                     position: exp.Position || exp.position || "Unknown Position",
-                    start_date: parseDate(startDateStr),
-                    end_date: parseDate(endDateStr),
+                    start_date: parseDateHelper(startDateStr),
+                    end_date: parseDateHelper(endDateStr),
                     work_location: location,
-                    is_current_job: (endDateStr?.toLowerCase() === 'present') || false, // Verified column: 'is_current_job'
+                    is_current_job: (endDateStr?.toLowerCase() === 'present') ? 'Current' : 'Past', // Set to Current/Past string
                     row_status: 'Active' // Verified column: 'row_status'
                 };
             });
