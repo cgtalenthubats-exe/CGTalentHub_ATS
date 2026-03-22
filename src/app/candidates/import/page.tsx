@@ -389,7 +389,9 @@ export default function CandidateImportPage() {
         } else {
             // Must upload to S3 first since it was paused
             const supabase = createClient();
-            const fileNameToUpload = `${Date.now()}_${dup.file.name.replace(/\s+/g, '_')}`;
+            // Sanitize filename to prevent 'Invalid key' error from special characters (accents, etc)
+            const sanitizedBase = dup.file.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]/g, '_');
+            const fileNameToUpload = `${Date.now()}_${sanitizedBase}`;
             const { error: uploadErr } = await supabase.storage.from('resumes').upload(fileNameToUpload, dup.file);
             if (uploadErr) return { success: false, error: "Cloud storage upload failed: " + uploadErr.message };
 

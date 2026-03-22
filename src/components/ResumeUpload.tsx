@@ -118,7 +118,9 @@ export function ResumeUpload({ onUploadComplete, onDuplicatesDetected }: ResumeU
         // 3. Proceed to upload only unique files to S3
         for (const f of uniqueFiles) {
             try {
-                const fileName = `${Date.now()}_${f.file.name.replace(/\s+/g, '_')}`; // Sanitize name
+                // Sanitize filename to prevent 'Invalid key' error from special characters (accents, etc)
+                const sanitizedBase = f.file.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]/g, '_');
+                const fileName = `${Date.now()}_${sanitizedBase}`; 
                 const { data, error } = await supabase.storage
                     .from('resumes')
                     .upload(fileName, f.file);
