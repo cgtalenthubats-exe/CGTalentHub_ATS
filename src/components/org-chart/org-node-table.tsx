@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { RawOrgNode, updateOrgNode, createOrgNode, searchCandidates, createSingleOrgProfile } from '@/app/actions/org-chart-actions'
+import { RawOrgNode, updateOrgNode, createOrgNode, searchCandidates, createSingleOrgProfile, verifyOrgChart } from '@/app/actions/org-chart-actions'
 import {
     Table,
     TableBody,
@@ -26,10 +26,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
 
-export function OrgNodeTable({ nodes, uploadId }: { nodes: RawOrgNode[], uploadId: string | null }) {
+export function OrgNodeTable({ nodes, uploadId, modifyDate: initialModifyDate }: { nodes: RawOrgNode[], uploadId: string | null, modifyDate?: string | null }) {
     const [editingNode, setEditingNode] = useState<RawOrgNode | null>(null)
     const [isAddMode, setIsAddMode] = useState(false)
     const [isOpen, setIsOpen] = useState(false)
+    const [isVerifying, setIsVerifying] = useState(false)
+    const [modifyDate, setModifyDate] = useState<string | null>(initialModifyDate || null)
     const [creatingIds, setCreatingIds] = useState<Set<string>>(new Set())
 
     // Search State
@@ -130,6 +132,25 @@ export function OrgNodeTable({ nodes, uploadId }: { nodes: RawOrgNode[], uploadI
         }
     }
 
+    const handleVerifyChart = async () => {
+        if (!uploadId) return
+        try {
+            setIsVerifying(true)
+            const res = await verifyOrgChart(uploadId as string)
+            if (res.success) {
+                const now = new Date().toISOString()
+                setModifyDate(now)
+                toast.success("Org Chart verified and timestamp updated 🛡️")
+            } else {
+                toast.error("Failed to verify chart")
+            }
+        } catch (err) {
+            toast.error("An error occurred during verification")
+        } finally {
+            setIsVerifying(false)
+        }
+    }
+
     // Effect for searching candidates
     useEffect(() => {
         const delayDebounceFn = setTimeout(async () => {
@@ -171,11 +192,37 @@ export function OrgNodeTable({ nodes, uploadId }: { nodes: RawOrgNode[], uploadI
 
     return (
         <div className='flex flex-col h-full space-y-4 p-4'>
-            <div className='flex justify-end pr-2 shrink-0'>
-                <Button onClick={handleAdd} className="gap-2 bg-indigo-600 hover:bg-indigo-700">
-                    <Plus size={16} />
-                    Add Employee
-                </Button>
+            <div className='flex justify-between items-center pr-2 shrink-0'>
+                <div className="flex flex-col">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                        Last Verified
+                    </span>
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 pl-1">
+                        {modifyDate ? new Date(modifyDate).toLocaleString('th-TH', { 
+                            day: '2-digit', month: '2-digit', year: 'numeric', 
+                            hour: '2-digit', minute: '2-digit' 
+                        }) : 'Never'}
+                    </span>
+                </div>
+                <div className="flex gap-2">
+                    <Button 
+                        variant="outline" 
+                        className="gap-2 bg-indigo-600 border-none text-white hover:bg-indigo-700 shadow-sm text-xs font-bold"
+                        onClick={handleVerifyChart}
+                        disabled={isVerifying}
+                    >
+                        {isVerifying ? (
+                            <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                            <UserCheck size={16} />
+                        )}
+                        Verify Chart
+                    </Button>
+                    <Button onClick={handleAdd} className="gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors border-none shadow-sm text-xs font-bold">
+                        <Plus size={16} />
+                        Add Employee
+                    </Button>
+                </div>
             </div>
 
             <div className='rounded-xl border bg-white dark:bg-slate-900 shadow-sm overflow-auto flex-1 min-h-0 relative'>

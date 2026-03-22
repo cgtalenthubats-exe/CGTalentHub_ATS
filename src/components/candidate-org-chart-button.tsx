@@ -23,20 +23,32 @@ type OrgChartLink = {
 export function CandidateOrgChartButton({ 
     candidateId, 
     candidateName, 
-    linkedin 
+    linkedin,
+    initialCharts = null,
+    initialLoading = false
 }: { 
     candidateId: string,
     candidateName: string,
-    linkedin: string | null 
+    linkedin: string | null,
+    initialCharts?: OrgChartLink[] | null,
+    initialLoading?: boolean
 }) {
-    const [charts, setCharts] = useState<OrgChartLink[]>([])
-    const [loading, setLoading] = useState(true)
+    const [charts, setCharts] = useState<OrgChartLink[]>(initialCharts || [])
+    const [loading, setLoading] = useState(initialCharts === null ? true : initialLoading)
     const [isAssignOpen, setIsAssignOpen] = useState(false)
 
     useEffect(() => {
+        // If initialCharts is provided, we don't need to fetch
+        if (initialCharts !== null) {
+            setCharts(initialCharts)
+            setLoading(initialLoading)
+            return
+        }
+
         if (!candidateId) return
         
         let mounted = true
+        setLoading(true)
         getCandidateOrgCharts(candidateId).then(data => {
             if (mounted) {
                 setCharts(data)
@@ -48,30 +60,30 @@ export function CandidateOrgChartButton({
         })
 
         return () => { mounted = false }
-    }, [candidateId])
+    }, [candidateId, initialCharts, initialLoading])
 
     if (loading) return (
-        <Button variant="outline" disabled className="h-10 px-3 gap-2 opacity-50">
-            <Network className="h-4 w-4 animate-pulse" />
+        <Button variant="ghost" disabled className="h-8 w-8 p-0 opacity-40">
+            <Network className="h-4 w-4 animate-pulse text-slate-400" />
         </Button>
     )
 
+    // COMPACT DESIGN: RED for "Missing", BLUE for "Present"
     if (charts.length === 0) {
         return (
             <>
                 <Button 
-                    variant="outline" 
-                    className="h-10 px-3 gap-2 border-rose-100 bg-rose-50/30 hover:bg-rose-50 hover:border-rose-300 text-rose-600 transition-all shadow-sm group"
-                    onClick={() => setIsAssignOpen(true)}
+                    variant="ghost" 
+                    size="sm"
+                    className="h-8 w-8 p-0 hover:bg-rose-50 text-rose-400 hover:text-rose-600 transition-all group relative shrink-0"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setIsAssignOpen(true);
+                    }}
+                    title="Not in Org Chart - Click to Add"
                 >
-                    <div className="relative">
-                        <Network className="h-5 w-5 opacity-40" />
-                        <Ban className="h-3 w-3 text-rose-600 absolute -top-1 -right-1 fill-white rounded-full" />
-                    </div>
-                    <span className="text-xs font-bold uppercase tracking-tight hidden sm:inline-block">
-                        NOT IN ORG CHART
-                    </span>
-                    <Plus className="h-3 w-3 opacity-50 group-hover:opacity-100 transition-opacity" />
+                    <Network className="h-4 w-4 opacity-50 group-hover:opacity-100" />
+                    <Plus className="h-2.5 w-2.5 absolute top-1 right-1 font-bold" />
                 </Button>
 
                 <AssignCandidateOrgDialog 
@@ -88,16 +100,23 @@ export function CandidateOrgChartButton({
     return (
         <DropdownMenu>
             <DropdownMenuTrigger asChild>
-                <Button variant="outline" className="h-10 px-3 gap-2 border-slate-200 hover:border-indigo-300 hover:bg-slate-50 transition-colors shadow-sm">
-                    <Network className="h-5 w-5 text-indigo-500" />
-                    <span className="text-xs font-bold text-slate-700 hidden sm:inline-block">
-                        Org Chart{charts.length > 1 ? 's' : ''} {charts.length > 1 ? `(${charts.length})` : ''}
-                    </span>
-                    <ChevronDown className="h-4 w-4 text-slate-400" />
+                <Button 
+                    variant="ghost" 
+                    size="sm"
+                    className="h-8 w-8 p-0 hover:bg-indigo-50 text-indigo-500 hover:text-indigo-700 transition-all shrink-0"
+                    onClick={(e) => e.stopPropagation()}
+                    title={`Present in ${charts.length} Org Chart${charts.length > 1 ? 's' : ''}`}
+                >
+                    <Network className="h-4 w-4" />
+                    {charts.length > 1 && (
+                        <span className="absolute -top-1 -right-1 bg-indigo-600 text-white text-[8px] font-bold h-3.5 min-w-[14px] px-0.5 rounded-full flex items-center justify-center border border-white">
+                            {charts.length}
+                        </span>
+                    )}
                 </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel className="text-xs text-slate-500 font-bold uppercase tracking-wider">Present In OrgCharts</DropdownMenuLabel>
+            <DropdownMenuContent align="start" className="w-56" onClick={(e) => e.stopPropagation()}>
+                <DropdownMenuLabel className="text-[10px] text-slate-400 font-bold uppercase tracking-wider px-3 pt-2">Org Chart Membership</DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 {charts.map((chart: OrgChartLink) => (
                     <DropdownMenuItem 
@@ -112,7 +131,7 @@ export function CandidateOrgChartButton({
                                 <Network className="h-3.5 w-3.5 text-indigo-400" />
                             </div>
                         )}
-                        <span className="font-medium text-sm text-slate-800 line-clamp-1">{chart.company_name}</span>
+                        <span className="font-medium text-xs text-slate-700 line-clamp-1">{chart.company_name}</span>
                     </DropdownMenuItem>
                 ))}
             </DropdownMenuContent>

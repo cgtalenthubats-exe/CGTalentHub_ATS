@@ -48,10 +48,12 @@ import {
 import { cn } from "@/lib/utils";
 import { CandidateAvatar } from "@/components/candidate-avatar";
 import { CandidateLinkedinButton } from "@/components/candidate-linkedin-button";
+import { CandidateOrgChartButton } from "@/components/candidate-org-chart-button";
 import { AsyncFilterMultiSelect } from "@/components/ui/async-filter-multi-select";
 import { SmartCandidateSearch } from "@/components/smart-candidate-search"; // [NEW] Smart Search
 import { searchCompanies, searchPositions } from "@/app/actions/candidate-filters";
 import { triggerCandidateRefresh } from "@/app/actions/n8n-actions";
+import { getBulkCandidateOrgCharts } from "@/app/actions/org-chart-actions";
 
 // Types
 interface Candidate {
@@ -96,6 +98,10 @@ export default function CandidateListPage() {
     const [selectAllMode, setSelectAllMode] = useState(false);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const [targetCandidateIds, setTargetCandidateIds] = useState<string[]>([]);
+    
+    // Org Chart Status Cache
+    const [orgChartData, setOrgChartData] = useState<Record<string, any[]>>({});
+    const [orgChartLoading, setOrgChartLoading] = useState(false);
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -214,6 +220,26 @@ export default function CandidateListPage() {
         const timeout = setTimeout(fetchCandidates, 500);
         return () => clearTimeout(timeout);
     }, [filters, searchTerm, currentPage, pageSize]);
+
+    // 4. Fetch Org Chart Status in Bulk
+    useEffect(() => {
+        if (candidates.length === 0) return;
+
+        const fetchBulkOrgChart = async () => {
+            setOrgChartLoading(true);
+            try {
+                const ids = candidates.map(c => c.candidate_id);
+                const data = await getBulkCandidateOrgCharts(ids);
+                setOrgChartData(prev => ({ ...prev, ...data }));
+            } catch (error) {
+                console.error("Failed to fetch bulk org chart data", error);
+            } finally {
+                setOrgChartLoading(false);
+            }
+        };
+
+        fetchBulkOrgChart();
+    }, [candidates]);
 
     // Reset Page on Filter Change
     useEffect(() => {
@@ -577,6 +603,8 @@ export default function CandidateListPage() {
                         selectedIds={selectedIds}
                         onToggleSelect={handleToggleSelect}
                         onToggleSelectAll={(ids) => handleToggleSelectAll(ids)}
+                        orgChartData={orgChartData}
+                        orgChartLoading={orgChartLoading}
                     />
                 </div>
             ) : (
@@ -598,6 +626,8 @@ export default function CandidateListPage() {
                                 candidate={candidate}
                                 isSelected={selectedIds.includes(candidate.candidate_id)}
                                 onToggleSelect={() => handleToggleSelect(candidate.candidate_id)}
+                                orgCharts={orgChartData[candidate.candidate_id]}
+                                orgChartsLoading={orgChartLoading && !orgChartData[candidate.candidate_id]}
                             />
                         ))
                     )}
@@ -891,11 +921,15 @@ function sortExperiences(exps: Experience[]) {
 function CandidateRichCard({
     candidate,
     isSelected,
-    onToggleSelect
+    onToggleSelect,
+    orgCharts,
+    orgChartsLoading
 }: {
     candidate: Candidate;
     isSelected?: boolean;
     onToggleSelect?: () => void;
+    orgCharts?: any[];
+    orgChartsLoading?: boolean;
 }) {
     const [expanded, setExpanded] = useState(true);
     // Sort experiences: Present first, then by End Date descending
@@ -944,6 +978,13 @@ function CandidateRichCard({
                             {candidate.name}
                         </h3>
                         <CandidateLinkedinButton checked={candidate.checked} linkedin={candidate.linkedin} candidateId={candidate.candidate_id} />
+                        <CandidateOrgChartButton 
+                            candidateId={candidate.candidate_id} 
+                            candidateName={candidate.name} 
+                            linkedin={candidate.linkedin || null} 
+                            initialCharts={orgCharts}
+                            initialLoading={orgChartsLoading}
+                        />
                         <Badge variant="outline" className="text-[10px] h-5 hover:bg-primary hover:text-white transition-colors cursor-pointer" onClick={() => window.location.href = `/candidates/${candidate.candidate_id}`}>View Profile &gt;</Badge>
                     </div>
 

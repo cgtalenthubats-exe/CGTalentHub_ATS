@@ -17,6 +17,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CandidateLinkedinButton } from "@/components/candidate-linkedin-button";
+import { CandidateOrgChartButton } from "@/components/candidate-org-chart-button";
 
 // --- Types (Duplicated from page.tsx to avoid circular deps or complex refactor) ---
 export interface Experience {
@@ -57,6 +58,8 @@ interface CandidateTableViewProps {
     selectedIds?: string[];
     onToggleSelect?: (id: string) => void;
     onToggleSelectAll?: (ids: string[]) => void;
+    orgChartData?: Record<string, any[]>;
+    orgChartLoading?: boolean;
 }
 
 function sortExperiences(exps: Experience[]) {
@@ -79,11 +82,15 @@ function sortExperiences(exps: Experience[]) {
 const CandidateRow = ({
     candidate,
     isSelected,
-    onToggleSelect
+    onToggleSelect,
+    orgCharts,
+    orgChartsLoading
 }: {
     candidate: Candidate;
     isSelected?: boolean;
     onToggleSelect?: (id: string) => void;
+    orgCharts?: any[];
+    orgChartsLoading?: boolean;
 }) => {
     const [expanded, setExpanded] = useState(false);
 
@@ -132,6 +139,13 @@ const CandidateRow = ({
                                     </span>
                                 </Link>
                                 <CandidateLinkedinButton checked={candidate.checked} linkedin={candidate.linkedin} candidateId={candidate.candidate_id} className="h-6 w-6 [&_svg]:h-3 [&_svg]:w-3" />
+                                <CandidateOrgChartButton 
+                                    candidateId={candidate.candidate_id} 
+                                    candidateName={candidate.name} 
+                                    linkedin={candidate.linkedin || null} 
+                                    initialCharts={orgCharts}
+                                    initialLoading={orgChartsLoading}
+                                />
                             </div>
                             <span className="text-[11px] text-slate-500 mt-1">
                                 {candidate.nationality} • {candidate.age ? `${candidate.age} yrs - ${candidate.date_of_birth ? "DoB" : "Bachelor year"}` : "Age -"} • {candidate.gender}
@@ -244,7 +258,9 @@ export function CandidateTableView({
     loading,
     selectedIds = [],
     onToggleSelect,
-    onToggleSelectAll
+    onToggleSelectAll,
+    orgChartData = {},
+    orgChartLoading = false
 }: CandidateTableViewProps) {
     if (loading) {
         return (
@@ -296,6 +312,8 @@ export function CandidateTableView({
                             candidate={candidate}
                             isSelected={selectedIds.includes(candidate.candidate_id)}
                             onToggleSelect={onToggleSelect}
+                            orgCharts={orgChartData[candidate.candidate_id]}
+                            orgChartsLoading={orgChartLoading && !orgChartData[candidate.candidate_id]}
                         />
                     ))}
                 </TableBody>

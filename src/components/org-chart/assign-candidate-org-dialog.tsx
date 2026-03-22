@@ -22,7 +22,8 @@ import {
     fetchOrgChartUploads, 
     getCandidateExperiences, 
     getOrgChartNodesBrief,
-    assignCandidateToOrgChart
+    assignCandidateToOrgChart,
+    verifyOrgChart
 } from '@/app/actions/org-chart-actions'
 import { toast } from 'sonner'
 import { Loader2, Network } from 'lucide-react'
@@ -120,7 +121,10 @@ export function AssignCandidateOrgDialog({
             })
 
             if (res.success) {
-                toast.success(`Successfully assigned ${candidateName} to Org Chart`)
+                // Auto-verify as requested: "ถ้าเพิ่มคนมาจากหน้า candidate profile อันนั้นถือว่าเป็นการ verify ไปในตัว"
+                await verifyOrgChart(selectedUploadId)
+                
+                toast.success(`Successfully assigned ${candidateName} to Org Chart and verified 🛡️`)
                 onOpenChange(false)
             } else {
                 toast.error(res.error || "Assignment failed")

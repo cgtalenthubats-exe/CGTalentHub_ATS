@@ -56,6 +56,23 @@ export async function fetchOrgChartUploads() {
     return data
 }
 
+export async function verifyOrgChart(uploadId: string) {
+    if (!uploadId) return { success: false, error: 'Upload ID is required' }
+    
+    const { error } = await supabase
+        .from('org_chart_uploads')
+        .update({ modify_date: new Date().toISOString() })
+        .eq('upload_id', uploadId)
+
+    if (error) {
+        console.error('Error verifying org chart:', error)
+        throw error
+    }
+    
+    revalidatePath('/org-chart')
+    return { success: true }
+}
+
 export async function fetchCompanyLogo(companyId: string | null) {
     if (!companyId) return null
     const { data } = await supabase
@@ -530,7 +547,8 @@ export async function importOrgChart(uploadId: string, companyName: string, file
                 company_id: companyId,
                 chart_file: publicUrl,
                 notes: notes || null,
-                status: 'Processing'
+                status: 'Processing',
+                modify_date: new Date().toISOString()
             })
 
         if (dbError) {
@@ -787,6 +805,61 @@ export async function getCandidateOrgCharts(candidateId: string) {
         company_name: u.company_name,
         company_logo: logos.get(u.company_id) || null
     }))
+}
+
+export async function getBulkCandidateOrgCharts(candidateIds: string[]) {
+    if (!candidateIds || candidateIds.length === 0) return {}
+    
+    // 1. Get all nodes for these candidates
+    const { data: nodes, error: nodeError } = await supabase
+        .from('all_org_nodes')
+        .select('upload_id, matched_candidate_id')
+        .in('matched_candidate_id', candidateIds)
+        
+    if (nodeError || !nodes || nodes.length === 0) return {}
+    
+    const uploadIds = Array.from(new Set(nodes.map((n: any) => n.upload_id)))
+    
+    // 2. Get upload details
+    const { data: uploads, error: uploadError } = await supabase
+        .from('org_chart_uploads')
+        .select('upload_id, company_name, company_id')
+        .in('upload_id', uploadIds)
+
+    if (uploadError || !uploads || uploads.length === 0) return {}
+
+    // 3. Get logos
+    const companyIds = Array.from(new Set(uploads.map((u: any) => u.company_id).filter(Boolean)))
+    const logos = new Map<string, string>()
+    if (companyIds.length > 0) {
+        const { data: comp } = await supabase
+            .from('company_master')
+            .select('company_id, company_logo')
+            .in('company_id', companyIds)
+        
+        comp?.forEach((c: any) => {
+            if (c.company_logo) logos.set(c.company_id, c.company_logo)
+        })
+    }
+
+    // 4. Map everything together
+    const result: Record<string, any[]> = {}
+    
+    // Initialize result with empty arrays for all requested IDs
+    candidateIds.forEach(id => { result[id] = [] })
+
+    nodes.forEach((n: any) => {
+        const upload = uploads.find((u: any) => u.upload_id === n.upload_id)
+        if (upload && n.matched_candidate_id) {
+            result[n.matched_candidate_id].push({
+                upload_id: upload.upload_id,
+                company_name: upload.company_name,
+                company_logo: logos.get(upload.company_id) || null
+            })
+        }
+    })
+
+    return result
 }
 
 export async function deleteOrgChart(uploadId: string) {

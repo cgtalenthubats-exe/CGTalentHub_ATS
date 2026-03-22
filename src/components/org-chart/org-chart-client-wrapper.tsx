@@ -21,14 +21,16 @@ export function OrgChartClientWrapper({
     companyId,
     uploadId,
     notes,
-    chartFileUrl
+    chartFileUrl,
+    modifyDate
 }: { 
     initialData: OrgNode | null,
     companyLogoUrl?: string | null,
     companyId?: string | null,
     uploadId?: string | null,
     notes?: string | null,
-    chartFileUrl?: string | null
+    chartFileUrl?: string | null,
+    modifyDate?: string | null
 }) {
     return (
         <div className="flex-1 w-full flex flex-col">
@@ -39,6 +41,7 @@ export function OrgChartClientWrapper({
                 uploadId={uploadId}
                 notes={notes}
                 chartFileUrl={chartFileUrl}
+                modifyDate={modifyDate}
             />
         </div>
     )

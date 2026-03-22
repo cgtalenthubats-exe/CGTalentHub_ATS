@@ -17,6 +17,7 @@ type OrgChartClientPageProps = {
     companyLogoUrl: string | null
     notes: string | null
     chartFileUrl: string | null
+    modifyDate: string | null
 }
 
 export function OrgChartClientPage({
@@ -27,7 +28,8 @@ export function OrgChartClientPage({
     tableData,
     companyLogoUrl,
     notes,
-    chartFileUrl
+    chartFileUrl,
+    modifyDate
 }: OrgChartClientPageProps) {
     return (
         <div className="container mx-auto py-2 space-y-4 flex flex-col min-h-screen px-4 md:px-6 mb-10">
@@ -79,6 +81,7 @@ export function OrgChartClientPage({
                                 uploadId={currentUploadId}
                                 notes={notes}
                                 chartFileUrl={chartFileUrl}
+                                modifyDate={modifyDate}
                             />
                         </Suspense>
                     </TabsContent>
@@ -86,7 +89,7 @@ export function OrgChartClientPage({
                     <TabsContent value="list" className="flex-1 min-h-[750px] md:min-h-[85vh] mt-0">
                         <div className="flex items-start gap-4 h-full w-full">
                             <div className="flex-1 h-full border rounded-xl bg-white dark:bg-slate-950 overflow-hidden shadow-sm">
-                                <OrgNodeTable nodes={tableData} uploadId={currentUploadId} />
+                                <OrgNodeTable nodes={tableData} uploadId={currentUploadId} modifyDate={modifyDate} />
                             </div>
                             {currentCompanyId && (
                                 <div className="w-[340px] shrink-0 h-full overflow-y-auto hidden lg:block rounded-xl">

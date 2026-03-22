@@ -19,12 +19,14 @@ export default async function OrgChartPage({
     let companyId = null
     let notes = null
     let chartFileUrl = null
+    let modifyDate = null
 
     if (currentUploadId) {
         const currentUpload = uploads.find((u: any) => u.upload_id === currentUploadId)
         companyId = currentUpload?.company_id || null
         notes = currentUpload?.notes || null
         chartFileUrl = currentUpload?.chart_file || null
+        modifyDate = currentUpload?.modify_date || null
 
         // Parallel server-side fetch
         const [chart, list, logo] = await Promise.all([
@@ -47,6 +49,7 @@ export default async function OrgChartPage({
             companyLogoUrl={companyLogoUrl}
             notes={notes}
             chartFileUrl={chartFileUrl}
+            modifyDate={modifyDate}
         />
     )
 }

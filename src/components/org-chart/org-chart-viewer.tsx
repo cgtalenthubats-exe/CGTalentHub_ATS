@@ -18,7 +18,7 @@ import { getCheckedStatus } from '@/lib/candidate-utils'
 import { toast } from 'sonner'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
-import { updateMasterCompanyLogo, deleteOrgChart } from '@/app/actions/org-chart-actions'
+import { updateMasterCompanyLogo, deleteOrgChart, verifyOrgChart } from '@/app/actions/org-chart-actions'
 import {
     AlertDialog,
     AlertDialogAction,
@@ -44,6 +44,7 @@ type OrgChartViewerProps = {
     uploadId?: string | null
     notes?: string | null
     chartFileUrl?: string | null
+    modifyDate?: string | null
 }
 
 // Custom Node Component
@@ -162,7 +163,7 @@ const NodeCard = ({ nodeDatum, toggleNode, onCreateProfile, isCreating }: any) =
     )
 }
 
-export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, companyId, uploadId: propUploadId, notes, chartFileUrl }: OrgChartViewerProps) {
+export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, companyId, uploadId: propUploadId, notes, chartFileUrl, modifyDate: initialModifyDate }: OrgChartViewerProps) {
     const searchParams = useSearchParams()
     const router = useRouter()
     const uploadId = propUploadId || searchParams.get('id')
@@ -171,6 +172,8 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
     const [showLegend, setShowLegend] = useState(false)
     const [isBulkLoading, setIsBulkLoading] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
+    const [isVerifying, setIsVerifying] = useState(false)
+    const [modifyDate, setModifyDate] = useState<string | null>(initialModifyDate || null)
     const [creatingNodes, setCreatingNodes] = useState<Set<string>>(new Set())
     const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(initialLogo || null)
     const [isUploadingLogo, setIsUploadingLogo] = useState(false)
@@ -286,6 +289,24 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
             setIsDeleting(false)
         }
     }
+    const handleVerifyChart = async () => {
+        if (!uploadId) return
+        try {
+            setIsVerifying(true)
+            const res = await verifyOrgChart(uploadId as string)
+            if (res.success) {
+                const now = new Date().toISOString()
+                setModifyDate(now)
+                toast.success("Org Chart verified and timestamp updated 🛡️")
+            } else {
+                toast.error("Failed to verify chart")
+            }
+        } catch (err) {
+            toast.error("An error occurred during verification")
+        } finally {
+            setIsVerifying(false)
+        }
+    }
 
     const centerChart = () => {
         if (containerRef.current) {
@@ -330,6 +351,21 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                     </div>
                 </div>
             )}
+
+            {/* Verification Status (Top Center) */}
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+                <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-full px-4 py-1.5 shadow-sm flex items-center gap-3">
+                    <div className="flex flex-col items-center">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">Last Verified</span>
+                        <span className="text-[10px] font-medium text-slate-600 dark:text-slate-300">
+                            {modifyDate ? new Date(modifyDate).toLocaleString('th-TH', { 
+                                day: '2-digit', month: '2-digit', year: 'numeric', 
+                                hour: '2-digit', minute: '2-digit' 
+                            }) : 'Never'}
+                        </span>
+                    </div>
+                </div>
+            </div>
 
             {/* Deletion Button (Wait for selection? No, just the whole chart) Bottom Right */}
                         {/* Action Buttons & Deletion (Bottom Right) */}
@@ -424,6 +460,24 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                             VIEW PDF
                         </Button>
                     )}
+
+                    <Separator orientation="vertical" className="h-4 bg-slate-200 mx-0.5" />
+
+                    {/* Verify Button */}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 px-4 gap-2 bg-indigo-600 border-none text-white hover:bg-indigo-700 shadow-md rounded-full text-[11px] font-bold"
+                        onClick={handleVerifyChart}
+                        disabled={isVerifying}
+                    >
+                        {isVerifying ? (
+                            <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                            <UserCheck size={14} />
+                        )}
+                        VERIFY CHART
+                    </Button>
 
                     <Separator orientation="vertical" className="h-4 bg-slate-200 mx-0.5" />
 
