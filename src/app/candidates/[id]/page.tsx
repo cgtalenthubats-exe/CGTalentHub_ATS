@@ -23,6 +23,7 @@ import { ResumeManager } from "@/components/resume-manager";
 import { CandidateLinkedinButton } from "@/components/candidate-linkedin-button";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
 import { formatDateForDisplay } from "@/lib/date-utils";
+import { CandidateOrgChartButton } from "@/components/candidate-org-chart-button";
 
 export default function CandidateDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = React.use(params);
@@ -157,6 +158,11 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
 
                     <div className="flex flex-col gap-3 items-end">
                         <div className="flex gap-2 items-center">
+                            <CandidateOrgChartButton 
+                    candidateId={candidate.candidate_id} 
+                    candidateName={candidate.name}
+                    linkedin={candidate.linkedin}
+                />
                             <CandidateLinkedinButton checked={candidate.checked} linkedin={candidate.linkedin} candidateId={candidate.candidate_id} className="h-10 w-10 [&_svg]:h-5 [&_svg]:w-5" />
                             <ResumeManager
                                 candidateId={candidate.candidate_id}

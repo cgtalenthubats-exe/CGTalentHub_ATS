@@ -56,6 +56,27 @@ export async function fetchOrgChartUploads() {
     return data
 }
 
+export async function fetchCompanyLogo(companyId: string | null) {
+    if (!companyId) return null
+    const { data } = await supabase
+        .from('company_master')
+        .select('company_logo')
+        .eq('company_id', companyId)
+        .single()
+    return data?.company_logo || null
+}
+
+export async function updateMasterCompanyLogo(companyId: string, logoUrl: string) {
+    const { error } = await supabase
+        .from('company_master')
+        .update({ company_logo: logoUrl })
+        .eq('company_id', companyId)
+
+    if (error) throw error
+    revalidatePath('/org-chart')
+    return { success: true }
+}
+
 /**
  * Helper to fetch candidates by multiple criteria safely (V7 - Schema Aligned)
  */
@@ -425,52 +446,133 @@ export async function createSingleOrgProfile(nodeId: string) {
     }
 }
 
-export async function importOrgChart(companyName: string, formData: FormData) {
+export async function importOrgChart(uploadId: string, companyName: string, fileName: string, publicUrl: string, notes: string = '') {
     try {
-        const file = formData.get('file') as File
-        if (!file) throw new Error('No file provided')
+        console.log(`[ImportOrg] Starting processing for Upload ID: ${uploadId}, Company: ${companyName}`)
 
-        // 1. Generate Upload ID (db + 6 random hex)
-        const uploadId = 'db' + Math.random().toString(16).slice(2, 8)
+        // 0. Check for duplicate Org Chart Name
+        const { data: existingChart } = await supabase
+            .from('org_chart_uploads')
+            .select('upload_id')
+            .ilike('company_name', companyName.trim())
+            .maybeSingle()
 
-        // 2. Upload to Storage
-        const fileExt = file.name.split('.').pop()
-        const fileName = `${uploadId}.${fileExt}`
-
-        const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('org-charts')
-            .upload(fileName, file)
-
-        if (uploadError) {
-            console.error('[ImportOrg] Upload Error:', uploadError)
-            throw new Error(`Upload failed: ${uploadError.message}`)
+        if (existingChart) {
+            return { success: false, error: 'An Org Chart with this name already exists. Please use a unique name.' }
         }
 
-        // 3. Get Public URL
-        const { data: urlData } = supabase.storage
-            .from('org-charts')
-            .getPublicUrl(fileName)
+        // 1. Lookup company_id
+        let companyId = null
+        if (companyName) {
+            // Check Variation first (as requested by user)
+            const { data: variation } = await supabase
+                .from('company_variation')
+                .select('company_id')
+                .ilike('variation_name', companyName.trim())
+                .maybeSingle()
+            
+            if (variation) {
+                companyId = variation.company_id
+                console.log(`[ImportOrg] Found matching company_id from variation: ${companyId}`)
+            } else {
+                // AUTO-CREATE: Find next IDs for both tables
+                const [{ data: masterMax }, { data: variationMax }] = await Promise.all([
+                    supabase.from('company_master').select('company_id').order('company_id', { ascending: false }).limit(1).maybeSingle(),
+                    supabase.from('company_variation').select('variation_id').order('variation_id', { ascending: false }).limit(1).maybeSingle()
+                ])
+                
+                const nextMasterId = (Number(masterMax?.company_id) || 0) + 1
+                const nextVariationId = (Number(variationMax?.variation_id) || 0) + 1
+                
+                console.log(`[ImportOrg] Generating new IDs: Master=${nextMasterId}, Variation=${nextVariationId}`)
 
-        const publicUrl = urlData.publicUrl
+                // A. Insert into company_master
+                const { error: masterErr } = await supabase
+                    .from('company_master')
+                    .insert({
+                        company_id: nextMasterId,
+                        company_master: companyName.trim()
+                    })
+                
+                if (masterErr) {
+                    console.error('[ImportOrg] Failed to create master record:', masterErr)
+                    throw new Error(`Master creation failed: ${masterErr.message}`)
+                }
 
-        // 4. Trigger Webhook
+                // B. Insert into company_variation
+                const { error: variationErr } = await supabase
+                    .from('company_variation')
+                    .insert({
+                        variation_id: nextVariationId,
+                        company_id: nextMasterId,
+                        variation_name: companyName.trim(),
+                        company_master_name: companyName.trim()
+                    })
+                
+                if (variationErr) {
+                    console.error('[ImportOrg] Failed to create variation record:', variationErr)
+                    // If variation fails but master succeeded, we still have a master ID 
+                    // but it's better to fail the whole thing to keep it consistent
+                    throw new Error(`Variation creation failed: ${variationErr.message}`)
+                }
+
+                companyId = nextMasterId
+                console.log(`[ImportOrg] Created new company with ID: ${companyId}`)
+            }
+        }
+
+        // 2. Track in Database BEFORE triggering Webhook
+        const { error: dbError } = await supabase
+            .from('org_chart_uploads')
+            .insert({
+                upload_id: uploadId,
+                company_name: companyName,
+                company_id: companyId,
+                chart_file: publicUrl,
+                notes: notes || null,
+                status: 'Processing'
+            })
+
+        if (dbError) {
+            console.error('[ImportOrg] DB Insert Error:', dbError)
+            throw new Error(`Failed to track upload in database: ${dbError.message}`)
+        }
+
+        // 3. Trigger Webhook
         const config = await getN8nUrl('OrgChart Workflow')
         if (config) {
             const payload = {
                 upload_id: uploadId,
                 company_master: companyName,
+                company_id: companyId, // Added company_id to payload
                 image_filename: publicUrl
             }
 
             console.log('[ImportOrg] Triggering Webhook:', config.url)
-            const response = await fetch(config.url, {
-                method: config.method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            })
+            
+            // Add a 10s timeout to prevent UI from hanging if n8n is slow or unresponsive
+            const controller = new AbortController()
+            const timeoutId = setTimeout(() => controller.abort(), 10000)
 
-            if (!response.ok) {
-                console.error('[ImportOrg] Webhook Failed:', response.status)
+            try {
+                const response = await fetch(config.url, {
+                    method: config.method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
+                })
+                clearTimeout(timeoutId)
+
+                if (!response.ok) {
+                    console.error('[ImportOrg] Webhook Failed:', response.status)
+                }
+            } catch (fetchErr: any) {
+                clearTimeout(timeoutId)
+                if (fetchErr.name === 'AbortError') {
+                    console.warn('[ImportOrg] Webhook trigger timed out (10s), but assumed received by n8n.')
+                } else {
+                    console.error('[ImportOrg] Webhook fetch error:', fetchErr)
+                }
             }
         } else {
             console.warn('[ImportOrg] Webhook "OrgChart Workflow" not configured')
@@ -570,4 +672,217 @@ export async function fetchOrgChartData(uploadId: string) {
         }
     }
     return null
+}
+
+// ==========================================
+// UNMAPPED CANDIDATES FEATURE
+// ==========================================
+
+export async function getUnmappedCompanyCandidates(companyId: string, uploadId: string) {
+    // 1. Get all employees currently at this company
+    const { data: experiences, error: expError } = await supabase
+        .from('candidate_experiences')
+        .select('candidate_id, position')
+        .eq('company_id', companyId)
+        .eq('is_current_job', 'Current')
+
+    if (expError || !experiences || experiences.length === 0) return []
+
+    // 2. Get all matched candidates currently in the org chart
+    const { data: orgNodes, error: orgError } = await supabase
+        .from('all_org_nodes')
+        .select('matched_candidate_id')
+        .eq('upload_id', uploadId)
+        .not('matched_candidate_id', 'is', null)
+
+    const mappedIds = new Set(orgNodes?.map((n: any) => n.matched_candidate_id) || [])
+
+    // 3. Filter out mapped candidates
+    const unmappedExperiences = experiences.filter((exp: any) => !mappedIds.has(exp.candidate_id))
+    if (unmappedExperiences.length === 0) return []
+
+    // Distinct IDs
+    const unmappedIds = Array.from(new Set(unmappedExperiences.map((exp: any) => exp.candidate_id)))
+
+    // 4. Fetch Candidate Profiles
+    const { data: profiles } = await supabase
+        .from('Candidate Profile')
+        .select('candidate_id, name, linkedin, photo')
+        .in('candidate_id', unmappedIds)
+
+    // 5. Combine profile info with position
+    return profiles?.map((p: any) => {
+        const exp = unmappedExperiences.find((e: any) => e.candidate_id === p.candidate_id)
+        return {
+            candidate_id: p.candidate_id,
+            name: p.name,
+            linkedin: p.linkedin,
+            photo: p.photo,
+            current_position: exp?.position
+        }
+    }) || []
+}
+
+export async function addUnmappedCandidateToOrgChart(uploadId: string, candidateId: string, name: string, title?: string, linkedin?: string) {
+    // We need to generate a node_id if 'id' is generated locally?
+    // Actually all_org_nodes has UUID default for node_id, so inserting is enough.
+    const { error } = await supabase
+        .from('all_org_nodes')
+        .insert({
+            upload_id: uploadId,
+            matched_candidate_id: candidateId,
+            name: name,
+            title: title || 'Added from ATS',
+            parent_name: null, // Puts them at the root level of the diagram
+            linkedin: linkedin || null
+        })
+
+    if (error) {
+        console.error('Error adding unmapped candidate:', error)
+        throw error
+    }
+    
+    revalidatePath('/org-chart')
+    return { success: true }
+}
+
+export async function getCandidateOrgCharts(candidateId: string) {
+    if (!candidateId) return []
+    
+    // 1. Get nodes
+    const { data: nodes } = await supabase
+        .from('all_org_nodes')
+        .select('upload_id')
+        .eq('matched_candidate_id', candidateId)
+        
+    if (!nodes || nodes.length === 0) return []
+    
+    const uploadIds = Array.from(new Set(nodes.map((n: any) => n.upload_id)))
+    
+    // 2. Get uploads
+    const { data: uploads } = await supabase
+        .from('org_chart_uploads')
+        .select('upload_id, company_name, company_id')
+        .in('upload_id', uploadIds)
+
+    if (!uploads || uploads.length === 0) return []
+
+    // 3. Get logos
+    const companyIds = Array.from(new Set(uploads.map((u: any) => u.company_id).filter(Boolean)))
+
+    const logos = new Map<string, string>()
+    if (companyIds.length > 0) {
+        const { data: comp } = await supabase
+            .from('company_master')
+            .select('company_id, company_logo')
+            .in('company_id', companyIds)
+        
+        comp?.forEach((c: any) => {
+            if (c.company_logo) logos.set(c.company_id, c.company_logo)
+        })
+    }
+
+    return uploads.map((u: any) => ({
+        upload_id: u.upload_id,
+        company_name: u.company_name,
+        company_logo: logos.get(u.company_id) || null
+    }))
+}
+
+export async function deleteOrgChart(uploadId: string) {
+    if (!uploadId) return { success: false, error: 'Upload ID is required' }
+    
+    // First delete nodes (though cascade might do this, being explicit is safe)
+    const { error: nodesError } = await supabase
+        .from('all_org_nodes')
+        .delete()
+        .eq('upload_id', uploadId)
+    if (nodesError) {
+        console.error('[DeleteOrgChart] Error clearing nodes:', nodesError)
+        return { success: false, error: 'Failed to clear org chart nodes' }
+    }
+
+    // Then delete the upload record
+    const { error: uploadError } = await supabase
+        .from('org_chart_uploads')
+        .delete()
+        .eq('upload_id', uploadId)
+    if (uploadError) {
+        console.error('[DeleteOrgChart] Error deleting upload:', uploadError)
+        return { success: false, error: 'Failed to delete org chart upload' }
+    }
+
+    revalidatePath('/org-chart')
+    // Also revalidate candidate details list just in case
+    revalidatePath('/candidates/[id]', 'page')
+    
+    return { success: true }
+}
+
+export async function getCandidateExperiences(candidateId: string) {
+    if (!candidateId) return []
+    const { data, error } = await supabase
+        .from('candidate_experiences')
+        .select('position, company, is_current_job')
+        .eq('candidate_id', candidateId)
+        .order('is_current_job', { ascending: false }) // Current jobs first
+    
+    if (error) {
+        console.error('[GetExperiences] Error:', error)
+        return []
+    }
+    return data
+}
+
+export async function assignCandidateToOrgChart({
+    candidateId,
+    uploadId,
+    parentName,
+    position,
+    name,
+    linkedin
+}: {
+    candidateId: string
+    uploadId: string
+    parentName: string | null
+    position: string
+    name: string
+    linkedin: string | null
+}) {
+    try {
+        const { error } = await supabase
+            .from('all_org_nodes')
+            .insert({
+                upload_id: uploadId,
+                name: name,
+                title: position,
+                parent_name: parentName,
+                matched_candidate_id: candidateId,
+                linkedin: linkedin || null
+            })
+
+        if (error) throw error
+
+        revalidatePath('/org-chart')
+        revalidatePath(`/candidates/${candidateId}`)
+        return { success: true }
+    } catch (err: any) {
+        console.error('[AssignCandidate] Error:', err)
+        return { success: false, error: err.message }
+    }
+}
+
+export async function getOrgChartNodesBrief(uploadId: string) {
+    if (!uploadId) return []
+    const { data, error } = await supabase
+        .from('all_org_nodes')
+        .select('name, title')
+        .eq('upload_id', uploadId)
+        .order('name', { ascending: true })
+        
+    if (error) {
+        console.error('[GetNodesBrief] Error:', error)
+        return []
+    }
+    return data 
 }

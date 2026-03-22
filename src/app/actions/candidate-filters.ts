@@ -4,35 +4,24 @@ import { adminAuthClient } from "@/lib/supabase/admin";
 
 import { getCandidateIdsByExperienceFilters, CandidateFilters } from "@/lib/candidate-service";
 
-export async function searchCompanies(query: string, limit = 1000, filters?: any) {
-    const hasActiveFilters = filters && Object.values(filters).some((v: any) => Array.isArray(v) ? v.length > 0 : !!v);
-
-    if ((!query || query.length < 1) && !hasActiveFilters) return [];
+export async function searchCompanies(query: string, limit = 10, filters?: any) {
+    if (!query || query.length < 1) return [];
 
     try {
-        let candidateIds: string[] | null = null;
-        if (hasActiveFilters) {
-            const contextFilters = { ...filters };
-            delete contextFilters.companies;
-            const hasContext = Object.values(contextFilters).some((v: any) => Array.isArray(v) ? v.length > 0 : !!v);
-            if (hasContext) {
-                candidateIds = await getCandidateIdsByExperienceFilters(contextFilters);
-            }
-        }
-
-        const { data, error } = await (adminAuthClient.rpc as any)('get_unique_experience_values', {
-            field_name: 'company',
-            search_term: query || '',
-            match_limit: limit,
-            filter_candidate_ids: candidateIds
-        });
+        const { data, error } = await adminAuthClient
+            .from('company_variation')
+            .select('variation_name')
+            .ilike('variation_name', `%${query}%`)
+            .limit(limit);
 
         if (error) {
-            console.error("Error searching companies (RPC):", error);
+            console.error("Error searching companies (Variations):", error);
             return [];
         }
 
-        return (data as any[])?.map((item: any) => item.result_value) || [];
+        // Return unique variation names
+        const names = data?.map((item: any) => item.variation_name) || [];
+        return Array.from(new Set(names));
 
     } catch (error) {
         console.error("Server Action Error (searchCompanies):", error);

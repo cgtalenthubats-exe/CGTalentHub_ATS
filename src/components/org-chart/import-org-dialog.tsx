@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useRef } from 'react'
+import { createClient } from '@supabase/supabase-js'
 import {
     Dialog,
     DialogContent,
@@ -17,11 +18,17 @@ import { UploadCloud, FileText, Loader2, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { importOrgChart } from '@/app/actions/org-chart-actions'
 import { CompanySuggestionInput } from './company-suggestion-input'
+import { Textarea } from '@/components/ui/textarea'
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabase = createClient(supabaseUrl, supabaseKey)
 
 export function ImportOrgDialog() {
     const [isOpen, setIsOpen] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
     const [companyName, setCompanyName] = useState('')
+    const [notes, setNotes] = useState('')
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -44,15 +51,36 @@ export function ImportOrgDialog() {
 
         setIsUploading(true)
         try {
-            const formData = new FormData()
-            formData.append('file', selectedFile)
+            // 1. Generate Upload ID & File Name on Client
+            const uploadId = 'db' + Math.random().toString(16).slice(2, 8)
+            const fileExt = selectedFile.name.split('.').pop() || 'pdf'
+            const sanitizedBase = selectedFile.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]/g, '_')
+            const fileName = `${uploadId}_${sanitizedBase}`
 
-            const result = await importOrgChart(companyName, formData)
+            // 2. Client-side upload straight to Supabase Storage (Safe from Next.js server limits/hangs)
+            const { error: uploadError } = await supabase.storage
+                .from('org_charts')
+                .upload(fileName, selectedFile)
+
+            if (uploadError) {
+                throw new Error(`Upload failed: ${uploadError.message}`)
+            }
+
+            // 3. Get Public URL
+            const { data: urlData } = supabase.storage
+                .from('org_charts')
+                .getPublicUrl(fileName)
+
+            const publicUrl = urlData.publicUrl
+
+            // 4. Trigger Server Action for DB Logging and Webhook
+            const result = await importOrgChart(uploadId, companyName, fileName, publicUrl, notes)
 
             if (result.success) {
                 toast.success("OrgChart import initiated! The system is processing the PDF.")
                 setIsOpen(false)
                 setCompanyName('')
+                setNotes('')
                 setSelectedFile(null)
             } else {
                 toast.error(result.error || "Failed to trigger import")
@@ -88,6 +116,17 @@ export function ImportOrgDialog() {
                                 onChange={setCompanyName}
                                 disabled={isUploading}
                                 placeholder="e.g. Asset World Corp"
+                            />
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="notes">Notes (Optional)</Label>
+                            <Textarea 
+                                id="notes" 
+                                placeholder="Any context or details about this chart..."
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                                disabled={isUploading}
+                                className="resize-none h-20"
                             />
                         </div>
                         <div className="grid gap-2">

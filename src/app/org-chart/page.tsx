@@ -1,4 +1,4 @@
-import { fetchOrgChartUploads, fetchOrgChartData, getOrgNodesRaw } from '@/app/actions/org-chart-actions'
+import { fetchOrgChartUploads, fetchOrgChartData, getOrgNodesRaw, fetchCompanyLogo } from '@/app/actions/org-chart-actions'
 import { OrgChartClientPage } from './org-chart-client-page'
 
 export default async function OrgChartPage({
@@ -15,23 +15,38 @@ export default async function OrgChartPage({
 
     let chartData = null
     let tableData: any[] = []
+    let companyLogoUrl = null
+    let companyId = null
+    let notes = null
+    let chartFileUrl = null
 
     if (currentUploadId) {
+        const currentUpload = uploads.find((u: any) => u.upload_id === currentUploadId)
+        companyId = currentUpload?.company_id || null
+        notes = currentUpload?.notes || null
+        chartFileUrl = currentUpload?.chart_file || null
+
         // Parallel server-side fetch
-        const [chart, list] = await Promise.all([
+        const [chart, list, logo] = await Promise.all([
             fetchOrgChartData(currentUploadId),
-            getOrgNodesRaw(currentUploadId)
+            getOrgNodesRaw(currentUploadId),
+            fetchCompanyLogo(companyId)
         ])
         chartData = chart
         tableData = list
+        companyLogoUrl = logo
     }
 
     return (
         <OrgChartClientPage
             uploads={uploads}
             currentUploadId={currentUploadId}
+            currentCompanyId={companyId}
             chartData={chartData}
             tableData={tableData}
+            companyLogoUrl={companyLogoUrl}
+            notes={notes}
+            chartFileUrl={chartFileUrl}
         />
     )
 }

@@ -2,13 +2,13 @@
 
 import React, { useState, useEffect } from "react";
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogDescription,
-    DialogFooter,
-} from "@/components/ui/dialog";
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetDescription,
+    SheetFooter,
+} from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -246,32 +246,33 @@ export function AddCandidateDialog({
     }
 
     return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden border-none shadow-2xl rounded-2xl">
-                <DialogHeader className="p-6 bg-slate-900 text-white">
-                    <DialogTitle className="text-xl font-bold flex items-center gap-2">
+        <Sheet open={open} onOpenChange={onOpenChange}>
+            <SheetContent className="sm:max-w-[500px] w-full flex flex-col p-0 overflow-hidden border-none shadow-2xl">
+                <SheetHeader className="p-6 shrink-0 bg-slate-900 text-left">
+                    <SheetTitle className="text-xl font-bold flex items-center gap-2 text-white">
                         <Plus className="w-5 h-5 text-indigo-400" />
                         Add to Job Requisition
-                    </DialogTitle>
-                    <DialogDescription className="text-slate-400">
+                    </SheetTitle>
+                    <SheetDescription className="text-slate-400">
                         {isSelectAll
                             ? `Adding all ${totalCount} matching candidates`
                             : `${candidateIds.length} candidate${candidateIds.length > 1 ? 's' : ''} selected`
                         }
-                    </DialogDescription>
-                </DialogHeader>
+                    </SheetDescription>
+                </SheetHeader>
 
-                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <div className="px-6 border-b bg-slate-50">
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1 flex flex-col min-h-0">
+                    <div className="px-6 border-b bg-slate-50 shrink-0">
                         <TabsList className="grid w-full grid-cols-2 mt-4 mb-2 bg-slate-200/50">
                             <TabsTrigger value="existing">Selection Existing JR</TabsTrigger>
                             <TabsTrigger value="new">Create New JR</TabsTrigger>
                         </TabsList>
                     </div>
 
-                    <div className="p-6">
-                        <TabsContent value="existing" className="mt-0 space-y-4">
-                            <div className="space-y-3">
+                    <div className="p-6 flex-1 min-h-0 overflow-hidden flex flex-col">
+                        <TabsContent value="existing" className="mt-0 h-full outline-none">
+                            <div className="flex flex-col h-full space-y-4">
+                                <div className="space-y-3 shrink-0">
                                 <div className="relative">
                                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                     <Input
@@ -324,7 +325,7 @@ export function AddCandidateDialog({
                                 </div>
                             </div>
 
-                            <ScrollArea className="h-[280px] pr-4">
+                            <div className="flex-1 overflow-y-auto pr-2">
                                 {loading ? (
                                     <div className="flex items-center justify-center h-full gap-2 text-slate-400">
                                         <Loader2 className="w-5 h-5 animate-spin" />
@@ -370,12 +371,14 @@ export function AddCandidateDialog({
                                         ))}
                                     </div>
                                 )}
-                            </ScrollArea>
+                            </div>
+                            </div>
                         </TabsContent>
 
-                        <TabsContent value="new" className="mt-0 space-y-4">
-                            <ScrollArea className="h-[400px] pr-4">
-                                <div className="space-y-6 p-1">
+                        <TabsContent value="new" className="mt-0 h-full outline-none">
+                            <div className="flex flex-col h-full space-y-4">
+                            <div className="flex-1 overflow-y-auto pr-2 p-1">
+                                <div className="space-y-6">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {/* Position Title */}
                                         <div className="space-y-2">
@@ -503,12 +506,13 @@ export function AddCandidateDialog({
                                         </div>
                                     </div>
                                 </div>
-                            </ScrollArea>
+                            </div>
+                            </div>
                         </TabsContent>
                     </div>
                 </Tabs>
 
-                <DialogFooter className="p-6 bg-slate-50 border-t">
+                <SheetFooter className="p-6 shrink-0 bg-slate-50 border-t flex items-center justify-end sm:justify-end gap-2">
                     <Button
                         variant="ghost"
                         onClick={() => onOpenChange(false)}
@@ -535,9 +539,9 @@ export function AddCandidateDialog({
                             Create & Add
                         </Button>
                     )}
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                </SheetFooter>
+            </SheetContent>
+        </Sheet>
     );
 }
 

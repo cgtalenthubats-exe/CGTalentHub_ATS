@@ -6,22 +6,31 @@ import { OrgChartHeader } from '@/components/org-chart/org-chart-header'
 import { OrgDirectory } from '@/components/org-chart/org-directory'
 import { OrgNodeTable } from '@/components/org-chart/org-node-table'
 import { OrgChartClientWrapper } from '@/components/org-chart/org-chart-client-wrapper'
+import { UnmappedCandidates } from '@/components/org-chart/unmapped-candidates'
 
 type OrgChartClientPageProps = {
     uploads: any[]
     currentUploadId: string | null
+    currentCompanyId: string | null
     chartData: any
     tableData: any[]
+    companyLogoUrl: string | null
+    notes: string | null
+    chartFileUrl: string | null
 }
 
 export function OrgChartClientPage({
     uploads,
     currentUploadId,
+    currentCompanyId,
     chartData,
-    tableData
+    tableData,
+    companyLogoUrl,
+    notes,
+    chartFileUrl
 }: OrgChartClientPageProps) {
     return (
-        <div className="container mx-auto py-2 space-y-2 flex flex-col h-screen overflow-hidden px-4 md:px-6">
+        <div className="container mx-auto py-2 space-y-4 flex flex-col min-h-screen px-4 md:px-6 mb-10">
             <OrgChartHeader />
 
             {/* Top Area: Compact Directory Toolbar */}
@@ -31,8 +40,8 @@ export function OrgChartClientPage({
             />
 
             {/* Main Content: Chart/Table */}
-            <div className="flex-1 min-h-0 relative">
-                <Tabs defaultValue="chart" className="h-full flex flex-col">
+            <div className="relative h-[800px] md:h-[85vh] w-full">
+                <Tabs defaultValue="chart" className="flex flex-col h-full">
                     <div className="flex mb-1 shrink-0 justify-between items-center bg-white/50 dark:bg-slate-950/50 p-1 rounded-lg border border-slate-100 dark:border-slate-800 px-3">
                         <TabsList className="h-8 bg-transparent p-0 gap-1">
                             <TabsTrigger
@@ -61,16 +70,30 @@ export function OrgChartClientPage({
                         )}
                     </div>
 
-                    <TabsContent value="chart" className="flex-1 min-h-0 border rounded-xl overflow-hidden mt-0 bg-slate-50/50 dark:bg-slate-900/10">
+                    <TabsContent value="chart" className="flex-1 flex flex-col h-full border rounded-xl overflow-hidden mt-0 shadow-sm relative">
                         <Suspense fallback={<div className="h-full w-full bg-slate-100 dark:bg-slate-800 animate-pulse" />}>
                             <OrgChartClientWrapper
                                 initialData={chartData}
+                                companyLogoUrl={companyLogoUrl}
+                                companyId={currentCompanyId}
+                                uploadId={currentUploadId}
+                                notes={notes}
+                                chartFileUrl={chartFileUrl}
                             />
                         </Suspense>
                     </TabsContent>
 
-                    <TabsContent value="list" className="flex-1 overflow-auto mt-0 border rounded-xl bg-white dark:bg-slate-950">
-                        <OrgNodeTable nodes={tableData} uploadId={currentUploadId} />
+                    <TabsContent value="list" className="flex-1 min-h-[750px] md:min-h-[85vh] mt-0">
+                        <div className="flex items-start gap-4 h-full w-full">
+                            <div className="flex-1 h-full border rounded-xl bg-white dark:bg-slate-950 overflow-hidden shadow-sm">
+                                <OrgNodeTable nodes={tableData} uploadId={currentUploadId} />
+                            </div>
+                            {currentCompanyId && (
+                                <div className="w-[340px] shrink-0 h-full overflow-y-auto hidden lg:block rounded-xl">
+                                    <UnmappedCandidates companyId={currentCompanyId} uploadId={currentUploadId} />
+                                </div>
+                            )}
+                        </div>
                     </TabsContent>
                 </Tabs>
             </div>

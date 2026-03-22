@@ -23,6 +23,7 @@ import {
 } from '@/components/ui/dialog'
 import { Edit2, Plus, UserCheck, AlertCircle, Search, X, Loader2, UserPlus } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
 
 export function OrgNodeTable({ nodes, uploadId }: { nodes: RawOrgNode[], uploadId: string | null }) {
@@ -169,15 +170,15 @@ export function OrgNodeTable({ nodes, uploadId }: { nodes: RawOrgNode[], uploadI
     }
 
     return (
-        <div className='space-y-4'>
-            <div className='flex justify-end pr-2'>
+        <div className='flex flex-col h-full space-y-4 p-4'>
+            <div className='flex justify-end pr-2 shrink-0'>
                 <Button onClick={handleAdd} className="gap-2 bg-indigo-600 hover:bg-indigo-700">
                     <Plus size={16} />
                     Add Employee
                 </Button>
             </div>
 
-            <div className='rounded-xl border bg-white dark:bg-slate-900 shadow-sm overflow-hidden'>
+            <div className='rounded-xl border bg-white dark:bg-slate-900 shadow-sm overflow-auto flex-1 min-h-0 relative'>
                 <Table>
                     <TableHeader className="bg-slate-50 dark:bg-slate-800/50">
                         <TableRow>
@@ -291,12 +292,24 @@ export function OrgNodeTable({ nodes, uploadId }: { nodes: RawOrgNode[], uploadI
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="parent">Reporting To (Manager Name)</Label>
-                            <Input
-                                id="parent"
-                                value={formData.parent_name}
-                                onChange={(e) => setFormData({ ...formData, parent_name: e.target.value })}
-                                placeholder="Exact name of the manager node"
-                            />
+                            <Select 
+                                value={formData.parent_name || 'none'} 
+                                onValueChange={(val) => setFormData({ ...formData, parent_name: val === 'none' ? '' : val })}
+                            >
+                                <SelectTrigger id="parent" className="w-full bg-white dark:bg-slate-950">
+                                    <SelectValue placeholder="Select a manager" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-[250px]">
+                                    <SelectItem value="none" className="italic text-slate-500">None (Root Level)</SelectItem>
+                                    {nodes
+                                        .filter(n => !(editingNode && n.node_id === editingNode.node_id)) // Prevent selecting self
+                                        .map(node => (
+                                            <SelectItem key={node.node_id} value={node.name}>
+                                                {node.name} {node.title ? `— ${node.title}` : ''}
+                                            </SelectItem>
+                                        ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="node-linkedin" className="flex items-center gap-2">
