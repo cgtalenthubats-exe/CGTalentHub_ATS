@@ -3,7 +3,7 @@ import { getN8nUrl } from '@/app/actions/admin-actions';
 
 export async function POST(req: Request) {
     try {
-        const { message, history = [] } = await req.json();
+        const { message, sessionId, history = [] } = await req.json();
 
         if (!message) {
             return NextResponse.json({ error: 'Message is required' }, { status: 400 });
@@ -19,22 +19,53 @@ export async function POST(req: Request) {
         }
 
         // POST to n8n webhook
-        // Payload: { message: string, history: { role: string, content: string }[] }
+        // Payload: { message, sessionId } — n8n Postgres Chat Memory handles history
+        const payload: Record<string, any> = { message };
+
+        // Prefer sessionId (for Postgres Chat Memory in n8n)
+        // Fall back to history array for backward compatibility
+        if (sessionId) {
+            payload.sessionId = sessionId;
+        } else if (history.length > 0) {
+            payload.history = history;
+        }
+
         const n8nRes = await fetch(config.url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message, history }),
-            signal: AbortSignal.timeout(30000),
+            body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(60000), // 60s timeout for AI agent processing
         });
 
         if (!n8nRes.ok) {
             throw new Error(`n8n responded with HTTP ${n8nRes.status}`);
         }
 
-        const data = await n8nRes.json();
+        // Read raw text first — n8n may return JSON or plain text
+        const rawText = await n8nRes.text();
+        let answer: string;
 
-        // n8n should return: { answer } or { output } or { text }
-        const answer = data.answer ?? data.output ?? data.text ?? JSON.stringify(data);
+        try {
+            // Try parsing as JSON
+            const data = JSON.parse(rawText);
+            // n8n returns various shapes: { answer }, { output }, { text }, or nested arrays
+            if (Array.isArray(data)) {
+                // n8n "All Incoming Items" returns an array
+                const first = data[0] || {};
+                answer = first.answer ?? first.output ?? first.text ?? JSON.stringify(first);
+            } else {
+                answer = data.answer ?? data.output ?? data.text ?? JSON.stringify(data);
+            }
+        } catch {
+            // Not JSON — treat raw text as the answer
+            answer = rawText;
+        }
+
+        // Fix escaped newlines: n8n often double-escapes \n as \\n in expressions
+        answer = answer
+            .replace(/\\n/g, '\n')     // \\n → real newline
+            .replace(/\\t/g, '\t')     // \\t → real tab
+            .replace(/\\"/g, '"');     // \\" → real quote
 
         return NextResponse.json({ answer });
 
