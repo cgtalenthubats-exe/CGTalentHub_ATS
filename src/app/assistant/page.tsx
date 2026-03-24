@@ -241,9 +241,9 @@ export default function AssistantPage() {
                     ) : (
                         <div className="space-y-6">
                             <AnimatePresence mode="popLayout">
-                                {messages.map((msg) => (
+                                {messages.map((msg, i) => (
                                     <motion.div
-                                        key={msg.id}
+                                        key={msg.id || `msg_legacy_${i}`}
                                         initial={{ opacity: 0, y: 15 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         transition={{ duration: 0.3 }}

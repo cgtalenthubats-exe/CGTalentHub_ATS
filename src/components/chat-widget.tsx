@@ -3,43 +3,102 @@
 import { useState, useRef, useEffect } from "react";
 import { Bot, X, Send, Loader2, Sparkles, Settings } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
-type Message = {
+interface Message {
+    id: string;
     role: 'user' | 'assistant';
     content: string;
-};
+    timestamp: Date;
+}
 
 export function ChatWidget() {
+    const pathname = usePathname();
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
+    const [sessionId, setSessionId] = useState<string>('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
+    // Load state from localStorage on mount (share with assistant page)
+    useEffect(() => {
+        const savedMessages = localStorage.getItem("ats_chat_messages");
+        const savedSessionId = localStorage.getItem("ats_chat_session_id");
+
+        if (savedMessages) {
+            try {
+                const parsed = JSON.parse(savedMessages).map((m: any) => ({
+                    ...m,
+                    timestamp: new Date(m.timestamp)
+                }));
+                setMessages(parsed);
+            } catch (e) {
+                console.error("Failed to parse saved messages", e);
+            }
+        }
+
+        if (savedSessionId) {
+            setSessionId(savedSessionId);
+        }
+    }, [isOpen]); // Reload when opened to catch updates from assistant page
+
+    // Save messages to localStorage whenever they change
+    useEffect(() => {
+        if (messages.length > 0) {
+            localStorage.setItem("ats_chat_messages", JSON.stringify(messages));
+        }
+    }, [messages]);
+
+    // Hooks MUST be called before any conditional returns
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages, loading]);
+    }, [messages, loading, isOpen]);
+
+    // Now it's safe to return null if we are on the assistant page
+    if (pathname === '/assistant') return null;
 
     const sendMessage = async () => {
         const text = input.trim();
         if (!text || loading) return;
 
-        const userMsg: Message = { role: 'user', content: text };
+        const userMsg: Message = { 
+            id: `msg_${Date.now()}`,
+            role: 'user', 
+            content: text,
+            timestamp: new Date()
+        };
         setMessages(prev => [...prev, userMsg]);
         setInput('');
         setLoading(true);
 
         try {
-            const history = messages.slice(-10); // send last 10 messages as context
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: text, history }),
+                body: JSON.stringify({ 
+                    message: text, 
+                    sessionId: sessionId || undefined 
+                }),
             });
             const data = await res.json();
-            setMessages(prev => [...prev, { role: 'assistant', content: data.answer || '...' }]);
+            
+            const assistantMsg: Message = {
+                id: `msg_${Date.now()}_a`,
+                role: 'assistant',
+                content: data.answer || 'ไม่มีคำตอบจากระบบ',
+                timestamp: new Date()
+            };
+            
+            setMessages(prev => [...prev, assistantMsg]);
         } catch {
-            setMessages(prev => [...prev, { role: 'assistant', content: '❌ เกิดข้อผิดพลาด ลองใหม่อีกครั้ง' }]);
+            const errorMsg: Message = {
+                id: `msg_${Date.now()}_err`,
+                role: 'assistant',
+                content: '❌ เกิดข้อผิดพลาด ลองใหม่อีกครั้ง',
+                timestamp: new Date()
+            };
+            setMessages(prev => [...prev, errorMsg]);
         } finally {
             setLoading(false);
         }
@@ -94,7 +153,7 @@ export function ChatWidget() {
                         )}
 
                         {messages.map((msg, i) => (
-                            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            <div key={msg.id || `msg_legacy_${i}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap ${msg.role === 'user'
                                         ? 'bg-violet-600 text-white rounded-br-sm'
                                         : 'bg-white border border-slate-200 text-slate-700 rounded-bl-sm shadow-sm'
