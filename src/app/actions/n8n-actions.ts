@@ -177,3 +177,56 @@ export async function triggerCandidateRefresh(candidates: { id: string, name?: s
         return { success: false, error: error.message };
     }
 }
+
+// --- New: Job Requisition Update Webhook ---
+export async function triggerJRWebhook(jrId: string, data: any, event: 'create' | 'update', isFileUpdated: boolean = false) {
+    try {
+        const config = await getN8nUrl('Job Description Upload');
+        if (!config) {
+            console.warn("n8n Configuration 'Job Description Upload' not found. Skipping webhook trigger.");
+            return { success: false, error: "n8n Configuration 'Job Description Upload' not found" };
+        }
+
+        const supabaseServer = await createServerClient();
+        const { data: { user } } = await supabaseServer.auth.getUser();
+        const requester = user?.email || data.create_by || 'System';
+
+        const payload = {
+            jr_id: jrId,
+            uploadType: "Job description",
+            requester: requester,
+            event: event,
+            is_file_updated: isFileUpdated || (event === 'create' && !!data.feedback_file),
+            details: {
+                position: data.position_jr || data.job_title,
+                bu: data.bu || data.division,
+                sub_bu: data.sub_bu || data.department,
+                jr_type: data.jr_type,
+                job_description: data.job_description,
+                feedback_file: data.feedback_file,
+                request_date: data.request_date || data.opened_date
+            },
+            timestamp: new Date().toISOString()
+        };
+
+        console.log(`Triggering n8n JR Webhook (${config.method}):`, config.url);
+
+        const fetchOptions: RequestInit = {
+            method: config.method,
+            cache: 'no-store',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        };
+
+        const response = await fetch(config.url, fetchOptions);
+
+        if (!response.ok) {
+            return { success: false, error: `n8n failed with status: ${response.status}` };
+        }
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("Trigger JR Webhook Error:", error);
+        return { success: false, error: error.message };
+    }
+}

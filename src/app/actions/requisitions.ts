@@ -157,7 +157,7 @@ export async function getDistinctFieldValues(field: string): Promise<string[]> {
     return [...new Set(values)];
 }
 
-export async function updateJobRequisition(jrId: string, data: any): Promise<{ success: boolean; data?: JobRequisition; error?: string }> {
+export async function updateJobRequisition(jrId: string, data: any, isFileUpdated: boolean = false): Promise<{ success: boolean; data?: JobRequisition; error?: string }> {
     const supabase = adminAuthClient;
 
     try {
@@ -184,6 +184,10 @@ export async function updateJobRequisition(jrId: string, data: any): Promise<{ s
             console.error("Error updating JR Detail:", updateError);
             return { success: false, error: updateError.message };
         }
+
+        // --- Trigger Webhook ---
+        const { triggerJRWebhook } = await import("./n8n-actions");
+        triggerJRWebhook(jrId, data, 'update', isFileUpdated).catch(e => console.error("Failed to trigger JR Webhook (Update):", e));
 
         const updatedData = updated as any;
 
@@ -273,6 +277,10 @@ export async function createJobRequisition(data: any): Promise<JobRequisition | 
             console.error("Error inserting JR:", insertError);
             throw insertError;
         }
+
+        // --- Trigger Webhook ---
+        const { triggerJRWebhook } = await import("./n8n-actions");
+        triggerJRWebhook(nextId, data, 'create').catch(e => console.error("Failed to trigger JR Webhook (Create):", e));
 
         const insertedData = inserted as any;
 

@@ -75,6 +75,21 @@ const WEBHOOK_DOCS: Record<string, {
 }`,
         response: `{ success: true }  (n8n processes and writes results to all_org_nodes table)`,
     },
+    "Job Description Upload": {
+        trigger: "ถูกเรียกเมื่อมีการสร้างหรืออัปเดต Job Requisition พร้อม PDF",
+        payload: `POST  {
+  jr_id: "JRXXXXXX",
+  uploadType: "Job description",
+  requester: "email@...",
+  event: "create | update",
+  is_file_updated: boolean,
+  details: { 
+    position, bu, sub_bu, jr_type, job_description, 
+    feedback_file: "URL", request_date 
+  }
+}`,
+        response: `{ success: true }`,
+    },
 };
 
 export default function N8nAdminPage() {

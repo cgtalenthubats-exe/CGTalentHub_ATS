@@ -5,6 +5,7 @@ import { N8nConfig, getN8nConfigs, updateN8nConfig } from "@/app/actions/admin-a
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { upsertN8nConfig } from "@/app/actions/admin-actions";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -39,9 +40,16 @@ export function N8nIntegrations() {
         setEditForm({ url: '', method: 'POST' });
     };
 
-    const handleSave = async (id: number) => {
+    const handleSave = async (config: N8nConfig) => {
         setSaving(true);
-        const res = await updateN8nConfig(id, editForm.url, editForm.method);
+        let res;
+        if (config.id < 0) {
+            // Virtual entry, use upsert by name
+            res = await upsertN8nConfig(config.name, editForm.url, editForm.method, config.description);
+        } else {
+            res = await updateN8nConfig(config.id, editForm.url, editForm.method);
+        }
+        
         if (res.success) {
             toast.success("Configuration updated successfully");
             setEditingId(null);
@@ -134,7 +142,7 @@ export function N8nIntegrations() {
                                     <div className="flex items-center gap-2">
                                         {editingId === config.id ? (
                                             <>
-                                                <Button size="sm" onClick={() => handleSave(config.id)} disabled={saving} className="h-8 w-8 p-0 bg-green-600 hover:bg-green-700">
+                                                <Button size="sm" onClick={() => handleSave(config)} disabled={saving} className="h-8 w-8 p-0 bg-green-600 hover:bg-green-700">
                                                     {saving ? <Loader2 className="w-3 h-3 animate-spin" /> : <Save className="w-3 h-3" />}
                                                 </Button>
                                                 <Button size="sm" variant="ghost" onClick={handleCancel} disabled={saving} className="h-8 w-8 p-0">

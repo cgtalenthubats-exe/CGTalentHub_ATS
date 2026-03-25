@@ -12,8 +12,14 @@ import {
     Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Check, ChevronsUpDown, Plus, Loader2 } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Loader2, Upload, FileText, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { createClient } from "@supabase/supabase-js";
+
+// Initialize Supabase Client for client-side storage upload
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 interface CreateJobRequisitionFormProps {
     onCancel: () => void;
@@ -105,8 +111,14 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData, sel
         feedback_file: initialData?.feedback_file || "",
         create_by: initialData?.created_by || ""
     });
+    
+    // Fallback Profiles State if not provided by prop
+    const [fetchedProfiles, setFetchedProfiles] = useState<{ email: string; real_name: string }[]>(profiles || []);
 
     const [currentUserName, setCurrentUserName] = useState<string>("");
+    const [uploadingFile, setUploadingFile] = useState(false);
+    const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+    const [isFileUpdated, setIsFileUpdated] = useState(false);
 
     // Load Distinct Values on Mount
     useEffect(() => {
@@ -136,6 +148,12 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData, sel
                 if (!isEdit) {
                     setFormData(prev => ({ ...prev, create_by: selectedCreatedBy || name }));
                 }
+
+                if (!profiles || profiles.length === 0) {
+                    const { getUserProfiles } = await import("@/app/actions/requisitions");
+                    const pList = await getUserProfiles();
+                    setFetchedProfiles(pList);
+                }
             } catch (e) {
                 console.error("Failed to load options", e);
             }
@@ -147,6 +165,43 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData, sel
         setFormData(prev => ({ ...prev, [key]: value }));
     };
 
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (file.type !== "application/pdf") {
+            toast.error("Please upload only PDF files");
+            return;
+        }
+
+        setUploadingFile(true);
+        try {
+            // Sanitize filename
+            const sanitizedBase = file.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]/g, '_');
+            const fileName = `jr_feedback/${Date.now()}_${sanitizedBase}`;
+            
+            const { data, error } = await supabase.storage
+                .from('resumes') // Reusing resumes bucket as it's common for recruiter docs
+                .upload(fileName, file);
+
+            if (error) throw error;
+
+            const { data: { publicUrl } } = supabase.storage
+                .from('resumes')
+                .getPublicUrl(fileName);
+
+            handleChange("feedback_file", publicUrl);
+            setUploadedFileName(file.name);
+            setIsFileUpdated(true);
+            toast.success("File uploaded successfully");
+        } catch (err: any) {
+            console.error("Upload Error:", err);
+            toast.error("Failed to upload file: " + err.message);
+        } finally {
+            setUploadingFile(false);
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
@@ -154,7 +209,7 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData, sel
         try {
             if (isEdit) {
                 const { updateJobRequisition } = await import("@/app/actions/requisitions");
-                const result = await updateJobRequisition(initialData.id, formData);
+                const result = await updateJobRequisition(initialData.id, formData, isFileUpdated);
                 if (result.success && result.data) {
                     toast.success("Job Requisition updated successfully");
                     onSuccess(result.data);
@@ -284,25 +339,72 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData, sel
                             <SelectValue placeholder="Select Creator" />
                         </SelectTrigger>
                         <SelectContent>
-                            {(profiles || []).filter(p => !!p.real_name && p.real_name.trim() !== "").map((p, idx) => (
+                            {(profiles || fetchedProfiles || []).filter(p => !!p.real_name && p.real_name.trim() !== "").map((p, idx) => (
                                 <SelectItem key={`${p.email}-${idx}`} value={p.real_name}>{p.real_name}</SelectItem>
                             ))}
                             {/* Fallback if profiles not loaded or the current name isn't in profiles */}
-                            {(!profiles || profiles.length === 0 || !profiles.some(p => p.real_name === formData.create_by)) && formData.create_by && (
+                            {(!(profiles || fetchedProfiles) || (profiles || fetchedProfiles).length === 0 || !(profiles || fetchedProfiles).some(p => p.real_name === formData.create_by)) && formData.create_by && (
                                 <SelectItem value={formData.create_by}>{formData.create_by}</SelectItem>
                             )}
                         </SelectContent>
                     </Select>
                 </div>
 
-                {/* Feedback File (PDF Link) */}
+                {/* Feedback File (PDF Upload) */}
                 <div className="space-y-2">
-                    <Label htmlFor="feedback_file">Feedback File (PDF/Link)</Label>
-                    <Input
-                        placeholder="Paste PDF link here..."
-                        value={formData.feedback_file}
-                        onChange={(e) => handleChange("feedback_file", e.target.value)}
-                    />
+                    <Label htmlFor="feedback_file">Feedback File (Upload JD/PDF)</Label>
+                    <div className="flex flex-col gap-2">
+                        {formData.feedback_file ? (
+                            <div className="flex items-center justify-between p-2 border rounded-md bg-green-50 border-green-200">
+                                <div className="flex items-center gap-2 overflow-hidden">
+                                    <FileText className="w-4 h-4 text-green-600 flex-shrink-0" />
+                                    <span className="text-xs text-green-700 truncate" title={formData.feedback_file}>
+                                        {uploadedFileName || "File uploaded"}
+                                    </span>
+                                </div>
+                                <Button 
+                                    type="button" 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-6 w-6 p-0 text-green-600 hover:text-green-700 hover:bg-green-100"
+                                    onClick={() => {
+                                        handleChange("feedback_file", "");
+                                        setUploadedFileName(null);
+                                    }}
+                                >
+                                    <X className="w-3 h-3" />
+                                </Button>
+                            </div>
+                        ) : (
+                            <div className="relative">
+                                <Input
+                                    type="file"
+                                    accept=".pdf"
+                                    className="hidden"
+                                    id="jr-file-upload"
+                                    onChange={handleFileUpload}
+                                    disabled={uploadingFile}
+                                />
+                                <Label
+                                    htmlFor="jr-file-upload"
+                                    className={cn(
+                                        "flex items-center justify-center gap-2 w-full h-10 px-3 border-2 border-dashed rounded-md cursor-pointer transition-colors",
+                                        uploadingFile ? "opacity-50 cursor-not-allowed bg-slate-50" : "hover:bg-slate-50 border-slate-200 hover:border-slate-300"
+                                    )}
+                                >
+                                    {uploadingFile ? (
+                                        <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+                                    ) : (
+                                        <>
+                                            <Upload className="w-4 h-4 text-slate-400" />
+                                            <span className="text-sm text-slate-500">Upload PDF</span>
+                                        </>
+                                    )}
+                                </Label>
+                            </div>
+                        )}
+                        <p className="text-[10px] text-slate-400">Supporting only PDF format for n8n processing.</p>
+                    </div>
                 </div>
             </div>
 

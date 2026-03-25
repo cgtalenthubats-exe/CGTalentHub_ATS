@@ -12,11 +12,9 @@ import { KanbanBoard } from "@/components/kanban-board";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Plus, List, Kanban, MessageSquare, Briefcase, Share2, Loader2, Copy, Trophy, Trash2, Edit } from "lucide-react";
 import {
     BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
 } from "recharts";
-
 import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { JRTabs } from "@/components/jr-tabs";
 import { CreateJobRequisitionForm } from "@/components/create-jr-form";
@@ -28,7 +26,11 @@ import { toast } from "sonner";
 import { deleteJobRequisition, getUserProfiles, getRequisition } from "@/app/actions/requisitions";
 import { getJRAnalytics } from "@/app/actions/jr-candidates";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { User } from "lucide-react";
+import { 
+    Plus, List, Kanban, MessageSquare, Briefcase, Share2, Loader2, 
+    Copy, Trophy, Trash2, Edit, User, Activity 
+} from "lucide-react";
+import { useJobRequisitionRealtime } from "@/hooks/use-jr-realtime";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -66,6 +68,7 @@ export default function JRManagePage() {
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isEditOpen, setIsEditOpen] = useState(false);
+    const [isSyncing, setIsSyncing] = useState(false);
 
     // Audit State
     const [profiles, setProfiles] = useState<{ email: string; real_name: string }[]>([]);
@@ -218,6 +221,23 @@ export default function JRManagePage() {
         setIsTriggeringReport(false);
     };
 
+    // --- Realtime Sync ---
+    useJobRequisitionRealtime(selectedJR?.id, (updatedJR) => {
+        // Only update if the data actually changed (e.g. n8n filled in job_description)
+        if (JSON.stringify(updatedJR) !== JSON.stringify(selectedJR)) {
+            console.log("Auto-updating JR data via Realtime...");
+            setSelectedJR(updatedJR);
+            // Update local cache
+            if (updatedJR.id) jrCache[updatedJR.id] = updatedJR;
+            setIsSyncing(false); // Stop "processing" once we get an update
+            
+            toast.info(`Updated: ${updatedJR.id} data synced automatically.`, {
+                icon: <Activity className="h-4 w-4 text-blue-500" />,
+                duration: 2000
+            });
+        }
+    });
+
     return (
         <div className="flex flex-col min-h-screen bg-slate-50/50 dark:bg-black">
             {/* Top Tabs Bar */}
@@ -275,6 +295,12 @@ export default function JRManagePage() {
                                     </span>
                                     <span>•</span>
                                     <span>{selectedJR.headcount_hired}/{selectedJR.headcount_total} Hired</span>
+                                    {isSyncing && (
+                                        <div className="flex items-center gap-1.5 ml-2 text-blue-600 font-bold animate-pulse">
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                            <span>n8n is processing...</span>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -301,6 +327,7 @@ export default function JRManagePage() {
                                         onSuccess={(newJR) => {
                                             setIsCreateOpen(false);
                                             setSelectedJR(newJR);
+                                            setIsSyncing(true); // Start syncing state
                                         }}
                                     />
                                 </DialogContent>
@@ -381,6 +408,7 @@ export default function JRManagePage() {
                                             onSuccess={(updatedJR) => {
                                                 setIsEditOpen(false);
                                                 setSelectedJR(updatedJR);
+                                                setIsSyncing(true); // Start syncing state
                                             }}
                                         />
                                     )}
