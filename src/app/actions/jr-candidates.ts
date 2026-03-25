@@ -99,7 +99,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         // Query 2: Candidate Profiles
         (supabase
             .from('Candidate Profile' as any)
-            .select('candidate_id, name, email, mobile_phone, job_function, photo, age, gender, candidate_projects, candidate_status')
+            .select('candidate_id, name, email, mobile_phone, job_function, photo, age, gender, candidate_projects, candidate_status, linkedin')
             .in('candidate_id', candidateIds) as any),
 
         // Query 3: Candidate Experiences
@@ -195,6 +195,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
             candidate_age: profile?.age || undefined,
             candidate_gender: profile?.gender || undefined,
             candidate_status: profile?.candidate_status || undefined,
+            candidate_linkedin_url: profile?.linkedin || undefined,
         };
     });
 }
