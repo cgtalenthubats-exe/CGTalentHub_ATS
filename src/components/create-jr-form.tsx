@@ -112,8 +112,9 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData, sel
         create_by: initialData?.created_by || ""
     });
     
-    // Fallback Profiles State if not provided by prop
-    const [fetchedProfiles, setFetchedProfiles] = useState<{ email: string; real_name: string }[]>(profiles || []);
+    // Combined Profiles Logic
+    const [fetchedProfiles, setFetchedProfiles] = useState<{ email: string; real_name: string }[]>([]);
+    const allProfiles = (profiles && profiles.length > 0) ? profiles : fetchedProfiles;
 
     const [currentUserName, setCurrentUserName] = useState<string>("");
     const [uploadingFile, setUploadingFile] = useState(false);
@@ -339,11 +340,11 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData, sel
                             <SelectValue placeholder="Select Creator" />
                         </SelectTrigger>
                         <SelectContent>
-                            {(profiles || fetchedProfiles || []).filter(p => !!p.real_name && p.real_name.trim() !== "").map((p, idx) => (
+                            {allProfiles.filter(p => !!p.real_name && p.real_name.trim() !== "").map((p, idx) => (
                                 <SelectItem key={`${p.email}-${idx}`} value={p.real_name}>{p.real_name}</SelectItem>
                             ))}
                             {/* Fallback if profiles not loaded or the current name isn't in profiles */}
-                            {(!(profiles || fetchedProfiles) || (profiles || fetchedProfiles).length === 0 || !(profiles || fetchedProfiles).some(p => p.real_name === formData.create_by)) && formData.create_by && (
+                            {(allProfiles.length === 0 || !allProfiles.some(p => p.real_name === formData.create_by)) && formData.create_by && (
                                 <SelectItem value={formData.create_by}>{formData.create_by}</SelectItem>
                             )}
                         </SelectContent>
