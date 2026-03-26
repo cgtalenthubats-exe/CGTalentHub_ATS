@@ -35,6 +35,7 @@ export function CompanySuggestionInput({
     const [open, setOpen] = React.useState(false)
     const [query, setQuery] = React.useState(value)
     const [suggestions, setSuggestions] = React.useState<string[]>([])
+    const [totalMatches, setTotalMatches] = React.useState(0)
     const [isLoading, setIsLoading] = React.useState(false)
 
     // Sync external value to internal query
@@ -47,17 +48,22 @@ export function CompanySuggestionInput({
         if (!open) return // Only fetch when dropdown is open
 
         const fetchSuggestions = async () => {
-            if (query.length < 1) {
+            if (query.trim().length < 1) {
                 setSuggestions([])
+                setTotalMatches(0)
                 return
             }
 
             setIsLoading(true)
             try {
-                const results = await searchCompanies(query, 10)
-                setSuggestions(results)
+                // Increased limit to 20 per user request
+                const response = await searchCompanies(query, 20)
+                setSuggestions(response.results || [])
+                setTotalMatches(response.totalCount || 0)
             } catch (error) {
                 console.error('Error fetching company suggestions:', error)
+                setSuggestions([])
+                setTotalMatches(0)
             } finally {
                 setIsLoading(false)
             }
@@ -110,10 +116,18 @@ export function CompanySuggestionInput({
                                 <span>Searching...</span>
                             </div>
                         )}
-                        {!isLoading && suggestions.length === 0 && query.length > 0 && (
+                        {!isLoading && suggestions.length === 0 && query.trim().length > 0 && (
                             <CommandEmpty className="py-2 text-xs text-center text-muted-foreground">
                                 No matching companies found. Using &quot;{query}&quot;
                             </CommandEmpty>
+                        )}
+                        {suggestions.length > 0 && (
+                            <div className="px-3 py-1.5 bg-slate-50 border-b text-[10px] font-bold text-slate-500 uppercase tracking-wider flex justify-between items-center">
+                                <span>Found {totalMatches} unique companies</span>
+                                {suggestions.length < totalMatches && (
+                                    <span className="opacity-70 font-medium lowercase italic">showing top {suggestions.length}</span>
+                                )}
+                            </div>
                         )}
                         <CommandGroup>
                             {suggestions.map((company) => (

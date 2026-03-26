@@ -5,7 +5,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Sidebar } from "@/components/sidebar";
 import { ConnectionStatus } from "@/components/connection-status";
 import { Button } from "@/components/ui/button";
-import { Bell, Search, UserCircle } from "lucide-react";
+import { Bell, UserCircle } from "lucide-react";
 import ThemeToggle from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 import { Toaster } from "sonner";
@@ -46,14 +46,6 @@ export default function RootLayout({
                 </div>
 
                 <div className="flex items-center gap-4">
-                  <div className="relative group hidden md:block">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                    <input
-                      type="text"
-                      placeholder="Global search..."
-                      className="h-10 w-64 rounded-xl bg-secondary/50 pl-10 pr-4 text-xs font-medium border-transparent focus:ring-1 focus:ring-primary transition-all outline-none"
-                    />
-                  </div>
 
                   <ThemeToggle />
 

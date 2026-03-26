@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
+import { cn, formatNumberWithCommas, parseNumberFromCommas } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
     Command,
@@ -149,6 +149,20 @@ function CandidateForm() {
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { id, value } = e.target;
+        
+        // Special handling for salary fields to add commas (Only requested 4 columns)
+        const salaryFields = [
+            "gross_salary_base_b_mth", "car_allowance_b_mth", 
+            "gasoline_b_mth", "phone_b_mth"
+        ];
+        
+        if (salaryFields.includes(id)) {
+            const cleanValue = parseNumberFromCommas(value);
+            const formattedValue = formatNumberWithCommas(cleanValue);
+            setFormData(prev => ({ ...prev, [id]: formattedValue }));
+            return;
+        }
+        
         setFormData(prev => ({ ...prev, [id]: value }));
     };
 
@@ -165,11 +179,24 @@ function CandidateForm() {
         setLoading(true);
 
         try {
-            // 1. Create Candidate via API
+            // 1. Create Candidate via API (strip commas for requested 4 columns)
+            const submissionData = {
+                ...formData,
+                gross_salary_base_b_mth: parseNumberFromCommas(formData.gross_salary_base_b_mth) || null,
+                car_allowance_b_mth: parseNumberFromCommas(formData.car_allowance_b_mth) || null,
+                gasoline_b_mth: parseNumberFromCommas(formData.gasoline_b_mth) || null,
+                phone_b_mth: parseNumberFromCommas(formData.phone_b_mth) || null,
+                // Others stay as raw strings
+                other_income: formData.other_income || null,
+                medical_b_annual: formData.medical_b_annual || null,
+                medical_b_mth: formData.medical_b_mth || null,
+                housing_for_expat_b_mth: formData.housing_for_expat_b_mth || null,
+            };
+
             const res = await fetch('/api/candidates/create', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(formData)
+                body: JSON.stringify(submissionData)
             });
 
             const data = await res.json();

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, RotateCcw, RefreshCw, CheckCircle2, Minus, Search, Building2, Briefcase, Factory, Info } from "lucide-react";
+import { formatNumberWithCommas } from "@/lib/utils";
 
 // ---- Benefit row definitions ----
 const BENEFIT_ROWS = [
@@ -468,7 +469,7 @@ export default function PackageInfoTab() {
                                                 <td className="px-4 py-2 text-slate-500 max-w-[130px] truncate" title={c.company_industry || ''}>{c.company_industry || '-'}</td>
                                                 <td className="px-4 py-2 text-slate-500">{c.job_grouping || '-'}</td>
                                                 <td className="px-4 py-2 text-right font-mono text-indigo-700 font-semibold">
-                                                    {c.gross_salary_base_b_mth || '-'}
+                                                    {formatNumberWithCommas(c.gross_salary_base_b_mth) || '-'}
                                                 </td>
                                                 <td className="px-4 py-2 text-center">{hasBenefit(c.bonus_mth) ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mx-auto" /> : <Minus className="w-3 h-3 text-slate-200 mx-auto" />}</td>
                                                 <td className="px-4 py-2 text-center">{hasBenefit(c.car_allowance_b_mth) ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 mx-auto" /> : <Minus className="w-3 h-3 text-slate-200 mx-auto" />}</td>

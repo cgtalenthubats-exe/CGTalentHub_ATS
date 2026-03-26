@@ -34,7 +34,7 @@ export async function POST(req: Request) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
-            signal: AbortSignal.timeout(60000), // 60s timeout for AI agent processing
+            signal: AbortSignal.timeout(600000), // 10-minute timeout for extreme AI agent reasoning
         });
 
         if (!n8nRes.ok) {

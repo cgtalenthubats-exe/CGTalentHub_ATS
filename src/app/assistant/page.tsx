@@ -1,17 +1,16 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-    Send,
-    Loader2,
-    Bot,
+import { 
+    Send, 
+    MessageSquarePlus, 
+    Copy, 
+    Bot, 
     User,
-    Sparkles,
-    RotateCcw,
-    MessageSquarePlus,
-    Copy,
-    Check,
+    Sparkles, 
+    Loader2,
+    History,
+    RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,6 +18,14 @@ import { cn } from "@/lib/utils";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { AssistantSidebar } from "@/components/assistant/AssistantSidebar";
+import { 
+    deleteAssistantSession, 
+    getAssistantMessageMetadata,
+    getAssistantMessagesByIds,
+    getAssistantMessages,
+    saveAssistantSession 
+} from "@/app/actions/assistant-actions";
 
 interface ChatMessage {
     id: string;
@@ -27,7 +34,6 @@ interface ChatMessage {
     timestamp: Date;
 }
 
-// Generate a unique session ID
 function generateSessionId(): string {
     return `session_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -36,31 +42,26 @@ export default function AssistantPage() {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+    const [loadStatus, setLoadStatus] = useState<string>("");
+    const [thinkingStatus, setThinkingStatus] = useState<string>("Thinking...");
     const [sessionId, setSessionId] = useState<string>("");
     const [copiedId, setCopiedId] = useState<string | null>(null);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-    // Load initial state from localStorage on client side
+    // EMERGENCY: NO AUTOMATIC FETCH ON MOUNT -> RE-ENABLING CAREFULLY
     useEffect(() => {
-        const savedMessages = localStorage.getItem("ats_chat_messages");
         const savedSessionId = localStorage.getItem("ats_chat_session_id");
-
-        if (savedMessages) {
-            try {
-                // Parse dates correctly
-                const parsed = JSON.parse(savedMessages).map((m: any) => ({
-                    ...m,
-                    timestamp: new Date(m.timestamp),
-                }));
-                setMessages(parsed);
-            } catch (e) {
-                console.error("Failed to parse saved messages", e);
-            }
-        }
-
         if (savedSessionId) {
             setSessionId(savedSessionId);
+            console.log(">>> [DEBUG] Found saved session:", savedSessionId);
+            // Wait 1 second before auto-fetching to ensure page is fully ready
+            const timer = setTimeout(() => {
+                handleSelectSession(savedSessionId);
+            }, 1000);
+            return () => clearTimeout(timer);
         } else {
             const newId = generateSessionId();
             setSessionId(newId);
@@ -68,359 +69,217 @@ export default function AssistantPage() {
         }
     }, []);
 
-    // Save messages to localStorage whenever they change
-    useEffect(() => {
-        if (messages.length > 0) {
-            localStorage.setItem("ats_chat_messages", JSON.stringify(messages));
+    const handleTestBypass = async () => {
+        console.log(">>> [DEBUG] Testing UI with Dummy Data...");
+        setIsHistoryLoading(true);
+        try {
+            const res = await getAssistantMessages("test_debug");
+            if (res.success && res.data) {
+                setMessages(res.data as ChatMessage[]);
+            }
+        } finally {
+            setIsHistoryLoading(false);
         }
-    }, [messages]);
-
-    const scrollToBottom = () => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
-    useEffect(() => {
-        scrollToBottom();
-    }, [messages]);
+    const handleSelectSession = async (sid: string) => {
+        if (!sid || isHistoryLoading) return;
+        console.log(">>> [DEBUG] Selecting Session:", sid);
+        setSessionId(sid);
+        localStorage.setItem("ats_chat_session_id", sid);
+        setIsHistoryLoading(true);
+        setLoadStatus("Checking history...");
+        setMessages([]); 
 
-    // Auto-resize textarea
-    useEffect(() => {
-        if (textareaRef.current) {
-            textareaRef.current.style.height = "auto";
-            textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 160) + "px";
+        try {
+            // STEP 1: Fast metadata fetch
+            const metaRes = await getAssistantMessageMetadata(sid, 15);
+            if (!metaRes.success) {
+                console.error("Meta Fetch Error:", metaRes.error);
+                setLoadStatus("Error loading history metadata");
+                setIsHistoryLoading(false);
+                return;
+            }
+
+            const messageIds = metaRes.data as string[];
+            console.log(`>>> [DEBUG] Metadata loaded: ${messageIds.length} IDs`);
+            if (messageIds.length === 0) {
+                setLoadStatus("");
+                setIsHistoryLoading(false);
+                return;
+            }
+
+            setLoadStatus(`Loading ${messageIds.length} messages...`);
+
+            // STEP 2: Content fetch for these specific IDs
+            const contentRes = await getAssistantMessagesByIds(messageIds);
+            if (contentRes.success && contentRes.data) {
+                console.log(`>>> [DEBUG] Content loaded: ${contentRes.data.length} messages`);
+                setMessages(contentRes.data as ChatMessage[]);
+                setLoadStatus("");
+            } else {
+                setLoadStatus("Failed to load message content");
+            }
+        } catch (err) {
+            console.error(">>> [DEBUG] Manual fetch error:", err);
+            setLoadStatus("Critical error during load");
+        } finally {
+            setIsHistoryLoading(false);
         }
-    }, [input]);
+    };
 
     const handleNewChat = () => {
         const newId = generateSessionId();
         setMessages([]);
         setSessionId(newId);
         setInput("");
-        localStorage.removeItem("ats_chat_messages");
         localStorage.setItem("ats_chat_session_id", newId);
         textareaRef.current?.focus();
     };
 
-    const handleCopy = (content: string, id: string) => {
-        navigator.clipboard.writeText(content);
-        setCopiedId(id);
-        setTimeout(() => setCopiedId(null), 2000);
-    };
-
-    const handleSend = async () => {
-        const trimmed = input.trim();
-        if (!trimmed || isLoading) return;
+    const handleSend = async (customText?: string) => {
+        const textToSend = customText || input.trim();
+        if (!textToSend || isLoading) return;
 
         const userMsg: ChatMessage = {
             id: `msg_${Date.now()}`,
             role: "user",
-            content: trimmed,
+            content: textToSend,
             timestamp: new Date(),
         };
 
         setMessages((prev) => [...prev, userMsg]);
         setInput("");
         setIsLoading(true);
+        setThinkingStatus("Thinking...");
 
-        // Reset textarea height
-        if (textareaRef.current) {
-            textareaRef.current.style.height = "auto";
-        }
+        // Progressive status updates
+        const timer1 = setTimeout(() => setThinkingStatus("Analyzing candidate profiles..."), 15000);
+        const timer2 = setTimeout(() => setThinkingStatus("Comparing and ranking matches..."), 45000);
+        const timer3 = setTimeout(() => setThinkingStatus("Almost there, finalizing the answer..."), 80000);
+        const timer4 = setTimeout(() => setThinkingStatus("Detailed reasoning takes time, still working..."), 150000); // 2.5m
+        const timer5 = setTimeout(() => setThinkingStatus("Synthesizing complex candidate data..."), 300000); // 5m
 
         try {
             const res = await fetch("/api/chat", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    message: trimmed,
-                    sessionId,
-                }),
+                body: JSON.stringify({ message: textToSend, sessionId }),
             });
 
             const data = await res.json();
-
             const assistantMsg: ChatMessage = {
                 id: `msg_${Date.now()}_a`,
                 role: "assistant",
                 content: data.answer || "ไม่มีคำตอบจากระบบ",
                 timestamp: new Date(),
             };
-
             setMessages((prev) => [...prev, assistantMsg]);
+            
+            // Background save session mapping
+            saveAssistantSession(sessionId, textToSend.slice(0, 50))
+                .then(() => setRefreshTrigger(v => v + 1));
         } catch (error: any) {
-            const errorMsg: ChatMessage = {
-                id: `msg_${Date.now()}_err`,
+            let errorMsg = error.message;
+            if (errorMsg.includes("aborted")) {
+                errorMsg = "The task was extremely complex and reached the 10-minute limit. Try asking for a smaller subset of candidates.";
+            }
+            setMessages((prev) => [...prev, {
+                id: `msg_err_${Date.now()}`,
                 role: "assistant",
-                content: `❌ เกิดข้อผิดพลาด: ${error.message}`,
-                timestamp: new Date(),
-            };
-            setMessages((prev) => [...prev, errorMsg]);
+                content: "Error: " + errorMsg,
+                timestamp: new Date()
+            }]);
         } finally {
+            clearTimeout(timer1);
+            clearTimeout(timer2);
+            clearTimeout(timer3);
+            clearTimeout(timer4);
+            clearTimeout(timer5);
             setIsLoading(false);
         }
     };
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            handleSend();
-        }
-    };
-
     return (
-        <div className="flex flex-col h-screen bg-slate-50/50">
-            {/* Header */}
-            <div className="bg-white/80 backdrop-blur-md border-b px-6 py-3 flex justify-between items-center sticky top-0 z-10">
-                <AtsBreadcrumb items={[{ label: "AI Assistant" }]} />
-                <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-slate-400 font-mono bg-slate-100 px-2 py-1 rounded">
-                        {sessionId.slice(0, 20)}...
-                    </span>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={handleNewChat}
-                        className="h-8 gap-2 text-xs font-bold rounded-lg"
-                    >
-                        <MessageSquarePlus className="w-3.5 h-3.5" />
+        <div className="flex h-screen bg-slate-100 overflow-hidden">
+            <AssistantSidebar 
+                onSelectSession={handleSelectSession}
+                activeSessionId={sessionId}
+                onNewChat={handleNewChat}
+                refreshTrigger={refreshTrigger}
+            />
+
+            <div className="flex-1 flex flex-col h-full bg-white relative">
+                <div className="p-4 border-b flex justify-between items-center bg-white z-20">
+                    <div className="flex items-center gap-4">
+                        <AtsBreadcrumb items={[{ label: "Assistant" }]} className="mb-0" />
+                        <Button variant="ghost" size="sm" onClick={handleTestBypass} className="h-8 text-[10px] text-slate-400 border border-slate-100 italic">
+                            DEBUG: Test UI
+                        </Button>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={handleNewChat} className="rounded-xl">
+                        <MessageSquarePlus className="w-4 h-4 mr-2" />
                         New Chat
                     </Button>
                 </div>
-            </div>
 
-            {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto">
-                <div className="max-w-3xl mx-auto px-4 py-6">
-                    {messages.length === 0 ? (
-                        <EmptyState onSuggestionClick={(text) => {
-                            setInput(text);
-                            // Auto-send after a tick
-                            setTimeout(() => {
-                                const userMsg: ChatMessage = {
-                                    id: `msg_${Date.now()}`,
-                                    role: "user",
-                                    content: text,
-                                    timestamp: new Date(),
-                                };
-                                setMessages((prev) => [...prev, userMsg]);
-                                setIsLoading(true);
-                                fetch("/api/chat", {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ message: text, sessionId }),
-                                })
-                                    .then((res) => res.json())
-                                    .then((data) => {
-                                        setMessages((prev) => [
-                                            ...prev,
-                                            {
-                                                id: `msg_${Date.now()}_a`,
-                                                role: "assistant",
-                                                content: data.answer || "ไม่มีคำตอบจากระบบ",
-                                                timestamp: new Date(),
-                                            },
-                                        ]);
-                                    })
-                                    .catch((err) => {
-                                        setMessages((prev) => [
-                                            ...prev,
-                                            {
-                                                id: `msg_${Date.now()}_err`,
-                                                role: "assistant",
-                                                content: `❌ เกิดข้อผิดพลาด: ${err.message}`,
-                                                timestamp: new Date(),
-                                            },
-                                        ]);
-                                    })
-                                    .finally(() => {
-                                        setIsLoading(false);
-                                        setInput("");
-                                    });
-                            }, 50);
-                        }} />
-                    ) : (
-                        <div className="space-y-6">
-                            <AnimatePresence mode="popLayout">
-                                {messages.map((msg, i) => (
-                                    <motion.div
-                                        key={msg.id || `msg_legacy_${i}`}
-                                        initial={{ opacity: 0, y: 15 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ duration: 0.3 }}
-                                        className={cn(
-                                            "flex gap-3",
-                                            msg.role === "user"
-                                                ? "justify-end"
-                                                : "justify-start"
-                                        )}
-                                    >
-                                        {msg.role === "assistant" && (
-                                            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/20 mt-1">
-                                                <Bot className="w-4 h-4 text-white" />
-                                            </div>
-                                        )}
-
-                                        <div
-                                            className={cn(
-                                                "relative group max-w-[85%] rounded-2xl px-4 py-3",
-                                                msg.role === "user"
-                                                    ? "bg-indigo-600 text-white rounded-br-md"
-                                                    : "bg-white border border-slate-200 text-slate-800 rounded-bl-md shadow-sm"
-                                            )}
-                                        >
-                                            {msg.role === "assistant" ? (
-                                                <div className="prose prose-sm prose-slate max-w-none text-sm leading-relaxed [&_p]:mb-2 [&_ul]:my-2 [&_ol]:my-2 [&_li]:my-0.5 [&_code]:bg-slate-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-indigo-700 [&_code]:text-xs [&_pre]:bg-slate-900 [&_pre]:text-slate-100 [&_pre]:rounded-lg [&_pre]:p-3 [&_pre]:my-2 [&_strong]:text-slate-900 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_table]:w-full [&_table]:border-collapse [&_table]:my-3 [&_table]:text-xs [&_th]:bg-slate-100 [&_th]:border [&_th]:border-slate-300 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_td]:border [&_td]:border-slate-200 [&_td]:px-3 [&_td]:py-1.5 [&_tr:nth-child(even)]:bg-slate-50">
-                                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                                        {msg.content}
-                                                    </ReactMarkdown>
-                                                </div>
-                                            ) : (
-                                                <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                                                    {msg.content}
-                                                </p>
-                                            )}
-
-                                            {/* Copy button */}
-                                            <button
-                                                onClick={() =>
-                                                    handleCopy(msg.content, msg.id)
-                                                }
-                                                className={cn(
-                                                    "absolute -bottom-6 right-2 opacity-0 group-hover:opacity-100 transition-opacity",
-                                                    "text-[10px] flex items-center gap-1 text-slate-400 hover:text-slate-600"
-                                                )}
-                                            >
-                                                {copiedId === msg.id ? (
-                                                    <>
-                                                        <Check className="w-3 h-3" />{" "}
-                                                        Copied
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <Copy className="w-3 h-3" />{" "}
-                                                        Copy
-                                                    </>
-                                                )}
-                                            </button>
-                                        </div>
-
-                                        {msg.role === "user" && (
-                                            <div className="w-8 h-8 rounded-lg bg-slate-200 flex items-center justify-center shrink-0 mt-1">
-                                                <User className="w-4 h-4 text-slate-600" />
-                                            </div>
-                                        )}
-                                    </motion.div>
-                                ))}
-                            </AnimatePresence>
-
-                            {/* Typing Indicator */}
-                            {isLoading && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    className="flex gap-3 justify-start"
-                                >
-                                    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg shadow-indigo-500/20 mt-1">
-                                        <Bot className="w-4 h-4 text-white" />
-                                    </div>
-                                    <div className="bg-white border border-slate-200 rounded-2xl rounded-bl-md px-5 py-4 shadow-sm">
-                                        <div className="flex items-center gap-2">
-                                            <div className="flex gap-1">
-                                                <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce [animation-delay:0ms]" />
-                                                <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce [animation-delay:150ms]" />
-                                                <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce [animation-delay:300ms]" />
-                                            </div>
-                                            <span className="text-xs text-slate-400 ml-2">
-                                                กำลังคิด...
-                                            </span>
-                                        </div>
-                                    </div>
-                                </motion.div>
-                            )}
+                {/* Messages Area */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    {isHistoryLoading && (
+                        <div className="flex flex-col items-center justify-center h-20 text-slate-400 gap-2">
+                            <RefreshCw className="w-5 h-5 animate-spin" />
+                            <span className="text-[10px] font-medium animate-pulse">{loadStatus || "Loading..."}</span>
                         </div>
+                    )}
+                    
+                    {!isHistoryLoading && messages.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-center">
+                            <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mb-4">
+                                <Sparkles className="text-indigo-600" />
+                            </div>
+                            <h3 className="font-bold text-lg">AI Assistant Ready</h3>
+                            <p className="text-sm text-slate-400">Type a message to start.</p>
+                        </div>
+                    ) : (
+                        messages.map((msg) => (
+                            <div key={msg.id} className={cn("flex gap-3", msg.role === "user" ? "justify-end" : "justify-start")}>
+                                <div className={cn("max-w-[80%] p-3 rounded-xl text-sm", msg.role === "user" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-800 shadow-sm")}>
+                                    <div className="whitespace-pre-wrap font-sans text-xs">
+                                        {typeof msg.content === 'string' ? msg.content : "[Non-string content detected]"}
+                                    </div>
+                                </div>
+                            </div>
+                        ))
                     )}
                     <div ref={messagesEndRef} />
                 </div>
-            </div>
 
-            {/* Input Area */}
-            <div className="border-t bg-white/80 backdrop-blur-md px-4 py-4">
-                <div className="max-w-3xl mx-auto">
-                    <div className="flex items-end gap-3 bg-white border border-slate-200 rounded-2xl shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-300 transition-all p-2">
+                {/* Input Area */}
+                <div className="p-4 border-t bg-white">
+                    <div className="max-w-3xl mx-auto flex gap-2">
                         <Textarea
                             ref={textareaRef}
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            placeholder="พิมพ์ข้อความ... (Enter ส่ง, Shift+Enter ขึ้นบรรทัดใหม่)"
+                            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), handleSend())}
                             disabled={isLoading}
-                            className="flex-1 min-h-[44px] max-h-[160px] resize-none border-0 focus-visible:ring-0 focus-visible:ring-offset-0 text-sm bg-transparent placeholder:text-slate-400"
+                            placeholder="Message..."
+                            className="bg-slate-50 border-slate-200 rounded-xl min-h-[44px] max-h-[120px]"
                             rows={1}
                         />
-                        <Button
-                            onClick={handleSend}
-                            disabled={!input.trim() || isLoading}
-                            size="icon"
-                            className={cn(
-                                "h-10 w-10 rounded-xl shrink-0 transition-all",
-                                input.trim() && !isLoading
-                                    ? "bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/20"
-                                    : "bg-slate-100 text-slate-400 cursor-not-allowed"
-                            )}
-                        >
+                        <Button onClick={() => handleSend()} disabled={!input.trim() || isLoading} className="rounded-xl h-11 px-6 relative overflow-hidden group">
                             {isLoading ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <div className="flex items-center gap-2">
+                                    <Loader2 className="animate-spin w-4 h-4" />
+                                    <span className="text-[10px] font-medium animate-pulse whitespace-nowrap">{thinkingStatus}</span>
+                                </div>
                             ) : (
-                                <Send className="w-4 h-4" />
+                                <Send className="w-4 h-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                             )}
                         </Button>
                     </div>
-                    <p className="text-[10px] text-slate-400 text-center mt-2 font-medium">
-                        AI Assistant powered by CG Talent Hub • Vector Search enabled
-                    </p>
                 </div>
             </div>
         </div>
     );
 }
-
-// --- Empty State ---
-function EmptyState({ onSuggestionClick }: { onSuggestionClick?: (text: string) => void }) {
-    return (
-        <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5 }}
-            className="flex flex-col items-center justify-center h-[60vh] text-center"
-        >
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center mb-6 shadow-2xl shadow-indigo-500/30">
-                <Sparkles className="w-10 h-10 text-white" />
-            </div>
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">
-                CG Talent Hub Assistant
-            </h2>
-            <p className="text-sm text-slate-500 max-w-md leading-relaxed mb-8">
-                ค้นหา Candidate ด้วย AI ถามเป็นภาษาธรรมชาติได้เลย
-                ระบบจะค้นหาจาก Vector Database ให้อัตโนมัติ
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg w-full">
-                {[
-                    "หา GM ด้านโรงแรมในไทย",
-                    "ค้นหา CFO ที่เคยทำบริษัท SET100",
-                    "ใครเหมาะกับตำแหน่ง VP Marketing ในธุรกิจ F&B",
-                    "หาคนที่มีประสบการณ์ด้าน Digital Transformation",
-                ].map((suggestion, idx) => (
-                    <button
-                        key={idx}
-                        onClick={() => onSuggestionClick?.(suggestion)}
-                        className="text-left px-4 py-3 rounded-xl border border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50/50 transition-all text-xs text-slate-600 hover:text-indigo-700 font-medium shadow-sm hover:shadow-md"
-                    >
-                        <span className="opacity-50 mr-1">💬</span> {suggestion}
-                    </button>
-                ))}
-            </div>
-        </motion.div>
-    );
-}
-

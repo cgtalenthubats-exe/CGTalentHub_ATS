@@ -67,14 +67,14 @@ export function SmartCandidateSearch({
             try {
                 // Fetch in parallel
                 // Pass current filters to scope suggestions!
-                const [companies, positions] = await Promise.all([
+                const [companyData, positionData] = await Promise.all([
                     searchCompanies(debouncedQuery, 5, filters),
                     searchPositions(debouncedQuery, 5, filters)
                 ]);
 
                 if (active) {
-                    setCompanySuggestions(companies);
-                    setPositionSuggestions(positions);
+                    setCompanySuggestions(companyData.results || []);
+                    setPositionSuggestions(positionData.results || []);
                 }
             } catch (error) {
                 console.error("Error fetching suggestions:", error);

@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusSelect } from "@/components/ui/status-select";
 import { supabase } from "@/lib/supabase/client";
-import { cn } from "@/lib/utils";
+import { cn, formatNumberWithCommas, parseNumberFromCommas } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
     Command,
@@ -112,13 +112,14 @@ export default function EditCandidatePage({ params }: { params: Promise<{ id: st
                     education: data.enhancement?.education_summary || "",
                     languages: data.language_skill || data.enhancement?.languages || "",
                     blacklist_note: data.blacklist_note || "",
-                    // Compensation & Benefits
-                    gross_salary_base_b_mth: data.gross_salary_base_b_mth || "",
+                    // Compensation & Benefits (format requested 4 columns)
+                    gross_salary_base_b_mth: formatNumberWithCommas(data.gross_salary_base_b_mth) || "",
+                    car_allowance_b_mth: formatNumberWithCommas(data.car_allowance_b_mth) || "",
+                    gasoline_b_mth: formatNumberWithCommas(data.gasoline_b_mth) || "",
+                    phone_b_mth: formatNumberWithCommas(data.phone_b_mth) || "",
+                    // Others stay as-is
                     other_income: data.other_income || "",
                     bonus_mth: data.bonus_mth || "",
-                    car_allowance_b_mth: data.car_allowance_b_mth || "",
-                    gasoline_b_mth: data.gasoline_b_mth || "",
-                    phone_b_mth: data.phone_b_mth || "",
                     provident_fund_pct: data.provident_fund_pct || "",
                     medical_b_annual: data.medical_b_annual || "",
                     medical_b_mth: data.medical_b_mth || "",
@@ -166,6 +167,20 @@ export default function EditCandidatePage({ params }: { params: Promise<{ id: st
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { id, value } = e.target;
+        
+        // Special handling for salary fields to add commas (Only requested 4 columns)
+        const salaryFields = [
+            "gross_salary_base_b_mth", "car_allowance_b_mth", 
+            "gasoline_b_mth", "phone_b_mth"
+        ];
+        
+        if (salaryFields.includes(id)) {
+            const cleanValue = parseNumberFromCommas(value);
+            const formattedValue = formatNumberWithCommas(cleanValue);
+            setFormData(prev => ({ ...prev, [id]: formattedValue }));
+            return;
+        }
+        
         setFormData(prev => ({ ...prev, [id]: value }));
     };
 
@@ -225,16 +240,14 @@ export default function EditCandidatePage({ params }: { params: Promise<{ id: st
                 date_of_birth: formData.date_of_birth,
                 year_of_bachelor_education: formData.year_of_bachelor_education,
                 age: formData.age,
-                photo: photoUrl,
-                resume_url: resumeUrl,
-                blacklist_note: formData.blacklist_note,
-                // Compensation & Benefits
-                gross_salary_base_b_mth: formData.gross_salary_base_b_mth || null,
+                // Compensation & Benefits (strip commas for requested 4 columns)
+                gross_salary_base_b_mth: parseNumberFromCommas(formData.gross_salary_base_b_mth) || null,
+                car_allowance_b_mth: parseNumberFromCommas(formData.car_allowance_b_mth) || null,
+                gasoline_b_mth: parseNumberFromCommas(formData.gasoline_b_mth) || null,
+                phone_b_mth: parseNumberFromCommas(formData.phone_b_mth) || null,
+                // Others stay as raw strings
                 other_income: formData.other_income || null,
                 bonus_mth: formData.bonus_mth || null,
-                car_allowance_b_mth: formData.car_allowance_b_mth || null,
-                gasoline_b_mth: formData.gasoline_b_mth || null,
-                phone_b_mth: formData.phone_b_mth || null,
                 provident_fund_pct: formData.provident_fund_pct || null,
                 medical_b_annual: formData.medical_b_annual || null,
                 medical_b_mth: formData.medical_b_mth || null,

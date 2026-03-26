@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { cn, formatNumberWithCommas } from "@/lib/utils";
 
 import { BackButton, EditButton, AddPrescreenDialog, EditPrescreenDialog, DeleteCandidateDialog, DeletePrescreenButton, RefreshProfileButton } from "@/components/candidate-client-actions";
 import { AddExperienceDialog, DeleteExperienceButton, SetCurrentExperienceButton, EditExperienceDialog } from "@/components/experience-dialog";
@@ -455,7 +455,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                                 <div className="grid grid-cols-2 md:grid-cols-3 gap-6 text-sm">
                                     <div className="space-y-1.5">
                                         <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Gross Salary (฿/mth)</p>
-                                        <p className="font-bold text-base text-emerald-700">{candidate.gross_salary_base_b_mth || "-"}</p>
+                                        <p className="font-bold text-base text-emerald-700">{formatNumberWithCommas(candidate.gross_salary_base_b_mth) || "-"}</p>
                                     </div>
                                     <div className="space-y-1.5">
                                         <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Performance Bonus</p>
@@ -467,15 +467,15 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                                     </div>
                                     <div className="space-y-1.5">
                                         <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Car Allowance (฿/mth)</p>
-                                        <p className="font-semibold text-foreground/80">{candidate.car_allowance_b_mth || "-"}</p>
+                                        <p className="font-semibold text-foreground/80">{formatNumberWithCommas(candidate.car_allowance_b_mth) || "-"}</p>
                                     </div>
                                     <div className="space-y-1.5">
                                         <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Gasoline (฿/mth)</p>
-                                        <p className="font-semibold text-foreground/80">{candidate.gasoline_b_mth || "-"}</p>
+                                        <p className="font-semibold text-foreground/80">{formatNumberWithCommas(candidate.gasoline_b_mth) || "-"}</p>
                                     </div>
                                     <div className="space-y-1.5">
                                         <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Phone Allowance (฿/mth)</p>
-                                        <p className="font-semibold text-foreground/80">{candidate.phone_b_mth || "-"}</p>
+                                        <p className="font-semibold text-foreground/80">{formatNumberWithCommas(candidate.phone_b_mth) || "-"}</p>
                                     </div>
                                     <div className="space-y-1.5">
                                         <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Provident Fund (%)</p>
