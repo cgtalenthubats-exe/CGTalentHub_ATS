@@ -505,7 +505,14 @@ export default function RequisitionsPage() {
                                                     onCheckedChange={() => toggleSelection(jr.id)}
                                                 />
                                             </td>
-                                            <td className="p-4 font-mono font-medium">{jr.id}</td>
+                                            <td className="p-4 font-mono font-medium">
+                                                <a
+                                                    href={`/requisitions/manage?jr_id=${jr.id}`}
+                                                    className="text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                                                >
+                                                    {jr.id}
+                                                </a>
+                                            </td>
                                             <td className="p-4 font-semibold">{jr.job_title}</td>
                                             <td className="p-4 text-muted-foreground">{jr.division}</td>
                                             <td className="p-4 text-muted-foreground">{jr.department}</td>
@@ -514,13 +521,10 @@ export default function RequisitionsPage() {
                                             </td>
                                             <td className="p-4">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="w-16 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                                        <div
-                                                            className="h-full bg-blue-500"
-                                                            style={{ width: `${Math.min((jr.headcount_hired / jr.headcount_total) * 100, 100)}%` }}
-                                                        />
-                                                    </div>
-                                                    <span className="text-xs text-muted-foreground">{jr.headcount_hired}/{jr.headcount_total}</span>
+                                                    <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                                                    <span className="text-sm font-medium">
+                                                        {allCandidates.filter(c => c.jr_id === jr.id).length}
+                                                    </span>
                                                 </div>
                                             </td>
                                             <td className="p-4">

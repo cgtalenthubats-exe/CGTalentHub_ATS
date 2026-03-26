@@ -357,19 +357,18 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                         <CardContent className="relative pl-8 border-l-2 border-border/40 ml-8 space-y-10 py-8 pr-6">
                             {candidate.experiences
                                 ?.sort((a: any, b: any) => {
-                                    // 1. Present first (is_current_job === 'Current')
-                                    const aCurrent = a.is_current_job === 'Current';
-                                    const bCurrent = b.is_current_job === 'Current';
+                                    // 1. Current first: end_date = 'Present' OR is_current_job = 'Current'
+                                    const aCurrent = (a.end_date?.toLowerCase() === 'present') || a.is_current_job === 'Current';
+                                    const bCurrent = (b.end_date?.toLowerCase() === 'present') || b.is_current_job === 'Current';
                                     if (aCurrent && !bCurrent) return -1;
                                     if (!aCurrent && bCurrent) return 1;
 
-                                    // 2. start_date descending (newest first)
-                                    const aDate = parseAnyDate(a.start_date)?.getTime() || 0;
-                                    const bDate = parseAnyDate(b.start_date)?.getTime() || 0;
-                                    return bDate - aDate;
+                                    // 2. start_date descending (newest first), handle M-YYYY format
+                                    const parseMMYYYY = (d: string) => { const p = (d||'').split('-'); return p.length === 2 ? parseInt(p[1])*100+parseInt(p[0]) : (new Date(d).getTime()||0); };
+                                    return parseMMYYYY(b.start_date) - parseMMYYYY(a.start_date);
                                 })
                                 .map((exp: any, i: number) => {
-                                    const isCurrent = exp.is_current_job === 'Current';
+                                    const isCurrent = (exp.end_date?.toLowerCase() === 'present') || exp.is_current_job === 'Current';
                                     return (
                                         <div key={i} className="relative group">
                                             {/* Timeline Dot — filled blue if Current, grey otherwise */}

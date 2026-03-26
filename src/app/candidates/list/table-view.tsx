@@ -62,19 +62,31 @@ interface CandidateTableViewProps {
     orgChartLoading?: boolean;
 }
 
+function parseMonthYearDate(dateStr: string | null | undefined): number {
+    if (!dateStr || dateStr.toLowerCase() === 'present') return Infinity;
+    const parts = dateStr.split('-');
+    if (parts.length === 2) {
+        const month = parseInt(parts[0], 10);
+        const year = parseInt(parts[1], 10);
+        if (!isNaN(month) && !isNaN(year)) return year * 100 + month;
+    }
+    const ts = new Date(dateStr).getTime();
+    return isNaN(ts) ? 0 : ts;
+}
+
 function sortExperiences(exps: Experience[]) {
     if (!exps) return [];
     return [...exps].sort((a, b) => {
-        // 1. Present first (is_current_job === true or 'Current')
-        const aCurrent = a.is_current_job === 'Current' || (a as any).is_current === true;
-        const bCurrent = b.is_current_job === 'Current' || (b as any).is_current === true;
+        // 1. Current job first: end_date = 'Present' OR is_current_job = 'Current'
+        const aCurrent = (a.end_date?.toLowerCase() === 'present') || a.is_current_job === 'Current' || (a as any).is_current === true;
+        const bCurrent = (b.end_date?.toLowerCase() === 'present') || b.is_current_job === 'Current' || (b as any).is_current === true;
 
         if (aCurrent && !bCurrent) return -1;
         if (!aCurrent && bCurrent) return 1;
 
-        // 2. start_date descending (newest first)
-        const dateA = a.start_date ? new Date(a.start_date).getTime() : 0;
-        const dateB = b.start_date ? new Date(b.start_date).getTime() : 0;
+        // 2. Within same group: sort by start_date DESC (newest first)
+        const dateA = parseMonthYearDate(a.start_date);
+        const dateB = parseMonthYearDate(b.start_date);
         return dateB - dateA;
     });
 }

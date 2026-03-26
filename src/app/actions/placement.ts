@@ -69,19 +69,16 @@ export async function confirmPlacement(data: PlacementData) {
         const annual_salary = data.base_salary ? data.base_salary * 12 : 0;
         const outsource_fee = annual_salary * 0.20;
 
-        // 5. Update JR Candidate Status
+        // 5. Update JR Candidate timestamp (status is tracked via status_log only)
         const { error: updateError } = await (supabase
             .from('jr_candidates' as any)
             .update({
-                temp_status: 'Successful Placement',
                 time_stamp: new Date().toISOString()
             })
             .eq('jr_candidate_id', data.jr_candidate_id) as any);
 
         if (updateError) {
-            // Fallback: try 'status' if pipeline_status/temp_status fails?
-            // But treating 'temp_status' as the source of truth for now.
-            throw new Error("Failed to update candidate status: " + updateError.message);
+            throw new Error("Failed to update candidate timestamp: " + updateError.message);
         }
 
         // 6. Update Job Requisition Status -> Inactive

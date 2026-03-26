@@ -288,19 +288,10 @@ export default function JRManagePage() {
                                     onSelect={(jr) => handleJRSelect(jr.id)}
                                 />
                             )}
-                            {selectedJR && (
-                                <div className="flex gap-2 text-sm text-slate-500">
-                                    <span className={selectedJR.is_active ? 'text-green-600 font-medium' : 'text-slate-400'}>
-                                        {selectedJR.status}
-                                    </span>
-                                    <span>•</span>
-                                    <span>{selectedJR.headcount_hired}/{selectedJR.headcount_total} Hired</span>
-                                    {isSyncing && (
-                                        <div className="flex items-center gap-1.5 ml-2 text-blue-600 font-bold animate-pulse">
-                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                            <span>n8n is processing...</span>
-                                        </div>
-                                    )}
+                            {selectedJR && isSyncing && (
+                                <div className="flex items-center gap-1.5 text-blue-600 font-bold animate-pulse text-sm">
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    <span>n8n is processing...</span>
                                 </div>
                             )}
                         </div>

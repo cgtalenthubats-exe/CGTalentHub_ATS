@@ -67,10 +67,10 @@ function getLatestStatus(logs: any[], jrCandidateId: string, defaultStatus: stri
 export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
     const supabase = adminAuthClient;
 
-    // 1. Fetch Candidates (Raw)
+    // 1. Fetch Candidates (Raw) — does NOT read temp_status; status is resolved from status_log only
     const { data: candidates, error } = await supabase
         .from('jr_candidates')
-        .select('*')
+        .select('jr_candidate_id, jr_id, candidate_id, list_type, rank, time_stamp')
         .eq('jr_id', jrId)
         .returns<DBJRCandidate[]>();
 
@@ -79,13 +79,16 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         return [];
     }
 
-    // Sort by: Top profile first, then rank
+    // Sort by: Successful Placement first, then Top profile, then rank
+    // NOTE: At this point temp_status may be null (status resolved from logs later).
+    // We do a pre-sort by list_type/rank only; final Successful Placement sort happens below after resolution.
     candidates.sort((a, b) => {
         const isTopA = a.list_type === 'Top profile';
         const isTopB = b.list_type === 'Top profile';
         if (isTopA && !isTopB) return -1;
         if (!isTopA && isTopB) return 1;
 
+        // Rank ascending (no rank → 9999 → goes to bottom of group)
         const rankA = parseInt(a.rank || "9999");
         const rankB = parseInt(b.rank || "9999");
         return rankA - rankB;
@@ -162,11 +165,12 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         }
     }
 
-    return candidates.map((row) => {
+    const mapped = candidates.map((row) => {
         const profile = profileMap.get(row.candidate_id) as any;
         const exp = expMap.get(row.candidate_id);
 
-        const realStatus = getLatestStatus(logs || [], row.jr_candidate_id, row.temp_status || "Pool Candidate");
+        // Resolve real status from status_log only (temp_status is ignored by design)
+        const realStatus = getLatestStatus(logs || [], row.jr_candidate_id, "Pool Candidate");
 
         const countryDisplay = exp
             ? [exp.country, exp.note ? `(${exp.note})` : ''].filter(Boolean).join('')
@@ -198,6 +202,15 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
             candidate_linkedin_url: profile?.linkedin || undefined,
         };
     });
+
+    // Final sort: Successful Placement always on top (using resolved real status)
+    mapped.sort((a, b) => {
+        const aPlaced = a.status?.toLowerCase().includes('successful placement') ? 0 : 1;
+        const bPlaced = b.status?.toLowerCase().includes('successful placement') ? 0 : 1;
+        return aPlaced - bPlaced;
+    });
+
+    return mapped;
 }
 
 
@@ -232,7 +245,7 @@ export async function getJRAnalytics(jrId: string): Promise<JRAnalytics> {
 
     jrCands.forEach(c => {
         // Resolve Status
-        const status = getLatestStatus(logs || [], c.jr_candidate_id, c.temp_status || "Pool Candidate");
+        const status = getLatestStatus(logs || [], c.jr_candidate_id, "Pool Candidate");
 
         // Count
         if (countMap[status] !== undefined) countMap[status]++;

@@ -75,7 +75,7 @@ export async function getTrackingData(filters: {
     // 4. Fetch Candidates
     const { data: jrCands, error: candErr } = await supabase
         .from('jr_candidates')
-        .select('jr_candidate_id, candidate_id, temp_status, jr_id')
+        .select('jr_candidate_id, candidate_id, jr_id')
         .in('jr_id', filteredJrIds);
 
     const candList = (jrCands as any[]) || [];
@@ -127,7 +127,8 @@ export async function getTrackingData(filters: {
 
     candList.forEach(c => {
         const cLogs = logsMap.get(c.jr_candidate_id) || [];
-        let s = c.temp_status || "Pool Candidate";
+        // Resolve status from status_log only (temp_status ignored)
+        let s = "Pool Candidate";
 
         if (cLogs.length > 0) {
             cLogs.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime() || a.log_id - b.log_id);

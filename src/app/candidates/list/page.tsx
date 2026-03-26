@@ -901,19 +901,31 @@ function ProfileAgeIndicator({ created, modified }: { created: string, modified:
 }
 
 // Helper for Sort
+function parseMonthYearDate(dateStr: string | null | undefined): number {
+    if (!dateStr || dateStr.toLowerCase() === 'present') return Infinity;
+    const parts = dateStr.split('-');
+    if (parts.length === 2) {
+        const month = parseInt(parts[0], 10);
+        const year = parseInt(parts[1], 10);
+        if (!isNaN(month) && !isNaN(year)) return year * 100 + month;
+    }
+    const ts = new Date(dateStr).getTime();
+    return isNaN(ts) ? 0 : ts;
+}
+
 function sortExperiences(exps: Experience[]) {
     if (!exps) return [];
     return [...exps].sort((a, b) => {
-        // 1. Present first (is_current_job === true or 'Current' - detail page uses 'Current' string comparison)
-        const aCurrent = a.is_current_job === 'Current' || (a as any).is_current === true;
-        const bCurrent = b.is_current_job === 'Current' || (b as any).is_current === true;
+        // 1. Current job first: end_date = 'Present' OR is_current_job = 'Current'
+        const aCurrent = (a.end_date?.toLowerCase() === 'present') || a.is_current_job === 'Current' || (a as any).is_current === true;
+        const bCurrent = (b.end_date?.toLowerCase() === 'present') || b.is_current_job === 'Current' || (b as any).is_current === true;
 
         if (aCurrent && !bCurrent) return -1;
         if (!aCurrent && bCurrent) return 1;
 
-        // 2. start_date descending (newest first) - using logic similar to detail page
-        const dateA = a.start_date ? new Date(a.start_date).getTime() : 0;
-        const dateB = b.start_date ? new Date(b.start_date).getTime() : 0;
+        // 2. Within same group: sort by start_date DESC (newest first)
+        const dateA = parseMonthYearDate(a.start_date);
+        const dateB = parseMonthYearDate(b.start_date);
         return dateB - dateA;
     });
 }
@@ -934,7 +946,7 @@ function CandidateRichCard({
     const [expanded, setExpanded] = useState(true);
     // Sort experiences: Present first, then by End Date descending
     const sortedExperiences = useMemo(() => sortExperiences(candidate.experiences), [candidate.experiences]);
-    const currentJob = sortedExperiences.find(e => e.is_current_job === 'Current' || (e as any).is_current) || sortedExperiences[0];
+    const currentJob = sortedExperiences.find(e => (e.end_date?.toLowerCase() === 'present') || e.is_current_job === 'Current' || (e as any).is_current) || sortedExperiences[0];
 
     return (
         <Card className={cn(
@@ -1025,7 +1037,7 @@ function CandidateRichCard({
                     </div>
                     <div className="divide-y divide-border/50">
                         {sortedExperiences.map((exp) => {
-                            const isCurrent = exp.is_current_job === 'Current' || (exp as any).is_current === true;
+                            const isCurrent = (exp.end_date?.toLowerCase() === 'present') || exp.is_current_job === 'Current' || (exp as any).is_current === true;
                             return (
                                 <div key={exp.id} className={cn(
                                     "grid grid-cols-12 gap-4 px-6 py-2.5 text-xs transition-colors items-center",
