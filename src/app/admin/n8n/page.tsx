@@ -33,12 +33,17 @@ const WEBHOOK_DOCS: Record<string, {
         response: `{ success: true }  (n8n generates + emails report async)`,
         note: "ใช้ GET method — parameters ส่งผ่าน URL query string",
     },
-    "interview_feedback_webhook": {
+    "Interview Feedback": {
         trigger: "ถูกเรียกเมื่อ submit interview feedback พร้อมไฟล์แนบ",
-        payload: `POST  multipart/form-data  {
-  jr_candidate_id: string,
-  feedback: string,
-  file: (PDF/attachment)
+        payload: `POST  {
+  jr_id: "JRXXXX",
+  uploadType: "Interview feedback",
+  requester: "email@...",
+  event: "create | update",
+  details: { 
+    feedback_id, jr_candidate_id, candidate_name, 
+    interview_date, rating, recommendation, file_url 
+  }
 }`,
         response: `{ success: true }`,
     },

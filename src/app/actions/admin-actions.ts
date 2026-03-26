@@ -33,7 +33,8 @@ export async function getN8nConfigs() {
         { name: 'CSV Upload', description: 'Triggered after batch CSV upload success' },
         { name: 'JR Report', description: 'Triggered when a JR report is requested' },
         { name: 'Candidate Refresh', description: 'Triggered when candidate data needs to be updated' },
-        { name: 'Job Description Upload', description: 'Triggered when a Job Requisition is created or updated' }
+        { name: 'Job Description Upload', description: 'Triggered when a Job Requisition is created or updated' },
+        { name: 'Interview Feedback', description: 'Triggered when interview feedback with file is submitted' }
     ];
 
     // Check if any required config is missing and try to insert it for real

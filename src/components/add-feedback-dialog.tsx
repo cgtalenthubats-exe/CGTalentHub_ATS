@@ -138,7 +138,7 @@ export function AddFeedbackDialog({
 
             // 2. Submit Data
             const res = await submitInterviewFeedback({
-                feedback_id: initialData?.feedback_id, // Pass ID if editing
+                feedback_id: initialData?.feedback_id,
                 jr_candidate_id: jrCandidateId,
                 interview_date: interviewDate,
                 interviewer_name: interviewerName,
@@ -146,7 +146,8 @@ export function AddFeedbackDialog({
                 rating: rating,
                 recommendation: recommendation,
                 feedback_text: feedbackText,
-                feedback_file_url: fileUrl || initialData?.feedback_file || undefined, // Keep existing if not replaced, or use new
+                feedback_file_url: fileUrl || initialData?.feedback_file || undefined,
+                candidate_name: candidateName,
             });
 
             if (res.success) {
