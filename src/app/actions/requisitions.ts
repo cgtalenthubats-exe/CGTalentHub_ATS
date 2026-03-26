@@ -57,40 +57,49 @@ export async function getJRSelectionData() {
  * Excludes heavy fields like job_description and feedback_file.
  */
 export async function getJRSelectionDataLean() {
+    console.log("Fetching JR selection data...");
     const supabase = adminAuthClient;
+    // Use select(*) to avoid column name mismatches, but we won't send everything back.
     const { data, error } = await supabase
         .from('job_requisitions')
-        .select('jr_id, position_jr, bu, sub_bu, status, request_date, is_active, create_by')
+        .select('*')
         .order('created_at', { ascending: false });
 
     if (error) {
-        console.error("Error fetching lean JRs:", error);
+        console.error("Error fetching JRs:", error);
         return { jrs: [], options: { positions: [], divisions: [], subDivisions: [], originalJrs: [] } };
     }
 
+    if (!data || data.length === 0) {
+        console.warn("No JRs found in table.");
+        return { jrs: [], options: { positions: [], divisions: [], subDivisions: [], originalJrs: [] } };
+    }
+
+    // Mapping to lightweight objects to avoid sending heavy fields over the wire.
     const jrs: JobRequisition[] = data.map((row: any) => ({
         id: row.jr_id,
         title: row.position_jr || "Untitled Position",
         job_title: row.position_jr || "Untitled Position",
         department: row.sub_bu || "General",
         division: row.bu || "Corporate",
-        status: row.status || row.is_active || "Open",
+        status: row.status || (row.is_active === true ? "Active" : "Closed"),
         opened_date: row.request_date,
-        is_active: String(row.is_active).toLowerCase() === 'active',
+        is_active: row.status === 'Active' || row.is_active === true || row.is_active === 'Active',
         created_by: row.create_by || "System",
-        // Minimum empty fields to satisfy type if needed, but Dialog only uses these.
         hiring_manager_id: "",
         headcount_total: 1,
         headcount_hired: 0,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        jr_type: "New"
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        jr_type: row.jr_type || "New"
     }));
 
     const positions = [...new Set(jrs.map(j => j.title).filter(Boolean))].sort();
     const divisions = [...new Set(jrs.map(j => j.division).filter(Boolean))].sort();
     const subDivisions = [...new Set(jrs.map(j => j.department).filter(Boolean))].sort();
     const originalJrs = [...new Set(jrs.map(j => j.id).filter(Boolean))].sort();
+
+    console.log(`Sending ${jrs.length} lightweight JRs to client.`);
 
     return {
         jrs,
