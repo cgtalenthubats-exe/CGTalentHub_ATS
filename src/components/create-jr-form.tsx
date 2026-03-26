@@ -351,9 +351,9 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData, sel
                     </Select>
                 </div>
 
-                {/* Feedback File (PDF Upload) */}
+                {/* Job Description File (PDF Upload) */}
                 <div className="space-y-2">
-                    <Label htmlFor="feedback_file">Feedback File (Upload JD/PDF)</Label>
+                    <Label htmlFor="feedback_file">Job Description File (Upload PDF)</Label>
                     <div className="flex flex-col gap-2">
                         {formData.feedback_file ? (
                             <div className="flex items-center justify-between p-2 border rounded-md bg-green-50 border-green-200">

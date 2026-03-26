@@ -13,6 +13,7 @@ import { toast } from "sonner";
 interface UploadLog {
     id: number | string;
     batch_id?: string;
+    batch_name?: string;
     candidate_id?: string;
     name?: string;
     file_name?: string;
@@ -93,7 +94,16 @@ export const LogTableRow = React.memo(({
                     )}
                 </TableCell>
             )}
-            <TableCell className="text-xs text-slate-500 truncate max-w-[150px]">{log.uploader_email}</TableCell>
+            <TableCell className="text-xs text-slate-500">
+                <div className="flex flex-col">
+                    <span className="truncate max-w-[150px]">{log.uploader_email}</span>
+                    {viewMode === 'csv' && log.batch_name && (
+                        <span className="text-[10px] text-slate-400 truncate max-w-[150px]">
+                            {log.batch_name}
+                        </span>
+                    )}
+                </div>
+            </TableCell>
             <TableCell>
                 <Badge variant="secondary" className={cn("text-[10px] uppercase font-bold tracking-wider",
                     log.status === 'Completed' || log.status === 'Complete' || log.status === 'Scraping' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :

@@ -74,6 +74,7 @@ import { Label } from "@/components/ui/label";
 interface UploadLog {
     id: number | string; // UUID for resume, Int for CSV
     batch_id?: string; // CSV only
+    batch_name?: string; // CSV only
     candidate_id?: string;
     name?: string; // CSV
     file_name?: string; // Resume
@@ -202,7 +203,7 @@ export default function CandidateImportPage() {
             
             const query = supabase
                 .from(tableName as any)
-                .select(viewMode === 'csv' ? 'status, uploader_email, batch_id, created_at' : 'status, uploader_email, created_at')
+                .select(viewMode === 'csv' ? 'status, uploader_email, batch_id, batch_name, created_at' : 'status, uploader_email, created_at')
                 .order('created_at', { ascending: false })
                 .limit(10000);
             
@@ -245,7 +246,15 @@ export default function CandidateImportPage() {
         if (statusFilters.length > 0) filtered = filtered.filter(d => statusFilters.includes(d.status));
         if (userFilters.length > 0) filtered = filtered.filter(d => userFilters.includes(d.uploader_email));
         if (dateFilter !== 'all') filtered = filtered.filter(d => format(new Date(d.created_at), 'yyyy-MM-dd') === dateFilter);
-        return Array.from(new Set(filtered.map(d => d.batch_id))).filter(Boolean).sort();
+        
+        const batchMap = new Map<string, string>();
+        filtered.forEach(d => {
+            if (d.batch_id) {
+                batchMap.set(d.batch_id, d.batch_name || d.batch_id);
+            }
+        });
+        
+        return Array.from(batchMap.values()).filter(Boolean).sort();
     }, [allMetadata, statusFilters, userFilters, dateFilter]);
 
     // Debounced search
@@ -305,7 +314,14 @@ export default function CandidateImportPage() {
 
             // Batch Multi-In
             if (batchFilters.length > 0 && viewMode === 'csv') {
-                query = query.in('batch_id', batchFilters);
+                // Since filters show batch_name but query uses batch_id, we need to map names back to IDs from allMetadata
+                const matchingBatchIds = allMetadata
+                    .filter(m => batchFilters.includes(m.batch_name || m.batch_id))
+                    .map(m => m.batch_id);
+                
+                if (matchingBatchIds.length > 0) {
+                    query = query.in('batch_id', matchingBatchIds);
+                }
             }
 
             // Date Range
@@ -395,7 +411,7 @@ export default function CandidateImportPage() {
                         }
                     }
 
-                    const res = await processCsvUpload(rows, selectedCreatedBy);
+                    const res = await processCsvUpload(rows, selectedCreatedBy, files.name);
 
                     if (res.success) {
                         toast.success(`Processed ${res.totalProcessed} records. ${res.newCandidates} new, ${res.duplicates} duplicates.`);
@@ -584,6 +600,7 @@ export default function CandidateImportPage() {
 
     const handleSelectAll = (checked: boolean) => {
         if (checked) {
+            // Select all currently visible logs (this handles the "Matched" set correctly when filtered)
             setSelectedIds(filteredLogs.map(l => l.id));
         } else {
             setSelectedIds([]);
@@ -792,14 +809,39 @@ export default function CandidateImportPage() {
                     </div>
 
                     <div className="flex gap-2">
-                        {/* Add to JR Button */}
-                        {selectedIds.length > 0 && (
+                        {/* Add to JR Button - Only show if NO filter is active, or if user explicitly selected items */}
+                        {!isAnyFilterActive && selectedIds.length > 0 && (
                             <Button
                                 className="bg-amber-500 hover:bg-amber-600 text-white animate-in zoom-in fade-in slide-in-from-right-4"
                                 onClick={() => setOpenJrDialog(true)}
                             >
                                 <PlusCircle className="w-4 h-4 mr-2" /> Add {validSelectedCount} to Job
                             </Button>
+                        )}
+                        
+                        {/* Hidden standard Add button when filters are active to prioritize the new Matches system */}
+                        {isAnyFilterActive && selectedIds.length > 0 && (
+                            <div className="flex items-center gap-2 px-3 py-1 bg-indigo-50 border border-indigo-100 rounded-xl animate-in fade-in zoom-in">
+                                <span className="text-xs font-bold text-indigo-600 uppercase tracking-tighter">
+                                    {selectedIds.length} Selected
+                                </span>
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 px-2 text-xs text-indigo-600 hover:bg-indigo-100"
+                                    onClick={() => setOpenJrDialog(true)}
+                                >
+                                    Assign to Job
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
+                                    onClick={() => setSelectedIds([])}
+                                >
+                                    <X className="w-3 h-3" />
+                                </Button>
+                            </div>
                         )}
 
                         {/* Resume Sheet */}

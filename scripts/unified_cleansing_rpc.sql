@@ -94,10 +94,10 @@ BEGIN
 
     -- 7. [SYNC] Link Company ID via Variations (Aggressive Normalization)
     UPDATE candidate_experiences ce
-    SET company_id = cv.company_id
+    SET company_id = cv.company_id::bigint -- Assignment must match column type (bigint)
     FROM company_variation cv
     WHERE LOWER(regexp_replace(ce.company, '[^a-z0-9ก-๙]', '', 'g')) = LOWER(regexp_replace(cv.variation_name, '[^a-z0-9ก-๙]', '', 'g'))
-    AND (ce.company_id IS NULL OR ce.company_id != cv.company_id);
+    AND (ce.company_id IS NULL OR ce.company_id::text != cv.company_id::text); -- Comparison is safer as text
 
     -- 8. [SYNC] Enrich Metadata (Industry & Group) from Master
     UPDATE candidate_experiences ce
@@ -105,7 +105,7 @@ BEGIN
       company_industry = cm.industry,
       company_group = cm.group
     FROM company_master cm
-    WHERE ce.company_id = cm.company_id
+    WHERE ce.company_id::text = cm.company_id::text -- Join comparison as text for safety
       AND (ce.company_industry IS DISTINCT FROM cm.industry OR ce.company_group IS DISTINCT FROM cm.group);
 
 END;

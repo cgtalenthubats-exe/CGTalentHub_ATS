@@ -19,6 +19,7 @@ interface CsvRow {
 interface UploadLog {
     id?: number;
     batch_id: string;
+    batch_name?: string;
     candidate_id: string;
     name: string;
     linkedin: string;
@@ -48,8 +49,9 @@ function normalizeEmail(email: string): string {
     return email ? email.trim().toLowerCase() : "";
 }
 
-export async function processCsvUpload(rows: CsvRow[], uploaderName: string) {
+export async function processCsvUpload(rows: CsvRow[], uploaderName: string, fileName?: string) {
     const batchId = uuidv4();
+    const batchName = fileName || `Batch ${new Date().toLocaleDateString()}`;
     const logs: UploadLog[] = [];
 
     // 1. Validation & Pre-processing (Identify who needs an ID)
@@ -64,7 +66,7 @@ export async function processCsvUpload(rows: CsvRow[], uploaderName: string) {
     const allLinkedIns = rows.map(r => {
         const val = r['LinkedIn'] || r['linkedin'] || Object.keys(r).find(k => k.trim().toLowerCase().includes('linkedin')) ? r[Object.keys(r).find(k => k.trim().toLowerCase().includes('linkedin'))!] : '';
         return normalizeLinkedIn(val || "");
-    }).filter(l => l.length > 0 && l.toLowerCase().includes("linkedin"));
+    }).filter(l => l.length > 0); // Remove linkedin check here to allow common URL lookup
 
     const allEmails = rows.map(r => {
         const val = r['Email'] || r['email'] || Object.keys(r).find(k => k.trim().toLowerCase() === 'email') ? r[Object.keys(r).find(k => k.trim().toLowerCase() === 'email')!] : '';
@@ -122,13 +124,6 @@ export async function processCsvUpload(rows: CsvRow[], uploaderName: string) {
         let note = "";
         let candidateId = "";
 
-        if (!linkedin.toLowerCase().includes("linkedin")) {
-            status = "Found Non LinkedIn URLs";
-            note = "Invalid LinkedIn URL";
-            logs.push({ batch_id: batchId, candidate_id: "", name, linkedin, status, note, uploader_email: uploaderName });
-            continue;
-        }
-
         // Duplicate Check (DB)
         const duplicate = existingCandidates?.find((c: any) => {
             const nameMatch = normalizeName(c.name || "").toLowerCase() === name.toLowerCase();
@@ -142,7 +137,15 @@ export async function processCsvUpload(rows: CsvRow[], uploaderName: string) {
             status = "Duplicate found";
             note = `Found duplicate with ${duplicate.candidate_id}`;
             candidateId = duplicate.candidate_id;
-            logs.push({ batch_id: batchId, candidate_id: candidateId, name, linkedin, status, note, uploader_email: uploaderName });
+            logs.push({ batch_id: batchId, batch_name: batchName, candidate_id: candidateId, name, linkedin, status, note, uploader_email: uploaderName });
+            continue;
+        }
+
+        // If not found in DB, check if it's not a LinkedIn URL
+        if (!linkedin.toLowerCase().includes("linkedin")) {
+            status = "Found Non LinkedIn URLs";
+            note = "Invalid LinkedIn URL - Skipped scraping";
+            logs.push({ batch_id: batchId, batch_name: batchName, candidate_id: "", name, linkedin, status, note, uploader_email: uploaderName });
             continue;
         }
 
@@ -156,7 +159,7 @@ export async function processCsvUpload(rows: CsvRow[], uploaderName: string) {
         if (inBatchDuplicate) {
             status = "Duplicate found";
             note = "Found duplicate in batch";
-            logs.push({ batch_id: batchId, candidate_id: "", name, linkedin, status, note, uploader_email: uploaderName });
+            logs.push({ batch_id: batchId, batch_name: batchName, candidate_id: "", name, linkedin, status, note, uploader_email: uploaderName });
             continue;
         }
 
@@ -174,7 +177,7 @@ export async function processCsvUpload(rows: CsvRow[], uploaderName: string) {
         if (isProcessing) {
             status = "Duplicate found";
             note = "Already in processing queue (Scraping)";
-            logs.push({ batch_id: batchId, candidate_id: "", name, linkedin, status, note, uploader_email: uploaderName });
+            logs.push({ batch_id: batchId, batch_name: batchName, candidate_id: "", name, linkedin, status, note, uploader_email: uploaderName });
             continue;
         }
 
@@ -217,6 +220,7 @@ export async function processCsvUpload(rows: CsvRow[], uploaderName: string) {
             // Add to Logs (Success)
             logs.push({
                 batch_id: batchId,
+                batch_name: batchName,
                 candidate_id: candidateId,
                 name: item.name,
                 linkedin: item.linkedin,
