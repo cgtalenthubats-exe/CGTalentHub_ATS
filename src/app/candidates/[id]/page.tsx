@@ -5,7 +5,7 @@ import {
     Mail, Phone, MapPin, Calendar, Download, Edit,
     Briefcase, GraduationCap, Globe,
     FileText, CheckCircle2, AlertCircle, UploadCloud, ChevronLeft, Plus,
-    Linkedin, DollarSign
+    Linkedin, DollarSign, Eye
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,12 +24,15 @@ import { CandidateLinkedinButton } from "@/components/candidate-linkedin-button"
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
 import { formatDateForDisplay } from "@/lib/date-utils";
 import { CandidateOrgChartButton } from "@/components/candidate-org-chart-button";
+import { JRCandidateSheet } from "@/components/jr-candidate-sheet";
 
 export default function CandidateDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = React.use(params);
     const [candidate, setCandidate] = React.useState<any>(null);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState<string | null>(null);
+    const [selectedJrCandidateId, setSelectedJrCandidateId] = React.useState<string | null>(null);
+    const [isSheetOpen, setIsSheetOpen] = React.useState(false);
 
     React.useEffect(() => {
         const fetchCandidate = async () => {
@@ -553,7 +556,17 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                                                         </td>
                                                         <td className="p-4 text-xs text-muted-foreground">{statusDate}</td>
                                                         <td className="p-4 text-center">
-                                                            <JobStatusDetailDialog log={job} status={statusLabel} date={statusDate} />
+                                                            <Button 
+                                                                variant="ghost" 
+                                                                size="sm" 
+                                                                className="h-8 gap-1.5 text-xs text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 font-bold px-3 rounded-xl border border-indigo-100/50"
+                                                                onClick={() => {
+                                                                    setSelectedJrCandidateId(job.jr_candidate_id);
+                                                                    setIsSheetOpen(true);
+                                                                }}
+                                                            >
+                                                                <Eye className="h-3.5 w-3.5" /> View Feedback
+                                                            </Button>
                                                         </td>
                                                     </tr>
                                                 );
@@ -609,6 +622,11 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
 
                 </div>
             </div>
+            <JRCandidateSheet 
+                jrCandidateId={selectedJrCandidateId} 
+                open={isSheetOpen} 
+                onOpenChange={setIsSheetOpen} 
+            />
         </div>
     );
 }

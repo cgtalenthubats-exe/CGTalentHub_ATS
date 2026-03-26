@@ -33,8 +33,15 @@ import {
     Square,
     FileText,
     Layers,
-    AlertCircle
+    AlertCircle,
+    Calendar as CalendarIcon,
+    Filter as FilterIcon,
+    X as XIcon,
+    ChevronDown,
+    Check
 } from "lucide-react";
+import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
+import { format, startOfDay, endOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -100,7 +107,9 @@ export default function CandidateImportPage() {
     const [manualLinkedin, setManualLinkedin] = useState("");
 
     // Selection & JR Logic
-    const [selectedIds, setSelectedIds] = useState<(number | string)[]>([]); // Log IDs
+    const [allMetadata, setAllMetadata] = useState<any[]>([]);
+    const [availableDates, setAvailableDates] = useState<string[]>([]);
+    const [selectedIds, setSelectedIds] = useState<(number | string)[]>([]);
     const [openJrDialog, setOpenJrDialog] = useState(false);
     
     // Pagination State
@@ -119,8 +128,13 @@ export default function CandidateImportPage() {
     const [processingDuplicate, setProcessingDuplicate] = useState(false);
 
     // Filter & Sort State
-    const [statusFilter, setStatusFilter] = useState<string>("all");
-    const [userFilter, setUserFilter] = useState<string>("all");
+    const [statusFilters, setStatusFilters] = useState<string[]>([]);
+    const [userFilters, setUserFilters] = useState<string[]>([]);
+    const [batchFilters, setBatchFilters] = useState<string[]>([]);
+    const [dateFilter, setDateFilter] = useState<string>("all");
+
+    // Discovery State
+
     const [sortConfig, setSortConfig] = useState<{ key: keyof UploadLog; direction: 'asc' | 'desc' } | null>(null);
 
     // Created By Selection
@@ -144,10 +158,16 @@ export default function CandidateImportPage() {
                 if (res.success && res.data) {
                     setUserProfiles(res.data);
                     const currentUser = res.data.find(p => p.email.toLowerCase() === email.toLowerCase());
-                    if (currentUser) {
+                    if (currentUser && currentUser.real_name) {
                         setSelectedCreatedBy(currentUser.real_name);
+                    } else {
+                        setSelectedCreatedBy(email); // Fallback to email
                     }
+                } else {
+                    setSelectedCreatedBy(email); // Fallback to email
                 }
+            }).catch(() => {
+                setSelectedCreatedBy(email);
             });
         });
     }, []);
@@ -158,7 +178,75 @@ export default function CandidateImportPage() {
 
     useEffect(() => {
         fetchLogs();
-    }, [viewMode, currentPage, statusFilter, userFilter]);
+    }, [viewMode, currentPage, statusFilters, userFilters, batchFilters, dateFilter]);
+
+    // Fetch discovery metadata only when viewMode changes
+    useEffect(() => {
+        fetchDiscoveryData();
+    }, [viewMode]);
+
+    // Reset to page 1 when filters change
+    useEffect(() => {
+        if (currentPage !== 1) {
+            setCurrentPage(1);
+        } else {
+            // If already on page 1, we still need to fetch logs if filters changed
+            // but the main effect above handles it via dependencies.
+        }
+    }, [statusFilters, userFilters, batchFilters, dateFilter, searchTerm]);
+
+    const fetchDiscoveryData = async () => {
+        try {
+            const supabase = createClient();
+            const tableName = viewMode === 'csv' ? 'csv_upload_logs' : 'resume_uploads';
+            
+            const query = supabase
+                .from(tableName as any)
+                .select(viewMode === 'csv' ? 'status, uploader_email, batch_id, created_at' : 'status, uploader_email, created_at')
+                .order('created_at', { ascending: false })
+                .limit(10000);
+            
+            const { data, error } = await query;
+
+            if (error) throw error;
+            setAllMetadata(data || []);
+            
+            if (data) {
+                const dates = data.map((d: any) => {
+                    const dt = new Date(d.created_at);
+                    return format(dt, 'yyyy-MM-dd');
+                });
+                setAvailableDates(Array.from(new Set(dates)).sort().reverse());
+            }
+        } catch (e) {
+            console.error("Discovery error:", e);
+        }
+    };
+
+    // Memoized Faceted Options
+    const availableStatuses = React.useMemo(() => {
+        let filtered = allMetadata;
+        if (userFilters.length > 0) filtered = filtered.filter(d => userFilters.includes(d.uploader_email));
+        if (batchFilters.length > 0) filtered = filtered.filter(d => batchFilters.includes(d.batch_id));
+        if (dateFilter !== 'all') filtered = filtered.filter(d => format(new Date(d.created_at), 'yyyy-MM-dd') === dateFilter);
+        return Array.from(new Set(filtered.map(d => d.status))).filter(Boolean).sort();
+    }, [allMetadata, userFilters, batchFilters, dateFilter]);
+
+    const availableUsers = React.useMemo(() => {
+        let filtered = allMetadata;
+        if (statusFilters.length > 0) filtered = filtered.filter(d => statusFilters.includes(d.status));
+        if (batchFilters.length > 0) filtered = filtered.filter(d => batchFilters.includes(d.batch_id));
+        if (dateFilter !== 'all') filtered = filtered.filter(d => format(new Date(d.created_at), 'yyyy-MM-dd') === dateFilter);
+        return Array.from(new Set(filtered.map(d => d.uploader_email))).filter(Boolean).sort();
+    }, [allMetadata, statusFilters, batchFilters, dateFilter]);
+
+    const availableBatches = React.useMemo(() => {
+        let filtered = allMetadata;
+        if (statusFilters.length > 0) filtered = filtered.filter(d => statusFilters.includes(d.status));
+        if (userFilters.length > 0) filtered = filtered.filter(d => userFilters.includes(d.uploader_email));
+        if (dateFilter !== 'all') filtered = filtered.filter(d => format(new Date(d.created_at), 'yyyy-MM-dd') === dateFilter);
+        return Array.from(new Set(filtered.map(d => d.batch_id))).filter(Boolean).sort();
+    }, [allMetadata, statusFilters, userFilters, dateFilter]);
 
     // Debounced search
     useEffect(() => {
@@ -174,20 +262,28 @@ export default function CandidateImportPage() {
 
     useEffect(() => {
         setCurrentPage(1);
+        setBatchFilters([]); // Reset batch filter when switching tabs
     }, [viewMode]);
 
     const fetchLogs = async () => {
         setLoadingLogs(true);
         try {
             const supabase = createClient();
-            const from = (currentPage - 1) * pageSize;
-            const to = from + pageSize - 1;
+            
+            const isAnyFilterActive = statusFilters.length > 0 || 
+                                     userFilters.length > 0 || 
+                                     batchFilters.length > 0 || 
+                                     dateFilter !== 'all' || 
+                                     searchTerm !== '';
+
+            const from = isAnyFilterActive ? 0 : (currentPage - 1) * pageSize;
+            const to = isAnyFilterActive ? 5000 : from + pageSize - 1;
 
             let query = supabase
                 .from(viewMode === 'csv' ? 'csv_upload_logs' : 'resume_uploads')
                 .select('*', { count: 'exact' });
 
-            // Backend Search
+            // Search
             if (searchTerm) {
                 const search = `%${searchTerm}%`;
                 if (viewMode === 'csv') {
@@ -197,16 +293,31 @@ export default function CandidateImportPage() {
                 }
             }
 
-            // Backend Filters
-            if (statusFilter !== 'all') {
-                query = query.eq('status', statusFilter);
+            // Status Multi-In
+            if (statusFilters.length > 0) {
+                query = query.in('status', statusFilters);
             }
-            if (userFilter !== 'all') {
-                query = query.eq('uploader_email', userFilter);
+
+            // User Multi-In
+            if (userFilters.length > 0) {
+                query = query.in('uploader_email', userFilters);
+            }
+
+            // Batch Multi-In
+            if (batchFilters.length > 0 && viewMode === 'csv') {
+                query = query.in('batch_id', batchFilters);
+            }
+
+            // Date Range
+            if (dateFilter !== 'all') {
+                const dayStart = startOfDay(new Date(dateFilter)).toISOString();
+                const dayEnd = endOfDay(new Date(dateFilter)).toISOString();
+                query = query.gte('created_at', dayStart).lte('created_at', dayEnd);
             }
 
             const { data, count, error } = await query
                 .order('created_at', { ascending: false })
+                .order('id', { ascending: false })
                 .range(from, to);
 
             if (error) throw error;
@@ -454,17 +565,21 @@ export default function CandidateImportPage() {
     };
 
     // --- JR Selection Logic ---
-    const handleOpenJrDialog = () => {
-        if (selectedIds.length === 0) return;
+    const handleReset = () => {
+        setSearchTerm("");
+        setStatusFilters([]);
+        setUserFilters([]);
+        setBatchFilters([]);
+        setDateFilter("all");
+        setCurrentPage(1);
+    };
 
-        // Check if any valid candidates (with ID) are selected
-        const validCount = logs.filter(l => selectedIds.includes(l.id) && l.candidate_id?.startsWith('C')).length;
-        if (validCount === 0) {
-            toast.error("No valid candidates selected (Must have Candidate ID)");
-            return;
+    const toggleFilter = (current: string[], value: string, setter: (v: string[]) => void) => {
+        if (current.includes(value)) {
+            setter(current.filter(v => v !== value));
+        } else {
+            setter([...current, value]);
         }
-
-        setOpenJrDialog(true);
     };
 
     const handleSelectAll = (checked: boolean) => {
@@ -493,10 +608,42 @@ export default function CandidateImportPage() {
             }));
     }, [logs, selectedIds]);
 
-    const uniqueUsers = React.useMemo(() => Array.from(new Set(logs.map(log => log.uploader_email).filter(Boolean))).sort(), [logs]);
-    const uniqueStatuses = React.useMemo(() => Array.from(new Set(logs.map(log => log.status).filter(Boolean))).sort(), [logs]);
+    const validSelectedCount = React.useMemo(() => {
+        return logs.filter(l => selectedIds.includes(l.id) && l.candidate_id?.startsWith('C')).length;
+    }, [logs, selectedIds]);
+
+
+    const isAnyFilterActive = React.useMemo(() => {
+        return statusFilters.length > 0 || 
+               userFilters.length > 0 || 
+               batchFilters.length > 0 || 
+               dateFilter !== 'all' || 
+               searchTerm !== '';
+    }, [statusFilters, userFilters, batchFilters, dateFilter, searchTerm]);
 
     const filteredLogs = logs;
+
+    const filteredSummary = React.useMemo(() => {
+        if (!isAnyFilterActive) return null;
+        
+        const total = logs.length;
+        const ready = logs.filter(l => l.candidate_id?.startsWith('C')).length;
+        const missing = total - ready;
+        
+        return { total, ready, missing };
+    }, [logs, statusFilters, userFilters, batchFilters, dateFilter, searchTerm]);
+
+
+    const handleAddFilteredToJob = () => {
+        if (!filteredSummary || filteredSummary.ready === 0) return;
+        
+        const validIds = logs
+            .filter(l => l.candidate_id?.startsWith('C'))
+            .map(l => l.id);
+            
+        setSelectedIds(validIds);
+        setOpenJrDialog(true);
+    };
 
     const sortedLogs = React.useMemo(() => {
         if (!sortConfig) return filteredLogs;
@@ -545,11 +692,19 @@ export default function CandidateImportPage() {
                 }
             }
 
-            if (statusFilter !== 'all') {
-                query = query.eq('status', statusFilter);
+            if (statusFilters.length > 0) {
+                query = query.in('status', statusFilters);
             }
-            if (userFilter !== 'all') {
-                query = query.eq('uploader_email', userFilter);
+            if (userFilters.length > 0) {
+                query = query.in('uploader_email', userFilters);
+            }
+            if (batchFilters.length > 0) {
+                query = query.in('batch_id', batchFilters);
+            }
+            if (dateFilter !== 'all') {
+                const dayStart = startOfDay(new Date(dateFilter)).toISOString();
+                const dayEnd = endOfDay(new Date(dateFilter)).toISOString();
+                query = query.gte('created_at', dayStart).lte('created_at', dayEnd);
             }
 
             const { data, error } = await query.order('created_at', { ascending: false });
@@ -641,9 +796,9 @@ export default function CandidateImportPage() {
                         {selectedIds.length > 0 && (
                             <Button
                                 className="bg-amber-500 hover:bg-amber-600 text-white animate-in zoom-in fade-in slide-in-from-right-4"
-                                onClick={handleOpenJrDialog}
+                                onClick={() => setOpenJrDialog(true)}
                             >
-                                <PlusCircle className="w-4 h-4 mr-2" /> Add {selectedIds.length} to Job
+                                <PlusCircle className="w-4 h-4 mr-2" /> Add {validSelectedCount} to Job
                             </Button>
                         )}
 
@@ -787,59 +942,131 @@ export default function CandidateImportPage() {
                 <CardHeader className="bg-slate-50/50 border-b border-slate-100/50 flex flex-col gap-4 pb-4">
                     <div className="flex flex-row items-center justify-between">
                         <div className="flex items-center gap-4">
-                            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)} className="w-[400px]">
-                                <TabsList>
-                                    <TabsTrigger value="resume" className="gap-2"><FileText className="w-4 h-4" /> Resume Uploads</TabsTrigger>
-                                    <TabsTrigger value="csv" className="gap-2"><FileSpreadsheet className="w-4 h-4" /> CSV Uploads</TabsTrigger>
+                            <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as any)} className="w-[300px]">
+                                <TabsList className="rounded-xl p-1 bg-slate-200/50">
+                                    <TabsTrigger value="resume" className="gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm"><FileText className="w-4 h-4" /> Resumes</TabsTrigger>
+                                    <TabsTrigger value="csv" className="gap-2 rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-sm"><FileSpreadsheet className="w-4 h-4" /> CSV</TabsTrigger>
                                 </TabsList>
                             </Tabs>
-                            <span className="text-xs font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-                                {totalLogs} records
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm">
+                                {totalLogs} {totalLogs === 1 ? 'Record' : 'Records'} Found
                             </span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <Button variant="outline" size="sm" onClick={downloadCsv} disabled={totalLogs === 0 || isDownloading} className="gap-2 text-slate-600">
-                                {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download CSV
+                            <Button variant="outline" size="sm" onClick={downloadCsv} disabled={totalLogs === 0 || isDownloading} className="h-9 gap-2 text-slate-600 rounded-xl border-slate-200 bg-white hover:bg-slate-50">
+                                {isDownloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 text-indigo-500" />} Export CSV
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={fetchLogs} disabled={loadingLogs}>
-                                <RefreshCw className={cn("w-4 h-4", loadingLogs && "animate-spin")} />
+                            <Button variant="ghost" size="sm" onClick={fetchLogs} disabled={loadingLogs} className="h-9 w-9 rounded-xl hover:bg-slate-100">
+                                <RefreshCw className={cn("w-4 h-4 text-slate-500", loadingLogs && "animate-spin")} />
                             </Button>
                         </div>
                     </div>
 
-                    <div className="flex flex-col md:flex-row gap-3">
-                        <div className="relative flex-1">
-                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-                            <Input placeholder="Search by name, ID or note..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 bg-white border-slate-200" />
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                        <div className="md:col-span-4 relative">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                            <Input 
+                                placeholder="Search candidates, ID, notes..." 
+                                value={searchTerm} 
+                                onChange={(e) => setSearchTerm(e.target.value)} 
+                                className="pl-10 h-10 bg-white border-slate-200 rounded-xl focus-visible:ring-indigo-500 shadow-sm" 
+                            />
                         </div>
-                        <div className="flex gap-2 w-full md:w-auto">
-                            <Select value={statusFilter} onValueChange={setStatusFilter}>
-                                <SelectTrigger className="w-[160px] bg-white border-slate-200">
-                                    <SelectValue placeholder="Filter Status" />
+                        
+                        <div className="md:col-span-8 flex flex-wrap items-center gap-2 justify-end">
+                            {/* Date Filter */}
+                            <Select value={dateFilter} onValueChange={setDateFilter}>
+                                <SelectTrigger className="w-[160px] h-9 bg-white border-slate-200 rounded-xl text-xs gap-2">
+                                    <CalendarIcon className="w-3.5 h-3.5 text-slate-400" />
+                                    <SelectValue placeholder="All Dates" />
                                 </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Statuses</SelectItem>
-                                    {uniqueStatuses.map((status: string, idx: number) => <SelectItem key={`${status}-${idx}`} value={status}>{status}</SelectItem>)}
+                                <SelectContent className="rounded-xl">
+                                    <SelectItem value="all">All Dates</SelectItem>
+                                    {availableDates.map(date => (
+                                        <SelectItem key={date} value={date}>{date}</SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
 
-                            <Select value={userFilter} onValueChange={setUserFilter}>
-                                <SelectTrigger className="w-[200px] bg-white border-slate-200">
-                                    <SelectValue placeholder="Filter User" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Users</SelectItem>
-                                    {uniqueUsers.map((user: string, idx: number) => <SelectItem key={`${user}-${idx}`} value={user}>{user}</SelectItem>)}
-                                </SelectContent>
-                            </Select>
+                            {/* Status Multi-Select */}
+                            <FilterMultiSelect
+                                label="Status"
+                                icon={FilterIcon}
+                                options={availableStatuses}
+                                selected={statusFilters}
+                                onChange={(val) => toggleFilter(statusFilters, val, setStatusFilters)}
+                            />
 
-                            {(statusFilter !== "all" || userFilter !== "all" || searchTerm) && (
-                                <Button variant="ghost" size="icon" onClick={() => { setStatusFilter("all"); setUserFilter("all"); setSearchTerm(""); }} className="text-slate-400 hover:text-red-500">
-                                    <X className="h-4 w-4" />
+                            {/* User Multi-Select */}
+                            <FilterMultiSelect
+                                label="User"
+                                icon={FilterIcon}
+                                options={availableUsers}
+                                selected={userFilters}
+                                onChange={(val) => toggleFilter(userFilters, val, setUserFilters)}
+                            />
+
+                            {/* Batch Multi-Select (CSV only) */}
+                            {viewMode === 'csv' && (
+                                <FilterMultiSelect
+                                    label="Batch ID"
+                                    icon={Layers}
+                                    options={availableBatches}
+                                    selected={batchFilters}
+                                    onChange={(val) => toggleFilter(batchFilters, val, setBatchFilters)}
+                                />
+                            )}
+
+                            {/* Reset Button */}
+                            {isAnyFilterActive && (
+                                <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    onClick={handleReset} 
+                                    className="h-9 px-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl"
+                                >
+                                    <XIcon className="h-4 w-4 mr-1" /> Reset
                                 </Button>
                             )}
                         </div>
                     </div>
+
+                    {/* Filtered Statistics Summary */}
+                    {filteredSummary && (
+                        <div className="mt-1 flex items-center justify-between bg-indigo-50/50 border border-indigo-100/50 p-4 rounded-2xl animate-in fade-in slide-in-from-top-2">
+                            <div className="flex items-center gap-10">
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-black uppercase text-indigo-400 tracking-widest mb-1.5">Matched Records</span>
+                                    <span className="text-2xl font-black text-indigo-900 leading-none">{filteredSummary.total}</span>
+                                </div>
+                                <div className="h-10 w-px bg-indigo-100" />
+                                <div className="flex flex-col">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                        <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                                        <span className="text-[10px] font-black uppercase text-emerald-600 tracking-widest">Ready to Job (C-ID)</span>
+                                    </div>
+                                    <span className="text-2xl font-black text-emerald-700 leading-none">{filteredSummary.ready}</span>
+                                </div>
+                                <div className="h-10 w-px bg-indigo-100" />
+                                <div className="flex flex-col">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                        <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                                        <span className="text-[10px] font-black uppercase text-amber-500 tracking-widest">Processing</span>
+                                    </div>
+                                    <span className="text-2xl font-black text-amber-700 leading-none">{filteredSummary.missing}</span>
+                                </div>
+                            </div>
+                            
+                            {filteredSummary.ready > 0 && (
+                                <Button 
+                                    onClick={handleAddFilteredToJob}
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-100/50 rounded-2xl font-bold px-8 h-12 text-base transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                >
+                                    <PlusCircle className="mr-2 h-5 w-5" /> Add {filteredSummary.ready} Matches to Job
+                                </Button>
+                            )}
+                        </div>
+                    )}
                 </CardHeader>
                 <CardContent className="p-0">
                     {loadingLogs ? (
@@ -910,7 +1137,7 @@ export default function CandidateImportPage() {
                         </Table>
                     )}
                 </CardContent>
-                {totalLogs > pageSize && (
+                {!isAnyFilterActive && totalLogs > pageSize && (
                     <div className="px-6 py-4 border-t flex items-center justify-between">
                         <div className="text-xs text-slate-500">
                             Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, totalLogs)} of {totalLogs} entries

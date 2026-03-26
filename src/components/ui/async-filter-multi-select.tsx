@@ -25,8 +25,8 @@ export interface AsyncFilterMultiSelectProps {
     label: string;
     icon?: React.ElementType;
     selected: string[];
-    onChange: (values: string[]) => void; // Updated to accept array
-    fetcher: (query: string, limit?: number, filters?: any) => Promise<string[]>;
+    onChange: (values: string[]) => void;
+    fetcher: (query: string, limit?: number, filters?: any) => Promise<{ results: string[], totalCount: number }>;
     initialOptions?: string[];
     placeholder?: string;
     filters?: any;
@@ -47,6 +47,7 @@ export function AsyncFilterMultiSelect({
     const [open, setOpen] = React.useState(false);
     const [query, setQuery] = React.useState("");
     const [options, setOptions] = React.useState<string[]>(initialOptions);
+    const [totalCount, setTotalCount] = React.useState(0);
     const [loading, setLoading] = React.useState(false);
 
     // Batching State
@@ -95,16 +96,23 @@ export function AsyncFilterMultiSelect({
 
             if (!debouncedQuery && !hasFilters && initialOptions.length > 0) {
                 setOptions(initialOptions);
+                setTotalCount(initialOptions.length);
                 return;
             }
 
             setLoading(true);
             try {
-                const results = await fetcher(debouncedQuery || "", 1000, filters);
-                if (active) setOptions(results || []);
+                const response = await fetcher(debouncedQuery || "", 1000, filters);
+                if (active) {
+                    setOptions(response.results || []);
+                    setTotalCount(response.totalCount || 0);
+                }
             } catch (error) {
                 console.error("Async Select Fetch Error:", error);
-                if (active) setOptions([]);
+                if (active) {
+                    setOptions([]);
+                    setTotalCount(0);
+                }
             } finally {
                 if (active) setLoading(false);
             }
@@ -158,7 +166,7 @@ export function AsyncFilterMultiSelect({
                                 {options.length === 0 && <CommandEmpty>No results found.</CommandEmpty>}
                                 {options.length > 0 && (
                                     <div className="flex items-center justify-between px-2 py-1.5 bg-secondary/20 border-b">
-                                        <span className="text-[10px] text-muted-foreground font-medium">Found {options.length} results</span>
+                                        <span className="text-[10px] text-muted-foreground font-medium">Found {totalCount} results</span>
                                         <Button
                                             variant="ghost"
                                             size="sm"

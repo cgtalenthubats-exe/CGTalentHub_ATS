@@ -49,8 +49,44 @@ function mapRowsToJRs(data: any[]): JobRequisition[] {
  * Reduces 5 calls to 1.
  */
 export async function getJRSelectionData() {
-    const jrs = await getJobRequisitions();
-    
+    return getJRSelectionDataLean();
+}
+
+/**
+ * Lean version of JR fetching for selection dialog.
+ * Excludes heavy fields like job_description and feedback_file.
+ */
+export async function getJRSelectionDataLean() {
+    const supabase = adminAuthClient;
+    const { data, error } = await supabase
+        .from('job_requisitions')
+        .select('jr_id, position_jr, bu, sub_bu, status, request_date, is_active, create_by')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        console.error("Error fetching lean JRs:", error);
+        return { jrs: [], options: { positions: [], divisions: [], subDivisions: [], originalJrs: [] } };
+    }
+
+    const jrs: JobRequisition[] = data.map((row: any) => ({
+        id: row.jr_id,
+        title: row.position_jr || "Untitled Position",
+        job_title: row.position_jr || "Untitled Position",
+        department: row.sub_bu || "General",
+        division: row.bu || "Corporate",
+        status: row.status || row.is_active || "Open",
+        opened_date: row.request_date,
+        is_active: String(row.is_active).toLowerCase() === 'active',
+        created_by: row.create_by || "System",
+        // Minimum empty fields to satisfy type if needed, but Dialog only uses these.
+        hiring_manager_id: "",
+        headcount_total: 1,
+        headcount_hired: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        jr_type: "New"
+    }));
+
     const positions = [...new Set(jrs.map(j => j.title).filter(Boolean))].sort();
     const divisions = [...new Set(jrs.map(j => j.division).filter(Boolean))].sort();
     const subDivisions = [...new Set(jrs.map(j => j.department).filter(Boolean))].sort();
@@ -226,21 +262,31 @@ export async function createJobRequisition(data: any): Promise<JobRequisition | 
 
     try {
         // 1. Generate Running ID using `jr_number` integer column
-        // Find max jr_number
-        const { data: maxResult, error: maxError } = await supabase
+        // We check BOTH jr_number and jr_id strings to find the true max
+        const { data: allJrs } = await supabase
             .from('job_requisitions')
-            .select('jr_number')
-            .order('jr_number', { ascending: false })
-            .limit(1)
-            .single();
+            .select('jr_number, jr_id')
+            .order('jr_id', { ascending: false })
+            .limit(10); // Check top 10 string IDs to be very safe
 
-        let nextNum = 1;
-        const maxRow = maxResult as any;
-        if (maxRow && maxRow.jr_number) {
-            nextNum = maxRow.jr_number + 1;
+        let maxNumFound = 0;
+        if (allJrs && allJrs.length > 0) {
+            allJrs.forEach((row: any) => {
+                // Check jr_number column first
+                if (row.jr_number && typeof row.jr_number === 'number') {
+                    if (row.jr_number > maxNumFound) maxNumFound = row.jr_number;
+                }
+                // Also parse from jr_id string case-insensitively
+                if (row.jr_id && typeof row.jr_id === 'string' && row.jr_id.toUpperCase().startsWith('JR')) {
+                    const numPart = row.jr_id.toUpperCase().replace('JR', '');
+                    const parsed = parseInt(numPart);
+                    if (!isNaN(parsed) && parsed > maxNumFound) maxNumFound = parsed;
+                }
+            });
         }
 
-        // Format: JRxxxxxx (e.g., JR000014)
+        const nextNum = maxNumFound + 1;
+        // Format: JRxxxxxx (Back to 6 digits as confirmed)
         const nextId = `JR${nextNum.toString().padStart(6, '0')}`;
 
         // 2. Insert Data
@@ -442,19 +488,27 @@ export async function copyJobRequisition(sourceJrId: string, newJrData: Partial<
     const supabase = adminAuthClient;
 
     try {
-        // A. Create New JR
         // 1. Get Next JR ID
-        const { data: maxResult } = await supabase
+        const { data: allJrs } = await supabase
             .from('job_requisitions')
-            .select('jr_number')
-            .order('jr_number', { ascending: false })
-            .limit(1)
-            .single();
+            .select('jr_number, jr_id')
+            .order('jr_id', { ascending: false })
+            .limit(5);
 
-        let nextNum = 1;
-        if (maxResult && (maxResult as any).jr_number) {
-            nextNum = (maxResult as any).jr_number + 1;
+        let maxNumFound = 0;
+        if (allJrs && allJrs.length > 0) {
+            allJrs.forEach((row: any) => {
+                if (row.jr_number && typeof row.jr_number === 'number') {
+                    if (row.jr_number > maxNumFound) maxNumFound = row.jr_number;
+                }
+                if (row.jr_id && typeof row.jr_id === 'string' && row.jr_id.toUpperCase().startsWith('JR')) {
+                    const numPart = row.jr_id.toUpperCase().replace('JR', '');
+                    const parsed = parseInt(numPart);
+                    if (!isNaN(parsed) && parsed > maxNumFound) maxNumFound = parsed;
+                }
+            });
         }
+        const nextNum = maxNumFound + 1;
         const newJrId = `JR${nextNum.toString().padStart(6, '0')}`;
 
         // 3. Insert New JR

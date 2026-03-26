@@ -18,12 +18,12 @@ import { deleteInterviewFeedback } from "@/app/actions/jr-candidate-logs";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import {
-    Dialog,
-    DialogContent,
-    DialogHeader,
-    DialogTitle,
-    DialogFooter,
-} from "@/components/ui/dialog";
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetFooter,
+} from "@/components/ui/sheet";
 import { Maximize2, X } from "lucide-react";
 
 interface FeedbackSectionProps {
@@ -187,16 +187,16 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback }: Feed
                 initialData={selectedFeedback}
             />
 
-            {/* View Full Feedback Dialog */}
-            <Dialog open={isViewOpen} onOpenChange={setIsViewOpen}>
-                <DialogContent className="max-w-2xl rounded-3xl p-0 overflow-hidden border-none shadow-2xl [&>button]:hidden">
-                    <DialogHeader className="p-8 bg-gradient-to-br from-indigo-600 to-purple-600 text-white relative">
-                        <div className="flex justify-between items-start">
+            {/* View Full Feedback Sheet (Slide-over) */}
+            <Sheet open={isViewOpen} onOpenChange={setIsViewOpen}>
+                <SheetContent side="right" className="sm:max-w-2xl p-0 overflow-y-auto border-none shadow-2xl [&>button]:hidden bg-white">
+                    <SheetHeader className="p-8 bg-gradient-to-br from-indigo-600 to-purple-600 text-white relative space-y-0">
+                        <div className="flex justify-between items-start text-left">
                             <div className="flex flex-col gap-1">
                                 <span className="text-[10px] font-black uppercase text-indigo-100 tracking-widest pl-0.5">
                                     {viewingFeedback?.Interviewer_type || "Interview Feedback"}
                                 </span>
-                                <DialogTitle className="text-2xl font-black">{viewingFeedback?.Interviewer_name}</DialogTitle>
+                                <SheetTitle className="text-2xl font-black text-white">{viewingFeedback?.Interviewer_name}</SheetTitle>
                             </div>
                             <div className="bg-white/20 backdrop-blur-md text-white rounded-2xl px-3 py-1.5 flex items-center gap-2 border border-white/20">
                                 <Star className="h-4 w-4 fill-white" />
@@ -205,15 +205,15 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback }: Feed
                         </div>
                         <Button 
                             variant="ghost" 
-                            size="icon" 
-                            className="absolute top-4 right-4 text-white hover:bg-white/20 rounded-full"
+                            className="absolute top-4 right-4 text-white hover:bg-white/20 rounded-xl px-3 py-2 h-auto text-[10px] font-black uppercase tracking-widest gap-2 transition-all border border-white/10"
                             onClick={() => setIsViewOpen(false)}
                         >
-                            <X className="h-5 w-5" />
+                            <span>Close</span>
+                            <X className="h-4 w-4" />
                         </Button>
-                    </DialogHeader>
+                    </SheetHeader>
                     
-                    <div className="p-8 space-y-6 bg-white">
+                    <div className="p-8 space-y-6 bg-white min-h-[calc(100vh-200px)]">
                         <div className="flex justify-between items-center py-3 px-4 bg-slate-50 rounded-2xl border border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-widest">
                             <div className="flex items-center gap-2">
                                 <HistoryIcon className="h-4 w-4 text-indigo-400" />
@@ -251,17 +251,8 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback }: Feed
                             </a>
                         )}
                     </div>
-                    
-                    <DialogFooter className="p-4 bg-slate-50 border-t border-slate-100 sm:justify-center">
-                        <Button 
-                            onClick={() => setIsViewOpen(false)}
-                            className="w-full sm:w-32 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl"
-                        >
-                            Close
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+                </SheetContent>
+            </Sheet>
         </div>
     );
 }

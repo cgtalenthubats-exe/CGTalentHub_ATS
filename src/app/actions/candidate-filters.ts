@@ -4,35 +4,74 @@ import { adminAuthClient } from "@/lib/supabase/admin";
 
 import { getCandidateIdsByExperienceFilters, CandidateFilters } from "@/lib/candidate-service";
 
-export async function searchCompanies(query: string, limit = 10, filters?: any) {
-    if (!query || query.length < 1) return [];
+export async function searchCompanies(query: string, limit = 20, filters?: any) {
+    if (!query || query.length < 1) return { results: [], totalCount: 0 };
 
     try {
-        const { data, error } = await adminAuthClient
+        // Fetch more than limit to allow grouping in memory
+        const fetchLimit = 500;
+        const { data, error, count } = await adminAuthClient
             .from('company_variation')
-            .select('variation_name')
+            .select('variation_name, logic4_key', { count: 'exact' })
             .ilike('variation_name', `%${query}%`)
-            .limit(limit);
+            .limit(fetchLimit);
 
         if (error) {
             console.error("Error searching companies (Variations):", error);
-            return [];
+            return { results: [], totalCount: 0 };
         }
 
-        // Return unique variation names
-        const names = data?.map((item: any) => item.variation_name) || [];
-        return Array.from(new Set(names));
+        if (!data || data.length === 0) {
+            return { results: [], totalCount: 0 };
+        }
+
+        // Group by logic4_key
+        const groups = new Map<string, string[]>();
+        data.forEach((row: any) => {
+            const key = row.logic4_key || `no-key-${row.variation_name}`;
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key)!.push(row.variation_name);
+        });
+
+        // For each group, pick the best representative name
+        const uniqueEntries = Array.from(groups.entries()).map(([key, names]) => {
+            // Priority: 
+            // 1. Exact match (ignore case)
+            // 2. Starts with query
+            // 3. Shortest name
+            const lowerQuery = query.toLowerCase();
+            const sorted = names.sort((a, b) => {
+                const aLow = a.toLowerCase();
+                const bLow = b.toLowerCase();
+                
+                if (aLow === lowerQuery) return -1;
+                if (bLow === lowerQuery) return 1;
+                
+                const aStarts = aLow.startsWith(lowerQuery);
+                const bStarts = bLow.startsWith(lowerQuery);
+                if (aStarts && !bStarts) return -1;
+                if (!aStarts && bStarts) return 1;
+                
+                return a.length - b.length;
+            });
+            return sorted[0];
+        });
+
+        return {
+            results: uniqueEntries.slice(0, limit),
+            totalCount: uniqueEntries.length
+        };
 
     } catch (error) {
         console.error("Server Action Error (searchCompanies):", error);
-        return [];
+        return { results: [], totalCount: 0 };
     }
 }
 
 export async function searchPositions(query: string, limit = 1000, filters?: any) {
     const hasActiveFilters = filters && Object.values(filters).some((v: any) => Array.isArray(v) ? v.length > 0 : !!v);
 
-    if ((!query || query.length < 1) && !hasActiveFilters) return [];
+    if ((!query || query.length < 1) && !hasActiveFilters) return { results: [], totalCount: 0 };
 
     try {
         let candidateIds: string[] | null = null;
@@ -54,14 +93,18 @@ export async function searchPositions(query: string, limit = 1000, filters?: any
 
         if (error) {
             console.error("Error searching positions (RPC):", error);
-            return [];
+            return { results: [], totalCount: 0 };
         }
 
-        return (data as any[])?.map((item: any) => item.result_value) || [];
+        const results = (data as any[])?.map((item: any) => item.result_value) || [];
+        return {
+            results,
+            totalCount: results.length // RPC doesn't currently return a full count easily, but this keeps format same
+        };
 
     } catch (error) {
         console.error("Server Action Error (searchPositions):", error);
-        return [];
+        return { results: [], totalCount: 0 };
     }
 }
 
