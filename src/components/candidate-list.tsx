@@ -1,6 +1,4 @@
-"use client";
-
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { JRCandidate } from "@/types/requisition";
 import { getJRCandidates } from "@/app/actions/jr-candidates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -85,6 +83,9 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
     const [filterIsCurrentJob, setFilterIsCurrentJob] = useState<string[]>([]);
     const [filterCountry, setFilterCountry] = useState<string[]>([]);
 
+    // Status color map from DB
+    const [statusColorMap, setStatusColorMap] = useState<Record<string, { font_color: string | null; bg_color: string | null }>>({});
+
     // Feedback Dialog State
     const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
     const [feedbackCandidate, setFeedbackCandidate] = useState<{ id: string, name: string } | null>(null);
@@ -112,6 +113,13 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
                 setCandidates(candData);
                 setStatusOptions(masters);
                 setAllJRs(jrs.filter(j => j.id !== jrId));
+
+                // Build color map from status master
+                const colorMap: Record<string, { font_color: string | null; bg_color: string | null }> = {};
+                (masters as any[]).forEach((m: any) => {
+                    colorMap[m.status] = { font_color: m.font_color ?? null, bg_color: m.bg_color ?? null };
+                });
+                setStatusColorMap(colorMap);
             } catch (error) {
                 console.error("Failed to load data", error);
             }
@@ -238,9 +246,9 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
         setLoading(false);
     };
 
-    // Status Definitions
-    const greyStatuses = ["Not fit", "Not Open", "Not Pass Interview", "Too Senior"];
-    const redStatuses = ["Rejected"];
+    // Status Definitions (legacy — kept for dropdown styling only)
+    const greyStatuses = ["Not Open", "Not Pass Interview", "Too Senior", "Hold"];
+    const redStatuses = ["Rejected", "Not fit"];
 
     // Unique option sets derived from all candidates
     const uniqueStatuses = Array.from(new Set(candidates.map(c => c.status).filter(Boolean))).sort() as string[];
@@ -280,8 +288,25 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
         } catch { return false; }
     });
 
-    // Custom Sorting: Active > Grey > Red
+    // Custom Sorting Hierarchy:
+    // 1. Successful Placement (Global Top)
+    // 2. Type (Top Profile > Longlist)
+    // 3. Status Score (Active=1 > Grey=2 > Red=3)
+    // 4. Rank (Ascending)
     const sortedCandidates = [...filteredCandidates].sort((a, b) => {
+        // 1. Successful Placement (Global Top)
+        const isPlantedA = a.status === 'Successful Placement';
+        const isPlantedB = b.status === 'Successful Placement';
+        if (isPlantedA && !isPlantedB) return -1;
+        if (!isPlantedA && isPlantedB) return 1;
+
+        // 2. Type (Top Profile > Longlist)
+        const isTopA = a.list_type === 'Top profile';
+        const isTopB = b.list_type === 'Top profile';
+        if (isTopA && !isTopB) return -1;
+        if (!isTopA && isTopB) return 1;
+
+        // 3. Status Score (Active > Grey > Red)
         const getScore = (s: string) => {
             if (redStatuses.includes(s)) return 3;
             if (greyStatuses.includes(s)) return 2;
@@ -290,7 +315,11 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
         const scoreA = getScore(a.status);
         const scoreB = getScore(b.status);
         if (scoreA !== scoreB) return scoreA - scoreB;
-        return (parseInt(a.rank || "999") - parseInt(b.rank || "999"));
+
+        // 4. Rank
+        const rA = parseInt(a.rank || "999");
+        const rB = parseInt(b.rank || "999");
+        return rA - rB;
     });
 
     // Toggle value in a multi-select array
@@ -341,18 +370,32 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
         </Popover>
     );
 
-    // Row Style Helper
+    // Row Style Helper — uses DB colors if configured, else falls back to status groups
     const getRowClass = (status: string, isSelected: boolean) => {
-        if (status === "Successful Placement") return cn(
-            "border-b last:border-0 hover:bg-emerald-50/80 transition-all bg-emerald-50/30",
-            isSelected && "bg-emerald-100/50"
-        );
+        const dbColor = statusColorMap[status];
+        if (dbColor?.bg_color) {
+            // DB-configured color: apply via inline style (handled at <tr> level)
+            return cn(
+                "border-b last:border-0 transition-all",
+                isSelected && "opacity-80"
+            );
+        }
+        // Fallback legacy classes
         if (redStatuses.includes(status)) return "bg-red-50/40 hover:bg-red-50/80 transition-colors border-b";
         if (greyStatuses.includes(status)) return "bg-slate-50/50 hover:bg-slate-100/80 transition-colors border-b";
         return cn(
             "border-b last:border-0 hover:bg-slate-50/80 transition-all",
             isSelected && "bg-indigo-50/30"
         );
+    };
+
+    // Inline row style — for DB-driven bg_color on the whole row
+    const getRowStyle = (status: string): React.CSSProperties => {
+        const dbColor = statusColorMap[status];
+        if (dbColor?.bg_color) {
+            return { backgroundColor: dbColor.bg_color };
+        }
+        return {};
     };
 
 
@@ -525,7 +568,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
                             const isTopProfile = c.list_type === "Top profile";
 
                             return (
-                                <tr key={c.id} className={getRowClass(c.status, isSelected)}>
+                                <tr key={c.id} className={getRowClass(c.status, isSelected)} style={getRowStyle(c.status)}>
                                     <td className="px-4 py-4">
                                         <Checkbox
                                             checked={isSelected}
@@ -659,10 +702,13 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
                                                 <select
                                                     className={cn(
                                                         "text-[13px] font-black h-9 pl-4 pr-9 rounded-xl border appearance-none focus:outline-none transition-all cursor-pointer w-full bg-white min-w-[185px]",
-                                                        c.status === 'Successful Placement'
-                                                            ? "text-emerald-700 bg-emerald-50 border-emerald-200"
-                                                            : getRowStatusClass(c.status)
+                                                        !statusColorMap[c.status]?.bg_color && getRowStatusClass(c.status)
                                                     )}
+                                                    style={{
+                                                        backgroundColor: statusColorMap[c.status]?.bg_color || undefined,
+                                                        color: statusColorMap[c.status]?.font_color || undefined,
+                                                        borderColor: statusColorMap[c.status]?.font_color ? `${statusColorMap[c.status]?.font_color}40` : undefined
+                                                    }}
                                                     value={c.status || ""}
                                                     onChange={(e) => handleStatusChange(c.id, e.target.value)}
                                                 >

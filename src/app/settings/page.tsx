@@ -5,7 +5,8 @@ import { N8nIntegrations } from "@/components/settings/n8n-integrations";
 import { UserManagement } from "@/components/settings/user-management";
 import { ChangelogViewer } from "@/components/settings/changelog-viewer";
 import { AppGuidelines } from "@/components/settings/app-guidelines";
-import { Settings, Sliders, Webhook, Users, History, BookOpen } from "lucide-react";
+import { StatusMasterSettings } from "@/components/settings/status-master-settings";
+import { Settings, Sliders, Webhook, Users, History, BookOpen, Tag } from "lucide-react";
 import { Toaster } from "sonner";
 
 export default function SettingsPage() {
@@ -29,6 +30,9 @@ export default function SettingsPage() {
                     </TabsTrigger>
                     <TabsTrigger value="guidelines" className="gap-2">
                         <BookOpen className="w-4 h-4" /> Guidelines
+                    </TabsTrigger>
+                    <TabsTrigger value="pipeline" className="gap-2">
+                        <Tag className="w-4 h-4" /> Pipeline Statuses
                     </TabsTrigger>
                     <TabsTrigger value="changelog" className="gap-2">
                         <History className="w-4 h-4" /> Changelog
@@ -57,6 +61,12 @@ export default function SettingsPage() {
                 <TabsContent value="guidelines" className="space-y-4">
                     <div className="border border-slate-100 rounded-xl p-4 bg-white shadow-sm">
                         <AppGuidelines />
+                    </div>
+                </TabsContent>
+
+                <TabsContent value="pipeline" className="space-y-4">
+                    <div className="border border-slate-100 rounded-xl p-5 bg-white shadow-sm">
+                        <StatusMasterSettings />
                     </div>
                 </TabsContent>
 
