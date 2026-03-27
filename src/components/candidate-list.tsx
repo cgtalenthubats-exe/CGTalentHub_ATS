@@ -553,7 +553,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[65px]">P</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[120px]">ID</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[280px]">Candidate Details</th>
-                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[160px]">Status</th>
+                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[160px]">Remark</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[120px]">Sex/Age</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[200px]">Company</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[200px]">Position</th>
@@ -735,11 +735,15 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
                                         />
                                     </td>
                                     <td className="px-4 py-4">
-                                        <Link href={`/candidates/${c.candidate_id}`}>
-                                            <span className="font-mono text-[15px] font-black py-1.5 px-3 bg-indigo-50 rounded-lg text-indigo-700 border border-indigo-100 shadow-sm hover:bg-indigo-100 transition-colors cursor-pointer inline-block whitespace-nowrap">
-                                                {c.candidate_id}
-                                            </span>
-                                        </Link>
+                                        <button 
+                                            onClick={() => {
+                                                setSheetCandidateId(c.id);
+                                                setIsSheetOpen(true);
+                                            }}
+                                            className="font-mono text-[15px] font-black py-1.5 px-3 bg-indigo-50 rounded-lg text-indigo-700 border border-indigo-100 shadow-sm hover:bg-indigo-100 transition-colors cursor-pointer inline-block whitespace-nowrap"
+                                        >
+                                            {c.candidate_id}
+                                        </button>
                                     </td>
                                     <td className="px-4 py-4">
                                         <div className="flex flex-col">

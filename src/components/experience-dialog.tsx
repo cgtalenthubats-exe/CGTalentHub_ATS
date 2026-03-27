@@ -266,7 +266,7 @@ function MonthYearPicker({
 
 // -----------------------------------
 
-export function AddExperienceDialog({ candidateId }: { candidateId: string }) {
+export function AddExperienceDialog({ candidateId, onSuccess: onRefresh }: { candidateId: string, onSuccess?: () => void }) {
     const [open, setOpen] = useState(false);
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -282,14 +282,17 @@ export function AddExperienceDialog({ candidateId }: { candidateId: string }) {
                 </DialogHeader>
                 <ExperienceForm
                     candidateId={candidateId}
-                    onSuccess={() => setOpen(false)}
+                    onSuccess={() => {
+                        setOpen(false);
+                        if (onRefresh) onRefresh();
+                    }}
                 />
             </DialogContent>
         </Dialog>
     );
 }
 
-export function EditExperienceDialog({ experience, candidateId }: { experience: any; candidateId: string }) {
+export function EditExperienceDialog({ experience, candidateId, onSuccess: onRefresh }: { experience: any; candidateId: string; onSuccess?: () => void }) {
     const [open, setOpen] = useState(false);
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -306,7 +309,10 @@ export function EditExperienceDialog({ experience, candidateId }: { experience: 
                 <ExperienceForm
                     candidateId={candidateId}
                     experience={experience}
-                    onSuccess={() => setOpen(false)}
+                    onSuccess={() => {
+                        setOpen(false);
+                        if (onRefresh) onRefresh();
+                    }}
                 />
             </DialogContent>
         </Dialog>
@@ -410,10 +416,12 @@ function ExperienceForm({
             setLoading(false);
             alert(res.error);
         } else {
-            // onSuccess closes the dialog
-            onSuccess();
-            // Force a hard refresh to ensure the UI is fully updated
-            window.location.reload();
+            // If callback provided, run it, otherwise do the default reload
+            if (onSuccess) {
+                onSuccess();
+            } else {
+                window.location.reload();
+            }
         }
     }
 
@@ -529,7 +537,7 @@ function ExperienceForm({
     );
 }
 
-export function DeleteExperienceButton({ id, candidateId }: { id: string, candidateId: string }) {
+export function DeleteExperienceButton({ id, candidateId, onSuccess }: { id: string, candidateId: string, onSuccess?: () => void }) {
     const [loading, setLoading] = useState(false);
     async function handleDelete(e: React.MouseEvent) {
         e.preventDefault();
@@ -537,6 +545,8 @@ export function DeleteExperienceButton({ id, candidateId }: { id: string, candid
         setLoading(true);
         await deleteExperience(id, candidateId);
         setLoading(false);
+        if (onSuccess) onSuccess();
+        else window.location.reload();
     }
 
     return (
@@ -546,10 +556,9 @@ export function DeleteExperienceButton({ id, candidateId }: { id: string, candid
     )
 }
 
-// Button to set (or toggle off) the current job for a candidate
 export function SetCurrentExperienceButton({
-    experienceId, candidateId, isCurrent
-}: { experienceId: string; candidateId: string; isCurrent: boolean }) {
+    experienceId, candidateId, isCurrent, onSuccess
+}: { experienceId: string; candidateId: string; isCurrent: boolean; onSuccess?: () => void }) {
     const [loading, setLoading] = useState(false);
 
     async function handleClick(e: React.MouseEvent) {
@@ -557,6 +566,8 @@ export function SetCurrentExperienceButton({
         setLoading(true);
         await setCurrentExperience(experienceId, candidateId);
         setLoading(false);
+        if (onSuccess) onSuccess();
+        else window.location.reload();
     }
 
     return (

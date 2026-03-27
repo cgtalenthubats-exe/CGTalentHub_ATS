@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { CandidateAvatar } from "@/components/candidate-avatar";
+import { JRCandidateSheet } from "@/components/jr-candidate-sheet";
 
 interface KanbanBoardProps {
     jrId: string;
@@ -41,6 +42,8 @@ export function KanbanBoard({ jrId, jobTitle, bu, subBu, updatedBy }: KanbanBoar
     const [loading, setLoading] = useState(true);
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const [placementCandidate, setPlacementCandidate] = useState<{ id: string, name: string } | null>(null);
+    const [isSheetOpen, setIsSheetOpen] = useState(false);
+    const [sheetCandidateId, setSheetCandidateId] = useState<string | null>(null);
 
     useEffect(() => {
         async function load() {
@@ -223,9 +226,15 @@ export function KanbanBoard({ jrId, jobTitle, bu, subBu, updatedBy }: KanbanBoar
                                                 </DropdownMenu>
                                             </div>
                                             <div className="flex justify-between items-center">
-                                                <span className="text-[12px] font-black text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 italic">
+                                                <button
+                                                    onClick={() => {
+                                                        setSheetCandidateId(c.id);
+                                                        setIsSheetOpen(true);
+                                                    }}
+                                                    className="text-[12px] font-black text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 italic hover:bg-indigo-100 transition-colors"
+                                                >
                                                     ID: {c.candidate_id}
-                                                </span>
+                                                </button>
                                                 <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">
                                                     {c.created_at ? new Date(c.created_at).toLocaleDateString() : "-"}
                                                 </span>
@@ -260,6 +269,11 @@ export function KanbanBoard({ jrId, jobTitle, bu, subBu, updatedBy }: KanbanBoar
                     }}
                 />
             )}
+            <JRCandidateSheet 
+                jrCandidateId={sheetCandidateId}
+                open={isSheetOpen}
+                onOpenChange={setIsSheetOpen}
+            />
         </div>
     );
 }

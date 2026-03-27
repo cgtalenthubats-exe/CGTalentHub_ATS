@@ -5,7 +5,6 @@ import { adminAuthClient } from "@/lib/supabase/admin";
 export async function getJRCandidateDetails(jrCandidateId: string) {
     const supabase = adminAuthClient;
 
-    // 1. Get JR Candidate Meta & Logs
     // 1. Get JR Candidate Meta
     const { data: jrCandidate, error: jrError } = await (supabase as any)
         .from('jr_candidates')
@@ -18,40 +17,80 @@ export async function getJRCandidateDetails(jrCandidateId: string) {
         return null;
     }
 
-    // 2. Get Candidate Profile (Manual Join due to missing FK and Table Name space)
-    const { data: candidateProfile, error: profileError } = await (supabase as any)
-        .from('Candidate Profile')
-        .select('name, photo')
-        .eq('candidate_id', jrCandidate.candidate_id)
-        .single();
+    const candidateId = jrCandidate.candidate_id;
 
-    if (profileError) {
-        console.error("Error fetching Candidate Profile:", profileError);
-        // Continue without profile if error, or handle as needed. 
-        // For now, attaching what we have.
-    }
+    // 2. Fetch all related data in parallel for performance
+    const [
+        profileRes,
+        experiencesRes,
+        enhanceRes,
+        logsRes,
+        feedbackRes
+    ] = await Promise.all([
+        // Global Profile
+        (supabase as any)
+            .from('Candidate Profile')
+            .select('*')
+            .eq('candidate_id', candidateId)
+            .single(),
+        
+        // Experiences
+        (supabase as any)
+            .from('candidate_experiences')
+            .select('*')
+            .eq('candidate_id', candidateId)
+            .order('start_date', { ascending: false }),
+
+        // AI Enhancement / About / Skills
+        (supabase as any)
+            .from('candidate_profile_enhance')
+            .select('*')
+            .eq('candidate_id', candidateId)
+            .maybeSingle(),
+
+        // Status Logs (JR specific)
+        (supabase as any)
+            .from('status_log')
+            .select('*')
+            .eq('jr_candidate_id', jrCandidateId)
+            .order('log_id', { ascending: false }),
+
+        // Interview Feedback (JR specific)
+        (supabase as any)
+            .from('interview_feedback')
+            .select('*')
+            .eq('jr_candidate_id', jrCandidateId)
+            .order('interview_date', { ascending: false })
+    ]);
+
+    const { data: candidateProfile, error: profileError } = profileRes;
+    const { data: experiences, error: expError } = experiencesRes;
+    const { data: enhance, error: enhanceError } = enhanceRes;
+    const { data: logs, error: logsError } = logsRes;
+    const { data: feedback, error: feedbackError } = feedbackRes;
+
+    if (profileError) console.error("Error fetching Candidate Profile:", profileError);
+    if (expError) console.error("Error fetching Experiences:", expError);
+    if (enhanceError) console.error("Error fetching Enhance Data:", enhanceError);
 
     const meta = {
         ...jrCandidate,
         candidate_profile: {
-            name: candidateProfile?.name,
-            photo_url: candidateProfile?.photo // 'photo' is the column name from list_tables, mapped to photo_url for frontend
+            ...candidateProfile,
+            // Map photo to photo_url if UI expects it (keeping compatibility)
+            photo_url: candidateProfile?.photo,
+            experiences: experiences || [],
+            enhancement: enhance ? {
+                about: enhance.about_summary,
+                education_summary: enhance.education_summary,
+                languages: enhance.languages,
+                skills: enhance.skills_list,
+                alt_email: enhance.email,
+                country: enhance.country,
+                full_address: enhance.full_address
+            } : null
         }
     };
-
-    // 2. Get Logs
-    const { data: logs, error: logsError } = await (supabase as any)
-        .from('status_log')
-        .select('*')
-        .eq('jr_candidate_id', jrCandidateId)
-        .order('log_id', { ascending: false });
-
-    // 3. Get Interview Feedback
-    const { data: feedback, error: feedbackError } = await (supabase as any)
-        .from('interview_feedback')
-        .select('*')
-        .eq('jr_candidate_id', jrCandidateId)
-        .order('interview_date', { ascending: false });
 
     return {
         meta,
