@@ -240,6 +240,8 @@ export default function EditCandidatePage({ params }: { params: Promise<{ id: st
                 date_of_birth: formData.date_of_birth,
                 year_of_bachelor_education: formData.year_of_bachelor_education,
                 age: formData.age,
+                photo: photoUrl,
+                resume_url: resumeUrl,
                 // Compensation & Benefits (strip commas for requested 4 columns)
                 gross_salary_base_b_mth: parseNumberFromCommas(formData.gross_salary_base_b_mth) || null,
                 car_allowance_b_mth: parseNumberFromCommas(formData.car_allowance_b_mth) || null,
