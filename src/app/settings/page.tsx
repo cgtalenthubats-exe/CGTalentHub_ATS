@@ -7,8 +7,11 @@ import { ChangelogViewer } from "@/components/settings/changelog-viewer";
 import { AppGuidelines } from "@/components/settings/app-guidelines";
 import { StatusMasterSettings } from "@/components/settings/status-master-settings";
 import { AISettings } from "@/components/settings/ai-settings";
-import { Settings, Sliders, Webhook, Users, History, BookOpen, Tag, Sparkles } from "lucide-react";
+import { Settings, Sliders, Webhook, Users, History, BookOpen, Tag, Sparkles, Beaker } from "lucide-react";
 import { Toaster } from "sonner";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 export default function SettingsPage() {
     return (
@@ -40,6 +43,9 @@ export default function SettingsPage() {
                     </TabsTrigger>
                     <TabsTrigger value="changelog" className="gap-2">
                         <History className="w-4 h-4" /> Changelog
+                    </TabsTrigger>
+                    <TabsTrigger value="tools" className="gap-2">
+                        <Beaker className="w-4 h-4" /> Tools
                     </TabsTrigger>
                     <TabsTrigger value="advanced" className="gap-2" disabled>
                         <Sliders className="w-4 h-4" /> Advanced
@@ -81,6 +87,29 @@ export default function SettingsPage() {
                 <TabsContent value="changelog" className="space-y-4">
                     <div className="border border-slate-100 rounded-xl p-4 bg-white shadow-sm">
                         <ChangelogViewer />
+                    </div>
+                </TabsContent>
+
+                <TabsContent value="tools" className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Card className="border-slate-200">
+                            <CardHeader>
+                                <CardTitle className="text-lg flex items-center gap-2">
+                                    <Sparkles className="w-5 h-5 text-indigo-500" />
+                                    Encoding Sandbox
+                                </CardTitle>
+                                <CardDescription>
+                                    Test CSV upload encoding for European characters (é, ö, ü).
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <Link href="/settings/encoding-test">
+                                    <Button variant="outline" className="w-full">
+                                        Open Sandbox
+                                    </Button>
+                                </Link>
+                            </CardContent>
+                        </Card>
                     </div>
                 </TabsContent>
 
