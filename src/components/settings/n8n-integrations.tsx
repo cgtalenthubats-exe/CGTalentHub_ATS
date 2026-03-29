@@ -26,7 +26,9 @@ export function N8nIntegrations() {
     const loadConfigs = async () => {
         setLoading(true);
         const data = await getN8nConfigs();
-        setConfigs(data);
+        // Filter out AI configs as they have their own tab
+        const filtered = data.filter(c => !['ai_parse_prompt', 'google_ai_api_key', 'ai_model_name'].includes(c.name));
+        setConfigs(filtered);
         setLoading(false);
     };
 

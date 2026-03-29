@@ -13,7 +13,26 @@ export interface N8nConfig {
     url: string;
     method: 'GET' | 'POST';
     description: string;
+    value?: string;
     updated_at: string;
+}
+
+export async function updateAiConfig(name: string, value: string) {
+    const { error } = await supabase
+        .from('n8n_configs')
+        .update({
+            value,
+            updated_at: new Date().toISOString()
+        })
+        .eq('name', name);
+
+    if (error) {
+        return { success: false, error: error.message };
+    }
+
+    revalidatePath('/admin/n8n');
+    revalidatePath('/settings');
+    return { success: true };
 }
 
 export async function getN8nConfigs() {

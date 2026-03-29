@@ -2,6 +2,7 @@
 
 import { adminAuthClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { normalizeName, normalizeEmail, normalizeLinkedIn } from "@/lib/candidate-utils";
 
 export async function addExperience(candidateId: string, formData: FormData) {
     const position = formData.get("position") as string;
@@ -360,4 +361,39 @@ export async function getCountryMaster() {
         return [];
     }
     return data.map((c: any) => c.country).filter(Boolean);
+}
+
+export async function checkCandidateDuplicate(name: string, email?: string, linkedin?: string) {
+    if (!name && !email && !linkedin) return null;
+    
+    const client = adminAuthClient as any;
+    
+    // Using centralized normalization logic
+    const normName = normalizeName(name);
+    const normEmail = normalizeEmail(email || "");
+    const normLinkedIn = normalizeLinkedIn(linkedin);
+
+    const { data: existing, error } = await client
+        .from('Candidate Profile' as any)
+        .select('candidate_id, name, email, linkedin')
+        .or(`name.ilike.${normName || "NONE"},email.eq.${normEmail === "" ? "NULL" : normEmail},linkedin.ilike.${normLinkedIn === "" ? "NULL" : normLinkedIn}`)
+        .maybeSingle();
+
+    if (error) {
+        console.error("Check Duplicate Error:", error);
+        return null;
+    }
+    
+    // Additional confirmation check
+    if (existing) {
+        const nameMatch = normalizeName(existing.name || "") === normName;
+        const emailMatch = normEmail !== "" && normalizeEmail(existing.email || "") === normEmail;
+        const linkedinMatch = normLinkedIn !== "" && normalizeLinkedIn(existing.linkedin || "").includes(normLinkedIn); 
+        
+        if (nameMatch || emailMatch || linkedinMatch) {
+            return existing;
+        }
+    }
+
+    return null;
 }

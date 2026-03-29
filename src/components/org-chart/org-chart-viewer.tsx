@@ -6,8 +6,15 @@ import { OrgNode, bulkCreateOrgProfiles, createSingleOrgProfile } from '@/app/ac
 import { Badge } from '@/components/ui/badge'
 import { 
     UserCheck, UserPlus, Focus, ZoomIn, ZoomOut, Plus, 
-    ExternalLink, Sparkles, Loader2, Trash2, Info, UploadCloud 
+    ExternalLink, Sparkles, Loader2, Trash2, Info, UploadCloud,
+    Users, ChevronUp, Download, Image as ImageIcon, FileText
 } from 'lucide-react'
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Separator } from '@/components/ui/separator'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -47,10 +54,162 @@ type OrgChartViewerProps = {
     modifyDate?: string | null
 }
 
-// Custom Node Component
-const NodeCard = ({ nodeDatum, toggleNode, onCreateProfile, isCreating }: any) => {
+const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, onExpand }: any) => {
     const isMatch = !!nodeDatum.matched_candidate_id
-    const hasChildren = nodeDatum.children && nodeDatum.children.length > 0
+    const isVerified = !!nodeDatum.is_verified
+    const childCount = nodeDatum._childCount || 0
+    const hasChildren = childCount > 0
+
+    const cardColorClass = isMatch 
+        ? (isVerified 
+            ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-100' 
+            : 'border-amber-400 bg-amber-50/80 ring-1 ring-amber-100/50')
+        : 'border-slate-200 bg-white'
+
+    return (
+        <div 
+            className={cn(
+                "relative w-full h-[98px] border-2 rounded-xl flex flex-col justify-between p-2.5 transition-all shadow-sm group",
+                cardColorClass,
+                hasChildren && "cursor-pointer hover:ring-indigo-400 hover:shadow-md"
+            )}
+            onClick={hasChildren ? () => onExpand(nodeDatum.node_id) : undefined}
+            style={{
+                display: 'flex', flexDirection: 'column', justifyContent: 'space-between', width: '100%', height: '98px', padding: '10px',
+                borderWidth: '2px', borderRadius: '12px', borderStyle: 'solid', boxSizing: 'border-box', position: 'relative',
+                backgroundColor: isMatch ? (isVerified ? '#ecfdf5' : '#fffbeb') : '#ffffff',
+                borderColor: isMatch ? (isVerified ? '#10b981' : '#fbbf24') : '#e2e8f0',
+                fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+            }}
+        >
+            {hasChildren && (
+                <div 
+                    className="absolute -top-2 -right-2 bg-indigo-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-white z-20 shadow-sm transition-transform group-hover:scale-110"
+                    style={{ position: 'absolute', top: '-8px', right: '-8px', backgroundColor: '#4f46e5', color: '#ffffff', fontSize: '9px', fontWeight: 700, padding: '2px 6px', borderRadius: '9999px', border: '1px solid #ffffff', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                    +{childCount}
+                </div>
+            )}
+            {/* Top row / Avatar area */}
+            <div className="flex items-start w-full relative" style={{ display: 'flex', alignItems: 'flex-start', width: '100%', position: 'relative' }}>
+                <div className="flex-shrink-0 mr-2.5 relative" style={{ flexShrink: 0, marginRight: '10px', position: 'relative' }}>
+                    <div className={cn("p-0.5 rounded-full border-2", isMatch ? "border-emerald-100 bg-emerald-50" : "border-slate-100 bg-slate-50")} style={{ padding: '2px', borderRadius: '9999px', borderWidth: '2px', borderStyle: 'solid', backgroundColor: isMatch ? '#ecfdf5' : '#f8fafc', borderColor: isMatch ? '#d1fae5' : '#f1f5f9' }}>
+                        <CandidateAvatar src={nodeDatum.candidate_photo} name={nodeDatum.name} className="h-10 w-10 shrink-0" style={{ width: 40, height: 40, minWidth: 40, minHeight: 40 }} />
+                    </div>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0 pr-5" style={{ flex: '1 1 0%', minWidth: 0, paddingRight: '20px' }}>
+                    <h3 className="font-bold text-slate-800 text-[12px] truncate leading-tight" title={nodeDatum.name} style={{ fontWeight: 700, fontSize: '12px', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0, lineHeight: 1.25 }}>
+                        {nodeDatum.name}
+                    </h3>
+                    <p className="text-[10px] text-slate-500 font-medium line-clamp-2 uppercase tracking-tight mt-0.5 leading-tight" title={nodeDatum.title} style={{ fontSize: '10px', color: '#64748b', fontWeight: 500, textTransform: 'uppercase', margin: '2px 0 0 0', lineHeight: 1.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        {nodeDatum.title || 'Position Not Set'}
+                    </p>
+                </div>
+
+                {/* Icons top right */}
+                <div className="absolute top-0 right-0 flex gap-1 z-10" onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', top: 0, right: 0, display: 'flex', gap: '4px', zIndex: 10 }}>
+                    {isMatch && nodeDatum.candidate_id && (
+                        <Link href={`/candidates/${nodeDatum.candidate_id}`} target="_blank" className="text-slate-400 hover:text-indigo-600 p-0.5" title="View Profile" style={{ display: 'flex', alignItems: 'center', padding: '2px' }}>
+                            <ExternalLink size={12} style={{ width: 12, height: 12, color: '#94a3b8' }} />
+                        </Link>
+                    )}
+                    {nodeDatum.linkedin && (
+                        <CandidateLinkedinButton checked={nodeDatum.checked || getCheckedStatus(nodeDatum.linkedin)} linkedin={nodeDatum.linkedin} candidateId={nodeDatum.candidate_id || `temp-${nodeDatum.node_id}`} className="h-5 w-5" style={{ width: 20, height: 20 }} />
+                    )}
+                </div>
+            </div>
+
+            {/* Bottom Row / Actions */}
+            <div className="flex justify-between items-end w-full" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', width: '100%', marginTop: 'auto' }}>
+                <p className="text-[9px] font-mono font-bold text-slate-400 mb-0.5" style={{ fontSize: '9px', fontFamily: 'monospace', fontWeight: 700, color: '#94a3b8', margin: '0 0 2px 0' }}>
+                    {isMatch ? nodeDatum.candidate_id : 'UNMATCHED'}
+                </p>
+                <div className="z-10" onClick={(e) => e.stopPropagation()} style={{ zIndex: 10 }}>
+                    {isMatch ? (
+                        <Button variant="ghost" size="sm" className={cn("h-6 text-[9px] px-1.5 gap-1 rounded-lg", isVerified ? "text-emerald-700 bg-emerald-100/50" : "text-amber-700 bg-amber-100/50 border border-amber-300")} onClick={() => onToggleVerify(nodeDatum.node_id, !isVerified)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', height: '24px', padding: '0 6px', borderRadius: '8px', fontSize: '9px', fontWeight: 600, border: isVerified ? 'none' : '1px solid #fcd34d', backgroundColor: isVerified ? '#d1fae5' : '#fef3c7', color: isVerified ? '#047857' : '#b45309', cursor: 'pointer' }}>
+                            <UserCheck size={10} style={{ width: 10, height: 10 }} />
+                            {isVerified ? "V" : "VERIFY"}
+                        </Button>
+                    ) : (
+                        <Button variant="outline" size="sm" className="h-6 text-[9px] px-1.5 border-dashed border-indigo-400 text-indigo-600" onClick={() => onCreateProfile(nodeDatum.node_id)} disabled={isCreating} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '24px', padding: '0 6px', borderRadius: '8px', fontSize: '9px', fontWeight: 600, border: '1px dashed #818cf8', backgroundColor: 'transparent', color: '#4f46e5', cursor: 'pointer' }}>
+                            + CREATE
+                        </Button>
+                    )}
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// Custom Node Component
+const NodeCard = ({ nodeDatum, toggleNode, onCreateProfile, isCreating, onToggleVerify, isVerifying, onToggleExpand, expandedSet }: any) => {
+    // Hide phantom nodes (Standard Grid columns)
+    if (nodeDatum.isPhantom && !nodeDatum.isTeamGrid) {
+        return <g />
+    }
+
+    // Hide Organization root, but keep it in the DOM tree
+    if (nodeDatum.name === 'Organization' && !nodeDatum.matched_candidate_id) {
+        return (
+            <g>
+                <circle r={1} fill="transparent" />
+                <foreignObject width="200" height="40" x="-100" y="-30">
+                    <div className="flex items-center justify-center h-full text-[10px] font-bold text-slate-400 opacity-50 tracking-widest">
+                        ORGANIZATION
+                    </div>
+                </foreignObject>
+            </g>
+        )
+    }
+
+    const isTeamGrid = !!nodeDatum.isTeamGrid
+    const isMatch = !!nodeDatum.matched_candidate_id
+    const isVerified = !!nodeDatum.is_verified
+    const childCount = nodeDatum._childCount || 0
+    const hasChildren = childCount > 0
+
+    // Color logic
+    const cardColorClass = isMatch 
+        ? (isVerified 
+            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 ring-2 ring-emerald-100' 
+            : 'border-amber-400 bg-amber-50/80 dark:bg-amber-950/40 ring-2 ring-amber-100/50')
+        : 'border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-sm'
+
+    if (isTeamGrid && nodeDatum.members) {
+        // Multi-Column Grid aligned strictly to D3 base slots to mathematically eliminate overlap
+        const memberCount = nodeDatum.members.length;
+        const columns = Math.ceil(memberCount / 5); // 5 rows max
+        const gridWidth = columns * 280 + Math.max(0, columns - 1) * 8; // 8px gap
+        const gridHeight = Math.min(memberCount, 5) * 102; 
+
+        return (
+            <g>
+                <foreignObject width={gridWidth + 20} height={gridHeight + 20} x={-140} y="-50">
+                    <div className="p-2 inline-grid gap-2 rounded-2xl border-2 border-slate-200 shadow-inner bg-slate-100/90 h-fit overflow-visible" style={{ 
+                        display: 'inline-grid', gap: '8px', padding: '8px', borderRadius: '16px', borderWidth: '2px', borderStyle: 'solid', boxSizing: 'border-box',
+                        gridTemplateColumns: `repeat(${columns}, 280px)`,
+                        gridAutoRows: '98px',
+                        backgroundColor: '#f1f5f9',
+                        borderColor: '#e2e8f0'
+                    }}>
+                        {nodeDatum.members.map((member: any) => (
+                            <div key={member.node_id} className="p-0.5">
+                                <TeamMemberMiniCard 
+                                    nodeDatum={member} 
+                                    onToggleVerify={onToggleVerify}
+                                    onCreateProfile={onCreateProfile}
+                                    isCreating={isCreating}
+                                    onExpand={onToggleExpand}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                </foreignObject>
+            </g>
+        )
+    }
 
     // Prevent click propagation for links
     const handleLinkClick = (e: React.MouseEvent) => {
@@ -59,102 +218,98 @@ const NodeCard = ({ nodeDatum, toggleNode, onCreateProfile, isCreating }: any) =
 
     return (
         <g>
-            <foreignObject width="300" height="180" x="-150" y="-90">
-                <div className="p-2 h-full flex items-center justify-center">
+            <foreignObject width="280" height="110" x="-140" y="-55">
+                <div className="p-1 h-full flex items-center justify-center">
                     <div
-                        className={`
-                  border rounded-xl shadow-md hover:shadow-xl transition-all duration-300
-                  flex flex-col items-center p-4 text-center group
-                  ${isMatch ? 'border-emerald-400 bg-emerald-50/90 dark:bg-emerald-950/40 ring-1 ring-emerald-100' : 'border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95'}
-                  ${hasChildren ? 'cursor-pointer' : ''}
-                `}
-                        onClick={hasChildren ? toggleNode : undefined}
+                        className={cn(
+                            "relative w-full h-full border-2 rounded-xl transition-all duration-300 flex flex-col p-3 group",
+                            cardColorClass,
+                            hasChildren && "cursor-pointer hover:ring-2 hover:ring-indigo-400 hover:ring-offset-1"
+                        )}
+                        onClick={hasChildren ? () => onToggleExpand(nodeDatum.node_id) : undefined}
+                        style={{
+                            display: 'flex', flexDirection: 'column', width: '100%', height: '100%', padding: '12px', borderWidth: '2px', borderRadius: '12px', borderStyle: 'solid', boxSizing: 'border-box', position: 'relative',
+                            backgroundColor: isMatch ? (isVerified ? '#ecfdf5' : '#fffbeb') : '#ffffff',
+                            borderColor: isMatch ? (isVerified ? '#10b981' : '#fbbf24') : '#e2e8f0',
+                            fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                        }}
                     >
-                        {/* Status Indicator & LinkedIn */}
-                        <div className="absolute top-3 right-3 flex gap-1.5 items-center">
-                            {nodeDatum.linkedin && (
-                                <div onClick={handleLinkClick}>
+                        {/* Top Area: Avatar & Text */}
+                        <div className="flex items-start w-full relative" style={{ display: 'flex', alignItems: 'flex-start', width: '100%', position: 'relative' }}>
+                            <div className="flex-shrink-0 mr-3 relative" style={{ flexShrink: 0, marginRight: '12px', position: 'relative' }}>
+                                <div className={cn("p-0.5 rounded-full border-2", isMatch ? "border-emerald-200 bg-emerald-100" : "border-slate-100 bg-slate-50")} style={{ padding: '2px', borderRadius: '9999px', borderWidth: '2px', borderStyle: 'solid', backgroundColor: isMatch ? '#ecfdf5' : '#f8fafc', borderColor: isMatch ? '#a7f3d0' : '#f1f5f9' }}>
+                                    <CandidateAvatar src={nodeDatum.candidate_photo} name={nodeDatum.name} className="h-12 w-12" style={{ width: 48, height: 48, minWidth: 48, minHeight: 48 }} />
+                                </div>
+                                {hasChildren && (
+                                    <Badge className="absolute -bottom-1 -right-1 px-1.5 py-0 h-5 text-[10px] bg-indigo-600 text-white border-white border-2" style={{ position: 'absolute', bottom: '-4px', right: '-4px', padding: '0 6px', height: '20px', fontSize: '10px', backgroundColor: '#4f46e5', color: 'white', borderColor: 'white', borderWidth: '2px', borderStyle: 'solid', borderRadius: '9999px', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}>
+                                        {childCount}
+                                    </Badge>
+                                )}
+                            </div>
+
+                            <div className="flex-1 min-w-0 pr-10" style={{ flex: '1 1 0%', minWidth: 0, paddingRight: '40px' }}> {/* Space for top right icons */}
+                                <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm truncate leading-tight" title={nodeDatum.name} style={{ fontWeight: 700, fontSize: '14px', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0, lineHeight: 1.25 }}>
+                                    {nodeDatum.name}
+                                </h3>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium line-clamp-2 uppercase tracking-tight leading-tight mt-0.5" title={nodeDatum.title} style={{ fontSize: '11px', color: '#64748b', fontWeight: 500, textTransform: 'uppercase', margin: '2px 0 0 0', lineHeight: 1.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                    {nodeDatum.title || 'Position Not Set'}
+                                </p>
+                            </div>
+
+                            {/* Icons Top Right */}
+                            <div className="absolute top-0 right-0 flex gap-1 items-center z-10" onClick={handleLinkClick} style={{ position: 'absolute', top: 0, right: 0, display: 'flex', gap: '4px', alignItems: 'center', zIndex: 10 }}>
+                                {isMatch && nodeDatum.candidate_id && (
+                                    <Link href={`/candidates/${nodeDatum.candidate_id}`} target="_blank" className="text-slate-400 hover:text-indigo-600 p-0.5" title="View Profile" style={{ display: 'flex', alignItems: 'center', padding: '2px' }}>
+                                        <ExternalLink size={14} style={{ width: 14, height: 14, color: '#94a3b8' }} />
+                                    </Link>
+                                )}
+                                {nodeDatum.linkedin && (
                                     <CandidateLinkedinButton
                                         checked={nodeDatum.checked || getCheckedStatus(nodeDatum.linkedin)}
                                         linkedin={nodeDatum.linkedin}
                                         candidateId={nodeDatum.candidate_id || `temp-${nodeDatum.node_id}`}
                                         className="h-6 w-6"
+                                        style={{ width: 24, height: 24 }}
                                     />
-                                </div>
-                            )}
-
-                            {isMatch ? (
-                                <div className="text-emerald-600 bg-emerald-100 dark:bg-emerald-900/40 p-1 rounded-full border border-emerald-200" title="Matched Candidate">
-                                    <UserCheck size={14} />
-                                </div>
-                            ) : (
-                                <div className="text-slate-400 bg-slate-50 dark:bg-slate-800 p-1 rounded-full border border-slate-100 dark:border-slate-700" title="No Candidate Profile">
-                                    <UserPlus size={14} />
-                                </div>
-                            )}
-                        </div>
-
-                        {/* External Link Action */}
-                        {isMatch && nodeDatum.candidate_id && (
-                            <Link
-                                href={`/candidates/${nodeDatum.candidate_id}`}
-                                target="_blank"
-                                onClick={handleLinkClick}
-                                className="absolute top-3 left-3 text-slate-400 hover:text-emerald-600 transition-colors"
-                            >
-                                <ExternalLink size={14} />
-                            </Link>
-                        )}
-
-                        {/* Avatar */}
-                        <div className="mb-3 relative">
-                            <div className={`p-0.5 rounded-full border-2 ${isMatch ? 'border-emerald-200 bg-emerald-100' : 'border-slate-100 bg-slate-50 shadow-sm'}`}>
-                                <CandidateAvatar
-                                    src={nodeDatum.candidate_photo}
-                                    name={nodeDatum.name}
-                                    className="h-14 w-14"
-                                />
+                                )}
                             </div>
-                            {hasChildren && (
-                                <Badge className="absolute -bottom-1 -right-1 px-1.5 py-0 h-5 text-[10px] bg-indigo-600 text-white border-white border-2">
-                                    {nodeDatum.children.length}
-                                </Badge>
-                            )}
                         </div>
 
-                        {/* Info */}
-                        <div className="flex flex-col items-center">
-                            <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm line-clamp-1">
-                                {nodeDatum.name}
-                            </h3>
-                            {isMatch && nodeDatum.candidate_id && (
-                                <div className="text-[10px] font-mono text-slate-500 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded mt-0.5 mb-1">
-                                    {nodeDatum.candidate_id}
-                                </div>
-                            )}
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold line-clamp-1 uppercase tracking-tight">
-                                {nodeDatum.title || 'Position Not Set'}
+                        {/* Bottom Area: ID & Actions */}
+                        <div className="mt-auto pt-2 flex items-end justify-between w-full h-8" style={{ marginTop: 'auto', paddingTop: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', width: '100%', height: '32px' }}>
+                            <p className="text-[10px] font-mono font-bold text-slate-400 mb-0.5" style={{ fontSize: '10px', fontFamily: 'monospace', fontWeight: 700, color: '#94a3b8', margin: '0 0 2px 0' }}>
+                                {isMatch ? nodeDatum.candidate_id : 'UNMATCHED'}
                             </p>
-
-                            {!isMatch && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-7 text-[10px] px-2 gap-1 border-dashed border-emerald-500 text-emerald-600 hover:bg-emerald-50 mt-3"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onCreateProfile(nodeDatum.node_id);
-                                    }}
-                                    disabled={isCreating}
-                                >
-                                    {isCreating ? (
-                                        <Loader2 size={12} className="animate-spin" />
-                                    ) : (
-                                        <UserPlus size={12} />
-                                    )}
-                                    Create Profile
-                                </Button>
-                            )}
+                            
+                            <div className="z-10" onClick={handleLinkClick} style={{ zIndex: 10 }}>
+                                {isMatch ? (
+                                    <Button
+                                        variant={isVerified ? "ghost" : "outline"}
+                                        size="sm"
+                                        className={cn(
+                                            "h-7 text-[10px] px-2 gap-1 rounded-lg transition-all",
+                                            isVerified ? "text-emerald-600 bg-emerald-100/50 hover:bg-emerald-100 border-none" : "border-amber-500 text-amber-700 bg-amber-100/50 hover:bg-amber-100"
+                                        )}
+                                        onClick={() => onToggleVerify(nodeDatum.node_id, !isVerified)}
+                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', height: '28px', padding: '0 8px', borderRadius: '8px', fontSize: '10px', fontWeight: 600, border: isVerified ? 'none' : '1px solid #f59e0b', backgroundColor: isVerified ? '#d1fae5' : '#fef3c7', color: isVerified ? '#059669' : '#b45309', cursor: 'pointer' }}
+                                    >
+                                        <UserCheck size={12} className={cn(isVerified ? "text-emerald-600" : "text-amber-600")} style={{ width: 12, height: 12 }} />
+                                        {isVerified ? "VERIFIED" : "VERIFY"}
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 text-[10px] px-2 gap-1 border-dashed border-indigo-400 text-indigo-600 hover:bg-indigo-50"
+                                        onClick={() => onCreateProfile(nodeDatum.node_id)}
+                                        disabled={isCreating}
+                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', height: '28px', padding: '0 8px', borderRadius: '8px', fontSize: '10px', fontWeight: 600, border: '1px dashed #818cf8', backgroundColor: 'transparent', color: '#4f46e5', cursor: 'pointer' }}
+                                    >
+                                        {isCreating ? <Loader2 size={12} className="animate-spin" style={{ width: 12, height: 12 }} /> : <UserPlus size={12} style={{ width: 12, height: 12 }} />}
+                                        CREATE
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -167,6 +322,127 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
     const searchParams = useSearchParams()
     const router = useRouter()
     const uploadId = propUploadId || searchParams.get('id')
+    
+    // Transform data for grid layout & handling custom expansions
+    const [transformedData, setTransformedData] = useState<OrgNode | null>(null)
+    const [expandedSet, setExpandedSet] = useState<Set<string>>(new Set())
+
+    useEffect(() => {
+        if (initialData) {
+            const initial = new Set<string>();
+            const initExpand = (node: any, depth: number) => {
+                if (!node) return;
+                // Expand top 2 levels by default (Organization, Level 1)
+                // This keeps Steffen/Richard and Pascal Peltier visible.
+                if (depth < 2) initial.add(node.node_id);
+                node.children?.forEach((c: any) => initExpand(c, depth + 1));
+            };
+            initExpand(initialData, 0);
+            setExpandedSet(initial);
+        }
+    }, [initialData]);
+
+    const buildCustomTree = (node: any, depth: number = 0): any => {
+        if (!node) return null;
+        
+        const cloned = { ...node };
+        cloned._childCount = cloned.children ? cloned.children.length : 0;
+
+        if (cloned.children && cloned.children.length > 0) {
+            if (!expandedSet.has(cloned.node_id)) {
+                cloned.children = [];
+                return cloned;
+            }
+
+            const newChildren = [];
+            let currentGroupMembers: any[] = [];
+
+            for (const child of cloned.children) {
+                // Ensure Depth 1 and below (Steffen, Richard, Pascal P) are initially separated not grouped 
+                // OR if user explicitly expanded them.
+                const isSeparated = depth < 2 || expandedSet.has(child.node_id);
+
+                if (isSeparated) {
+                    newChildren.push(buildCustomTree(child, depth + 1));
+                } else {
+                    currentGroupMembers.push(buildCustomTree(child, depth + 1));
+                }
+            }
+
+            if (currentGroupMembers.length > 0) {
+                const teamNodeId = `team-grid-${cloned.node_id}`;
+                
+                const columns = Math.ceil(currentGroupMembers.length / 5);
+                const gridCSSWidth = columns * 280 + Math.max(0, columns - 1) * 8;
+                const gridCSSHeight = Math.min(currentGroupMembers.length, 5) * 102;
+                
+                const NODE_SIZE_X = 310;
+                const NODE_SIZE_Y = 160;
+                
+                let rightSpill = (-140 + gridCSSWidth) - (NODE_SIZE_X / 2);
+                let paddingNodes = 0;
+                if (rightSpill > 0) paddingNodes = Math.ceil(rightSpill / NODE_SIZE_X);
+
+                let extraLayers = 0;
+                if (gridCSSHeight > NODE_SIZE_Y) {
+                    extraLayers = Math.ceil((gridCSSHeight - NODE_SIZE_Y) / NODE_SIZE_Y);
+                }
+
+                const buildSpine = (baseId: string, depthRemaining: number): any[] => {
+                    if (depthRemaining <= 0) return [];
+                    return [{
+                        node_id: `${baseId}-spine-${depthRemaining}`,
+                        name: 'Spacer',
+                        isPhantom: true,
+                        isSpacer: true,
+                        isTeamGrid: false,
+                        children: buildSpine(baseId, depthRemaining - 1)
+                    }];
+                };
+
+                newChildren.push({
+                    node_id: teamNodeId,
+                    name: 'Team',
+                    isTeamGrid: true,
+                    isPhantom: true,
+                    members: currentGroupMembers,
+                    children: buildSpine(teamNodeId, extraLayers)
+                });
+
+                for (let i = 0; i < paddingNodes; i++) {
+                    const spacerId = `spacer-R-${teamNodeId}-${i}`;
+                    newChildren.push({
+                        node_id: spacerId,
+                        name: 'Spacer',
+                        isPhantom: true,
+                        isSpacer: true,
+                        isTeamGrid: false,
+                        children: buildSpine(spacerId, extraLayers)
+                    });
+                }
+            }
+
+            cloned.children = newChildren;
+        }
+
+        return cloned;
+    };
+
+    useEffect(() => {
+        if (initialData && expandedSet.size > 0) {
+            setTransformedData(buildCustomTree(initialData));
+        }
+    }, [initialData, expandedSet]);
+
+    const handleToggleExpand = (nodeId: string) => {
+        setExpandedSet(prev => {
+            const next = new Set(prev);
+            if (next.has(nodeId)) next.delete(nodeId);
+            else next.add(nodeId);
+            return next;
+        });
+    };
+
     const [translate, setTranslate] = useState({ x: 0, y: 0 })
     const [zoom, setZoom] = useState(0.7)
     const [showLegend, setShowLegend] = useState(false)
@@ -175,10 +451,140 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
     const [isVerifying, setIsVerifying] = useState(false)
     const [modifyDate, setModifyDate] = useState<string | null>(initialModifyDate || null)
     const [creatingNodes, setCreatingNodes] = useState<Set<string>>(new Set())
+    const [verifyingNodes, setVerifyingNodes] = useState<Set<string>>(new Set())
     const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(initialLogo || null)
     const [isUploadingLogo, setIsUploadingLogo] = useState(false)
     const containerRef = React.useRef<HTMLDivElement>(null)
     const logoInputRef = React.useRef<HTMLInputElement>(null)
+    const captureRef = React.useRef<HTMLDivElement>(null)
+    const [isExporting, setIsExporting] = useState(false)
+
+    const exportImage = async (format: 'png' | 'jpeg' | 'pdf') => {
+        if (!captureRef.current || !containerRef.current) return
+        try {
+            setIsExporting(true)
+            toast.info("Preparing high-resolution export... 📸")
+
+            await new Promise(r => setTimeout(r, 100))
+
+            const htmlToImage = await import('html-to-image')
+            const jsPDFModule = await import('jspdf')
+            const jsPDF = jsPDFModule.default || jsPDFModule.jsPDF
+
+            const element = captureRef.current;
+            const svgG = element.querySelector('.rd3t-g') as SVGGElement;
+            const bbox = svgG?.getBBox();
+
+            const origWidth = element.style.width;
+            const origHeight = element.style.height;
+            const origPosition = element.style.position;
+            const origTop = element.style.top;
+            const origLeft = element.style.left;
+            const origZIndex = element.style.zIndex;
+
+            const origZoom = zoom;
+            const origTranslate = translate;
+
+            let dataUrl;
+
+            try {
+                if (bbox) {
+                    const reqWidth = Math.max(element.offsetWidth, Math.abs(bbox.x) + bbox.width + 300);
+                    const reqHeight = Math.max(element.offsetHeight, Math.abs(bbox.y) + bbox.height + 300);
+
+                    element.style.position = 'fixed';
+                    element.style.top = '0px';
+                    element.style.left = '0px';
+                    element.style.zIndex = '-9999';
+                    element.style.width = `${reqWidth}px`;
+                    element.style.height = `${reqHeight}px`;
+
+                    setZoom(1.0);
+                    setTranslate({ x: reqWidth / 2, y: 150 });
+                    
+                    await new Promise(r => setTimeout(r, 800));
+                }
+
+                const options = {
+                    quality: 1,
+                    pixelRatio: 1, // Fall back to 1x to prevent massive 20MB files!
+                    backgroundColor: document.documentElement.classList.contains('dark') ? '#0f172a' : '#ffffff',
+                    filter: (node: HTMLElement) => {
+                        if (node.id === 'export-exclude-zone') return false;
+                        return true;
+                    }
+                };
+
+                if (format === 'jpeg') {
+                    dataUrl = await htmlToImage.toJpeg(element, options);
+                } else if (format === 'pdf') {
+                    // Preconvert to compressed JPEG for PDF size optimization
+                    dataUrl = await htmlToImage.toJpeg(element, { ...options, quality: 0.90 });
+                } else {
+                    dataUrl = await htmlToImage.toPng(element, options);
+                }
+            } finally {
+                element.style.width = origWidth;
+                element.style.height = origHeight;
+                element.style.position = origPosition;
+                element.style.top = origTop;
+                element.style.left = origLeft;
+                element.style.zIndex = origZIndex;
+                
+                setZoom(origZoom);
+                setTranslate(origTranslate);
+                
+                await new Promise(r => setTimeout(r, 100));
+            }
+
+            if (format === 'pdf') {
+                const PDF = await jsPDF;
+                const pdf = new PDF({ orientation: 'landscape', unit: 'px', format: 'a4' });
+                const pdfWidth = pdf.internal.pageSize.getWidth();
+                const pdfHeight = pdf.internal.pageSize.getHeight();
+                
+                const img = new Image();
+                img.src = dataUrl;
+                await new Promise((resolve) => { img.onload = resolve; });
+
+                const imgRatio = img.width / img.height;
+                const pdfRatio = pdfWidth / pdfHeight;
+                
+                let drawWidth = pdfWidth;
+                let drawHeight = pdfHeight;
+                
+                // Allow a slight empty margin on A4
+                const maxDrawWidth = pdfWidth * 0.96;
+                const maxDrawHeight = pdfHeight * 0.96;
+                
+                if (imgRatio > pdfRatio) {
+                    drawWidth = maxDrawWidth;
+                    drawHeight = maxDrawWidth / imgRatio;
+                } else {
+                    drawHeight = maxDrawHeight;
+                    drawWidth = maxDrawHeight * imgRatio;
+                }
+                
+                const x = (pdfWidth - drawWidth) / 2;
+                const y = (pdfHeight - drawHeight) / 2;
+                
+                pdf.addImage(dataUrl, 'JPEG', x, y, drawWidth, drawHeight, undefined, 'FAST');
+                pdf.save(`OrgChart_${companyId || 'Export'}_${Date.now()}.pdf`);
+            } else {
+                const link = document.createElement('a');
+                link.download = `OrgChart_${companyId || 'Export'}_${Date.now()}.${format}`;
+                link.href = dataUrl;
+                link.click();
+            }
+            
+            toast.success(`Exported ${format.toUpperCase()} successfully! 🎉`)
+        } catch (err) {
+            console.error(err)
+            toast.error("Failed to export chart.")
+        } finally {
+            setIsExporting(false)
+        }
+    }
 
     // Sync state if prop changes
     useEffect(() => {
@@ -237,6 +643,24 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
     }
 
     const unmatchedCount = getUnmatchedNodes(initialData).length
+
+    const handleToggleVerify = async (nodeId: string, verified: boolean) => {
+        try {
+            setVerifyingNodes(prev => new Set(prev).add(nodeId))
+            const { toggleNodeVerification } = await import('@/app/actions/org-chart-actions')
+            await toggleNodeVerification(nodeId, verified)
+            toast.success(verified ? "Candidate verified on OrgChart" : "Verification removed")
+        } catch (err) {
+            console.error('Verify error:', err)
+            toast.error("Failed to update verification status")
+        } finally {
+            setVerifyingNodes(prev => {
+                const next = new Set(prev)
+                next.delete(nodeId)
+                return next
+            })
+        }
+    }
 
     const handleBulkCreate = async () => {
         if (!uploadId) return
@@ -334,7 +758,7 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
     }
 
     return (
-        <div className="flex flex-col h-full w-full relative rounded-xl overflow-hidden border shadow-sm group">
+        <div ref={captureRef} className="flex flex-col h-full w-full relative rounded-xl overflow-hidden border shadow-sm group bg-white dark:bg-slate-950">
             {/* Notes Display Top Right */}
             {notes && (
                 <div className="absolute top-4 right-4 z-10 max-w-[30%]">
@@ -398,7 +822,35 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                     </div>
                 )}
 
-                <div className="flex gap-2 items-center bg-white/40 dark:bg-slate-900/40 backdrop-blur-md p-1.5 rounded-full border border-slate-200/50 shadow-sm">
+                <div id="export-exclude-zone" className="flex gap-2 items-center bg-white/40 dark:bg-slate-900/40 backdrop-blur-md p-1.5 rounded-full border border-slate-200/50 shadow-sm">
+                    {/* Export Dropdown */}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-9 px-4 gap-2 border-indigo-100 text-indigo-600 hover:bg-indigo-50 shadow-sm bg-white rounded-full font-bold text-[11px]"
+                                disabled={isExporting}
+                            >
+                                {isExporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                                EXPORT
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48 z-[100] font-medium">
+                            <DropdownMenuItem onClick={() => exportImage('png')} className="cursor-pointer gap-2">
+                                <ImageIcon size={14} className="text-slate-400" /> Save as PNG
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => exportImage('jpeg')} className="cursor-pointer gap-2">
+                                <ImageIcon size={14} className="text-slate-400" /> Save as JPEG
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => exportImage('pdf')} className="cursor-pointer gap-2">
+                                <FileText size={14} className="text-slate-400" /> Save as PDF
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+
+                    <Separator orientation="vertical" className="h-4 bg-slate-300 mx-0.5" />
+
                     {/* Bulk Create */}
                     <Button
                         variant="default"
@@ -558,24 +1010,44 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
 
             {/* Tree Container */}
             <div ref={containerRef} className="flex-1 w-full bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:24px_24px] dark:bg-[radial-gradient(#334155_1px,transparent_1px)] relative">
+                <style dangerouslySetInnerHTML={{ __html: `
+                    .rd3t-link.hidden-path {
+                        display: none !important;
+                        stroke: transparent !important;
+                        stroke-width: 0 !important;
+                    }
+                `}} />
                 <Tree
-                    data={initialData}
+                    data={transformedData || initialData}
                     translate={translate}
                     zoom={zoom}
                     renderCustomNodeElement={(rd3tProps) => (
                         <NodeCard
                             {...rd3tProps}
                             onCreateProfile={handleSingleCreate}
+                            onToggleVerify={handleToggleVerify}
+                            onToggleExpand={handleToggleExpand}
                             isCreating={creatingNodes.has((rd3tProps.nodeDatum as any).node_id)}
+                            isVerifying={verifyingNodes.has((rd3tProps.nodeDatum as any).node_id)}
+                            expandedSet={expandedSet}
                         />
                     )}
                     orientation="vertical"
                     pathFunc="step"
-                    separation={{ siblings: 1.5, nonSiblings: 2 }}
+                    pathClassFunc={(linkDatum: any) => {
+                        if (linkDatum?.target?.data?.isSpacer) {
+                            return "hidden-path";
+                        }
+                        return "";
+                    }}
+                    separation={{ 
+                        siblings: 1.0, 
+                        nonSiblings: 1.1 
+                    }}
                     zoomable={true}
                     draggable={true}
-                    collapsible={true}
-                    nodeSize={{ x: 300, y: 220 }}
+                    collapsible={false}
+                    nodeSize={{ x: 310, y: 160 }}
                     enableLegacyTransitions={true}
                     transitionDuration={400}
                     onUpdate={(target: any) => {

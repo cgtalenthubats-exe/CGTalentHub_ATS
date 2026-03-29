@@ -1,38 +1,13 @@
 
 
 import { createClient } from "@supabase/supabase-js";
+import { normalizeName, normalizeEmail, normalizeLinkedIn } from "@/lib/candidate-utils";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// --- Normalization Helpers ---
-
-export function normalizeName(name: string): string {
-    if (!name) return "";
-    // 1. Trim
-    // 2. Remove accents/diacritics (NFD -> Remove non-spacing marks)
-    // 3. Lowercase
-    // 4. Replace multiple spaces with single space
-    return name
-        .trim()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, "")
-        .toLowerCase()
-        .replace(/\s+/g, ' ');
-}
-
-export function normalizeLinkedIn(url: string): string {
-    if (!url) return "";
-    try {
-        // Remove query params by parsing URL
-        const urlObj = new URL(url.trim());
-        urlObj.search = "";
-        return urlObj.toString().toLowerCase(); // Ensure lowercase
-    } catch (e) {
-        // If not a valid URL, just trim and lower
-        return url.trim().toLowerCase();
-    }
-}
+// --- Moved Normalization Helpers to @/lib/candidate-utils ---
 
 // --- Duplicate Check Logic ---
 

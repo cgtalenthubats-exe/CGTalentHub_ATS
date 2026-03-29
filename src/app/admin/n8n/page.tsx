@@ -1,12 +1,19 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { getN8nConfigs, updateN8nConfig, N8nConfig } from "@/app/actions/admin-actions";
+import { getN8nConfigs, updateN8nConfig, updateAiConfig, N8nConfig } from "@/app/actions/admin-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Save, Undo, Webhook, CheckCircle2, AlertCircle, ExternalLink, Copy, FlaskConical } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { 
+    Select, SelectContent, SelectItem, SelectTrigger, SelectValue 
+} from "@/components/ui/select";
+import { 
+    Loader2, Save, Undo, Webhook, CheckCircle2, AlertCircle, 
+    ExternalLink, Copy, FlaskConical, Sparkles, Key, FileJson 
+} from "lucide-react";
 import { toast } from "sonner";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
 
@@ -32,6 +39,11 @@ const WEBHOOK_DOCS: Record<string, {
         payload: `GET  ?jr_id=JR000001&requester=email@...&log_id=123`,
         response: `{ success: true }  (n8n generates + emails report async)`,
         note: "ใช้ GET method — parameters ส่งผ่าน URL query string",
+    },
+    "interview_feedback_webhook": {
+        trigger: "ถูกเรียกเมื่อ submit interview feedback พร้อมไฟล์แนบ (Legacy)",
+        payload: `POST  { feedback_id, ... }`,
+        response: `{ success: true }`,
     },
     "Interview Feedback": {
         trigger: "ถูกเรียกเมื่อ submit interview feedback พร้อมไฟล์แนบ",
@@ -69,7 +81,6 @@ const WEBHOOK_DOCS: Record<string, {
   history: [{ role: "user"|"assistant", content: "..." }]
 }`,
         response: `{ answer: "คำตอบจาก AI" }`,
-        note: "🔜 Coming Soon — ระบบนี้ยังอยู่ระหว่างพัฒนา",
     },
     "OrgChart Workflow": {
         trigger: "ถูกเรียกเมื่อมีการอัปโหลดรูปภาพแผนผังองค์กรสำเร็จ",
@@ -95,6 +106,16 @@ const WEBHOOK_DOCS: Record<string, {
 }`,
         response: `{ success: true }`,
     },
+    "Manual Sync": {
+        trigger: "ถูกเรียกหลังจากกดสร้าง Candidate ด้วยตนเองสำเร็จ (Manual Input)",
+        payload: `POST  { }  (No payload as requested)`,
+        response: `{ success: true }  (n8n running background sub-workflow)`,
+    },
+    "ai_parse_prompt": {
+        trigger: "System Prompt สำหรับ AI ในการสกัดข้อมูล Candidate",
+        payload: "ใช้สำหรับการคัดกรองข้อมูลจาก CV/LinkedIn ในหน้าสร้างผู้สมัคร",
+        response: "JSON object ตาม schema ที่กำหนด",
+    }
 };
 
 export default function N8nAdminPage() {
@@ -112,14 +133,24 @@ export default function N8nAdminPage() {
         const data = await getN8nConfigs();
         setConfigs(data);
         const vals: Record<number, string> = {};
-        data.forEach(c => { vals[c.id] = c.url || ''; });
+        data.forEach(c => { 
+            vals[c.id] = (c.url === 'N/A' || !c.url) ? (c.value || '') : (c.url || ''); 
+        });
         setEditValues(vals);
         setLoading(false);
     };
 
     const handleSave = async (config: N8nConfig) => {
         setSaving(prev => ({ ...prev, [config.id]: true }));
-        const res = await updateN8nConfig(config.id, editValues[config.id] || '', config.method);
+        let res;
+        const isAiConfig = ['ai_parse_prompt', 'google_ai_api_key', 'ai_model_name'].includes(config.name);
+        
+        if (isAiConfig) {
+            res = await updateAiConfig(config.name, editValues[config.id] || '');
+        } else {
+            res = await updateN8nConfig(config.id, editValues[config.id] || '', config.method);
+        }
+        
         setSaving(prev => ({ ...prev, [config.id]: false }));
         if (res.success) {
             toast.success(`✅ Saved "${config.name}"`);
@@ -131,7 +162,7 @@ export default function N8nAdminPage() {
 
     const handleTest = async (config: N8nConfig) => {
         const url = editValues[config.id];
-        if (!url) { toast.error('กรุณาใส่ Webhook URL ก่อน'); return; }
+        if (!url || url === 'N/A') { toast.error('กรุณาใส่ Webhook URL ก่อน'); return; }
 
         setTesting(prev => ({ ...prev, [config.id]: true }));
         setTestStatus(prev => ({ ...prev, [config.id]: null }));
@@ -180,32 +211,48 @@ export default function N8nAdminPage() {
                 <div className="space-y-4">
                     {configs.map((config) => {
                         const docs = WEBHOOK_DOCS[config.name];
-                        const isDirty = editValues[config.id] !== (config.url || '');
+                        const isAiConfig = ['ai_parse_prompt', 'google_ai_api_key', 'ai_model_name'].includes(config.name);
+                        const currentValue = isAiConfig ? (config.value || '') : (config.url || '');
+                        const isDirty = editValues[config.id] !== currentValue;
                         const status = testStatus[config.id];
-                        const isNew = !config.url;
+
+                        let Icon = Webhook;
+                        if (config.name === 'ai_parse_prompt') Icon = FileJson;
+                        if (config.name === 'google_ai_api_key') Icon = Key;
+                        if (config.name === 'ai_model_name') Icon = Sparkles;
 
                         return (
-                            <Card key={config.id} className="border-slate-200">
+                            <Card key={config.id} className={`border-slate-200 ${isAiConfig ? 'ring-1 ring-indigo-100 bg-indigo-50/10' : ''}`}>
                                 <CardHeader className="pb-2">
                                     <div className="flex items-center justify-between gap-2 flex-wrap">
-                                        <div>
-                                            <CardTitle className="text-base font-bold flex items-center gap-2">
-                                                {config.name}
-                                                {config.name === 'chat_assistant' && (
-                                                    <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-[10px]">🔜 Coming Soon</Badge>
-                                                )}
-                                            </CardTitle>
-                                            <p className="text-xs text-slate-500 mt-0.5">{config.description}</p>
+                                        <div className="flex items-start gap-3">
+                                            <div className={`mt-1 p-1.5 rounded-lg ${isAiConfig ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-600'}`}>
+                                                <Icon className="w-4 h-4" />
+                                            </div>
+                                            <div>
+                                                <CardTitle className="text-base font-bold flex items-center gap-2">
+                                                    {config.name}
+                                                    {config.name === 'chat_assistant' && (
+                                                        <Badge className="bg-amber-100 text-amber-700 border-amber-200 text-[10px]">🔜 Coming Soon</Badge>
+                                                    )}
+                                                    {isAiConfig && (
+                                                        <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-600 border-indigo-200 font-bold uppercase tracking-wider">System Config</Badge>
+                                                    )}
+                                                </CardTitle>
+                                                <p className="text-xs text-slate-500 mt-0.5">{config.description}</p>
+                                            </div>
                                         </div>
                                         <div className="flex gap-1.5 items-center shrink-0">
-                                            <Badge className={`font-mono text-[10px] ${config.method === 'POST'
-                                                ? 'bg-blue-100 text-blue-700 border-blue-200'
-                                                : 'bg-green-100 text-green-700 border-green-200'}`}>
-                                                {config.method}
-                                            </Badge>
+                                            {!isAiConfig && (
+                                                <Badge className={`font-mono text-[10px] ${config.method === 'POST'
+                                                    ? 'bg-blue-100 text-blue-700 border-blue-200'
+                                                    : 'bg-green-100 text-green-700 border-green-200'}`}>
+                                                    {config.method}
+                                                </Badge>
+                                            )}
                                             {status === 'ok' && <Badge className="bg-green-100 text-green-700 border-green-200 gap-1 text-[10px]"><CheckCircle2 className="w-3 h-3" />OK</Badge>}
                                             {status === 'error' && <Badge className="bg-red-100 text-red-700 border-red-200 gap-1 text-[10px]"><AlertCircle className="w-3 h-3" />Failed</Badge>}
-                                            {config.url && !status && <Badge variant="outline" className="text-slate-400 text-[10px]">✓ Saved</Badge>}
+                                            {currentValue && !status && <Badge variant="outline" className="text-slate-400 text-[10px]">✓ Saved</Badge>}
                                         </div>
                                     </div>
                                 </CardHeader>
@@ -220,15 +267,39 @@ export default function N8nAdminPage() {
                                         </div>
                                     )}
 
-                                    {/* URL Input */}
+                                    {/* Input Logic */}
                                     <div className="flex gap-2">
-                                        <Input
-                                            value={editValues[config.id] || ''}
-                                            onChange={e => setEditValues(prev => ({ ...prev, [config.id]: e.target.value }))}
-                                            placeholder="https://your-n8n.com/webhook/..."
-                                            className="font-mono text-sm"
-                                        />
-                                        {editValues[config.id] && (
+                                        {config.name === 'ai_model_name' ? (
+                                            <Select 
+                                                value={editValues[config.id] || ''} 
+                                                onValueChange={v => setEditValues(prev => ({ ...prev, [config.id]: v }))}
+                                            >
+                                                <SelectTrigger className="w-full bg-white font-mono text-sm">
+                                                    <SelectValue placeholder="Select a model..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="gemini-3.1-flash-lite-preview">Gemini 3.1 Flash-Lite (Recommended)</SelectItem>
+                                                    <SelectItem value="gemini-3-flash-preview">Gemini 3 Flash</SelectItem>
+                                                    <SelectItem value="gemini-3.1-pro-preview">Gemini 3.1 Pro</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        ) : config.name === 'ai_parse_prompt' ? (
+                                            <Textarea 
+                                                value={editValues[config.id] || ''}
+                                                onChange={e => setEditValues(prev => ({ ...prev, [config.id]: e.target.value }))}
+                                                placeholder="Enter system prompt here..."
+                                                className="min-h-[150px] bg-white text-sm font-mono leading-relaxed"
+                                            />
+                                        ) : (
+                                            <Input
+                                                type={config.name === 'google_ai_api_key' ? 'password' : 'text'}
+                                                value={editValues[config.id] || ''}
+                                                onChange={e => setEditValues(prev => ({ ...prev, [config.id]: e.target.value }))}
+                                                placeholder={isAiConfig ? "Enter configuration value..." : "https://your-n8n.com/webhook/..."}
+                                                className="font-mono text-sm bg-white"
+                                            />
+                                        )}
+                                        {editValues[config.id] && !isAiConfig && (
                                             <>
                                                 <Button variant="ghost" size="icon" title="Copy"
                                                     onClick={() => { navigator.clipboard.writeText(editValues[config.id]); toast.success('Copied!'); }}>
@@ -247,21 +318,23 @@ export default function N8nAdminPage() {
                                     <div className="flex gap-2 items-center flex-wrap">
                                         <Button size="sm" onClick={() => handleSave(config)}
                                             disabled={saving[config.id] || !isDirty}
-                                            className="bg-slate-800 hover:bg-slate-700 text-white disabled:opacity-40">
+                                            className={`${isAiConfig ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-slate-800 hover:bg-slate-700'} text-white disabled:opacity-40`}>
                                             {saving[config.id] ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Save className="w-3.5 h-3.5 mr-1.5" />}
-                                            Save
+                                            {isAiConfig ? "Save Config" : "Save Webhook"}
                                         </Button>
-                                        <Button size="sm" variant="outline"
-                                            onClick={() => handleTest(config)}
-                                            disabled={testing[config.id] || !editValues[config.id]}
-                                            className="border-slate-300 gap-1.5">
-                                            {testing[config.id]
-                                                ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Testing...</>
-                                                : <><FlaskConical className="w-3.5 h-3.5" />Test</>}
-                                        </Button>
+                                        {!isAiConfig && (
+                                            <Button size="sm" variant="outline"
+                                                onClick={() => handleTest(config)}
+                                                disabled={testing[config.id] || !editValues[config.id]}
+                                                className="border-slate-300 gap-1.5">
+                                                {testing[config.id]
+                                                    ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Testing...</>
+                                                    : <><FlaskConical className="w-3.5 h-3.5" />Test</>}
+                                            </Button>
+                                        )}
                                         {isDirty && (
                                             <Button size="sm" variant="ghost"
-                                                onClick={() => setEditValues(prev => ({ ...prev, [config.id]: config.url || '' }))}
+                                                onClick={() => setEditValues(prev => ({ ...prev, [config.id]: currentValue }))}
                                                 className="text-slate-400">
                                                 <Undo className="w-3.5 h-3.5 mr-1" />Reset
                                             </Button>

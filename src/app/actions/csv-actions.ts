@@ -3,7 +3,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { v4 as uuidv4 } from 'uuid';
 import { getN8nUrl } from "./admin-actions";
-import { getCheckedStatus } from "@/lib/candidate-utils";
+import { getCheckedStatus, normalizeName, normalizeEmail, normalizeLinkedIn } from "@/lib/candidate-utils";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!; // Service role for writing
@@ -29,25 +29,7 @@ interface UploadLog {
     created_at?: string;
 }
 
-// Helper to normalize strings (trim, lower case for comparison)
-function normalizeName(name: string): string {
-    return name.trim().replace(/\s+/g, ' '); // Standardize spaces
-}
-
-function normalizeLinkedIn(url: string): string {
-    if (!url) return "";
-    try {
-        const urlObj = new URL(url.trim());
-        urlObj.search = "";
-        return urlObj.toString();
-    } catch (e) {
-        return url.trim();
-    }
-}
-
-function normalizeEmail(email: string): string {
-    return email ? email.trim().toLowerCase() : "";
-}
+// Removal of local helper functions as they are now centralized in candidate-utils.ts
 
 export async function processCsvUpload(rows: CsvRow[], uploaderName: string, fileName?: string) {
     const batchId = uuidv4();

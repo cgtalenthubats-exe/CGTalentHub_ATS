@@ -20,6 +20,7 @@ export type OrgNode = {
     candidate_id?: string | null
     linkedin?: string | null
     checked?: string | null
+    is_verified?: boolean
     children?: OrgNode[]
 }
 
@@ -31,6 +32,7 @@ export type RawOrgNode = {
     parent_name: string | null
     matched_candidate_id: string | null
     linkedin: string | null
+    is_verified: boolean
     created_at: string
     candidate?: {
         first_name?: string
@@ -69,6 +71,21 @@ export async function verifyOrgChart(uploadId: string) {
         throw error
     }
     
+    revalidatePath('/org-chart')
+    return { success: true }
+}
+
+export async function toggleNodeVerification(nodeId: string, verified: boolean) {
+    const { error } = await supabase
+        .from('all_org_nodes')
+        .update({ is_verified: verified })
+        .eq('node_id', nodeId)
+
+    if (error) {
+        console.error('Error toggling node verification:', error)
+        throw error
+    }
+
     revalidatePath('/org-chart')
     return { success: true }
 }
@@ -182,6 +199,7 @@ export async function getOrgNodesRaw(uploadId: string): Promise<RawOrgNode[]> {
 
         return {
             ...n,
+            is_verified: !!n.is_verified,
             candidate: candidate ? {
                 name: candidate.name,
                 photo: candidate.photo,
@@ -657,6 +675,7 @@ export async function fetchOrgChartData(uploadId: string) {
             candidate_id: candidate?.candidate_id || null,
             linkedin: candidate?.linkedin || n.linkedin || null, // Logic: UI shows LinkedIn from Candidate OR Node
             checked: candidate?.checked || null,
+            is_verified: !!n.is_verified,
             children: []
         }
         nodeMap.set(n.name, nodeObj)

@@ -1,34 +1,36 @@
 "use client";
 
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 interface CandidateAvatarProps {
     src?: string | null;
     name?: string;
     className?: string;
-    fallbackClassName?: string;
+    style?: React.CSSProperties;
 }
 
-export function CandidateAvatar({ src, name, className, fallbackClassName }: CandidateAvatarProps) {
+export function CandidateAvatar({ src, name, className, style }: CandidateAvatarProps) {
     const defaultAvatar = "https://ddeqeaicjyrevqdognbn.supabase.co/storage/v1/object/public/system/Blank%20Profile.JPG";
-    const [imgSrc, setImgSrc] = useState<string>(src || defaultAvatar);
-
-    useEffect(() => {
-        setImgSrc(src || defaultAvatar);
-    }, [src]);
+    const imgSrc = src || defaultAvatar;
 
     return (
-        <Avatar className={cn("overflow-hidden", className)}>
-            <AvatarImage
-                src={imgSrc}
-                className="object-cover"
-                onError={() => setImgSrc(defaultAvatar)}
+        <div 
+            className={cn("relative overflow-hidden rounded-full flex items-center justify-center shrink-0 bg-slate-100", className)} 
+            style={{ 
+                ...style,
+                position: 'relative', overflow: 'hidden', borderRadius: '9999px', display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}
+        >
+            <div 
+                className="absolute inset-0 z-10 w-full h-full rounded-full"
+                style={{ 
+                    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', borderRadius: '9999px', zIndex: 10,
+                    backgroundImage: `url("${imgSrc}")`, 
+                    backgroundSize: 'cover', 
+                    backgroundPosition: 'center',
+                    backgroundColor: 'white'
+                }} 
             />
-            <AvatarFallback className={cn("bg-gradient-to-br from-indigo-500 to-purple-600 text-white font-black", fallbackClassName)}>
-                {name?.charAt(0)?.toUpperCase()}
-            </AvatarFallback>
-        </Avatar>
+        </div>
     );
 }

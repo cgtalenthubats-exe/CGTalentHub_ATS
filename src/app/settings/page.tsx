@@ -6,7 +6,8 @@ import { UserManagement } from "@/components/settings/user-management";
 import { ChangelogViewer } from "@/components/settings/changelog-viewer";
 import { AppGuidelines } from "@/components/settings/app-guidelines";
 import { StatusMasterSettings } from "@/components/settings/status-master-settings";
-import { Settings, Sliders, Webhook, Users, History, BookOpen, Tag } from "lucide-react";
+import { AISettings } from "@/components/settings/ai-settings";
+import { Settings, Sliders, Webhook, Users, History, BookOpen, Tag, Sparkles } from "lucide-react";
 import { Toaster } from "sonner";
 
 export default function SettingsPage() {
@@ -24,6 +25,9 @@ export default function SettingsPage() {
                     </TabsTrigger>
                     <TabsTrigger value="integrations" className="gap-2">
                         <Webhook className="w-4 h-4" /> Integrations
+                    </TabsTrigger>
+                    <TabsTrigger value="ai-config" className="gap-2">
+                        <Sparkles className="w-4 h-4" /> AI Configuration
                     </TabsTrigger>
                     <TabsTrigger value="users" className="gap-2">
                         <Users className="w-4 h-4" /> Users
@@ -52,6 +56,10 @@ export default function SettingsPage() {
                     <div className="grid gap-6">
                         <N8nIntegrations />
                     </div>
+                </TabsContent>
+
+                <TabsContent value="ai-config" className="space-y-4">
+                    <AISettings />
                 </TabsContent>
 
                 <TabsContent value="users" className="space-y-4">

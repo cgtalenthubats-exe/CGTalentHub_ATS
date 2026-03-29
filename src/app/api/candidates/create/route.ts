@@ -9,7 +9,7 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 import { extractYear, formatDateForInput } from '@/lib/date-utils';
-import { getCheckedStatus } from '@/lib/candidate-utils';
+import { getCheckedStatus, normalizeName, normalizeEmail, normalizeLinkedIn } from '@/lib/candidate-utils';
 
 export async function POST(req: NextRequest) {
     try {
@@ -25,6 +25,31 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: 'Name is required' }, { status: 400 });
         }
 
+        // 0. Duplicate Check (Name, Email, or LinkedIn)
+        const normName = normalizeName(name);
+        const normEmail = normalizeEmail(email);
+        const normLinkedIn = normalizeLinkedIn(body.linkedin);
+
+        const { data: existing } = await supabase
+            .from('Candidate Profile' as any)
+            .select('candidate_id, name, email, linkedin')
+            .or(`name.ilike.${normName},email.eq.${normEmail === "" ? "NULL" : normEmail},linkedin.ilike.${normLinkedIn === "" ? "NULL" : normLinkedIn}`)
+            .maybeSingle();
+
+        if (existing) {
+            // Check if it's truly a duplicate
+            const nameMatch = normalizeName(existing.name) === normName;
+            const emailMatch = normEmail !== "" && normalizeEmail(existing.email) === normEmail;
+            const linkedinMatch = normLinkedIn !== "" && normalizeLinkedIn(existing.linkedin) === normLinkedIn;
+
+            if (nameMatch || emailMatch || linkedinMatch) {
+                return NextResponse.json({
+                    error: `Duplicate candidate found: ${existing.name} (${existing.candidate_id})`,
+                    duplicate: existing
+                }, { status: 409 });
+            }
+        }
+
         // 1. Get the latest candidate_id via Centralized RPC (Safe)
         const { data: idRange, error: rpcError } = await supabase.rpc('reserve_candidate_ids', { batch_size: 1 });
 
@@ -38,9 +63,6 @@ export async function POST(req: NextRequest) {
         console.log(`Reserved New Candidate ID: ${newId}`);
 
         // 2. Insert new candidate into Candidate Profile
-        // Columns mapped from check-db.js output / user context
-        // 2. Insert new candidate into Candidate Profile
-        // Columns mapped from check-db.js output / user context
         const { error: insertError } = await supabase
             .from('Candidate Profile')
             .insert([
@@ -56,6 +78,7 @@ export async function POST(req: NextRequest) {
                     year_of_bachelor_education: extractYear(body.year_of_bachelor_education) || null,
                     age: body.age ? parseInt(body.age) : null,
                     checked: getCheckedStatus(body.linkedin),
+                    action_needed: 'Wait_for_vector', // AI System Flag
                     // Compensation & Benefits (all optional)
                     gross_salary_base_b_mth: body.gross_salary_base_b_mth || null,
                     other_income: body.other_income || null,
@@ -96,15 +119,31 @@ export async function POST(req: NextRequest) {
 
         if (enhanceError) {
             console.error("Error inserting enhancement data:", enhanceError);
-            // We don't return error here to avoid blocking valid candidate creation, but we log it.
         }
 
-        /* 
-        // Optional Fields - keeping commented out as per instruction/redundancy
-        if (body.skills || body.education || body.languages || body.linkedin) {
-            // ... implementation if needed
-        } 
-        */
+        // 4. Insert Work Experiences (Optional)
+        if (body.experiences && Array.from(body.experiences).length > 0) {
+            const expData = body.experiences.map((exp: any) => ({
+                candidate_id: newId,
+                name: name,
+                position: exp.position,
+                company: exp.company,
+                company_industry: exp.company_industry || null,
+                company_group: exp.company_group || null,
+                work_location: exp.work_location || null,
+                start_date: exp.start_date || null,
+                end_date: exp.end_date || null,
+                is_current: exp.is_current || false
+            }));
+
+            const { error: expError } = await supabase
+                .from('candidate_experiences')
+                .insert(expData);
+
+            if (expError) {
+                console.error("Error inserting experiences:", expError);
+            }
+        }
 
         return NextResponse.json({
             success: true,

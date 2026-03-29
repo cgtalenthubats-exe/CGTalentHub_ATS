@@ -20,9 +20,10 @@ interface CandidateLinkedinButtonProps {
     linkedin?: string;
     candidateId: string;
     className?: string;
+    style?: React.CSSProperties;
 }
 
-export function CandidateLinkedinButton({ checked, linkedin, candidateId, className }: CandidateLinkedinButtonProps) {
+export function CandidateLinkedinButton({ checked, linkedin, candidateId, className, style }: CandidateLinkedinButtonProps) {
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -78,9 +79,10 @@ export function CandidateLinkedinButton({ checked, linkedin, candidateId, classN
         return (
             <a href={linkedin} target="_blank" rel="noopener noreferrer"
                 className={cn("h-7 w-7 rounded-md bg-[#0a66c2]/10 text-[#0a66c2] hover:bg-[#0a66c2]/20 transition-colors shadow-sm inline-flex items-center justify-center shrink-0", className)}
+                style={{ ...style, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(10, 102, 194, 0.1)', color: '#0a66c2', borderRadius: '6px' }}
                 title="LinkedIn Profile"
                 onClick={(e) => e.stopPropagation()}>
-                <Linkedin className="h-4 w-4" />
+                <Linkedin className="h-4 w-4" style={{ width: 16, height: 16 }} />
             </a>
         );
     }
@@ -90,8 +92,8 @@ export function CandidateLinkedinButton({ checked, linkedin, candidateId, classN
         return (
             <Popover>
                 <PopoverTrigger asChild onClick={(e) => e.stopPropagation()}>
-                    <Button variant="outline" size="sm" className={cn("h-7 w-7 p-0 bg-slate-100 text-slate-700 hover:text-slate-900 border-slate-300 shrink-0", className)} title="Individual Profile">
-                        <Globe className="h-4 w-4" />
+                    <Button variant="outline" size="sm" className={cn("h-7 w-7 p-0 bg-slate-100 text-slate-700 hover:text-slate-900 border-slate-300 shrink-0", className)} style={{ ...style, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f1f5f9', color: '#334155', borderRadius: '6px', border: '1px solid #cbd5e1' }} title="Individual Profile">
+                        <Globe className="h-4 w-4" style={{ width: 16, height: 16 }} />
                     </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-80 text-sm shadow-xl" onClick={(e) => e.stopPropagation()}>
@@ -110,10 +112,10 @@ export function CandidateLinkedinButton({ checked, linkedin, candidateId, classN
     return (
         <Popover open={isOpen} onOpenChange={setIsOpen}>
             <PopoverTrigger asChild onClick={(e) => { e.stopPropagation(); setIsOpen(true); }}>
-                <Button variant="outline" size="sm" className={cn("h-7 w-7 p-0 bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-700 border-red-200 relative overflow-hidden group shrink-0", className)} title="No Profile - Click to Add">
-                    <Globe className="h-4 w-4" />
+                <Button variant="outline" size="sm" className={cn("h-7 w-7 p-0 bg-red-50 text-red-500 hover:bg-red-100 hover:text-red-700 border-red-200 relative overflow-hidden group shrink-0", className)} style={{ ...style, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fef2f2', color: '#ef4444', borderRadius: '6px', border: '1px solid #fecaca', position: 'relative', overflow: 'hidden' }} title="No Profile - Click to Add">
+                    <Globe className="h-4 w-4" style={{ width: 16, height: 16 }} />
                     {/* Red line crossing out */}
-                    <div className="absolute top-1/2 left-[-20%] w-[140%] h-[1.5px] bg-red-500 rotate-45 group-hover:bg-red-600 transition-colors" />
+                    <div className="absolute top-1/2 left-[-20%] w-[140%] h-[1.5px] bg-red-500 rotate-45 group-hover:bg-red-600 transition-colors" style={{ position: 'absolute', top: '50%', left: '-20%', width: '140%', height: '1.5px', backgroundColor: '#ef4444', transform: 'rotate(45deg)' }} />
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[340px] text-sm p-4 shadow-xl" align="start" onClick={(e) => e.stopPropagation()}>
