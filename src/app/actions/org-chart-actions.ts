@@ -236,6 +236,90 @@ export async function createOrgNode(uploadId: string, node: Omit<RawOrgNode, 'no
     return data
 }
 
+export async function clearOrgNode(nodeId: string) {
+    // 1. Fetch the node to get its current name and upload_id before clearing
+    const { data: node, error: fetchErr } = await supabase
+        .from('all_org_nodes')
+        .select('name, upload_id')
+        .eq('node_id', nodeId)
+        .single()
+
+    if (fetchErr || !node) throw new Error('Node not found')
+
+    // 2. Perform the clear/vacant update
+    const { error: updateErr } = await supabase
+        .from('all_org_nodes')
+        .update({
+            name: '(Vacant)',
+            title: 'Position Not Set',
+            matched_candidate_id: null,
+            linkedin: null,
+            is_verified: false
+        })
+        .eq('node_id', nodeId)
+
+    if (updateErr) {
+        console.error('Error clearing org node:', updateErr)
+        throw updateErr
+    }
+
+    // 3. Update subordinates to point to the new name "(Vacant)" instead of the old name
+    // This prevents subordinates from floating away
+    const { error: subErr } = await supabase
+        .from('all_org_nodes')
+        .update({ parent_name: '(Vacant)' })
+        .eq('parent_name', node.name)
+        .eq('upload_id', node.upload_id)
+
+    if (subErr) {
+        console.error('Error re-parenting subordinates to Vacant node:', subErr)
+    }
+
+    revalidatePath('/org-chart')
+    return { success: true }
+}
+
+export async function deleteOrgNode(nodeId: string) {
+    // 1. Fetch the node to be deleted to get its name and parent_name
+    const { data: node, error: nodeError } = await supabase
+        .from('all_org_nodes')
+        .select('name, parent_name, upload_id')
+        .eq('node_id', nodeId)
+        .single()
+
+    if (nodeError || !node) {
+        console.error('Error fetching node for deletion:', nodeError)
+        throw new Error('Node not found')
+    }
+
+    // 2. Update subordinates to point to the grandparent (the deleted node's parent)
+    // We match by parent_name and upload_id to be safe
+    const { error: updateError } = await supabase
+        .from('all_org_nodes')
+        .update({ parent_name: node.parent_name })
+        .eq('parent_name', node.name)
+        .eq('upload_id', node.upload_id)
+
+    if (updateError) {
+        console.error('Error re-parenting subordinates:', updateError)
+        throw updateError
+    }
+
+    // 3. Delete the target node
+    const { error: deleteError } = await supabase
+        .from('all_org_nodes')
+        .delete()
+        .eq('node_id', nodeId)
+
+    if (deleteError) {
+        console.error('Error deleting org node:', deleteError)
+        throw deleteError
+    }
+
+    revalidatePath('/org-chart')
+    return { success: true }
+}
+
 export async function searchCandidates(query: string) {
     const { data, error } = await supabase
         .from('Candidate Profile')
@@ -252,7 +336,19 @@ export async function searchCandidates(query: string) {
 }
 
 export async function updateOrgNode(nodeId: string, updates: Partial<RawOrgNode>) {
-    const { error } = await supabase
+    // 1. Fetch current node to check if name is changing
+    const { data: currentNode, error: fetchErr } = await supabase
+        .from('all_org_nodes')
+        .select('name, upload_id')
+        .eq('node_id', nodeId)
+        .single()
+
+    if (fetchErr) throw fetchErr
+
+    const isNameChanging = updates.name && updates.name !== currentNode.name
+
+    // 2. Update the node itself
+    const { error: updateErr } = await supabase
         .from('all_org_nodes')
         .update({
             name: updates.name,
@@ -263,7 +359,21 @@ export async function updateOrgNode(nodeId: string, updates: Partial<RawOrgNode>
         })
         .eq('node_id', nodeId)
 
-    if (error) throw error
+    if (updateErr) throw updateErr
+
+    // 3. If name changed, update all subordinates to point to the new name (Replace Logic)
+    if (isNameChanging) {
+        const { error: subErr } = await supabase
+            .from('all_org_nodes')
+            .update({ parent_name: updates.name })
+            .eq('parent_name', currentNode.name)
+            .eq('upload_id', currentNode.upload_id)
+
+        if (subErr) {
+            console.error('Error updating subordinates after name change:', subErr)
+            // We don't throw here to avoid half-committed state issues, but it should be logged
+        }
+    }
 
     // Trigger webhook if linkedin was updated to a LinkedIN profile
     if (updates.linkedin && getCheckedStatus(updates.linkedin) === 'LinkedIN profile') {
@@ -274,6 +384,51 @@ export async function updateOrgNode(nodeId: string, updates: Partial<RawOrgNode>
     }
 
     revalidatePath('/org-chart')
+}
+
+export async function moveOrgNode(nodeId: string, newParentName: string, hasChildren: boolean) {
+    try {
+        // 1. Fetch current node details
+        const { data: node, error: fetchErr } = await supabase
+            .from('all_org_nodes')
+            .select('*')
+            .eq('node_id', nodeId)
+            .single()
+
+        if (fetchErr || !node) throw new Error('Node not found')
+
+        // 2. If it has children, leave a (Vacant) node behind in the old position
+        if (hasChildren) {
+            const { error: insertErr } = await supabase
+                .from('all_org_nodes')
+                .insert({
+                    upload_id: node.upload_id,
+                    name: '(Vacant)',
+                    title: node.title,
+                    parent_name: node.parent_name,
+                    is_verified: false
+                })
+            
+            if (insertErr) {
+                console.error('Error creating vacant node during move:', insertErr)
+                throw insertErr
+            }
+        }
+
+        // 3. Move the target node to the new parent
+        const { error: moveErr } = await supabase
+            .from('all_org_nodes')
+            .update({ parent_name: newParentName })
+            .eq('node_id', nodeId)
+
+        if (moveErr) throw moveErr
+
+        revalidatePath('/org-chart')
+        return { success: true }
+    } catch (err) {
+        console.error('Error moving org node:', err)
+        throw err
+    }
 }
 
 export async function bulkCreateOrgProfiles(uploadId: string) {

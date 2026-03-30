@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from 'react'
 import Tree from 'react-d3-tree'
-import { OrgNode, bulkCreateOrgProfiles, createSingleOrgProfile } from '@/app/actions/org-chart-actions'
+import { OrgNode, bulkCreateOrgProfiles, createSingleOrgProfile, clearOrgNode, deleteOrgNode } from '@/app/actions/org-chart-actions'
 import { Badge } from '@/components/ui/badge'
 import { 
     UserCheck, UserPlus, Focus, ZoomIn, ZoomOut, Plus, 
     ExternalLink, Sparkles, Loader2, Trash2, Info, UploadCloud,
-    Users, ChevronUp, Download, Image as ImageIcon, FileText
+    Users, ChevronUp, Download, Image as ImageIcon, FileText,
+    AlertTriangle, X, MoreHorizontal
 } from 'lucide-react'
 import {
     DropdownMenu,
@@ -15,6 +16,18 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { NodeFormDialog } from './node-form-dialog'
+
+const extractNodes = (node: any): any[] => {
+    if (!node) return [];
+    let nodes = [node];
+    if (node.children) {
+        node.children.forEach((child: any) => {
+            nodes = nodes.concat(extractNodes(child));
+        });
+    }
+    return nodes;
+};
 import { Separator } from '@/components/ui/separator'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -37,6 +50,13 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog"
 import { useRouter } from 'next/navigation'
 
 // Use client-side envs for Supabase Storage uploads
@@ -54,7 +74,7 @@ type OrgChartViewerProps = {
     modifyDate?: string | null
 }
 
-const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, onExpand }: any) => {
+const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, onExpand, onDeleteNode, onAddSubordinate, onReplaceNode, onMoveNode }: any) => {
     const isMatch = !!nodeDatum.matched_candidate_id
     const isVerified = !!nodeDatum.is_verified
     const childCount = nodeDatum._childCount || 0
@@ -82,58 +102,87 @@ const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCrea
                 fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
             }}
         >
-            {hasChildren && (
-                <div 
-                    className="absolute -top-2 -right-2 bg-indigo-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full border border-white z-20 shadow-sm transition-transform group-hover:scale-110"
-                    style={{ position: 'absolute', top: '-8px', right: '-8px', backgroundColor: '#4f46e5', color: '#ffffff', fontSize: '9px', fontWeight: 700, padding: '2px 6px', borderRadius: '9999px', border: '1px solid #ffffff', zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                >
-                    +{childCount}
-                </div>
-            )}
-            {/* Top row / Avatar area */}
-            <div className="flex items-start w-full relative" style={{ display: 'flex', alignItems: 'flex-start', width: '100%', position: 'relative' }}>
-                <div className="flex-shrink-0 mr-2.5 relative" style={{ flexShrink: 0, marginRight: '10px', position: 'relative' }}>
-                    <div className={cn("p-0.5 rounded-full border-2", isMatch ? "border-emerald-100 bg-emerald-50" : "border-slate-100 bg-slate-50")} style={{ padding: '2px', borderRadius: '9999px', borderWidth: '2px', borderStyle: 'solid', backgroundColor: isMatch ? '#ecfdf5' : '#f8fafc', borderColor: isMatch ? '#d1fae5' : '#f1f5f9' }}>
-                        <CandidateAvatar src={nodeDatum.candidate_photo} name={nodeDatum.name} className="h-10 w-10 shrink-0" style={{ width: 40, height: 40, minWidth: 40, minHeight: 40 }} />
-                    </div>
+            <div className="flex items-start w-full relative">
+                <div className="flex-shrink-0 mr-2.5 relative">
+                    <CandidateAvatar 
+                        src={nodeDatum.candidate_photo} 
+                        name={nodeDatum.name} 
+                        className="h-10 w-10 shrink-0" 
+                    />
                 </div>
 
-                {/* Content */}
-                <div className="flex-1 min-w-0 pr-5" style={{ flex: '1 1 0%', minWidth: 0, paddingRight: '20px' }}>
-                    <h3 className="font-bold text-slate-800 text-[12px] truncate leading-tight" title={nodeDatum.name} style={{ fontWeight: 700, fontSize: '12px', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0, lineHeight: 1.25 }}>
+                <div className="flex-1 min-w-0 pr-5">
+                    <h3 className="font-bold text-slate-800 text-[12px] truncate leading-tight" title={nodeDatum.name}>
                         {nodeDatum.name}
                     </h3>
-                    <p className="text-[10px] text-slate-500 font-medium line-clamp-2 uppercase tracking-tight mt-0.5 leading-tight" title={nodeDatum.title} style={{ fontSize: '10px', color: '#64748b', fontWeight: 500, textTransform: 'uppercase', margin: '2px 0 0 0', lineHeight: 1.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    <p className="text-[10px] text-slate-500 font-medium truncate uppercase tracking-tight mt-0.5 leading-tight" title={nodeDatum.title}>
                         {nodeDatum.title || 'Position Not Set'}
                     </p>
                 </div>
 
-                {/* Icons top right */}
-                <div className="absolute top-0 right-0 flex gap-1 z-10" onClick={(e) => e.stopPropagation()} style={{ position: 'absolute', top: 0, right: 0, display: 'flex', gap: '4px', zIndex: 10 }}>
+                <div className="absolute top-0 right-0 flex gap-1 z-10" onClick={(e) => e.stopPropagation()}>
                     {isMatch && nodeDatum.candidate_id && (
-                        <Link href={`/candidates/${nodeDatum.candidate_id}`} target="_blank" className="text-slate-400 hover:text-indigo-600 p-0.5" title="View Profile" style={{ display: 'flex', alignItems: 'center', padding: '2px' }}>
-                            <ExternalLink size={12} style={{ width: 12, height: 12, color: '#94a3b8' }} />
+                        <Link href={`/candidates/${nodeDatum.candidate_id}`} target="_blank" className="text-slate-400 hover:text-indigo-600 p-0.5">
+                            <ExternalLink size={12} />
                         </Link>
                     )}
                     {nodeDatum.linkedin && (
-                        <CandidateLinkedinButton checked={nodeDatum.checked || getCheckedStatus(nodeDatum.linkedin)} linkedin={nodeDatum.linkedin} candidateId={nodeDatum.candidate_id || `temp-${nodeDatum.node_id}`} className="h-5 w-5" style={{ width: 20, height: 20 }} />
+                        <CandidateLinkedinButton 
+                            linkedin={nodeDatum.linkedin} 
+                            candidateId={nodeDatum.candidate_id || nodeDatum.node_id}
+                            className="h-5 w-5" 
+                        />
                     )}
+                </div>
+                
+                <div className="absolute -top-1.5 -right-1.5 z-50">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-5 w-5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm rounded-full p-0 flex items-center justify-center hover:bg-slate-50 transition-all">
+                                <MoreHorizontal size={10} strokeWidth={3} />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAddSubordinate(nodeDatum.name); }}>
+                                <Plus size={14} className="mr-2" /> Add Subordinate
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onReplaceNode(nodeDatum); }}>
+                                <UserPlus size={14} className="mr-2" /> Replace / Edit
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onMoveNode(nodeDatum); }}>
+                                <Focus size={14} className="mr-2" /> Move Node
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="text-rose-600" onClick={(e) => { e.stopPropagation(); onDeleteNode({ node_id: nodeDatum.node_id, name: nodeDatum.name }); }}>
+                                <Trash2 size={14} className="mr-2" /> Remove Node
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             </div>
 
-            {/* Bottom Row / Actions */}
-            <div className="flex justify-between items-end w-full" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', width: '100%', marginTop: 'auto' }}>
-                <p className="text-[9px] font-mono font-bold text-slate-400 mb-0.5" style={{ fontSize: '9px', fontFamily: 'monospace', fontWeight: 700, color: '#94a3b8', margin: '0 0 2px 0' }}>
+            <div className="flex justify-between items-end w-full mt-auto">
+                <p className="text-[9px] font-mono font-bold text-slate-400 mb-0.5">
                     {isMatch ? nodeDatum.candidate_id : 'UNMATCHED'}
                 </p>
-                <div className="z-10" onClick={(e) => e.stopPropagation()} style={{ zIndex: 10 }}>
+                <div className="z-10" onClick={(e) => e.stopPropagation()}>
                     {isMatch ? (
-                        <Button variant="ghost" size="sm" className={cn("h-6 text-[9px] px-1.5 gap-1 rounded-lg", isVerified ? "text-emerald-700 bg-emerald-100/50" : "text-amber-700 bg-amber-100/50 border border-amber-300")} onClick={() => onToggleVerify(nodeDatum.node_id, !isVerified)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', height: '24px', padding: '0 6px', borderRadius: '8px', fontSize: '9px', fontWeight: 600, border: isVerified ? 'none' : '1px solid #fcd34d', backgroundColor: isVerified ? '#d1fae5' : '#fef3c7', color: isVerified ? '#047857' : '#b45309', cursor: 'pointer' }}>
-                            <UserCheck size={10} style={{ width: 10, height: 10 }} />
+                        <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className={cn("h-6 text-[9px] px-1.5 gap-1 rounded-lg", isVerified ? "text-emerald-700 bg-emerald-100/50" : "text-amber-700 bg-amber-100/50 border border-amber-300")} 
+                            onClick={() => onToggleVerify(nodeDatum.node_id, !isVerified)}
+                        >
+                            <UserCheck size={10} />
                             {isVerified ? "V" : "VERIFY"}
                         </Button>
                     ) : (
-                        <Button variant="outline" size="sm" className="h-6 text-[9px] px-1.5 border-dashed border-indigo-400 text-indigo-600" onClick={() => onCreateProfile(nodeDatum.node_id)} disabled={isCreating} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '24px', padding: '0 6px', borderRadius: '8px', fontSize: '9px', fontWeight: 600, border: '1px dashed #818cf8', backgroundColor: 'transparent', color: '#4f46e5', cursor: 'pointer' }}>
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="h-6 text-[9px] px-1.5 border-dashed border-indigo-400 text-indigo-600" 
+                            onClick={() => onCreateProfile(nodeDatum.node_id)} 
+                            disabled={isCreating}
+                        >
                             + CREATE
                         </Button>
                     )}
@@ -144,7 +193,7 @@ const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCrea
 }
 
 // Custom Node Component
-const NodeCard = ({ nodeDatum, toggleNode, onCreateProfile, isCreating, onToggleVerify, isVerifying, onToggleExpand, expandedSet }: any) => {
+const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVerifying, onToggleExpand, expandedSet, onDeleteNode, onAddSubordinate, onReplaceNode, onMoveNode }: any) => {
     // Hide phantom nodes (Standard Grid columns)
     if (nodeDatum.isPhantom && !nodeDatum.isTeamGrid) {
         return <g />
@@ -202,6 +251,10 @@ const NodeCard = ({ nodeDatum, toggleNode, onCreateProfile, isCreating, onToggle
                                     onCreateProfile={onCreateProfile}
                                     isCreating={isCreating}
                                     onExpand={onToggleExpand}
+                                    onDeleteNode={onDeleteNode}
+                                    onAddSubordinate={onAddSubordinate}
+                                    onReplaceNode={onReplaceNode}
+                                    onMoveNode={onMoveNode}
                                 />
                             </div>
                         ))}
@@ -234,6 +287,30 @@ const NodeCard = ({ nodeDatum, toggleNode, onCreateProfile, isCreating, onToggle
                             fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
                         }}
                     >
+                        {/* More Actions Menu - Top Right Corner */}
+                        <div className="absolute -top-2.5 -right-2.5 z-50" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-7 w-7 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-md rounded-full p-0 flex items-center justify-center hover:bg-slate-100 transition-all hover:scale-110">
+                                        <MoreHorizontal size={14} strokeWidth={3} />
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48">
+                                    <DropdownMenuItem onClick={() => onAddSubordinate(nodeDatum.name)}>
+                                        <Plus size={16} className="mr-2" /> Add Subordinate
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => onReplaceNode(nodeDatum)}>
+                                        <UserPlus size={16} className="mr-2" /> Replace / Edit
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => onMoveNode(nodeDatum)}>
+                                        <Focus size={16} className="mr-2" /> Move Node
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem className="text-rose-600 focus:text-rose-600 focus:bg-rose-50" onClick={() => onDeleteNode({ node_id: nodeDatum.node_id, name: nodeDatum.name })}>
+                                        <Trash2 size={16} className="mr-2" /> Remove Node
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </div>
                         {/* Top Area: Avatar & Text */}
                         <div className="flex items-start w-full relative" style={{ display: 'flex', alignItems: 'flex-start', width: '100%', position: 'relative' }}>
                             <div className="flex-shrink-0 mr-3 relative" style={{ flexShrink: 0, marginRight: '12px', position: 'relative' }}>
@@ -267,7 +344,7 @@ const NodeCard = ({ nodeDatum, toggleNode, onCreateProfile, isCreating, onToggle
                                     <CandidateLinkedinButton
                                         checked={nodeDatum.checked || getCheckedStatus(nodeDatum.linkedin)}
                                         linkedin={nodeDatum.linkedin}
-                                        candidateId={nodeDatum.candidate_id || `temp-${nodeDatum.node_id}`}
+                                        candidateId={nodeDatum.candidate_id || nodeDatum.node_id}
                                         className="h-6 w-6"
                                         style={{ width: 24, height: 24 }}
                                     />
@@ -326,6 +403,18 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
     // Transform data for grid layout & handling custom expansions
     const [transformedData, setTransformedData] = useState<OrgNode | null>(null)
     const [expandedSet, setExpandedSet] = useState<Set<string>>(new Set())
+    
+    // Node Deletion States
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+    const [deleteTarget, setDeleteTarget] = useState<{ node_id: string, name: string } | null>(null)
+    const [isDeletingNodeAction, setIsDeletingNodeAction] = useState(false)
+    
+    // Add Node Dialog States
+    const [isAddNodeDialogOpen, setIsAddNodeDialogOpen] = useState(false)
+    const [dialogMode, setDialogMode] = useState<'add' | 'edit' | 'move'>('add')
+    const [selectedParentForAdd, setSelectedParentForAdd] = useState<string | null>(null)
+    const [editingNode, setEditingNode] = useState<any | null>(null)
+    const [hasChildrenForMove, setHasChildrenForMove] = useState(false)
 
     useEffect(() => {
         if (initialData) {
@@ -441,6 +530,63 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
             else next.add(nodeId);
             return next;
         });
+    };
+
+    const openDeleteDialog = (node: { node_id: string, name: string }) => {
+        setDeleteTarget(node);
+        setIsDeleteDialogOpen(true);
+    };
+
+    const handleClearNode = async () => {
+        if (!deleteTarget) return;
+        setIsDeletingNodeAction(true);
+        try {
+            await clearOrgNode(deleteTarget.node_id);
+            toast.success('Node info cleared to (Vacant)');
+            setIsDeleteDialogOpen(false);
+            router.refresh();
+        } catch (err) {
+            toast.error('Failed to clear node info');
+        } finally {
+            setIsDeletingNodeAction(false);
+        }
+    };
+
+    const handleDeleteNode = async () => {
+        if (!deleteTarget) return;
+        setIsDeletingNodeAction(true);
+        try {
+            await deleteOrgNode(deleteTarget.node_id);
+            toast.success('Node removed and team re-parented');
+            setIsDeleteDialogOpen(false);
+            router.refresh();
+        } catch (err) {
+            toast.error('Failed to remove node');
+        } finally {
+            setIsDeletingNodeAction(false);
+        }
+    };
+
+    const handleAddSubordinate = (parentName: string) => {
+        setDialogMode('add');
+        setSelectedParentForAdd(parentName);
+        setEditingNode(null);
+        setIsAddNodeDialogOpen(true);
+    };
+
+    const handleReplaceNode = (node: any) => {
+        setDialogMode('edit');
+        setEditingNode(node);
+        setSelectedParentForAdd(null);
+        setIsAddNodeDialogOpen(true);
+    };
+
+    const handleMoveNode = (node: any) => {
+        setDialogMode('move');
+        setEditingNode(node);
+        // Important: check if it has actual children (beyond the _childCount from d3)
+        setHasChildrenForMove(node.children && node.children.length > 0);
+        setIsAddNodeDialogOpen(true);
     };
 
     const [translate, setTranslate] = useState({ x: 0, y: 0 })
@@ -791,8 +937,7 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                 </div>
             </div>
 
-            {/* Deletion Button (Wait for selection? No, just the whole chart) Bottom Right */}
-                        {/* Action Buttons & Deletion (Bottom Right) */}
+            {/* Action Buttons & Deletion (Bottom Right) */}
             <div className="absolute bottom-4 right-4 z-10 flex flex-col items-end gap-3">
                 {/* Legend Panel (Collapsible) - Stacks above buttons */}
                 {showLegend && (
@@ -1030,6 +1175,10 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                             isCreating={creatingNodes.has((rd3tProps.nodeDatum as any).node_id)}
                             isVerifying={verifyingNodes.has((rd3tProps.nodeDatum as any).node_id)}
                             expandedSet={expandedSet}
+                            onDeleteNode={openDeleteDialog}
+                            onAddSubordinate={handleAddSubordinate}
+                            onReplaceNode={handleReplaceNode}
+                            onMoveNode={handleMoveNode}
                         />
                     )}
                     orientation="vertical"
@@ -1058,6 +1207,94 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                     }}
                 />
             </div>
+
+            <NodeFormDialog
+                isOpen={isAddNodeDialogOpen}
+                onOpenChange={setIsAddNodeDialogOpen}
+                uploadId={uploadId}
+                nodes={extractNodes(initialData)}
+                editingNode={editingNode}
+                defaultParentName={selectedParentForAdd || undefined}
+                isAddMode={dialogMode === 'add'}
+                isMoveMode={dialogMode === 'move'}
+                hasChildren={hasChildrenForMove}
+            />
+
+            {/* Node Deletion/Clear Selection Dialog */}
+            <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <DialogContent className="sm:max-w-md bg-white dark:bg-slate-900 border-none shadow-2xl rounded-2xl overflow-hidden p-0">
+                    <DialogHeader className="p-6 pb-2 text-left">
+                        <DialogTitle className="flex items-center gap-2 text-slate-900 dark:text-slate-100 font-bold">
+                           <div className="p-2 bg-rose-50 dark:bg-rose-900/20 rounded-lg text-rose-500">
+                               <Trash2 size={20} />
+                           </div>
+                           Management Removal
+                        </DialogTitle>
+                        <DialogDescription className="text-slate-500 dark:text-slate-400 pt-2 text-sm leading-relaxed">
+                            How would you like to handle <strong>{deleteTarget?.name}</strong> and their team?
+                        </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="p-6 pt-2 space-y-4">
+                        {/* Option 1: Keep Box */}
+                        <div 
+                            className={cn(
+                                "group relative flex items-start gap-4 p-4 rounded-xl border-2 transition-all cursor-pointer",
+                                "border-slate-100 hover:border-emerald-200 hover:bg-emerald-50/30 bg-white dark:bg-slate-800 dark:border-slate-700 dark:hover:border-emerald-900/50"
+                            )}
+                            onClick={!isDeletingNodeAction ? handleClearNode : undefined}
+                        >
+                            <div className="mt-1 p-2 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-lg group-hover:scale-110 transition-transform">
+                                <Users size={18} />
+                            </div>
+                            <div className="flex-1 text-left">
+                                <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">Clear Info & Keep Box</h4>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                                    Remove the person but keep the position as <span className="font-semibold text-slate-600 dark:text-slate-300">(Vacant)</span>. 
+                                    Team structure remains exactly the same.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Option 2: Remove Box */}
+                        <div 
+                            className={cn(
+                                "group relative flex items-start gap-4 p-4 rounded-xl border-2 transition-all cursor-pointer",
+                                "border-slate-100 hover:border-rose-200 hover:bg-rose-50/30 bg-white dark:bg-slate-800 dark:border-slate-700 dark:hover:border-rose-900/50"
+                            )}
+                            onClick={!isDeletingNodeAction ? handleDeleteNode : undefined}
+                        >
+                            <div className="mt-1 p-2 bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-lg group-hover:scale-110 transition-transform">
+                                <X size={18} />
+                            </div>
+                            <div className="flex-1 text-left">
+                                <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 text-rose-600 dark:text-rose-400">Remove Entire Node</h4>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                                    Delete this position entirely. Subordinates will be automatically 
+                                    <span className="font-semibold text-slate-600 dark:text-slate-300"> re-parented to the manager above</span>.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-4 bg-slate-50 dark:bg-slate-800/50 flex justify-end gap-3 items-center">
+                        {isDeletingNodeAction ? (
+                            <div className="flex items-center gap-2 text-xs text-slate-400 animate-pulse font-medium mr-auto pl-2">
+                                <Loader2 size={14} className="animate-spin" />
+                                Processing...
+                            </div>
+                        ) : null}
+                        <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => setIsDeleteDialogOpen(false)}
+                            className="text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700 rounded-lg"
+                        >
+                            Cancel
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }

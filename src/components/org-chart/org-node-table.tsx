@@ -25,6 +25,7 @@ import { Edit2, Plus, UserCheck, AlertCircle, Search, X, Loader2, UserPlus } fro
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
+import { NodeFormDialog } from './node-form-dialog'
 
 export function OrgNodeTable({ nodes, uploadId, modifyDate: initialModifyDate }: { nodes: RawOrgNode[], uploadId: string | null, modifyDate?: string | null }) {
     const [editingNode, setEditingNode] = useState<RawOrgNode | null>(null)
@@ -34,34 +35,9 @@ export function OrgNodeTable({ nodes, uploadId, modifyDate: initialModifyDate }:
     const [modifyDate, setModifyDate] = useState<string | null>(initialModifyDate || null)
     const [creatingIds, setCreatingIds] = useState<Set<string>>(new Set())
 
-    // Search State
-    const [searchQuery, setSearchQuery] = useState('')
-    const [searchResults, setSearchResults] = useState<{ id: string, name: string, photo: string | null }[]>([])
-    const [isSearching, setIsSearching] = useState(false)
-
-    // Edit/Add Form State
-    const [formData, setFormData] = useState({
-        name: '',
-        title: '',
-        parent_name: '',
-        matched_candidate_id: '',
-        matched_candidate_name: '', // For display
-        linkedin: ''
-    })
-
     const handleEdit = (node: RawOrgNode) => {
         setIsAddMode(false)
         setEditingNode(node)
-        setFormData({
-            name: node.name,
-            title: node.title || '',
-            parent_name: node.parent_name || '',
-            matched_candidate_id: node.matched_candidate_id || '',
-            matched_candidate_name: node.candidate ? (node.candidate.name || '') : '',
-            linkedin: node.linkedin || ''
-        })
-        setSearchQuery('')
-        setSearchResults([])
         setIsOpen(true)
     }
 
@@ -72,43 +48,7 @@ export function OrgNodeTable({ nodes, uploadId, modifyDate: initialModifyDate }:
         }
         setIsAddMode(true)
         setEditingNode(null)
-        setFormData({
-            name: '',
-            title: '',
-            parent_name: '',
-            matched_candidate_id: '',
-            matched_candidate_name: '',
-            linkedin: ''
-        })
-        setSearchQuery('')
-        setSearchResults([])
         setIsOpen(true)
-    }
-
-    const handleSave = async () => {
-        if (!uploadId) return
-
-        try {
-            const payload = {
-                name: formData.name,
-                title: formData.title,
-                parent_name: formData.parent_name,
-                matched_candidate_id: formData.matched_candidate_id || null,
-                linkedin: formData.linkedin || null
-            }
-
-            if (isAddMode) {
-                await createOrgNode(uploadId, payload)
-                toast.success("Employee added successfully")
-            } else if (editingNode) {
-                await updateOrgNode(editingNode.node_id, payload)
-                toast.success("Node updated successfully")
-            }
-            setIsOpen(false)
-        } catch (error) {
-            console.error(error)
-            toast.error(isAddMode ? "Failed to add employee" : "Failed to update node")
-        }
     }
 
     const handleSingleCreate = async (nodeId: string) => {
@@ -149,45 +89,6 @@ export function OrgNodeTable({ nodes, uploadId, modifyDate: initialModifyDate }:
         } finally {
             setIsVerifying(false)
         }
-    }
-
-    // Effect for searching candidates
-    useEffect(() => {
-        const delayDebounceFn = setTimeout(async () => {
-            if (searchQuery.length >= 2) {
-                setIsSearching(true)
-                try {
-                    const results = await searchCandidates(searchQuery)
-                    setSearchResults(results)
-                } catch (err) {
-                    console.error("Search failed:", err)
-                } finally {
-                    setIsSearching(false)
-                }
-            } else {
-                setSearchResults([])
-            }
-        }, 500)
-
-        return () => clearTimeout(delayDebounceFn)
-    }, [searchQuery])
-
-    const selectCandidate = (candidate: { id: string, name: string }) => {
-        setFormData({
-            ...formData,
-            matched_candidate_id: candidate.id,
-            matched_candidate_name: candidate.name
-        })
-        setSearchQuery('')
-        setSearchResults([])
-    }
-
-    const clearCandidate = () => {
-        setFormData({
-            ...formData,
-            matched_candidate_id: '',
-            matched_candidate_name: ''
-        })
     }
 
     return (
@@ -310,133 +211,14 @@ export function OrgNodeTable({ nodes, uploadId, modifyDate: initialModifyDate }:
                 </Table>
             </div>
 
-            <Dialog open={isOpen} onOpenChange={setIsOpen}>
-                <DialogContent className="sm:max-w-[500px]">
-                    <DialogHeader>
-                        <DialogTitle>{isAddMode ? 'Add New Employee' : 'Edit Node Details'}</DialogTitle>
-                        <DialogDescription>
-                            {isAddMode ? 'Enter details for the new person in the chart.' : 'Update the organization node information.'}
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="grid gap-6 py-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="name">Full Name</Label>
-                            <Input
-                                id="name"
-                                value={formData.name}
-                                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                placeholder="Jakkrit Keeratichokchaikun"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="title">Job Title</Label>
-                            <Input
-                                id="title"
-                                value={formData.title}
-                                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                placeholder="CEO / Manager"
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="parent">Reporting To (Manager Name)</Label>
-                            <Select 
-                                value={formData.parent_name || 'none'} 
-                                onValueChange={(val) => setFormData({ ...formData, parent_name: val === 'none' ? '' : val })}
-                            >
-                                <SelectTrigger id="parent" className="w-full bg-white dark:bg-slate-950">
-                                    <SelectValue placeholder="Select a manager" />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-[250px]">
-                                    <SelectItem value="none" className="italic text-slate-500">None (Root Level)</SelectItem>
-                                    {nodes
-                                        .filter(n => !(editingNode && n.node_id === editingNode.node_id)) // Prevent selecting self
-                                        .map(node => (
-                                            <SelectItem key={node.node_id} value={node.name}>
-                                                {node.name} {node.title ? `— ${node.title}` : ''}
-                                            </SelectItem>
-                                        ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="node-linkedin" className="flex items-center gap-2">
-                                <Search size={14} /> Profile LinkedIn (Independent)
-                            </Label>
-                            <Input
-                                id="node-linkedin"
-                                value={formData.linkedin}
-                                onChange={(e) => setFormData({ ...formData, linkedin: e.target.value })}
-                                placeholder="https://www.linkedin.com/in/..."
-                            />
-                            <p className="text-[10px] text-slate-500 italic">
-                                Fill this if there is no matched candidate profile, but you still want to show a LinkedIn icon.
-                            </p>
-                        </div>
-
-                        <div className="space-y-2 border-t pt-4">
-                            <Label className="flex items-center gap-2 text-indigo-600 font-semibold mb-2">
-                                <UserCheck size={16} /> Candidate Profile Matching
-                            </Label>
-
-                            {formData.matched_candidate_id ? (
-                                <div className="flex items-center justify-between p-3 rounded-lg border bg-slate-50 dark:bg-slate-800 border-indigo-200">
-                                    <div className="flex items-center gap-2">
-                                        <UserCheck className="text-green-500" size={18} />
-                                        <span className="font-medium">{formData.matched_candidate_name}</span>
-                                    </div>
-                                    <Button variant="ghost" size="sm" onClick={clearCandidate} className="h-8 px-2 text-slate-500 hover:text-red-500">
-                                        <X size={16} />
-                                    </Button>
-                                </div>
-                            ) : (
-                                <div className="space-y-2 relative">
-                                    <div className="relative">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                                        <Input
-                                            value={searchQuery}
-                                            onChange={(e) => setSearchQuery(e.target.value)}
-                                            placeholder="Search candidate by name..."
-                                            className="pl-9"
-                                        />
-                                        {isSearching && (
-                                            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-slate-400" />
-                                        )}
-                                    </div>
-
-                                    {searchResults.length > 0 && (
-                                        <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-900 border rounded-lg shadow-xl max-h-[200px] overflow-auto">
-                                            {searchResults.map(c => (
-                                                <div
-                                                    key={c.id}
-                                                    onClick={() => selectCandidate(c)}
-                                                    className="p-3 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex items-center gap-3 border-b last:border-0"
-                                                >
-                                                    <Avatar className="h-8 w-8">
-                                                        <AvatarImage src={c.photo || undefined} />
-                                                        <AvatarFallback>{c.name.substring(0, 2)}</AvatarFallback>
-                                                    </Avatar>
-                                                    <div className="flex flex-col">
-                                                        <span className="text-sm font-medium">{c.name}</span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                    <p className="text-[11px] text-slate-500 italic pl-1">
-                                        Search for an existing candidate in the system to link them to this chart node.
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                    <DialogFooter className="gap-2 sm:gap-0">
-                        <Button variant="outline" onClick={() => setIsOpen(false)}>Cancel</Button>
-                        <Button type="submit" onClick={handleSave} className="bg-indigo-600 hover:bg-indigo-700">
-                            {isAddMode ? 'Create Node' : 'Save Changes'}
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
+            <NodeFormDialog 
+                isOpen={isOpen}
+                onOpenChange={setIsOpen}
+                uploadId={uploadId}
+                nodes={nodes}
+                editingNode={editingNode}
+                isAddMode={isAddMode}
+            />
 
         </div>
     )
