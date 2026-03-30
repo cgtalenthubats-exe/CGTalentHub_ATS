@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
                 work_location: exp.work_location || null,
                 start_date: exp.start_date || null,
                 end_date: exp.end_date || null,
-                is_current: exp.is_current || false
+                is_current_job: exp.is_current ? 'Current' : 'Past'
             }));
 
             const { error: expError } = await supabase
@@ -149,6 +149,7 @@ export async function POST(req: NextRequest) {
 
             if (expError) {
                 console.error("Error inserting experiences:", expError);
+                return NextResponse.json({ error: "Failed to save experiences: " + expError.message, id: newId }, { status: 500 });
             }
         }
 
