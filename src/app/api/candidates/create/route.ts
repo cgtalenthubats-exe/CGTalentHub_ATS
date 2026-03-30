@@ -8,13 +8,20 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-import { extractYear, formatDateForInput } from '@/lib/date-utils';
+import { extractYear, formatDateForInput, getEffectiveAge } from '@/lib/date-utils';
 import { getCheckedStatus, normalizeName, normalizeEmail, normalizeLinkedIn } from '@/lib/candidate-utils';
 
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
         const { name, email, phone, position, nationality, createdBy: explicitCreatedBy } = body;
+
+        // Calculate age on server to ensure DB sync
+        const calculatedAge = getEffectiveAge(
+            body.age_input_type === 'dob' ? body.date_of_birth : null,
+            body.age_input_type === 'bachelor' ? body.year_of_bachelor_education : null
+        );
+        const ageToSave = calculatedAge ? parseInt(calculatedAge) : (body.age ? parseInt(body.age) : null);
 
         // Get current user for audit trail (Fallback)
         const supabaseServer = await createServerClient();
@@ -76,7 +83,7 @@ export async function POST(req: NextRequest) {
                     linkedin: body.linkedin || null,
                     date_of_birth: formatDateForInput(body.date_of_birth) || null,
                     year_of_bachelor_education: extractYear(body.year_of_bachelor_education) || null,
-                    age: body.age ? parseInt(body.age) : null,
+                    age: ageToSave,
                     checked: getCheckedStatus(body.linkedin),
                     action_needed: 'Wait_for_vector', // AI System Flag
                     // Compensation & Benefits (all optional)

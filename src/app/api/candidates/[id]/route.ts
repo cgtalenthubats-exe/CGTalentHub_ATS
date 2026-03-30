@@ -199,6 +199,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
     try {
         const body = await req.json();
+        
+        // Fetch current profile to have existing DOB/Bachelor year for age recalculation
+        const { data: existingProfile, error: fetchError } = await adminAuthClient
+            .from('Candidate Profile')
+            .select('date_of_birth, year_of_bachelor_education')
+            .eq('candidate_id', candidateId)
+            .single();
+            
+        if (fetchError) {
+            console.error("[API] Error fetching existing profile for PATCH:", fetchError);
+            // We continue, but age recalculation might be incomplete if fields are missing in body
+        }
+        
+        const profileData = existingProfile || {};
         const { candidate_status, resume_url, name, email, mobile_phone, linkedin, ...otherFields } = body;
 
         // Construct update object for 'Candidate Profile'
@@ -224,9 +238,24 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         // Profile fields
         if (body.nationality !== undefined) updateData.nationality = body.nationality || null;
         if (body.gender !== undefined) updateData.gender = body.gender || null;
-        if (body.date_of_birth !== undefined) updateData.date_of_birth = formatDateForInput(body.date_of_birth) || null;
-        if (body.year_of_bachelor_education !== undefined) updateData.year_of_bachelor_education = extractYear(body.year_of_bachelor_education) || null;
-        if (body.age !== undefined) updateData.age = body.age ? parseInt(body.age) : null;
+        
+        // Handle Age Sync on Update
+        if (body.date_of_birth !== undefined || body.year_of_bachelor_education !== undefined) {
+            const dob = body.date_of_birth !== undefined ? body.date_of_birth : profileData.date_of_birth;
+            const grad = body.year_of_bachelor_education !== undefined ? body.year_of_bachelor_education : profileData.year_of_bachelor_education;
+            
+            if (body.date_of_birth !== undefined) updateData.date_of_birth = formatDateForInput(body.date_of_birth) || null;
+            if (body.year_of_bachelor_education !== undefined) updateData.year_of_bachelor_education = extractYear(body.year_of_bachelor_education) || null;
+            
+            // Calculate new age based on updated fields
+            const calculatedAge = getEffectiveAge(dob, grad);
+            if (calculatedAge) {
+                updateData.age = parseInt(calculatedAge);
+            }
+        } else if (body.age !== undefined) {
+            updateData.age = body.age ? parseInt(body.age) : null;
+        }
+
         if (body.checked !== undefined) updateData.checked = body.checked || null;
 
         // Compensation & Benefits fields
