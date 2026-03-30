@@ -136,7 +136,7 @@ export async function getAssistantMessagesByIds(ids: string[]) {
         const supabase = await createClient();
         const { data, error } = await (supabase
             .from('n8n_chat_histories' as any) as any)
-            .select('id, message, created_at')
+            .select('id, message')
             .in('id', ids)
         console.log(`[DEBUG] Batch Content: Found ${data?.length || 0} rows for IDs: ${ids.slice(0, 3).join(", ")}...`);
 
@@ -153,7 +153,7 @@ export async function getAssistantMessagesByIds(ids: string[]) {
                     id: row.id.toString(),
                     role: "assistant",
                     content: typeof raw === 'string' ? raw : "Empty message",
-                    timestamp: row.created_at ? new Date(row.created_at) : new Date()
+                    timestamp: new Date() // Fallback since created_at is missing in this table
                 };
             }
 
@@ -173,7 +173,7 @@ export async function getAssistantMessagesByIds(ids: string[]) {
                 id: row.id.toString(),
                 role: role,
                 content: content,
-                timestamp: row.created_at ? new Date(row.created_at) : new Date()
+                timestamp: new Date() // Fallback since created_at is missing in this table
             };
         });
 
