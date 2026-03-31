@@ -20,9 +20,10 @@ import { useEffect } from "react";
 interface CandidateActivityLogProps {
     logs: StatusLog[];
     jrCandidateId: string;
+    isReadOnly?: boolean;
 }
 
-export function CandidateActivityLog({ logs, jrCandidateId }: CandidateActivityLogProps) {
+export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }: CandidateActivityLogProps) {
     const router = useRouter();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -113,14 +114,16 @@ export function CandidateActivityLog({ logs, jrCandidateId }: CandidateActivityL
                 <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
                     <History className="h-4 w-4" /> Activity Log
                 </CardTitle>
-                <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 w-8 p-0 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full"
-                    onClick={handleAdd}
-                >
-                    <Plus className="h-4 w-4" />
-                </Button>
+                {!isReadOnly && (
+                    <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full"
+                        onClick={handleAdd}
+                    >
+                        <Plus className="h-4 w-4" />
+                    </Button>
+                )}
             </CardHeader>
             <CardContent className="pt-6 relative">
                 <div className="absolute left-[35px] top-6 bottom-6 w-0.5 bg-slate-100" />
@@ -139,20 +142,22 @@ export function CandidateActivityLog({ logs, jrCandidateId }: CandidateActivityL
                                     )}>
                                         {log.status}
                                     </span>
-                                    <div className="flex gap-1">
-                                        <button
-                                            onClick={() => handleEdit(log)}
-                                            className="text-slate-400 hover:text-indigo-600"
-                                        >
-                                            <Pencil className="h-3 w-3" />
-                                        </button>
-                                        <button
-                                            onClick={() => handleDelete(log.log_id)}
-                                            className="text-slate-400 hover:text-red-600"
-                                        >
-                                            <Trash2 className="h-3 w-3" />
-                                        </button>
-                                    </div>
+                                    {!isReadOnly && (
+                                        <div className="flex gap-1">
+                                            <button
+                                                onClick={() => handleEdit(log)}
+                                                className="text-slate-400 hover:text-indigo-600"
+                                            >
+                                                <Pencil className="h-3 w-3" />
+                                            </button>
+                                            <button
+                                                onClick={() => handleDelete(log.log_id)}
+                                                className="text-slate-400 hover:text-red-600"
+                                            >
+                                                <Trash2 className="h-3 w-3" />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="flex items-center gap-2 text-[12px] text-slate-400 font-bold">
                                     <span>{log.timestamp}</span>

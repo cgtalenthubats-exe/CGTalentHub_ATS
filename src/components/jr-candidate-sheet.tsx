@@ -24,6 +24,8 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn, formatNumberWithCommas } from "@/lib/utils";
 import { formatMonthYear } from "@/lib/date-utils";
+import { HistoryTimeline } from "@/components/history/HistoryTimeline";
+import { History as HistoryIcon } from "lucide-react";
 
 interface JRCandidateSheetProps {
     jrCandidateId: string | null;
@@ -64,6 +66,7 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
     const meta = data?.meta;
     const logs = data?.logs ?? [];
     const feedback = data?.feedback ?? [];
+    const history = data?.history ?? [];
     const candidate = meta?.candidate_profile;
     const experiences = candidate?.experiences ?? [];
     const enhance = candidate?.enhancement ?? {};
@@ -95,7 +98,6 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
                                     src={candidate?.photo_url}
                                     name={candidate?.name}
                                     className="h-16 w-16 border-4 border-white shadow-xl ring-2 ring-indigo-50"
-                                    fallbackClassName="text-xl font-black"
                                 />
                                 <div className="flex flex-col gap-1.5">
                                     <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-none group flex items-center gap-2">
@@ -119,6 +121,16 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
                                                 candidate.candidate_status === 'Blacklist' ? 'bg-rose-100 text-rose-700 border-rose-200' : 'bg-emerald-100 text-emerald-700 border-emerald-200'
                                             )}>
                                                 {candidate.candidate_status}
+                                            </Badge>
+                                        )}
+                                        {meta?.history_count > 0 && (
+                                            <Badge 
+                                                variant="outline" 
+                                                className="text-[10px] font-black uppercase tracking-widest bg-amber-50 text-amber-700 border-amber-200 py-0.5 gap-1.5 cursor-pointer hover:bg-amber-100 transition-colors shadow-sm"
+                                                onClick={() => setActiveTab("history")}
+                                            >
+                                                <HistoryIcon className="h-3 w-3" />
+                                                {meta.history_count} Past {meta.history_count === 1 ? 'Record' : 'Records'} Detected
                                             </Badge>
                                         )}
                                     </div>
@@ -155,7 +167,6 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
                     )}
                 </SheetHeader>
 
-                {/* Tabs Selector */}
                 <div className="bg-white border-b px-8 py-2">
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
                         <TabsList className="bg-slate-100/50 p-1 h-11">
@@ -164,6 +175,10 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
                             </TabsTrigger>
                             <TabsTrigger value="profile" className="font-black text-xs uppercase tracking-widest px-6 data-[state=active]:bg-white data-[state=active]:text-indigo-600 data-[state=active]:shadow-sm">
                                 Candidate Profile
+                            </TabsTrigger>
+                            <TabsTrigger value="history" className="font-black text-xs uppercase tracking-widest px-6 data-[state=active]:bg-white data-[state=active]:text-amber-600 data-[state=active]:shadow-sm flex gap-2">
+                                <HistoryIcon className="h-3 w-3" />
+                                History Record {meta?.history_count > 0 && `(${meta.history_count})`}
                             </TabsTrigger>
                         </TabsList>
                     </Tabs>
@@ -181,123 +196,124 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
                         </div>
                     ) : (
                         <div className="p-8">
-                            {activeTab === "recruitment" ? (
-                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                    {/* Left: Summary + Feedback */}
-                                    <div className="lg:col-span-2 space-y-8">
-                                        <Card className="rounded-2xl border-none shadow-sm overflow-hidden bg-white ring-1 ring-slate-100">
-                                            <div className="h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
-                                            <CardHeader className="pb-4 pt-6">
-                                                <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-3">
-                                                    <span className="p-1.5 bg-indigo-50 rounded-lg text-indigo-600"><MessageSquare className="h-3.5 w-3.5" /></span> Recruitment Recap
-                                                </CardTitle>
-                                            </CardHeader>
-                                            <CardContent className="space-y-6">
-                                                <div className="bg-slate-50/80 rounded-2xl p-5 border border-slate-100/50">
-                                                    <span className="text-[10px] font-black uppercase text-indigo-500 mb-3 block tracking-[0.1em]">Hiring Manager Notes</span>
-                                                    <p className="text-[15px] text-slate-700 font-medium leading-relaxed italic">
-                                                        "{meta?.temp_note || "No requisition-specific notes available."}"
-                                                    </p>
-                                                </div>
-                                                <div className="flex flex-wrap gap-8 items-center px-2">
-                                                    <div className="flex flex-col gap-1">
-                                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Candidate Rank</span>
-                                                        <span className="text-2xl font-black text-slate-900">{meta?.rank || "Unranked"}</span>
+                            {activeTab === "recruitment" && (
+                                <div className="space-y-8">
+                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                        {/* Left: Summary + Feedback */}
+                                        <div className="lg:col-span-2 space-y-8">
+                                            <Card className="rounded-2xl border-none shadow-sm overflow-hidden bg-white ring-1 ring-slate-100">
+                                                <div className="h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
+                                                <CardHeader className="pb-4 pt-6">
+                                                    <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-3">
+                                                        <span className="p-1.5 bg-indigo-50 rounded-lg text-indigo-600"><MessageSquare className="h-3.5 w-3.5" /></span> Recruitment Recap
+                                                    </CardTitle>
+                                                </CardHeader>
+                                                <CardContent className="space-y-6">
+                                                    <div className="bg-slate-50/80 rounded-2xl p-5 border border-slate-100/50">
+                                                        <span className="text-[10px] font-black uppercase text-indigo-500 mb-3 block tracking-[0.1em]">Hiring Manager Notes</span>
+                                                        <p className="text-[15px] text-slate-700 font-medium leading-relaxed italic">
+                                                            "{meta?.temp_note || "No requisition-specific notes available."}"
+                                                        </p>
                                                     </div>
-                                                    <div className="h-10 w-px bg-slate-100" />
-                                                    <div className="flex flex-col gap-1">
-                                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Sourcing Channel</span>
-                                                        <Badge className="w-fit bg-slate-100 text-slate-600 hover:bg-slate-200 border-none font-bold uppercase py-1 px-3 mt-1 rounded-full">
-                                                            {meta?.list_type || "Standard Sourcing"}
-                                                        </Badge>
+                                                    <div className="flex flex-wrap gap-8 items-center px-2">
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Candidate Rank</span>
+                                                            <span className="text-2xl font-black text-slate-900">{meta?.rank || "Unranked"}</span>
+                                                        </div>
+                                                        <div className="h-10 w-px bg-slate-100" />
+                                                        <div className="flex flex-col gap-1">
+                                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Sourcing Channel</span>
+                                                            <Badge className="w-fit bg-slate-100 text-slate-600 hover:bg-slate-200 border-none font-bold uppercase py-1 px-3 mt-1 rounded-full">
+                                                                {meta?.list_type || "Standard Sourcing"}
+                                                            </Badge>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            </CardContent>
-                                        </Card>
+                                                </CardContent>
+                                            </Card>
 
-                                        <FeedbackSection
-                                            jrCandidateId={meta?.jr_candidate_id || jrCandidateId!}
-                                            candidateName={candidate?.name}
-                                            feedback={feedback}
-                                        />
-                                    </div>
+                                            <FeedbackSection
+                                                jrCandidateId={meta?.jr_candidate_id || jrCandidateId!}
+                                                candidateName={candidate?.name}
+                                                feedback={feedback}
+                                            />
+                                        </div>
 
-                                    {/* Right: Activity Log */}
-                                    <div className="lg:col-span-1">
-                                        <CandidateActivityLog
-                                            logs={logs}
-                                            jrCandidateId={jrCandidateId!}
-                                        />
+                                        {/* Right: Activity Log */}
+                                        <div className="lg:col-span-1">
+                                            <CandidateActivityLog
+                                                logs={logs}
+                                                jrCandidateId={jrCandidateId!}
+                                            />
+                                        </div>
                                     </div>
                                 </div>
-                            ) : (
+                            )}
+
+                            {activeTab === "profile" && (
                                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                    {/* Contact Intel Ribbon */}
-                                    <div className="bg-white rounded-2xl p-6 shadow-sm ring-1 ring-slate-100 flex flex-wrap gap-8 items-center justify-between">
-                                        <div className="flex items-center gap-4">
-                                            <div className="p-2.5 bg-indigo-50 rounded-xl text-indigo-600 shadow-sm"><Mail className="h-5 w-5" /></div>
-                                            <div className="flex flex-col">
-                                                <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Email Address</span>
-                                                <span className="text-sm font-bold text-slate-700">{candidate?.email || "N/A"}</span>
-                                                {enhance?.alt_email && enhance.alt_email !== candidate?.email && (
-                                                    <span className="text-[10px] font-bold text-slate-400">Alt: {enhance.alt_email}</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="h-10 w-px bg-slate-100 hidden md:block" />
-                                        <div className="flex items-center gap-4">
-                                            <div className="p-2.5 bg-emerald-50 rounded-xl text-emerald-600 shadow-sm"><Phone className="h-5 w-5" /></div>
-                                            <div className="flex flex-col">
-                                                <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Mobile Phone</span>
-                                                <span className="text-sm font-bold text-slate-700">{candidate?.mobile_phone || "N/A"}</span>
-                                            </div>
-                                        </div>
-                                        <div className="h-10 w-px bg-slate-100 hidden md:block" />
-                                        <div className="flex items-center gap-4">
-                                            <div className="p-2.5 bg-amber-50 rounded-xl text-amber-600 shadow-sm"><Globe className="h-5 w-5" /></div>
-                                            <div className="flex flex-col">
-                                                <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Candidate Intel</span>
-                                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span className="text-[11px] font-black text-indigo-500 uppercase tracking-tight">Nationality:</span>
-                                                        <span className="text-sm font-bold text-slate-700">{candidate?.nationality || "N/A"}</span>
-                                                    </div>
-                                                    <div className="flex items-center gap-1.5 border-l border-slate-200 pl-4">
-                                                        <span className="text-[11px] font-black text-purple-500 uppercase tracking-tight">Age:</span>
-                                                        <span className="text-sm font-bold text-slate-700">{candidate?.age ? `${candidate.age} Years - ${candidate.date_of_birth ? "DoB" : "Bachelor year"}` : "N/A"}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        {(enhance?.country || enhance?.full_address) && (
-                                            <>
-                                                <div className="h-10 w-px bg-slate-100 hidden lg:block" />
-                                                <div className="flex items-center gap-4 min-w-0 flex-1">
-                                                    <div className="p-2.5 bg-blue-50 rounded-xl text-blue-600 shadow-sm flex-shrink-0"><MapPin className="h-5 w-5" /></div>
-                                                    <div className="flex flex-col min-w-0">
-                                                        <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Address from LI</span>
-                                                        <span className="text-sm font-bold text-slate-700 truncate">
-                                                            {[enhance?.country, enhance?.full_address].filter(Boolean).join(", ")}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            </>
-                                        )}
-                                        {candidate?.blacklist_note && (
-                                            <div className="flex items-center gap-4 bg-rose-50 px-4 py-2 rounded-xl ring-1 ring-rose-100">
-                                                <div className="p-1.5 bg-rose-500 rounded-lg text-white shadow-sm"><AlertCircle className="h-4 w-4" /></div>
+                                        {/* Contact Intel Ribbon */}
+                                        <div className="bg-white rounded-2xl p-6 shadow-sm ring-1 ring-slate-100 flex flex-wrap gap-8 items-center justify-between">
+                                            <div className="flex items-center gap-4">
+                                                <div className="p-2.5 bg-indigo-50 rounded-xl text-indigo-600 shadow-sm"><Mail className="h-5 w-5" /></div>
                                                 <div className="flex flex-col">
-                                                    <span className="text-[9px] uppercase font-black text-rose-500 tracking-widest">Blacklist Alert</span>
-                                                    <span className="text-[11px] font-bold text-rose-700 leading-tight">{candidate.blacklist_note}</span>
+                                                    <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Email Address</span>
+                                                    <span className="text-sm font-bold text-slate-700">{candidate?.email || "N/A"}</span>
+                                                    {enhance?.alt_email && enhance.alt_email !== candidate?.email && (
+                                                        <span className="text-[10px] font-bold text-slate-400">Alt: {enhance.alt_email}</span>
+                                                    )}
                                                 </div>
                                             </div>
-                                        )}
-                                    </div>
+                                            <div className="h-10 w-px bg-slate-100 hidden md:block" />
+                                            <div className="flex items-center gap-4">
+                                                <div className="p-2.5 bg-emerald-50 rounded-xl text-emerald-600 shadow-sm"><Phone className="h-5 w-5" /></div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Mobile Phone</span>
+                                                    <span className="text-sm font-bold text-slate-700">{candidate?.mobile_phone || "N/A"}</span>
+                                                </div>
+                                            </div>
+                                            <div className="h-10 w-px bg-slate-100 hidden md:block" />
+                                            <div className="flex items-center gap-4">
+                                                <div className="p-2.5 bg-amber-50 rounded-xl text-amber-600 shadow-sm"><Globe className="h-5 w-5" /></div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Candidate Intel</span>
+                                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-[11px] font-black text-indigo-500 uppercase tracking-tight">Nationality:</span>
+                                                            <span className="text-sm font-bold text-slate-700">{candidate?.nationality || "N/A"}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-1.5 border-l border-slate-200 pl-4">
+                                                            <span className="text-[11px] font-black text-purple-500 uppercase tracking-tight">Age:</span>
+                                                            <span className="text-sm font-bold text-slate-700">{candidate?.age ? `${candidate.age} Years - ${candidate.date_of_birth ? "DoB" : "Bachelor year"}` : "N/A"}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {(enhance?.country || enhance?.full_address) && (
+                                                <>
+                                                    <div className="h-10 w-px bg-slate-100 hidden lg:block" />
+                                                    <div className="flex items-center gap-4 min-w-0 flex-1">
+                                                        <div className="p-2.5 bg-blue-50 rounded-xl text-blue-600 shadow-sm flex-shrink-0"><MapPin className="h-5 w-5" /></div>
+                                                        <div className="flex flex-col min-w-0">
+                                                            <span className="text-[10px] uppercase font-black text-slate-400 tracking-widest">Address from LI</span>
+                                                            <span className="text-sm font-bold text-slate-700 truncate">
+                                                                {[enhance?.country, enhance?.full_address].filter(Boolean).join(", ")}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            )}
+                                            {candidate?.blacklist_note && (
+                                                <div className="flex items-center gap-4 bg-rose-50 px-4 py-2 rounded-xl ring-1 ring-rose-100">
+                                                    <div className="p-1.5 bg-rose-500 rounded-lg text-white shadow-sm"><AlertCircle className="h-4 w-4" /></div>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[9px] uppercase font-black text-rose-500 tracking-widest">Blacklist Alert</span>
+                                                        <span className="text-[11px] font-bold text-rose-700 leading-tight">{candidate.blacklist_note}</span>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
 
-                                    {/* Main Content Area */}
-                                    <div className="space-y-8">
-
-                                        {/* About & Experience Content */}
+                                        {/* Main Content Area */}
                                         <div className="space-y-8">
                                             {/* About Section */}
                                             {enhance?.about && (
@@ -483,9 +499,21 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
                                                         <p className="text-xs font-bold text-slate-600">{candidate.others_benefit}</p>
                                                     </div>
                                                 )}
-                                            </div>
                                         </div>
                                     </div>
+                                </div>
+                            )}
+
+                            {activeTab === "history" && (
+                                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                    <div className="flex flex-col gap-1 mb-2">
+                                        <h2 className="text-xl font-black text-slate-800 tracking-tight">Historical Journey</h2>
+                                        <p className="text-xs font-medium text-slate-400 italic">Timeline of activities and feedback from previous job requisitions.</p>
+                                    </div>
+                                    <HistoryTimeline 
+                                        history={history} 
+                                        candidateName={candidate?.name || "Candidate"} 
+                                    />
                                 </div>
                             )}
                         </div>

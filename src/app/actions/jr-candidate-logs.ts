@@ -5,7 +5,7 @@ import { adminAuthClient } from "@/lib/supabase/admin";
 export async function getJRCandidateDetails(jrCandidateId: string) {
     const supabase = adminAuthClient;
 
-    // 1. Get JR Candidate Meta
+    // 1. Get current JR Candidate Meta
     const { data: jrCandidate, error: jrError } = await (supabase as any)
         .from('jr_candidates')
         .select('*')
@@ -19,13 +19,33 @@ export async function getJRCandidateDetails(jrCandidateId: string) {
 
     const candidateId = jrCandidate.candidate_id;
 
-    // 2. Fetch all related data in parallel for performance
+    // Fetch position name separately
+    const { data: jrInfo } = await (supabase as any)
+        .from('job_requisitions')
+        .select('position_jr')
+        .eq('jr_id', jrCandidate.jr_id)
+        .maybeSingle();
+
+    // 2. Fetch all JR associations for this candidate
+    const { data: allJRs, error: allJRsError } = await (supabase as any)
+        .from('jr_candidates')
+        .select('jr_candidate_id, jr_id')
+        .eq('candidate_id', candidateId);
+
+    if (allJRsError) console.error("Error fetching all JRs for candidate:", allJRsError);
+
+    const pastJRs = (allJRs || []).filter((jr: any) => String(jr.jr_candidate_id) !== String(jrCandidateId));
+    const pastJrIds = pastJRs.map((j: any) => j.jr_id).filter(Boolean);
+    const pastJrCandIds = pastJRs.map((j: any) => j.jr_candidate_id).filter(Boolean);
+
+    // 3. Fetch all related data in parallel
     const [
         profileRes,
         experiencesRes,
         enhanceRes,
-        logsRes,
-        feedbackRes
+        allLogsRes,
+        allFeedbackRes,
+        jrInfoRes
     ] = await Promise.all([
         // Global Profile
         (supabase as any)
@@ -41,43 +61,65 @@ export async function getJRCandidateDetails(jrCandidateId: string) {
             .eq('candidate_id', candidateId)
             .order('start_date', { ascending: false }),
 
-        // AI Enhancement / About / Skills
+        // AI Enhancement
         (supabase as any)
             .from('candidate_profile_enhance')
             .select('*')
             .eq('candidate_id', candidateId)
             .maybeSingle(),
 
-        // Status Logs (JR specific)
+        // Status Logs (All related JRs)
         (supabase as any)
             .from('status_log')
             .select('*')
-            .eq('jr_candidate_id', jrCandidateId)
+            .in('jr_candidate_id', allJRs?.map((j: any) => j.jr_candidate_id) || [jrCandidateId])
             .order('log_id', { ascending: false }),
 
-        // Interview Feedback (JR specific)
+        // Interview Feedback (All related JRs)
         (supabase as any)
             .from('interview_feedback')
             .select('*')
-            .eq('jr_candidate_id', jrCandidateId)
-            .order('interview_date', { ascending: false })
+            .in('jr_candidate_id', allJRs?.map((j: any) => j.jr_candidate_id) || [jrCandidateId])
+            .order('interview_date', { ascending: false }),
+
+        // JR Position Names (Manual join)
+        pastJrIds.length > 0 ? (supabase as any)
+            .from('job_requisitions')
+            .select('jr_id, position_jr')
+            .in('jr_id', pastJrIds) : Promise.resolve({ data: [] })
     ]);
 
-    const { data: candidateProfile, error: profileError } = profileRes;
-    const { data: experiences, error: expError } = experiencesRes;
-    const { data: enhance, error: enhanceError } = enhanceRes;
-    const { data: logs, error: logsError } = logsRes;
-    const { data: feedback, error: feedbackError } = feedbackRes;
+    const { data: candidateProfile } = profileRes;
+    const { data: experiences } = experiencesRes;
+    const { data: enhance } = enhanceRes;
+    const { data: allLogs } = allLogsRes;
+    const { data: allFeedback } = allFeedbackRes;
+    const { data: pastJrDetails } = jrInfoRes;
 
-    if (profileError) console.error("Error fetching Candidate Profile:", profileError);
-    if (expError) console.error("Error fetching Experiences:", expError);
-    if (enhanceError) console.error("Error fetching Enhance Data:", enhanceError);
+    // Build JR position map
+    const jrMap: Record<string, string> = {};
+    pastJrDetails?.forEach((j: any) => {
+        jrMap[j.jr_id] = j.position_jr;
+    });
+
+    // Split logs and feedback into current vs history
+    const logs = allLogs?.filter((l: any) => String(l.jr_candidate_id) === String(jrCandidateId)) || [];
+    const feedback = allFeedback?.filter((f: any) => String(f.jr_candidate_id) === String(jrCandidateId)) || [];
+
+    // Bundle history records with their JR context - NO FILTERING
+    const historyRecords = pastJRs.map((jr: any) => ({
+        jr_id: jr.jr_id,
+        jr_candidate_id: jr.jr_candidate_id,
+        position: jrMap[jr.jr_id] || "Unknown Position",
+        logs: allLogs?.filter((l: any) => String(l.jr_candidate_id) === String(jr.jr_candidate_id)) || [],
+        feedback: allFeedback?.filter((f: any) => String(f.jr_candidate_id) === String(jr.jr_candidate_id)) || []
+    }));
 
     const meta = {
         ...jrCandidate,
+        position_jr: jrInfo?.position_jr || "Unknown Position",
         candidate_profile: {
             ...candidateProfile,
-            // Map photo to photo_url if UI expects it (keeping compatibility)
             photo_url: candidateProfile?.photo,
             experiences: experiences || [],
             enhancement: enhance ? {
@@ -89,13 +131,15 @@ export async function getJRCandidateDetails(jrCandidateId: string) {
                 country: enhance.country,
                 full_address: enhance.full_address
             } : null
-        }
+        },
+        history_count: historyRecords.length
     };
 
     return {
         meta,
-        logs: logs || [],
-        feedback: feedback || []
+        logs,
+        feedback,
+        history: historyRecords
     };
 }
 

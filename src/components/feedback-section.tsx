@@ -30,9 +30,10 @@ interface FeedbackSectionProps {
     jrCandidateId: string;
     candidateName: string;
     feedback: any[];
+    isReadOnly?: boolean;
 }
 
-export function FeedbackSection({ jrCandidateId, candidateName, feedback }: FeedbackSectionProps) {
+export function FeedbackSection({ jrCandidateId, candidateName, feedback, isReadOnly = false }: FeedbackSectionProps) {
     const router = useRouter();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [selectedFeedback, setSelectedFeedback] = useState<any | null>(null);
@@ -76,14 +77,16 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback }: Feed
                 <h2 className="text-sm font-black uppercase tracking-widest text-slate-500 flex items-center gap-2 pl-1">
                     <Star className="h-4 w-4" /> Interview Feedback
                 </h2>
-                <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 gap-2 bg-white text-indigo-600 border-indigo-100 hover:bg-indigo-50 hover:text-indigo-700 font-bold"
-                    onClick={handleAdd}
-                >
-                    <Plus className="h-3 w-3" /> Add Feedback
-                </Button>
+                {!isReadOnly && (
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 gap-2 bg-white text-indigo-600 border-indigo-100 hover:bg-indigo-50 hover:text-indigo-700 font-bold"
+                        onClick={handleAdd}
+                    >
+                        <Plus className="h-3 w-3" /> Add Feedback
+                    </Button>
+                )}
             </div>
 
             {feedback.length === 0 ? (
@@ -98,30 +101,32 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback }: Feed
                     {feedback.map((f: any) => (
                         <Card key={f.feedback_id} className="rounded-2xl border-none shadow-sm shadow-indigo-100 hover:shadow-md transition-shadow group relative">
                             {/* Actions Button */}
-                            <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button
-                                            size="icon"
-                                            variant="ghost"
-                                            className="h-6 w-6 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full"
-                                        >
-                                            <MoreVertical className="h-3 w-3" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end" className="w-32">
-                                        <DropdownMenuItem onClick={() => handleEdit(f)} className="text-xs font-bold gap-2">
-                                            <Pencil className="h-3 w-3" /> Edit
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                            onClick={() => handleDelete(f.feedback_id)}
-                                            className="text-xs font-bold gap-2 text-red-600 focus:text-red-700 focus:bg-red-50"
-                                        >
-                                            <Trash2 className="h-3 w-3" /> Delete
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </div>
+                            {!isReadOnly && (
+                                <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                size="icon"
+                                                variant="ghost"
+                                                className="h-6 w-6 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full"
+                                            >
+                                                <MoreVertical className="h-3 w-3" />
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end" className="w-32">
+                                            <DropdownMenuItem onClick={() => handleEdit(f)} className="text-xs font-bold gap-2">
+                                                <Pencil className="h-3 w-3" /> Edit
+                                            </DropdownMenuItem>
+                                            <DropdownMenuItem
+                                                onClick={() => handleDelete(f.feedback_id)}
+                                                className="text-xs font-bold gap-2 text-red-600 focus:text-red-700 focus:bg-red-50"
+                                            >
+                                                <Trash2 className="h-3 w-3" /> Delete
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
+                            )}
 
                             <CardHeader className="pb-3 border-b border-slate-50 cursor-pointer hover:bg-slate-50/50 transition-colors" onClick={() => handleView(f)}>
                                 <div className="flex justify-between items-start pr-8">
