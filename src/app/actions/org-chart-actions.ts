@@ -20,7 +20,15 @@ export type OrgNode = {
     candidate_id?: string | null
     linkedin?: string | null
     checked?: string | null
-    is_verified?: boolean
+    is_verified?: string | null // TRUE, FALSE, NOT_MATCH
+    match_status?: 'matched' | 'mismatch_company' | 'mismatch_position' | 'n8n_processing' | 'unmapped'
+    current_experience?: {
+        company_id?: string
+        company: string
+        position: string
+        is_current_job: string
+        start_date: string | null
+    } | null
     children?: OrgNode[]
 }
 
@@ -32,11 +40,16 @@ export type RawOrgNode = {
     parent_name: string | null
     matched_candidate_id: string | null
     linkedin: string | null
-    is_verified: boolean
+    is_verified: string | null // TRUE, FALSE, NOT_MATCH
+    match_status?: 'matched' | 'mismatch_company' | 'mismatch_position' | 'n8n_processing' | 'unmapped'
+    current_experience?: {
+        company: string
+        position: string
+        is_current_job: string
+        start_date: string | null
+    } | null
     created_at: string
     candidate?: {
-        first_name?: string
-        last_name?: string
         name?: string
         photo: string | null
         linkedin?: string | null
@@ -158,14 +171,18 @@ async function fetchCandidatesRobust(ids: string[], names: string[]) {
 }
 
 export async function getOrgNodesRaw(uploadId: string): Promise<RawOrgNode[]> {
-    const { data: nodes, error } = await supabase
-        .from('all_org_nodes')
-        .select('*')
-        .eq('upload_id', uploadId)
-        .order('name', { ascending: true })
+    // 1. Fetch nodes and upload context
+    const [{ data: nodes, error }, { data: upload }] = await Promise.all([
+        supabase.from('all_org_nodes').select('*').eq('upload_id', uploadId).order('name', { ascending: true }),
+        supabase.from('org_chart_uploads').select('company_name').eq('upload_id', uploadId).single()
+    ])
 
     if (error) throw error
+    if (!nodes) return []
 
+    const chartCompany = upload?.company_name || ''
+
+    // 2. Fetch candidate basic info
     const candidateIds = nodes
         .filter((n: any) => n.matched_candidate_id)
         .map((n: any) => n.matched_candidate_id?.trim())
@@ -175,20 +192,45 @@ export async function getOrgNodesRaw(uploadId: string): Promise<RawOrgNode[]> {
         .map((n: any) => n.name?.trim())
         .filter(Boolean)
 
+    const candidates = await fetchCandidatesRobust(candidateIds, candidateNames)
     const idMap = new Map<string, any>()
     const nameMap = new Map<string, any>()
-
-    const candidates = await fetchCandidatesRobust(candidateIds, candidateNames)
 
     candidates.forEach((c: any) => {
         const cId = c.candidate_id?.trim().toUpperCase();
         const cName = c.name?.trim().toLowerCase();
-
         if (cId) idMap.set(cId, c)
         if (cName) nameMap.set(cName, c)
     })
 
-    return nodes.map((n: any) => {
+    // 3. Fetch candidate CURRENT experiences for comparison
+    const experienceMap = new Map<string, any>()
+    if (candidateIds.length > 0) {
+        const { data: experiences } = await supabase
+            .from('candidate_experiences')
+            .select('candidate_id, company_id, company, position, is_current_job, start_date')
+            .in('candidate_id', candidateIds)
+
+        if (experiences) {
+            candidateIds.forEach((id: string) => {
+                const candExps = experiences ? experiences.filter((e: any) => e.candidate_id === id) : [];
+                if (candExps.length > 0) {
+                    let current = candExps.find((e: any) => e.is_current_job === 'Current')
+                    if (!current) {
+                        current = candExps.sort((a: any, b: any) => {
+                            if (!a.start_date) return 1
+                            if (!b.start_date) return -1
+                            return new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
+                        })[0]
+                    }
+                    experienceMap.set(id, current)
+                }
+            })
+        }
+    }
+
+    // 4. Transform and Compare
+    return (nodes as any[]).map((n: any) => {
         const targetId = n.matched_candidate_id?.trim().toUpperCase();
         const targetName = n.name?.trim().toLowerCase();
 
@@ -197,13 +239,40 @@ export async function getOrgNodesRaw(uploadId: string): Promise<RawOrgNode[]> {
             candidate = nameMap.get(targetName)
         }
 
+        const chartCoId = upload?.company_id || ''
+        let matchStatus: 'matched' | 'mismatch_company' | 'mismatch_position' | 'n8n_processing' | 'unmapped' = 'unmapped'
+        let currentExp = null
+
+        if (candidate) {
+            currentExp = experienceMap.get(candidate.candidate_id)
+            if (currentExp) {
+                const candCoId = currentExp.company_id || ''
+                const candPosition = currentExp.position?.toLowerCase() || ''
+                const nodeTitle = n.title?.toLowerCase() || ''
+
+                if (candCoId && chartCoId && candCoId !== chartCoId) {
+                    matchStatus = 'mismatch_company'
+                } else if (candPosition === nodeTitle) {
+                    matchStatus = 'matched'
+                } else {
+                    matchStatus = 'mismatch_position'
+                }
+            } else {
+                matchStatus = n.linkedin ? 'n8n_processing' : 'unmapped'
+            }
+        }
+
         return {
             ...n,
-            is_verified: !!n.is_verified,
+            is_verified: n.is_verified || 'FALSE',
+            match_status: (n.is_verified === 'TRUE' || matchStatus === 'matched') ? 'matched' : 
+                          (matchStatus === 'mismatch_company' || n.is_verified === 'NOT_MATCH') ? 'mismatch_company' :
+                          (candidate || n.linkedin) ? 'mismatch_position' : 'unmapped',
+            current_experience: currentExp,
             candidate: candidate ? {
                 name: candidate.name,
                 photo: candidate.photo,
-                linkedin: candidate.linkedin || n.linkedin, // Prefer candidate's linkedin, fallback to node's
+                linkedin: candidate.linkedin || n.linkedin,
                 checked: candidate.checked,
                 candidate_id: candidate.candidate_id
             } : (n.linkedin ? {
@@ -776,6 +845,10 @@ export async function fetchOrgChartData(uploadId: string) {
     if (error) throw error
     if (!nodes || nodes.length === 0) return null
 
+    // 1. Fetch upload info to get company name
+    const { data: upload } = await supabase.from('org_chart_uploads').select('company_name').eq('upload_id', uploadId).single()
+    const chartCompany = upload?.company_name || ''
+
     const candidateIds = nodes
         .filter((n: any) => n.matched_candidate_id)
         .map((n: any) => n.matched_candidate_id?.trim())
@@ -799,6 +872,32 @@ export async function fetchOrgChartData(uploadId: string) {
         if (cName) nameMap.set(cName, c)
     })
 
+    // 3. Fetch candidate CURRENT experiences for comparison
+    const experienceMap = new Map<string, any>()
+    if (candidateIds.length > 0) {
+        const { data: experiences } = await supabase
+            .from('candidate_experiences')
+            .select('candidate_id, company_id, company, position, is_current_job, start_date')
+            .in('candidate_id', candidateIds)
+
+        if (experiences) {
+            candidateIds.forEach((id: string) => {
+                const candExps = experiences ? experiences.filter((e: any) => e.candidate_id === id) : [];
+                if (candExps.length > 0) {
+                    let current = candExps.find((e: any) => e.is_current_job === 'Current')
+                    if (!current) {
+                        current = candExps.sort((a: any, b: any) => {
+                            if (!a.start_date) return 1
+                            if (!b.start_date) return -1
+                            return new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
+                        })[0]
+                    }
+                    experienceMap.set(id, current)
+                }
+            })
+        }
+    }
+
     const nodeMap = new Map<string, OrgNode>()
     const rawData = nodes.map((n: any) => {
         const targetId = n.matched_candidate_id?.trim().toUpperCase()
@@ -809,17 +908,48 @@ export async function fetchOrgChartData(uploadId: string) {
             candidate = nameMap.get(targetName)
         }
 
+        const chartCoId = upload?.company_id || ''
+        let matchStatus: 'matched' | 'mismatch_company' | 'mismatch_position' | 'n8n_processing' | 'unmapped' = 'unmapped'
+        let currentExp = null
+
         if (candidate) {
-            console.log(`[OrgChart] MATCH SUCCESS: Node '${n.name}' -> Candidate '${candidate.name}'`)
+            currentExp = experienceMap.get(candidate.candidate_id)
+            if (currentExp) {
+                const candCoId = currentExp.company_id || ''
+                const candPosition = currentExp.position?.toLowerCase() || ''
+                const nodeTitle = n.title?.toLowerCase() || ''
+
+                // 1. Check Company Match (Standard for RED)
+                if (candCoId && chartCoId && candCoId !== chartCoId) {
+                    matchStatus = 'mismatch_company'
+                } else if (candPosition === nodeTitle) {
+                    matchStatus = 'matched'
+                } else {
+                    // Position mismatch or missing CoId compare
+                    matchStatus = 'mismatch_position'
+                }
+            } else {
+                // No current exp data in ATS
+                matchStatus = n.linkedin ? 'n8n_processing' : 'unmapped'
+            }
         }
 
         const nodeObj: OrgNode = {
             ...n,
             candidate_photo: candidate?.photo || null,
             candidate_id: candidate?.candidate_id || null,
-            linkedin: candidate?.linkedin || n.linkedin || null, // Logic: UI shows LinkedIn from Candidate OR Node
+            linkedin: candidate?.linkedin || n.linkedin || null,
             checked: candidate?.checked || null,
-            is_verified: !!n.is_verified,
+            is_verified: n.is_verified || 'FALSE',
+            // --- FINAL 5-COLOR LOGIC ---
+            // Green: Verified (TRUE) or Matched (System)
+            // Red: Mismatch Company
+            // Yellow: Unverified (FALSE / Mismatch Position / No Data)
+            // White: Unmapped
+            match_status: (n.is_verified === 'TRUE' || matchStatus === 'matched') ? 'matched' : 
+                          (matchStatus === 'mismatch_company' || n.is_verified === 'NOT_MATCH') ? 'mismatch_company' :
+                          (candidate || n.linkedin) ? 'mismatch_position' : 'unmapped',
+            current_experience: currentExp,
             children: []
         }
         nodeMap.set(n.name, nodeObj)
@@ -1122,3 +1252,37 @@ export async function getOrgChartNodesBrief(uploadId: string) {
     }
     return data 
 }
+
+export async function verifyOrgNode(nodeId: string, status: 'TRUE' | 'NOT_MATCH') {
+    const { error } = await supabase
+        .from('all_org_nodes')
+        .update({ is_verified: status })
+        .eq('node_id', nodeId);
+
+    if (error) {
+        console.error('[VerifyOrgNode] Error:', error);
+        return { success: false, error: error.message };
+    }
+
+    revalidatePath(`/org-chart`);
+    return { success: true };
+}
+
+export async function unlinkOrgNode(nodeId: string, uploadId: string) {
+    const { error } = await supabase
+        .from('all_org_nodes')
+        .update({ 
+            matched_candidate_id: null,
+            is_verified: 'FALSE' 
+        })
+        .eq('node_id', nodeId);
+
+    if (error) {
+        console.error('[UnlinkOrgNode] Error:', error);
+        return { success: false, error: error.message };
+    }
+
+    revalidatePath(`/org-chart`);
+    return { success: true };
+}
+

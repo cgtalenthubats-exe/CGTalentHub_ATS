@@ -16,6 +16,12 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { NodeFormDialog } from './node-form-dialog'
 
 const extractNodes = (node: any): any[] => {
@@ -76,15 +82,19 @@ type OrgChartViewerProps = {
 
 const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, onExpand, onDeleteNode, onAddSubordinate, onReplaceNode, onMoveNode }: any) => {
     const isMatch = !!nodeDatum.matched_candidate_id
-    const isVerified = !!nodeDatum.is_verified
+    const isVerified = nodeDatum.is_verified === 'TRUE'
+    const isNotMatch = nodeDatum.is_verified === 'NOT_MATCH'
     const childCount = nodeDatum._childCount || 0
     const hasChildren = childCount > 0
 
-    const cardColorClass = isMatch 
-        ? (isVerified 
-            ? 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-100' 
-            : 'border-amber-400 bg-amber-50/80 ring-1 ring-amber-100/50')
-        : 'border-slate-200 bg-white'
+    const status = nodeDatum.match_status || (isMatch ? 'matched' : 'unmapped')
+    const current = nodeDatum.current_experience
+
+    let cardColorClass = 'border-slate-200 bg-white'
+    if ((isVerified || status === 'matched')) cardColorClass = 'border-emerald-500 bg-emerald-50 ring-1 ring-emerald-100'
+    else if ((isNotMatch || status === 'mismatch_company')) cardColorClass = 'border-rose-500 bg-rose-50 ring-1 ring-rose-100'
+    else if (status === 'mismatch_position') cardColorClass = 'border-amber-400 bg-amber-50 ring-1 ring-amber-100'
+    else if (status === 'n8n_processing') cardColorClass = 'border-indigo-400 bg-indigo-50 border-dashed animate-pulse'
 
     return (
         <div 
@@ -97,8 +107,8 @@ const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCrea
             style={{
                 display: 'flex', flexDirection: 'column', justifyContent: 'space-between', width: '100%', height: '98px', padding: '10px',
                 borderWidth: '2px', borderRadius: '12px', borderStyle: 'solid', boxSizing: 'border-box', position: 'relative',
-                backgroundColor: isMatch ? (isVerified ? '#ecfdf5' : '#fffbeb') : '#ffffff',
-                borderColor: isMatch ? (isVerified ? '#10b981' : '#fbbf24') : '#e2e8f0',
+                backgroundColor: (isVerified || status === 'matched') ? '#ecfdf5' : ((isNotMatch || status === 'mismatch_company') ? '#fff1f2' : (status === 'mismatch_position' ? '#fffbeb' : (status === 'n8n_processing' ? '#eef2ff' : '#ffffff'))),
+                borderColor: (isVerified || status === 'matched') ? '#10b981' : ((isNotMatch || status === 'mismatch_company') ? '#f43f5e' : (status === 'mismatch_position' ? '#fbbf24' : (status === 'n8n_processing' ? '#818cf8' : '#e2e8f0'))),
                 fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
             }}
         >
@@ -112,9 +122,31 @@ const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCrea
                 </div>
 
                 <div className="flex-1 min-w-0 pr-5">
-                    <h3 className="font-bold text-slate-800 text-[12px] truncate leading-tight" title={nodeDatum.name}>
-                        {nodeDatum.name}
-                    </h3>
+                    <div className="flex items-center gap-1.5">
+                        <h3 className="font-bold text-slate-800 text-[12px] truncate leading-tight" title={nodeDatum.name}>
+                            {nodeDatum.name}
+                        </h3>
+                        {status === 'mismatch_company' && (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <AlertTriangle size={10} className="text-rose-500 cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p className="text-[10px]">Company Mismatch: {current?.company || 'Unknown'}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        )}
+                        {status === 'mismatch_position' && (
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Info size={10} className="text-amber-500 cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p className="text-[10px]">Position Mismatch: {current?.position || 'Unknown'}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        )}
+                    </div>
                     <p className="text-[10px] text-slate-500 font-medium truncate uppercase tracking-tight mt-0.5 leading-tight" title={nodeDatum.title}>
                         {nodeDatum.title || 'Position Not Set'}
                     </p>
@@ -170,7 +202,7 @@ const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCrea
                             variant="ghost" 
                             size="sm" 
                             className={cn("h-6 text-[9px] px-1.5 gap-1 rounded-lg", isVerified ? "text-emerald-700 bg-emerald-100/50" : "text-amber-700 bg-amber-100/50 border border-amber-300")} 
-                            onClick={() => onToggleVerify(nodeDatum.node_id, !isVerified)}
+                            onClick={() => onToggleVerify(nodeDatum)}
                         >
                             <UserCheck size={10} />
                             {isVerified ? "V" : "VERIFY"}
@@ -215,16 +247,20 @@ const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVe
 
     const isTeamGrid = !!nodeDatum.isTeamGrid
     const isMatch = !!nodeDatum.matched_candidate_id
-    const isVerified = !!nodeDatum.is_verified
+    const isVerified = nodeDatum.is_verified === 'TRUE'
+    const isNotMatch = nodeDatum.is_verified === 'NOT_MATCH'
     const childCount = nodeDatum._childCount || 0
     const hasChildren = childCount > 0
 
+    const status = nodeDatum.match_status || (isMatch ? 'matched' : 'unmapped')
+    const current = nodeDatum.current_experience
+
     // Color logic
-    const cardColorClass = isMatch 
-        ? (isVerified 
-            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 ring-2 ring-emerald-100' 
-            : 'border-amber-400 bg-amber-50/80 dark:bg-amber-950/40 ring-2 ring-amber-100/50')
-        : 'border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-sm'
+    let cardColorClass = 'border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 shadow-sm'
+    if ((isVerified || status === 'matched')) cardColorClass = 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 ring-2 ring-emerald-100'
+    else if ((isNotMatch || status === 'mismatch_company')) cardColorClass = 'border-rose-500 bg-rose-50 dark:bg-rose-950/40 ring-2 ring-rose-100'
+    else if (status === 'mismatch_position') cardColorClass = 'border-amber-400 bg-amber-50/80 dark:bg-amber-950/40 ring-2 ring-amber-100/50'
+    else if (status === 'n8n_processing') cardColorClass = 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border-dashed animate-pulse'
 
     if (isTeamGrid && nodeDatum.members) {
         // Multi-Column Grid aligned strictly to D3 base slots to mathematically eliminate overlap
@@ -282,8 +318,8 @@ const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVe
                         onClick={hasChildren ? () => onToggleExpand(nodeDatum.node_id) : undefined}
                         style={{
                             display: 'flex', flexDirection: 'column', width: '100%', height: '100%', padding: '12px', borderWidth: '2px', borderRadius: '12px', borderStyle: 'solid', boxSizing: 'border-box', position: 'relative',
-                            backgroundColor: isMatch ? (isVerified ? '#ecfdf5' : '#fffbeb') : '#ffffff',
-                            borderColor: isMatch ? (isVerified ? '#10b981' : '#fbbf24') : '#e2e8f0',
+                            backgroundColor: (isVerified || status === 'matched') ? '#ecfdf5' : ((isNotMatch || status === 'mismatch_company') ? '#fff1f2' : (status === 'mismatch_position' ? '#fffbeb' : (status === 'n8n_processing' ? '#eef2ff' : '#ffffff'))),
+                            borderColor: (isVerified || status === 'matched') ? '#10b981' : ((isNotMatch || status === 'mismatch_company') ? '#f43f5e' : (status === 'mismatch_position' ? '#fbbf24' : (status === 'n8n_processing' ? '#818cf8' : '#e2e8f0'))),
                             fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
                         }}
                     >
@@ -325,9 +361,31 @@ const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVe
                             </div>
 
                             <div className="flex-1 min-w-0 pr-10" style={{ flex: '1 1 0%', minWidth: 0, paddingRight: '40px' }}> {/* Space for top right icons */}
-                                <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm truncate leading-tight" title={nodeDatum.name} style={{ fontWeight: 700, fontSize: '14px', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0, lineHeight: 1.25 }}>
-                                    {nodeDatum.name}
-                                </h3>
+                                <div className="flex items-center gap-1.5">
+                                    <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm truncate leading-tight" title={nodeDatum.name} style={{ fontWeight: 700, fontSize: '14px', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0, lineHeight: 1.25 }}>
+                                        {nodeDatum.name}
+                                    </h3>
+                                    {status === 'mismatch_company' && (
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <AlertTriangle size={12} className="text-rose-500 cursor-help" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p className="text-xs">Company Mismatch: {current?.company || 'Unknown'}</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    )}
+                                    {status === 'mismatch_position' && (
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                                <Info size={12} className="text-amber-500 cursor-help" />
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                <p className="text-xs">Position Mismatch: {current?.position || 'Unknown'}</p>
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    )}
+                                </div>
                                 <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium line-clamp-2 uppercase tracking-tight leading-tight mt-0.5" title={nodeDatum.title} style={{ fontSize: '11px', color: '#64748b', fontWeight: 500, textTransform: 'uppercase', margin: '2px 0 0 0', lineHeight: 1.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                                     {nodeDatum.title || 'Position Not Set'}
                                 </p>
@@ -365,13 +423,15 @@ const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVe
                                         size="sm"
                                         className={cn(
                                             "h-7 text-[10px] px-2 gap-1 rounded-lg transition-all",
-                                            isVerified ? "text-emerald-600 bg-emerald-100/50 hover:bg-emerald-100 border-none" : "border-amber-500 text-amber-700 bg-amber-100/50 hover:bg-amber-100"
+                                            status === 'matched' ? "text-emerald-600 bg-emerald-100/50 hover:bg-emerald-100 border-none" : 
+                                            status === 'mismatch_company' ? "border-rose-500 text-rose-700 bg-rose-100/50 hover:bg-rose-100" :
+                                            "border-amber-500 text-amber-700 bg-amber-100/50 hover:bg-amber-100"
                                         )}
-                                        onClick={() => onToggleVerify(nodeDatum.node_id, !isVerified)}
-                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', height: '28px', padding: '0 8px', borderRadius: '8px', fontSize: '10px', fontWeight: 600, border: isVerified ? 'none' : '1px solid #f59e0b', backgroundColor: isVerified ? '#d1fae5' : '#fef3c7', color: isVerified ? '#059669' : '#b45309', cursor: 'pointer' }}
+                                        onClick={() => onToggleVerify(nodeDatum)}
+                                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', height: '28px', padding: '0 8px', borderRadius: '8px', fontSize: '10px', fontWeight: 600, border: status === 'matched' ? 'none' : (status === 'mismatch_company' ? '1px solid #f43f5e' : '1px solid #f59e0b'), backgroundColor: status === 'matched' ? '#d1fae5' : (status === 'mismatch_company' ? '#fee2e2' : '#fef3c7'), color: status === 'matched' ? '#059669' : (status === 'mismatch_company' ? '#e11d48' : '#b45309'), cursor: 'pointer' }}
                                     >
-                                        <UserCheck size={12} className={cn(isVerified ? "text-emerald-600" : "text-amber-600")} style={{ width: 12, height: 12 }} />
-                                        {isVerified ? "VERIFIED" : "VERIFY"}
+                                        <UserCheck size={12} className={cn(status === 'matched' ? "text-emerald-600" : (status === 'mismatch_company' ? "text-rose-600" : "text-amber-600"))} style={{ width: 12, height: 12 }} />
+                                        {status === 'matched' ? "VERIFIED" : (status === 'mismatch_company' ? "RE-VERIFY" : "VERIFY")}
                                     </Button>
                                 ) : (
                                     <Button
@@ -395,15 +455,36 @@ const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVe
     )
 }
 
-export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, companyId, uploadId: propUploadId, notes, chartFileUrl, modifyDate: initialModifyDate }: OrgChartViewerProps) {
+import { VerificationDialog } from './verification-dialog'
+import { verifyOrgNode } from '@/app/actions/org-chart-actions'
+
+export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, companyId, uploadId: propUploadId, chartCompanyName = 'Unknown', notes, chartFileUrl, modifyDate: initialModifyDate }: any) {
     const searchParams = useSearchParams()
     const router = useRouter()
     const uploadId = propUploadId || searchParams.get('id')
+
+    useEffect(() => {
+        if (!companyId) return;
+        const channel = supabase
+            .channel('org-chart-updates-' + companyId)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'all_org_nodes', filter: `company_id=eq.${companyId}` },
+                () => { router.refresh(); }
+            )
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    }, [companyId, router]);
     
     // Transform data for grid layout & handling custom expansions
     const [transformedData, setTransformedData] = useState<OrgNode | null>(null)
     const [expandedSet, setExpandedSet] = useState<Set<string>>(new Set())
     
+    // Verification Dialog States
+    const [isVerifyDialogOpen, setIsVerifyDialogOpen] = useState(false)
+    const [nodeToVerify, setNodeToVerify] = useState<any | null>(null)
+    const [isVerifyingNode, setIsVerifyingNode] = useState(false)
+
     // Node Deletion States
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
     const [deleteTarget, setDeleteTarget] = useState<{ node_id: string, name: string } | null>(null)
@@ -421,8 +502,6 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
             const initial = new Set<string>();
             const initExpand = (node: any, depth: number) => {
                 if (!node) return;
-                // Expand top 2 levels by default (Organization, Level 1)
-                // This keeps Steffen/Richard and Pascal Peltier visible.
                 if (depth < 2) initial.add(node.node_id);
                 node.children?.forEach((c: any) => initExpand(c, depth + 1));
             };
@@ -447,8 +526,6 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
             let currentGroupMembers: any[] = [];
 
             for (const child of cloned.children) {
-                // Ensure Depth 1 and below (Steffen, Richard, Pascal P) are initially separated not grouped 
-                // OR if user explicitly expanded them.
                 const isSeparated = depth < 2 || expandedSet.has(child.node_id);
 
                 if (isSeparated) {
@@ -522,6 +599,30 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
             setTransformedData(buildCustomTree(initialData));
         }
     }, [initialData, expandedSet]);
+
+    const openVerifyDialog = (node: any) => {
+        // Only open dialog for Red or Yellow nodes (Mismatches)
+        // If it's already Green (Matched) or Unverified (Gray/White), just toggle normally or open dialog
+        // The user said: "ขั้นตอนการ verify มันไม่ใช่ค่กด แต่ควรจะเปนการกดแล้วเป็น pop up"
+        // So I'll open the dialog for ALL verification attempts on matched nodes.
+        setNodeToVerify(node);
+        setIsVerifyDialogOpen(true);
+    };
+
+    const handleConfirmVerification = async (nodeId: string, status: 'TRUE' | 'NOT_MATCH') => {
+        setIsVerifyingNode(true);
+        try {
+            await verifyOrgNode(nodeId, status);
+            toast.success(status === 'TRUE' ? 'Verified as Correct Match' : 'Flagged as Error');
+            setIsVerifyDialogOpen(false);
+            // Router refresh to sync server components, Realtime will handle the immediate UI update
+            router.refresh();
+        } catch (err) {
+            toast.error('Failed to update verification status');
+        } finally {
+            setIsVerifyingNode(false);
+        }
+    };
 
     const handleToggleExpand = (nodeId: string) => {
         setExpandedSet(prev => {
@@ -790,23 +891,7 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
 
     const unmatchedCount = getUnmatchedNodes(initialData).length
 
-    const handleToggleVerify = async (nodeId: string, verified: boolean) => {
-        try {
-            setVerifyingNodes(prev => new Set(prev).add(nodeId))
-            const { toggleNodeVerification } = await import('@/app/actions/org-chart-actions')
-            await toggleNodeVerification(nodeId, verified)
-            toast.success(verified ? "Candidate verified on OrgChart" : "Verification removed")
-        } catch (err) {
-            console.error('Verify error:', err)
-            toast.error("Failed to update verification status")
-        } finally {
-            setVerifyingNodes(prev => {
-                const next = new Set(prev)
-                next.delete(nodeId)
-                return next
-            })
-        }
-    }
+
 
     const handleBulkCreate = async () => {
         if (!uploadId) return
@@ -904,7 +989,8 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
     }
 
     return (
-        <div ref={captureRef} className="flex flex-col h-full w-full relative rounded-xl overflow-hidden border shadow-sm group bg-white dark:bg-slate-950">
+        <TooltipProvider>
+            <div ref={captureRef} className="flex flex-col h-full w-full relative rounded-xl overflow-hidden border shadow-sm group bg-white dark:bg-slate-950">
             {/* Notes Display Top Right */}
             {notes && (
                 <div className="absolute top-4 right-4 z-10 max-w-[30%]">
@@ -1170,7 +1256,7 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                         <NodeCard
                             {...rd3tProps}
                             onCreateProfile={handleSingleCreate}
-                            onToggleVerify={handleToggleVerify}
+                            onToggleVerify={openVerifyDialog}
                             onToggleExpand={handleToggleExpand}
                             isCreating={creatingNodes.has((rd3tProps.nodeDatum as any).node_id)}
                             isVerifying={verifyingNodes.has((rd3tProps.nodeDatum as any).node_id)}
@@ -1295,6 +1381,16 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                     </div>
                 </DialogContent>
             </Dialog>
+            <VerificationDialog 
+                isOpen={isVerifyDialogOpen}
+                onClose={() => setIsVerifyDialogOpen(false)}
+                node={nodeToVerify}
+                chartCompanyName={chartCompanyName}
+                onConfirmMatch={(id) => handleConfirmVerification(id, 'TRUE')}
+                onFlagError={(id) => handleConfirmVerification(id, 'NOT_MATCH')}
+                isProcessing={isVerifyingNode}
+            />
         </div>
+        </TooltipProvider>
     )
 }

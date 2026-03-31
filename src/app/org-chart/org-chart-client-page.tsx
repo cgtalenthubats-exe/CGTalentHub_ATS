@@ -86,6 +86,7 @@ export function OrgChartClientPage({
                                 companyLogoUrl={companyLogoUrl}
                                 companyId={currentCompanyId}
                                 uploadId={currentUploadId}
+                                chartCompanyName={uploads.find((u: any) => u.upload_id === currentUploadId)?.company_name || 'Unknown'}
                                 notes={notes}
                                 chartFileUrl={chartFileUrl}
                                 modifyDate={modifyDate}
@@ -96,7 +97,12 @@ export function OrgChartClientPage({
                     <TabsContent value="list" className="flex-1 min-h-[750px] md:min-h-[85vh] mt-0">
                         <div className="flex items-start gap-4 h-full w-full">
                             <div className="flex-1 h-full border rounded-xl bg-white dark:bg-slate-950 overflow-hidden shadow-sm">
-                                <OrgNodeTable nodes={tableData} uploadId={currentUploadId} modifyDate={modifyDate} />
+                                <OrgNodeTable 
+                                    nodes={tableData} 
+                                    uploadId={currentUploadId} 
+                                    chartCompanyName={uploads.find((u: any) => u.upload_id === currentUploadId)?.company_name || 'Unknown'}
+                                    modifyDate={modifyDate} 
+                                />
                             </div>
                             {currentCompanyId && (
                                 <div className="w-[340px] shrink-0 h-full overflow-y-auto hidden lg:block rounded-xl">
