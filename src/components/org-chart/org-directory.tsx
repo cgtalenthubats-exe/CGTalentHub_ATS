@@ -12,6 +12,7 @@ type Upload = {
     upload_id: string
     company_name: string
     created_at: string
+    notes?: string
 }
 
 type OrgDirectoryProps = {
@@ -24,14 +25,16 @@ export function OrgDirectory({ uploads, currentId }: OrgDirectoryProps) {
     const [searchTerm, setSearchTerm] = useState('')
     const [isExpanded, setIsExpanded] = useState(!currentId) // Auto-collapse if already viewing an org
 
-    // Group and stabilize uploads (Pre-sorted)
+    // Group and stabilize uploads (Pre-sorted by Name, then Date desc)
     const grouped = useMemo(() => {
         const sortedUploads = [...uploads].sort((a, b) => {
             const nameA = a.company_name.toLowerCase();
             const nameB = b.company_name.toLowerCase();
             if (nameA < nameB) return -1;
             if (nameA > nameB) return 1;
-            return 0;
+            
+            // If names are same, newest first
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
         })
 
         const groups: Record<string, Upload[]> = {}
@@ -50,12 +53,18 @@ export function OrgDirectory({ uploads, currentId }: OrgDirectoryProps) {
         const filtered: Record<string, Upload[]> = {}
         Object.entries(grouped).forEach(([letter, items]) => {
             const matched = items.filter(u =>
-                u.company_name.toLowerCase().includes(searchTerm.toLowerCase())
+                u.company_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                (u.notes && u.notes.toLowerCase().includes(searchTerm.toLowerCase()))
             )
             if (matched.length > 0) filtered[letter] = matched
         })
         return filtered
     }, [grouped, searchTerm])
+
+    // Helper to see if this company name appears multiple times
+    const hasDuplicates = (name: string) => {
+        return uploads.filter(u => u.company_name === name).length > 1
+    }
 
     // Layout configuration (4 rows vertical)
     const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ#'.split('')
@@ -94,7 +103,7 @@ export function OrgDirectory({ uploads, currentId }: OrgDirectoryProps) {
                 <div className="relative w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                     <Input
-                        placeholder="Search company..."
+                        placeholder="Search company or notes..."
                         className="h-9 pl-9 text-xs bg-white dark:bg-slate-950 shadow-sm border-slate-200 dark:border-slate-800 focus:ring-indigo-500 rounded-lg"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -124,20 +133,25 @@ export function OrgDirectory({ uploads, currentId }: OrgDirectoryProps) {
                                         {letter === '#' ? 'Others' : letter}
                                     </div>
                                     <div className="flex flex-col gap-0.5">
-                                        {items?.map(u => (
-                                            <button
-                                                key={u.upload_id}
-                                                onClick={() => handleCompanyClick(u.upload_id)}
-                                                className={cn(
-                                                    "text-[11px] px-2 py-1 rounded-md text-left transition-all truncate hover:bg-white dark:hover:bg-slate-900 hover:shadow-sm border border-transparent",
-                                                    u.upload_id === currentId
-                                                        ? "text-indigo-600 font-bold bg-indigo-50/30 dark:bg-indigo-900/20 border-indigo-200 shadow-sm"
-                                                        : "text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-slate-100"
-                                                )}
-                                            >
-                                                {u.company_name}
-                                            </button>
-                                        ))}
+                                        {items?.map(u => {
+                                            const dateStr = new Date(u.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' })
+                                            return (
+                                                <button
+                                                    key={u.upload_id}
+                                                    onClick={() => handleCompanyClick(u.upload_id)}
+                                                    title={u.notes || u.company_name}
+                                                    className={cn(
+                                                        "text-[11px] px-2 py-1 rounded-md text-left transition-all truncate hover:bg-white dark:hover:bg-slate-900 hover:shadow-sm border border-transparent flex items-center justify-between gap-2 max-w-[200px]",
+                                                        u.upload_id === currentId
+                                                            ? "text-indigo-600 font-bold bg-indigo-50/30 dark:bg-indigo-900/20 border-indigo-200 shadow-sm"
+                                                            : "text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-slate-100"
+                                                    )}
+                                                >
+                                                    <span className="truncate flex-1">{u.company_name}</span>
+                                                    <span className="text-[9px] opacity-60 font-mono shrink-0">({dateStr})</span>
+                                                </button>
+                                            )
+                                        })}
                                         {!hasItems && !searchTerm && (
                                             <div className="text-[11px] px-2 text-slate-300 dark:text-slate-800 italic">
                                                 -

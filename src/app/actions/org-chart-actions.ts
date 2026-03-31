@@ -640,17 +640,6 @@ export async function importOrgChart(uploadId: string, companyName: string, file
     try {
         console.log(`[ImportOrg] Starting processing for Upload ID: ${uploadId}, Company: ${companyName}`)
 
-        // 0. Check for duplicate Org Chart Name
-        const { data: existingChart } = await supabase
-            .from('org_chart_uploads')
-            .select('upload_id')
-            .ilike('company_name', companyName.trim())
-            .maybeSingle()
-
-        if (existingChart) {
-            return { success: false, error: 'An Org Chart with this name already exists. Please use a unique name.' }
-        }
-
         // 1. Lookup company_id
         let companyId = null
         if (companyName) {

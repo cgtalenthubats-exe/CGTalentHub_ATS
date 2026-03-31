@@ -61,13 +61,20 @@ export function OrgChartClientPage({
                         </TabsList>
 
                         {currentUploadId && (
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                    Current Org:
-                                </span>
-                                <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                                    {uploads.find((u: any) => u.upload_id === currentUploadId)?.company_name}
-                                </span>
+                            <div className="flex flex-col items-end gap-0">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                        Current Org:
+                                    </span>
+                                    <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                                        {uploads.find((u: any) => u.upload_id === currentUploadId)?.company_name}
+                                    </span>
+                                </div>
+                                {modifyDate && (
+                                    <span className="text-[9px] text-slate-400 font-medium">
+                                        Uploaded: {new Date(modifyDate).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                    </span>
+                                )}
                             </div>
                         )}
                     </div>
