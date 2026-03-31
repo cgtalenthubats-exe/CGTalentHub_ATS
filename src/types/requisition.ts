@@ -46,6 +46,7 @@ export interface JRCandidate {
     candidate_gender?: string;
     candidate_linkedin_url?: string; // [NEW] Added for Refresh Data payload
     candidate_status?: string; // [NEW] Global status from profile
+    history_count?: number;
 }
 
 export interface JRAnalytics {

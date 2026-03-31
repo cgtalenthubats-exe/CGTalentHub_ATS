@@ -7,18 +7,24 @@ interface CandidateAvatarProps {
     name?: string;
     className?: string;
     style?: React.CSSProperties;
+    hasHistory?: boolean;
+    fallbackClassName?: string;
 }
 
-export function CandidateAvatar({ src, name, className, style }: CandidateAvatarProps) {
+export function CandidateAvatar({ src, name, className, style, hasHistory, fallbackClassName }: CandidateAvatarProps) {
     const defaultAvatar = "https://ddeqeaicjyrevqdognbn.supabase.co/storage/v1/object/public/system/Blank%20Profile.JPG";
     const imgSrc = src || defaultAvatar;
 
     return (
         <div 
-            className={cn("relative overflow-hidden rounded-full flex items-center justify-center shrink-0 bg-slate-100", className)} 
+            className={cn(
+                "relative rounded-full flex items-center justify-center shrink-0 bg-slate-100",
+                hasHistory && "ring-2 ring-yellow-400 ring-offset-2 scale-110 shadow-lg z-20",
+                className
+            )} 
             style={{ 
                 ...style,
-                position: 'relative', overflow: 'hidden', borderRadius: '9999px', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                position: 'relative', borderRadius: '9999px', display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}
         >
             <div 

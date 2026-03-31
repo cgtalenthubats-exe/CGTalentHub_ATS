@@ -425,6 +425,10 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
             <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
                 <div className="flex items-center gap-4">
                     <CardTitle className="text-lg font-semibold">Active Candidates ({filteredCandidates.length})</CardTitle>
+                    <div className="flex items-center gap-2 ml-4 px-2 py-0.5 bg-yellow-50 border border-yellow-200 rounded text-[10px] font-bold text-yellow-700 uppercase tracking-tight">
+                        <div className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+                        Has history in other JRs
+                    </div>
                     {selectedIds.length > 0 && (
                         <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-md animate-in fade-in slide-in-from-left-2 shadow-sm border border-slate-200">
                             <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider pr-2 border-r border-slate-200">{selectedIds.length} Selected</span>
@@ -730,8 +734,9 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
                                         <CandidateAvatar
                                             src={c.candidate_image_url}
                                             name={c.candidate_name}
-                                            className="h-16 w-16 ring-4 ring-white shadow-lg transition-transform hover:scale-105 border-2 border-slate-100"
+                                            className="h-16 w-16 transition-transform hover:scale-105 border-2 border-slate-100"
                                             fallbackClassName="text-xl"
+                                            hasHistory={!!c.history_count && c.history_count > 0}
                                         />
                                     </td>
                                     <td className="px-4 py-4">

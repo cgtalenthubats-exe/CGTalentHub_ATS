@@ -98,7 +98,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
     const jrCandIds = candidates.map(c => c.jr_candidate_id);
     const candidateIds = candidates.map(c => c.candidate_id).filter(Boolean);
 
-    const [profilesResult, experiencesResult, logsResult] = await Promise.all([
+    const [profilesResult, experiencesResult, logsResult, historyResult] = await Promise.all([
         // Query 2: Candidate Profiles
         (supabase
             .from('Candidate Profile' as any)
@@ -116,18 +116,34 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
             .from('status_log')
             .select('log_id, jr_candidate_id, status, timestamp')
             .in('jr_candidate_id', jrCandIds)
-            .returns<{ log_id: number; jr_candidate_id: string; status: string; timestamp: string }[]>()
+            .returns<{ log_id: number; jr_candidate_id: string; status: string; timestamp: string }>(),
+
+        // Query 5: Other JR History Count (Surgical Add)
+        supabase
+            .from('jr_candidates')
+            .select('candidate_id')
+            .neq('jr_id', jrId)
+            .in('candidate_id', candidateIds)
     ]);
 
     const profiles = profilesResult.data;
     const experiences = experiencesResult.data;
     const logs = logsResult.data;
+    const historyData = (historyResult as any)?.data;
 
     if (experiencesResult.error) {
         console.error('[getJRCandidates] candidate_experiences fetch error:', experiencesResult.error);
     }
 
     // Build lookup maps
+    const historyMap = new Map<string, number>();
+    if (historyData) {
+        historyData.forEach((row: any) => {
+            const cid = row.candidate_id;
+            historyMap.set(cid, (historyMap.get(cid) || 0) + 1);
+        });
+    }
+
     const profileMap = new Map((profiles as any)?.map((p: any) => [p.candidate_id, p]));
 
     // Build experience map: prefer is_current_job='Current', else most recent by start_date
@@ -200,6 +216,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
             candidate_gender: profile?.gender || undefined,
             candidate_status: profile?.candidate_status || undefined,
             candidate_linkedin_url: profile?.linkedin || undefined,
+            history_count: historyMap.get(row.candidate_id) || 0,
         };
     });
 
