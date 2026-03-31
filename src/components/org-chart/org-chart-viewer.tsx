@@ -119,6 +119,11 @@ const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCrea
                         name={nodeDatum.name} 
                         className="h-10 w-10 shrink-0" 
                     />
+                    {hasChildren && (
+                        <Badge className="absolute -bottom-1 -right-1 px-1 py-0 h-4 min-w-[16px] text-[8px] bg-indigo-600 text-white border-white border-2 flex items-center justify-center rounded-full pointer-events-none">
+                            {childCount}
+                        </Badge>
+                    )}
                 </div>
 
                 <div className="flex-1 min-w-0 pr-5">
@@ -526,7 +531,7 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
             let currentGroupMembers: any[] = [];
 
             for (const child of cloned.children) {
-                const isSeparated = depth < 2 || expandedSet.has(child.node_id);
+                const isSeparated = depth < 1 || expandedSet.has(child.node_id);
 
                 if (isSeparated) {
                     newChildren.push(buildCustomTree(child, depth + 1));
