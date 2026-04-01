@@ -74,6 +74,17 @@ export default function AISearchPage() {
         fetchResults(sessionId);
     };
 
+    const handleDeleteSessionSuccess = (sessionId: string) => {
+        // If the deleted session was the active one, clear everything
+        if (activeSessionId === sessionId) {
+            setActiveSessionId(null);
+            setResults([]);
+            setSearchJob(null);
+            setPipelineStatuses([]);
+            setSessionStatus(null);
+        }
+    };
+
     const fetchResults = async (sessionId: string, isSilent = false) => {
         if (!isSilent) setLoadingResults(true);
         try {
@@ -214,7 +225,7 @@ export default function AISearchPage() {
                                 animate={{ opacity: 1 }}
                                 className="text-lg font-bold text-slate-900 tracking-tight whitespace-nowrap"
                             >
-                                AI Candidate Search
+                                AI Primary Search
                             </motion.h1>
                         )}
                     </div>
@@ -227,6 +238,7 @@ export default function AISearchPage() {
                             />
                             <SearchHistory
                                 onSelectSession={handleSelectSession}
+                                onDeleteSuccess={handleDeleteSessionSuccess}
                                 activeSessionId={activeSessionId}
                                 refreshTrigger={refreshTrigger}
                             />
@@ -249,60 +261,44 @@ export default function AISearchPage() {
             <div className="flex-1 flex flex-col relative overflow-hidden h-full">
                 {/* Header / Breadcrumb Area - Sticky or Fixed? Let's keep it scrollable for now or sticky */}
                 <div className="bg-white/80 backdrop-blur-md border-b px-6 py-3 z-10 flex justify-between items-center sticky top-0">
-                    <AtsBreadcrumb items={[{ label: 'AI Search' }]} />
+                    <AtsBreadcrumb items={[{ label: 'AI Primary Search' }]} />
                     {userInfo(sessionStatus)}
                 </div>
 
                 <main className="flex-1 overflow-y-auto overflow-x-hidden p-6 relative">
-                    <div className="max-w-7xl mx-auto space-y-6">
+                    <div className="max-w-5xl mx-auto space-y-6">
 
-                        <div className="flex justify-between items-end">
+                        {searchJob?.original_query && (
+                            <motion.div 
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="mb-6 bg-indigo-50/50 border border-indigo-100/50 rounded-2xl p-6 relative overflow-hidden"
+                            >
+                                <div className="absolute -right-4 -top-4 opacity-5 rotate-12">
+                                    <Sparkles className="w-24 h-24 text-indigo-600" />
+                                </div>
+                                <div className="text-[10px] uppercase font-black tracking-widest text-indigo-400 mb-2 flex items-center gap-2">
+                                    <Sparkles className="w-3 h-3" /> Current Search Framework
+                                </div>
+                                <h3 className="text-lg font-bold text-slate-800 leading-relaxed italic">
+                                    &quot;{searchJob.original_query}&quot;
+                                </h3>
+                            </motion.div>
+                        )}
+
+                        <div className="flex justify-between items-end border-b border-slate-200 pb-4">
                             <div>
-                                <h2 className="text-lg font-semibold text-slate-700 flex items-center gap-2">
+                                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
                                     Search Results
                                     {activeSessionId && (
-                                        <span className="text-xs font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full font-mono">
-                                            {activeSessionId.slice(0, 8)}...
+                                        <span className="text-[10px] font-mono font-normal text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full border">
+                                            {activeSessionId.slice(0, 8)}
                                         </span>
                                     )}
                                 </h2>
-                                <p className="text-xs text-slate-500 mt-1">
-                                    AI-powered analysis from internal & external sources
+                                <p className="text-xs text-slate-500 mt-1 font-medium">
+                                    AI-refined matches from internal talent pool & external market
                                 </p>
-                            </div>
-
-                            {/* Source Filter Tabs */}
-                             {/* Source Filter Tabs & Quick Actions */}
-                            <div className="flex items-center gap-3">
-                                {results.some(r => r.source === 'external_db' && !r.onboarded_id) && (
-                                    <button
-                                        onClick={handleOnboardAll}
-                                        disabled={onboardingIds.length > 0}
-                                        className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold uppercase tracking-widest rounded-lg border border-emerald-100 hover:bg-emerald-100 transition-all disabled:opacity-50"
-                                    >
-                                        <UserPlus className="w-3 h-3" /> Onboard All Market Results
-                                    </button>
-                                )}
-                                <div className="flex bg-slate-100 p-1 rounded-lg">
-                                    <button
-                                        onClick={() => setFilterSource('all')}
-                                        className={`px-3 py-1 text-xs font-medium rounded-md transition-all ${filterSource === 'all' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                    >
-                                        All Candidates
-                                    </button>
-                                    <button
-                                        onClick={() => setFilterSource('internal')}
-                                        className={`px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5 ${filterSource === 'internal' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                    >
-                                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" /> Internal
-                                    </button>
-                                    <button
-                                        onClick={() => setFilterSource('external')}
-                                        className={`px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5 ${filterSource === 'external' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                                    >
-                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> External
-                                    </button>
-                                </div>
                             </div>
                         </div>
 
@@ -375,6 +371,9 @@ export default function AISearchPage() {
                                 onOnboard={handleOnboard}
                                 onBulkOnboard={handleBulkOnboard}
                                 onboardingIds={onboardingIds}
+                                filterSource={filterSource}
+                                onFilterSourceChange={setFilterSource}
+                                onOnboardAll={handleOnboardAll}
                             />
                         </div>
                     </div>

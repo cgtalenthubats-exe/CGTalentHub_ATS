@@ -125,7 +125,7 @@ export function ChatWidget() {
                                 <Bot className="w-4 h-4 text-white" />
                             </div>
                             <div>
-                                <p className="text-white text-sm font-bold leading-none">ATS Assistant</p>
+                                <p className="text-white text-sm font-bold leading-none">AI Power Search</p>
                                 <p className="text-violet-200 text-[10px] mt-0.5">RAG · n8n · Supabase</p>
                             </div>
                         </div>
@@ -202,7 +202,7 @@ export function ChatWidget() {
                         ? 'bg-slate-700 hover:bg-slate-800'
                         : 'bg-gradient-to-br from-violet-600 to-indigo-600 hover:scale-110 hover:shadow-violet-300/50 hover:from-violet-500 hover:to-indigo-500'
                     }`}
-                title="ATS Assistant"
+                title="AI Power Search"
             >
                 {isOpen ? <X className="w-5 h-5 text-white" /> : <Bot className="w-6 h-6 text-white" />}
                 {!isOpen && <span className="absolute w-14 h-14 rounded-full bg-violet-400 opacity-30 animate-ping" />}

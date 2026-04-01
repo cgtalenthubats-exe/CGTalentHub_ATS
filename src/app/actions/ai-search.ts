@@ -200,8 +200,7 @@ export async function getInternalCandidateDetails(candidateId: string) {
                 ...(enhance || {}),
                 experiences: (experiences || []).map((e: any) => ({
                     ...e,
-                    // Ensure company name is mapped to company
-                    company: e.company || e.company_name || 'Unknown Company',
+                    company: e.company || e.company_name || e.company_name_text || 'Unknown Company',
                     start_date: e.start_date,
                     end_date: e.end_date,
                     is_current: e.is_current_job === 'Current',
@@ -273,8 +272,7 @@ export async function getExternalCandidateDetails(extCandidateId: string) {
                 ...profile,
                 ...(enhance || {}), // Spread enhance if exists, otherwise empty
                 experiences: (experiences || []).map((e: any) => ({
-                    ...e,
-                    company: e.company || e.company_name || 'Unknown Company',
+                    company: e.company || e.company_name || e.company_name_text || 'Unknown Company',
                     start_date: e.start_date,
                     end_date: e.end_date,
                     is_current: e.is_current_job === 'Current',
@@ -589,6 +587,40 @@ export async function bulkOnboardExternalCandidates(extRefIds: string[], userEma
 
     } catch (error: any) {
         console.error("Bulk Onboard Error:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+// --- 9. Delete Search Session ---
+export async function deleteSearchSession(sessionId: string) {
+    try {
+        // 1. Delete Results (session-specific)
+        const { error: resError } = await supabase
+            .from('consolidated_results')
+            .delete()
+            .eq('session_id', sessionId);
+        
+        if (resError) throw resError;
+
+        // 2. Delete Statuses (session-specific)
+        const { error: statusError } = await supabase
+            .from('search_job_status')
+            .delete()
+            .eq('session_id', sessionId);
+
+        if (statusError) throw statusError;
+
+        // 3. Delete Search Job (The history entry)
+        const { error: jobError } = await supabase
+            .from('search_jobs')
+            .delete()
+            .eq('session_id', sessionId);
+
+        if (jobError) throw jobError;
+
+        return { success: true };
+    } catch (error: any) {
+        console.error("Delete Search Session Error:", error);
         return { success: false, error: error.message };
     }
 }

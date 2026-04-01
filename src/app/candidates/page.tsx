@@ -183,7 +183,7 @@ export default function CandidatesMenuPage() {
 
                 {/* 1. Search */}
                 <MenuCard
-                    title="Search by Keyword"
+                    title="AI Primary Search"
                     icon={Search}
                     color="bg-blue-500"
                     description="AI-powered resume search"

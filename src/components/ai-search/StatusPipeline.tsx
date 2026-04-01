@@ -17,19 +17,40 @@ export function StatusPipeline({ statuses }: StatusPipelineProps) {
 
     if (filteredStatuses.length === 0) return null;
 
+
     const agents = [
-        { key: "summary_agent_1", label: "Agent 1" },
-        { key: "summary_agent_2", label: "Agent 2" },
-        { key: "summary_agent_3", label: "Agent 3" },
-        { key: "summary_agent_4", label: "Agent 4" },
+        { key: "summary_agent_1" },
+        { key: "summary_agent_2" },
+        { key: "summary_agent_3" },
+        { key: "summary_agent_4" },
     ];
 
-    const getSourceLabel = (source: string) => {
-        switch (source) {
-            case 'Internal_db': return 'Internal DB';
-            case 'external_db': return 'External DB';
-            default: return source;
+    const getAgentLabel = (source: string, key: string) => {
+        const isExternal = source.toLowerCase() === 'external_db';
+        if (isExternal) {
+            switch (key) {
+                case 'summary_agent_1': return 'Perplexity&Gemini Find company';
+                case 'summary_agent_2': return 'Perplexity Find Candidate and news';
+                case 'summary_agent_3': return 'Gemini Extract data';
+                case 'summary_agent_4': return 'Gemini Profile Evaluation';
+                default: return key;
+            }
+        } else {
+            switch (key) {
+                case 'summary_agent_1': return 'Gemini Set Target';
+                case 'summary_agent_2': return 'Gemini Find Matched Candidates';
+                case 'summary_agent_3': return 'Gemini Extract data';
+                case 'summary_agent_4': return 'Gemini Profile Evaluation';
+                default: return key;
+            }
         }
+    };
+
+    const getSourceLabel = (source: string) => {
+        const s = source.toLowerCase();
+        if (s === 'internal_db') return 'Internal DB';
+        if (s === 'external_db') return 'External DB';
+        return source;
     };
 
     return (
@@ -68,8 +89,8 @@ export function StatusPipeline({ statuses }: StatusPipelineProps) {
                                             ) : (
                                                 <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                                             )}
-                                            <span className={`text-xs font-medium ${isEmpty ? 'text-slate-400' : 'text-slate-700'}`}>
-                                                {agent.label}
+                                            <span className={`text-[10px] uppercase font-bold tracking-tight ${isEmpty ? 'text-slate-400' : 'text-slate-700'}`}>
+                                                {getAgentLabel(status.source, agent.key)}
                                             </span>
                                         </div>
                                         {value && !isWaiting && (

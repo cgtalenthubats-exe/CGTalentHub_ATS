@@ -3,19 +3,22 @@
 import React, { useEffect, useState } from "react";
 import { getSearchHistory } from "@/app/actions/ai-search";
 import { SearchJob } from "./types";
-import { Loader2, Clock, CheckCircle2, XCircle, ChevronRight, RefreshCw, FileText } from "lucide-react";
+import { Loader2, Clock, CheckCircle2, XCircle, ChevronRight, RefreshCw, FileText, Trash2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { deleteSearchSession } from "@/app/actions/ai-search";
+import { toast } from "sonner";
 
 interface SearchHistoryProps {
     onSelectSession: (sessionId: string) => void;
+    onDeleteSuccess?: (sessionId: string) => void;
     activeSessionId?: string | null;
     refreshTrigger?: number; // Prop to trigger refresh from parent
 }
 
-export function SearchHistory({ onSelectSession, activeSessionId, refreshTrigger }: SearchHistoryProps) {
+export function SearchHistory({ onSelectSession, onDeleteSuccess, activeSessionId, refreshTrigger }: SearchHistoryProps) {
     const [history, setHistory] = useState<SearchJob[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -26,6 +29,28 @@ export function SearchHistory({ onSelectSession, activeSessionId, refreshTrigger
             setHistory(res.data);
         }
         setLoading(false);
+    };
+
+    const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
+        e.stopPropagation();
+        if (!window.confirm("Are you sure you want to delete this search session? This will remove all AI results for this search.")) {
+            return;
+        }
+
+        try {
+            const res = await deleteSearchSession(sessionId);
+            if (res.success) {
+                toast.success("Search history deleted successfully");
+                fetchHistory();
+                if (onDeleteSuccess) {
+                    onDeleteSuccess(sessionId);
+                }
+            } else {
+                toast.error(`Failed to delete: ${res.error}`);
+            }
+        } catch (error) {
+            toast.error("An error occurred during deletion");
+        }
     };
 
     useEffect(() => {
@@ -83,6 +108,15 @@ export function SearchHistory({ onSelectSession, activeSessionId, refreshTrigger
                                             <span className="truncate max-w-[200px]">Result Available</span>
                                         </div>
                                     )}
+
+                                    {/* Inline Delete Button - Re-positioned to avoid overlap */}
+                                    <button
+                                        onClick={(e) => handleDelete(e, job.session_id)}
+                                        className="absolute bottom-2 right-2 p-1.5 rounded-md text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-40 group-hover:opacity-100 transition-all border border-transparent hover:border-red-100 shadow-sm sm:shadow-none"
+                                        title="Delete Session"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
                                 </div>
                             ))}
                         </div>

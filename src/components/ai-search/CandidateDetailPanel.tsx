@@ -25,13 +25,60 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ExternalExperienceTable } from "./ExternalExperienceTable";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence as FramerAnimatePresence } from "framer-motion";
+import { Search, BrainCircuit, ChevronDown as ChevronDownIcon, ChevronUp as ChevronUpIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Props {
     result: ConsolidatedResult;
     onClose: () => void;
     onImportToJR?: (id: string) => void;
 }
+
+const ExpandableText = ({ text, title, icon: Icon, colorClass, borderClass, bgClass, labelColor }: any) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+    
+    // Robust text retrieval
+    let finalSelection = "";
+    if (text) {
+        if (typeof text === 'string') {
+            finalSelection = text;
+        } else if (typeof text === 'object') {
+            // If it's the skills_analysis object, it might have a "Strategic Focus" key or just pick the first value
+            finalSelection = text["Strategic Focus"] || Object.values(text)[0] as string || JSON.stringify(text);
+        }
+    }
+
+    if (!finalSelection) return null;
+
+    const shouldTruncate = finalSelection.length > 280;
+    const displayText = isExpanded || !shouldTruncate ? finalSelection : finalSelection.slice(0, 280) + "...";
+
+    return (
+        <div className={cn("p-6 rounded-2xl border shadow-sm transition-all duration-300", bgClass, borderClass)}>
+            <h4 className={cn("text-[10px] font-black uppercase tracking-[0.2em] mb-4 flex items-center gap-2", labelColor)}>
+                <Icon className="w-4 h-4" /> {title}
+            </h4>
+            <div className="relative">
+                <p className={cn("text-sm leading-relaxed font-medium transition-all duration-300", colorClass)}>
+                    {displayText}
+                </p>
+                {shouldTruncate && (
+                    <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className={cn("mt-3 text-[10px] font-black uppercase tracking-widest flex items-center gap-1 transition-colors", labelColor, "hover:opacity-70")}
+                    >
+                        {isExpanded ? (
+                            <>View Less <ChevronUpIcon className="w-3 h-3" /></>
+                        ) : (
+                            <>View More <ChevronDownIcon className="w-3 h-3" /></>
+                        )}
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+};
 
 export function CandidateDetailPanel({ result, onClose, onImportToJR }: Props) {
     const [detail, setDetail] = useState<ExternalCandidateDetail | null>(null);
@@ -210,6 +257,30 @@ export function CandidateDetailPanel({ result, onClose, onImportToJR }: Props) {
                                 <p className="text-sm text-blue-800 leading-relaxed font-medium">
                                     {result.highlight_project}
                                 </p>
+                            </div>
+                        )}
+
+                        {/* Intelligence Insights (External Only) */}
+                        {result.source === 'external_db' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <ExpandableText
+                                    title="Reputation Check"
+                                    text={detail?.full_resume_text}
+                                    icon={Search}
+                                    bgClass="bg-indigo-50/30"
+                                    borderClass="border-indigo-100"
+                                    colorClass="text-slate-700"
+                                    labelColor="text-indigo-600"
+                                />
+                                <ExpandableText
+                                    title="Strategic Focus"
+                                    text={detail?.skills_analysis}
+                                    icon={BrainCircuit}
+                                    bgClass="bg-emerald-50/30"
+                                    borderClass="border-emerald-100"
+                                    colorClass="text-emerald-900"
+                                    labelColor="text-emerald-700"
+                                />
                             </div>
                         )}
 

@@ -10,6 +10,9 @@ import {
     Sparkles, 
     Loader2,
     History,
+    Plus,
+    Search,
+    Clock,
     RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -31,6 +34,7 @@ interface ChatMessage {
     id: string;
     role: "user" | "assistant";
     content: string;
+    isSystem?: boolean; // New flag
     timestamp: Date;
 }
 
@@ -172,6 +176,7 @@ export default function AssistantPage() {
                 id: `msg_${Date.now()}_a`,
                 role: "assistant",
                 content: data.answer || "ไม่มีคำตอบจากระบบ",
+                isSystem: false, // Default for answer
                 timestamp: new Date(),
             };
             setMessages((prev) => [...prev, assistantMsg]);
@@ -212,14 +217,14 @@ export default function AssistantPage() {
             <div className="flex-1 flex flex-col h-full bg-white relative">
                 <div className="p-4 border-b flex justify-between items-center bg-white z-20">
                     <div className="flex items-center gap-4">
-                        <AtsBreadcrumb items={[{ label: "Assistant" }]} className="mb-0" />
+                        <AtsBreadcrumb items={[{ label: "AI Power Search" }]} className="mb-0" />
                         <Button variant="ghost" size="sm" onClick={handleTestBypass} className="h-8 text-[10px] text-slate-400 border border-slate-100 italic">
                             DEBUG: Test UI
                         </Button>
                     </div>
                     <Button variant="outline" size="sm" onClick={handleNewChat} className="rounded-xl">
-                        <MessageSquarePlus className="w-4 h-4 mr-2" />
-                        New Chat
+                        <Plus className="w-4 h-4 mr-2" />
+                        New Search
                     </Button>
                 </div>
 
@@ -233,31 +238,158 @@ export default function AssistantPage() {
                     )}
                     
                     {!isHistoryLoading && messages.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-full text-center">
-                            <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center mb-4">
-                                <Sparkles className="text-indigo-600" />
+                        <div className="flex-1 flex flex-col items-center justify-center p-8 max-w-4xl mx-auto w-full">
+                            <div className="mb-8 text-center">
+                                <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-indigo-200">
+                                    <Sparkles className="text-white w-8 h-8" />
+                                </div>
+                                <h1 className="text-3xl font-extrabold text-slate-900 mb-2 tracking-tight">AI Power Search</h1>
+                                <p className="text-slate-500 text-lg font-medium">Smart candidate discovery & pipeline analysis</p>
                             </div>
-                            <h3 className="font-bold text-lg">AI Assistant Ready</h3>
-                            <p className="text-sm text-slate-400">Type a message to start.</p>
-                        </div>
-                    ) : (
-                        messages.map((msg) => (
-                            <div key={msg.id} className={cn("flex gap-3", msg.role === "user" ? "justify-end" : "justify-start")}>
-                                <div className={cn("max-w-[80%] p-3 rounded-xl text-sm", msg.role === "user" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-800 shadow-sm")}>
-                                    <div className="whitespace-pre-wrap font-sans text-xs">
-                                        {typeof msg.content === 'string' ? msg.content : "[Non-string content detected]"}
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full mb-12">
+                                {/* Category 1: Discovery */}
+                                <div className="bg-slate-50/50 border border-slate-100 p-5 rounded-2xl">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-8 h-8 bg-blue-100 rounded-xl flex items-center justify-center">
+                                            <Search className="w-4 h-4 text-blue-600" />
+                                        </div>
+                                        <h3 className="font-bold text-slate-800">Smart Discovery</h3>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {[
+                                            "Find Java Developers in Bangkok with 5+ years experience",
+                                            "Search for candidates who worked at Google or Agoda"
+                                        ].map(query => (
+                                            <button 
+                                                key={query}
+                                                onClick={() => setInput(query)}
+                                                className="w-full text-left p-3 text-[12px] bg-white border border-slate-200 rounded-xl hover:border-blue-400 hover:text-blue-600 transition-all shadow-sm font-medium"
+                                            >
+                                                {query}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Category 2: Insights */}
+                                <div className="bg-slate-50/50 border border-slate-100 p-5 rounded-2xl">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-8 h-8 bg-emerald-100 rounded-xl flex items-center justify-center">
+                                            <Clock className="w-4 h-4 text-emerald-600" />
+                                        </div>
+                                        <h3 className="font-bold text-slate-800">Insights & Stats</h3>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {[
+                                            "Who has the highest ranking in the Project Manager job group?",
+                                            "Summarize candidate nationalities for the Sales position"
+                                        ].map(query => (
+                                            <button 
+                                                key={query}
+                                                onClick={() => setInput(query)}
+                                                className="w-full text-left p-3 text-[12px] bg-white border border-slate-200 rounded-xl hover:border-emerald-400 hover:text-emerald-600 transition-all shadow-sm font-medium"
+                                            >
+                                                {query}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Category 3: Management */}
+                                <div className="bg-slate-50/50 border border-slate-100 p-5 rounded-2xl">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-8 h-8 bg-amber-100 rounded-xl flex items-center justify-center">
+                                            <Bot className="w-4 h-4 text-amber-600" />
+                                        </div>
+                                        <h3 className="font-bold text-slate-800">Management</h3>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {[
+                                            "Why is Sumeth blacklisted? Show me the reason",
+                                            "Create a new Job Requisition for IT: 'Cloud Architect'"
+                                        ].map(query => (
+                                            <button 
+                                                key={query}
+                                                onClick={() => setInput(query)}
+                                                className="w-full text-left p-3 text-[12px] bg-white border border-slate-200 rounded-xl hover:border-amber-500 hover:text-amber-700 transition-all shadow-sm font-medium"
+                                            >
+                                                {query}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Category 4: Research */}
+                                <div className="bg-slate-50/50 border border-slate-100 p-5 rounded-2xl">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-8 h-8 bg-indigo-100 rounded-xl flex items-center justify-center">
+                                            <History className="w-4 h-4 text-indigo-600" />
+                                        </div>
+                                        <h3 className="font-bold text-slate-800">External Research</h3>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {[
+                                            "Latest AI trends in Recruitment for 2024",
+                                            "Find new candidate profiles for 'Machine Learning Engineer' online"
+                                        ].map(query => (
+                                            <button 
+                                                key={query}
+                                                onClick={() => setInput(query)}
+                                                className="w-full text-left p-3 text-[12px] bg-white border border-slate-200 rounded-xl hover:border-indigo-400 hover:text-indigo-600 transition-all shadow-sm font-medium"
+                                            >
+                                                {query}
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
                             </div>
-                        ))
+
+                            <p className="text-[11px] text-slate-400 font-medium bg-slate-50 px-4 py-2 rounded-full border border-slate-100">
+                                💡 Tip: The more specific your query, the better the results. Data is fetched from internal DB and Real-time Search.
+                            </p>
+                        </div>
+                    ) : (
+                        messages.map((msg) => {
+                            if (msg.isSystem) {
+                                // Render technical logs as a subtle, minimal element
+                                return (
+                                    <div key={msg.id} className="flex justify-start px-8">
+                                        <div className="text-[9px] text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 flex items-center gap-2 italic">
+                                            <Bot size={10} className="text-slate-300" />
+                                            {msg.content.length > 60 ? msg.content.slice(0, 60) + "..." : msg.content}
+                                        </div>
+                                    </div>
+                                );
+                            }
+                            
+                            return (
+                                <div key={msg.id} className={cn("flex gap-3", msg.role === "user" ? "justify-end" : "justify-start")}>
+                                    <div className={cn("max-w-[80%] p-3 rounded-xl text-sm", msg.role === "user" ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-800 shadow-sm")}>
+                                        <div className="whitespace-pre-wrap font-sans text-xs">
+                                            {typeof msg.content === 'string' ? msg.content : "[Non-string content detected]"}
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })
                     )}
                     <div ref={messagesEndRef} />
                 </div>
 
                 {/* Input Area */}
                 <div className="p-4 border-t bg-white">
-                    <div className="max-w-3xl mx-auto flex gap-2">
-                        <Textarea
+                    <div className="max-w-3xl mx-auto flex flex-col gap-2">
+                        {/* Tip above input */}
+                        <div className="flex items-center gap-2 px-1 mb-1">
+                            <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                            <p className="text-[10px] text-slate-400 font-medium italic">
+                                Focused on Internal DB. Add <span className="text-indigo-600 font-bold">"Search from Internet"</span> to broaden your discovery.
+                            </p>
+                        </div>
+
+                        <div className="flex gap-2">
+                            <Textarea
                             ref={textareaRef}
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
@@ -281,5 +413,6 @@ export default function AssistantPage() {
                 </div>
             </div>
         </div>
-    );
+    </div>
+);
 }

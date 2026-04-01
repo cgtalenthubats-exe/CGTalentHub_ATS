@@ -169,10 +169,21 @@ export async function getAssistantMessagesByIds(ids: string[]) {
             const type = raw.type?.toLowerCase();
             const role = (type === "human" || type === "user") ? "user" : "assistant";
 
+            // Detect if this is a "system/technical" log (tool calls, internal reasoning)
+            const cleanContent = typeof content === 'string' ? content.trim() : "";
+            const isSystem = cleanContent !== "" && (
+                cleanContent.startsWith("Calling") || 
+                cleanContent.startsWith("Thinking...") ||
+                cleanContent.startsWith("Prompt_User_Message") ||
+                (cleanContent.startsWith("[") && cleanContent.endsWith("]")) ||
+                (cleanContent.startsWith("{") && cleanContent.endsWith("}"))
+            );
+
             return {
                 id: row.id.toString(),
                 role: role,
                 content: content,
+                isSystem: isSystem, // Add flag
                 timestamp: new Date() // Fallback since created_at is missing in this table
             };
         });

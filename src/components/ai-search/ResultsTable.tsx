@@ -33,6 +33,9 @@ interface Props {
     onOnboard?: (id: string, name: string) => void;
     onBulkOnboard?: (ids: string[]) => void;
     onboardingIds?: string[]; // IDs currently being processed
+    filterSource?: 'all' | 'internal' | 'external';
+    onFilterSourceChange?: (source: 'all' | 'internal' | 'external') => void;
+    onOnboardAll?: () => void;
 }
 
 export function ResultsTable({
@@ -46,7 +49,10 @@ export function ResultsTable({
     onBulkAddToJR,
     onOnboard,
     onBulkOnboard,
-    onboardingIds = []
+    onboardingIds = [],
+    filterSource = 'all',
+    onFilterSourceChange,
+    onOnboardAll
 }: Props) {
     if (!results || results.length === 0) {
         return (
@@ -58,7 +64,7 @@ export function ResultsTable({
     }
 
     const Container = disableScroll ? 'div' : ScrollArea;
-    const containerClasses = disableScroll ? 'pr-1' : 'flex-1 pr-1';
+    const containerClasses = disableScroll ? 'w-full px-1' : 'flex-1 w-full px-1';
 
     return (
         <div className={cn("flex flex-col bg-slate-50/50 p-1 relative", !disableScroll && "h-full")}>
@@ -66,17 +72,109 @@ export function ResultsTable({
                 {/* Header with Select All */}
                 {results.length > 0 && onToggleSelectAll && (
                     <div className="flex items-center gap-3 px-4 py-2 bg-white/50 border-b border-slate-200/50 sticky top-0 z-20 backdrop-blur-sm">
-                        <Checkbox
-                            checked={selectedIds.length === results.length && results.length > 0}
-                            onCheckedChange={() => onToggleSelectAll(results.map(r => r.id))}
-                            className="border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
-                        />
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                            Select All Candidates ({results.length})
-                        </span>
+                        <div className="flex items-center gap-3">
+                            <Checkbox
+                                checked={selectedIds.length === results.length && results.length > 0}
+                                onCheckedChange={() => onToggleSelectAll(results.map(r => r.id))}
+                                className="border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
+                            />
+                            <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                Select All ({results.length})
+                            </span>
+                        </div>
+
+                        {/* Bulk Actions at Top */}
+                        <AnimatePresence>
+                            {selectedIds.length > 0 && (
+                                <motion.div
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    exit={{ opacity: 0, x: 20 }}
+                                    className="flex items-center gap-2"
+                                >
+                                    <div className="h-6 w-px bg-slate-200 mx-1" />
+                                    <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded truncate">
+                                        {selectedIds.length} Selected
+                                    </span>
+                                    {onBulkAddToJR && (
+                                        <Button
+                                            size="sm"
+                                            onClick={() => onBulkAddToJR(selectedIds)}
+                                            className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] uppercase tracking-wide gap-1.5"
+                                        >
+                                            <Plus className="w-3 h-3" /> Add to JR
+                                        </Button>
+                                    )}
+                                    {onBulkOnboard && results.some(r => selectedIds.includes(r.id) && r.source === 'external_db' && !r.onboarded_id) && (
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => onBulkOnboard(selectedIds.filter(id => {
+                                                const r = results.find(res => res.id === id);
+                                                return r?.source === 'external_db' && !r.onboarded_id;
+                                            }))}
+                                            className="h-8 border-slate-200 text-slate-600 font-bold text-[10px] uppercase tracking-wide gap-1.5"
+                                        >
+                                            <UserPlus className="w-3 h-3" /> Onboard
+                                        </Button>
+                                    )}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+
+                        <div className="flex-1" />
+
+                        {/* Source Filters & Onboard All */}
+                        <div className="flex items-center gap-3">
+                            {onOnboardAll && results.some(r => r.source === 'external_db' && !r.onboarded_id) && (
+                                <Button
+                                    size="sm"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onOnboardAll();
+                                    }}
+                                    disabled={onboardingIds.length > 0}
+                                    className="h-8 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[10px] uppercase tracking-wide border border-emerald-100 gap-1.5 shadow-none"
+                                >
+                                    <UserPlus className="w-3 h-3" /> Onboard All Market
+                                </Button>
+                            )}
+
+                            {onFilterSourceChange && (
+                                <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                                    <button
+                                        onClick={() => onFilterSourceChange('all')}
+                                        className={cn(
+                                            "px-2.5 py-1 text-[10px] font-bold rounded-md transition-all uppercase tracking-tight",
+                                            filterSource === 'all' ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                                        )}
+                                    >
+                                        All
+                                    </button>
+                                    <button
+                                        onClick={() => onFilterSourceChange('internal')}
+                                        className={cn(
+                                            "px-2.5 py-1 text-[10px] font-bold rounded-md transition-all uppercase tracking-tight flex items-center gap-1",
+                                            filterSource === 'internal' ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                                        )}
+                                    >
+                                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" /> Internal
+                                    </button>
+                                    <button
+                                        onClick={() => onFilterSourceChange('external')}
+                                        className={cn(
+                                            "px-2.5 py-1 text-[10px] font-bold rounded-md transition-all uppercase tracking-tight flex items-center gap-1",
+                                            filterSource === 'external' ? "bg-white text-emerald-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                                        )}
+                                    >
+                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> External
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
-                <div className="grid gap-3 p-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
                     <AnimatePresence mode="popLayout">
                         {results.map((result, index) => (
                             <motion.div
@@ -89,7 +187,7 @@ export function ResultsTable({
                                 <div
                                     onClick={() => onSelectResult(result)}
                                     className={cn(
-                                        "group relative bg-white border rounded-xl p-4 cursor-pointer transition-all duration-300",
+                                        "group relative bg-white border rounded-xl p-4 cursor-pointer transition-all duration-300 w-full overflow-hidden",
                                         "hover:shadow-lg hover:shadow-indigo-500/5 hover:border-indigo-200",
                                         activeResultId === result.id
                                             ? "border-indigo-500 shadow-md ring-1 ring-indigo-500/20"
@@ -162,39 +260,40 @@ export function ResultsTable({
                                             </div>
                                         </div>
 
-                                        {/* Content */}
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-start justify-between gap-2 mb-1">
-                                                <div>
-                                                    <h3 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">
-                                                        {result.name}
-                                                    </h3>
-                                                    <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5">
-                                                        <span className="truncate">{result.position}</span>
-                                                        <span className="w-1 h-1 rounded-full bg-slate-300" />
-                                                        <span className="flex items-center gap-1 truncate">
-                                                            <Building2 className="w-3 h-3" />
-                                                            {result.company}
-                                                        </span>
-                                                    </div>
+                                        <div className="flex-1 min-w-0 overflow-hidden">
+                                            <div className="mb-1">
+                                                <h3 className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">
+                                                    {result.name}
+                                                </h3>
+                                                <div className="flex items-center gap-2 text-xs font-medium text-slate-500 mt-0.5">
+                                                    <span className="truncate">{result.position}</span>
+                                                    <span className="w-1 h-1 rounded-full bg-slate-300" />
+                                                    <span className="flex items-center gap-1 truncate">
+                                                        <Building2 className="w-3 h-3" />
+                                                        {result.company}
+                                                    </span>
                                                 </div>
+                                            </div>
 
+                                            <div className="mt-2 group/summary relative">
+                                                <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed italic px-2 border-l-2 border-slate-100">
+                                                    {result.executive_summary || "No executive summary available."}
+                                                </p>
+                                                <span className="text-[9px] text-indigo-400 font-bold mt-1 block opacity-0 group-hover/summary:opacity-100 transition-opacity">
+                                                    Click to view more details →
+                                                </span>
+                                            </div>
+
+                                            <div className="flex flex-wrap items-center gap-1.5 mt-3">
                                                 <Badge variant="outline" className={cn(
-                                                    "text-[10px] uppercase font-bold border-none h-5 px-2 flex items-center gap-1",
-                                                    result.source === 'internal_db' ? "bg-indigo-50 text-indigo-700" :
-                                                        result.source === 'external_db' ? "bg-emerald-50 text-emerald-700" :
-                                                            "bg-blue-50 text-blue-700"
+                                                    "text-[9px] uppercase font-black border-none h-4 px-1.5 flex items-center gap-1",
+                                                    result.source === 'internal_db' ? "bg-indigo-600 text-white shadow-sm" :
+                                                        result.source === 'external_db' ? "bg-emerald-600 text-white shadow-sm" :
+                                                            "bg-blue-600 text-white shadow-sm"
                                                 )}>
                                                     {getSourceIcon(result.source)}
                                                     {result.source.replace('_db', '')}
                                                 </Badge>
-                                            </div>
-
-                                            <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed mt-2 italic px-2 border-l-2 border-slate-100">
-                                                {result.executive_summary || "No executive summary available."}
-                                            </p>
-
-                                            <div className="flex flex-wrap gap-1.5 mt-3">
                                                 {result.company_tier && (
                                                     <Badge className="text-[9px] h-4 bg-slate-900 hover:bg-slate-900 text-white border-none py-0">
                                                         {result.company_tier}
@@ -253,45 +352,6 @@ export function ResultsTable({
                 Found {results.length} qualified candidates for this search
             </div>
 
-            {/* Selection Toolbar */}
-            <AnimatePresence>
-                {selectedIds.length > 0 && (
-                    <motion.div
-                        initial={{ y: 100, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        exit={{ y: 100, opacity: 0 }}
-                        className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-4 bg-slate-900 text-white px-6 py-3 rounded-2xl shadow-2xl border border-white/10 ring-1 ring-black/50"
-                    >
-                        <div className="flex flex-col">
-                            <span className="text-xs font-bold">{selectedIds.length} Selected</span>
-                            <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap">Bulk Action</span>
-                        </div>
-                        <div className="w-px h-8 bg-white/10 mx-2" />
-                        <div className="flex items-center gap-2">
-                            {onBulkAddToJR && (
-                                <Button
-                                    onClick={() => onBulkAddToJR(selectedIds)}
-                                    className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-10 px-6 font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
-                                >
-                                    <Plus className="w-4 h-4" /> Add to Job Requisition
-                                </Button>
-                            )}
-                            {onBulkOnboard && results.some(r => selectedIds.includes(r.id) && r.source === 'external_db' && !r.onboarded_id) && (
-                                <Button
-                                    variant="outline"
-                                    onClick={() => onBulkOnboard(selectedIds.filter(id => {
-                                        const r = results.find(res => res.id === id);
-                                        return r?.source === 'external_db' && !r.onboarded_id;
-                                    }))}
-                                    className="bg-transparent border-white/20 hover:bg-white/10 text-white rounded-xl h-10 px-6 font-bold flex items-center gap-2 transition-all active:scale-95"
-                                >
-                                    <UserPlus className="w-4 h-4" /> Onboard to Pool
-                                </Button>
-                            )}
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
         </div >
     );
 }
