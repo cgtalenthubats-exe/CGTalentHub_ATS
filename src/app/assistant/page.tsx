@@ -217,7 +217,7 @@ export default function AssistantPage() {
             <div className="flex-1 flex flex-col h-full bg-white relative">
                 <div className="p-4 border-b flex justify-between items-center bg-white z-20">
                     <div className="flex items-center gap-4">
-                        <AtsBreadcrumb items={[{ label: "AI Power Search" }]} className="mb-0" />
+                        <AtsBreadcrumb items={[{ label: "AI Primary Search" }]} className="mb-0" />
                         <Button variant="ghost" size="sm" onClick={handleTestBypass} className="h-8 text-[10px] text-slate-400 border border-slate-100 italic">
                             DEBUG: Test UI
                         </Button>
@@ -243,7 +243,7 @@ export default function AssistantPage() {
                                 <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-indigo-200">
                                     <Sparkles className="text-white w-8 h-8" />
                                 </div>
-                                <h1 className="text-3xl font-extrabold text-slate-900 mb-2 tracking-tight">AI Power Search</h1>
+                                <h1 className="text-3xl font-extrabold text-slate-900 mb-2 tracking-tight">AI Primary Search</h1>
                                 <p className="text-slate-500 text-lg font-medium">Smart candidate discovery & pipeline analysis</p>
                             </div>
 

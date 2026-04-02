@@ -225,7 +225,7 @@ export default function AISearchPage() {
                                 animate={{ opacity: 1 }}
                                 className="text-lg font-bold text-slate-900 tracking-tight whitespace-nowrap"
                             >
-                                AI Primary Search
+                                AI Power Search
                             </motion.h1>
                         )}
                     </div>
@@ -261,7 +261,7 @@ export default function AISearchPage() {
             <div className="flex-1 flex flex-col relative overflow-hidden h-full">
                 {/* Header / Breadcrumb Area - Sticky or Fixed? Let's keep it scrollable for now or sticky */}
                 <div className="bg-white/80 backdrop-blur-md border-b px-6 py-3 z-10 flex justify-between items-center sticky top-0">
-                    <AtsBreadcrumb items={[{ label: 'AI Primary Search' }]} />
+                    <AtsBreadcrumb items={[{ label: 'AI Power Search' }]} />
                     {userInfo(sessionStatus)}
                 </div>
 
