@@ -237,11 +237,19 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
 
     const handleCopy = async (ids: string[], targetJrId: string) => {
         setLoading(true);
-        const { success, error } = await copyCandidatesToJR(ids, targetJrId, updatedBy);
-        if (success) {
-            alert("Candidates copied successfully!");
+        const res = await copyCandidatesToJR(ids, targetJrId, updatedBy);
+        if (res.success) {
+            const added = res.addedCount ?? 0;
+            const skipped = res.skippedCount ?? 0;
+            if (added === 0) {
+                toast.info(`All selected candidates are already present in the target JR.`);
+            } else {
+                toast.success(
+                    `Successfully copied ${added} candidates! ${skipped > 0 ? `(${skipped} were already in target and skipped)` : ""}`
+                );
+            }
         } else {
-            alert("Copy error: " + error);
+            toast.error("Copy error: " + res.error);
         }
         setLoading(false);
     };

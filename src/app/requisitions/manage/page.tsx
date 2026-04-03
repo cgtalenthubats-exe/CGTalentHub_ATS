@@ -72,7 +72,7 @@ export default function JRManagePage() {
 
     // Audit State
     const [profiles, setProfiles] = useState<{ email: string; real_name: string }[]>([]);
-    const [selectedCreatedBy, setSelectedCreatedBy] = useState("All Users");
+    const [selectedCreatedBy, setSelectedCreatedBy] = useState("System");
 
     // No longer adding tabs in a side effect of selectedJR to avoid loops.
     // Instead, it's handled inside the loadSelectedJR function when identity is confirmed.

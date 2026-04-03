@@ -176,7 +176,29 @@ export async function copyCandidatesToJR(jrCandidateIds: string[], targetJrId: s
         if (fetchError) throw fetchError;
         if (!source || source.length === 0) throw new Error("No candidates found to copy");
 
-        // 2. Prepare for insert (get max jr_candidate_id)
+        // 2. DUPLICATE CHECK: Get existing candidate_ids in target JR
+        const targetCandidateIds = source.map(s => s.candidate_id);
+        const { data: existingInTarget, error: checkError } = await supabase
+            .from('jr_candidates')
+            .select('candidate_id')
+            .eq('jr_id', targetJrId)
+            .in('candidate_id', targetCandidateIds);
+
+        if (checkError) throw checkError;
+
+        const alreadyPresentIds = new Set((existingInTarget as any[] || []).map(row => row.candidate_id));
+        const filteredToCopy = source.filter(s => !alreadyPresentIds.has(s.candidate_id));
+
+        if (filteredToCopy.length === 0) {
+            return { 
+                success: true, 
+                addedCount: 0, 
+                skippedCount: source.length,
+                message: "All selected candidates are already present in target JR."
+            };
+        }
+
+        // 3. Prepare for insert (get max jr_candidate_id)
         const { data: maxIdResult } = await supabase
             .from('jr_candidates')
             .select('jr_candidate_id')
@@ -190,8 +212,8 @@ export async function copyCandidatesToJR(jrCandidateIds: string[], targetJrId: s
             nextIdNum = parseInt(maxRow.jr_candidate_id) + 1;
         }
 
-        // 3. Insert into target JR
-        const insertData = source.map((s, index) => ({
+        // 4. Insert into target JR
+        const insertData = filteredToCopy.map((s, index) => ({
             jr_candidate_id: (nextIdNum + index).toString(),
             jr_id: targetJrId,
             candidate_id: s.candidate_id,
@@ -206,7 +228,7 @@ export async function copyCandidatesToJR(jrCandidateIds: string[], targetJrId: s
 
         if (insertError) throw insertError;
 
-        // 4. Create initial status logs for the copies
+        // 5. Create initial status logs for the copies
         const { data: maxLogResult } = await supabase
             .from('status_log')
             .select('log_id')
@@ -236,7 +258,11 @@ export async function copyCandidatesToJR(jrCandidateIds: string[], targetJrId: s
         await supabase.from('status_log').insert(logsInsert as any);
 
         revalidatePath("/requisitions/manage");
-        return { success: true };
+        return { 
+            success: true, 
+            addedCount: filteredToCopy.length, 
+            skippedCount: alreadyPresentIds.size 
+        };
     } catch (e: any) {
         console.error("Error copying to JR:", e);
         return { success: false, error: e.message };
