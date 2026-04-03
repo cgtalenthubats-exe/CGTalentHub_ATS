@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { StatusLog } from "@/types/requisition";
 import { addActivityLog, updateActivityLog, deleteActivityLog } from "@/app/actions/jr-candidate-logs";
 import { getUserProfiles, UserProfile, getCurrentUserRealName } from "@/app/actions/user-actions";
+import { getStatusMaster, StatusMasterRow } from "@/app/actions/status-master";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -29,6 +30,7 @@ export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }
     const [isLoading, setIsLoading] = useState(false);
     const [editingLog, setEditingLog] = useState<StatusLog | null>(null);
     const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
+    const [availableStatuses, setAvailableStatuses] = useState<StatusMasterRow[]>([]);
     const [formData, setFormData] = useState({
         status: "",
         note: "",
@@ -45,6 +47,9 @@ export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }
             if (currentName) {
                 setFormData(prev => ({ ...prev, updatedBy: currentName }));
             }
+
+            const statuses = await getStatusMaster();
+            setAvailableStatuses(statuses);
         }
         loadUsers();
     }, []);
@@ -196,14 +201,15 @@ export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }
                                     <SelectValue placeholder="Select Status" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="Pool Candidate">Pool Candidate</SelectItem>
-                                    <SelectItem value="Internal Screening">Internal Screening</SelectItem>
-                                    <SelectItem value="HM Screening">HM Screening</SelectItem>
-                                    <SelectItem value="Interview">Interview</SelectItem>
-                                    <SelectItem value="Offer">Offer</SelectItem>
-                                    <SelectItem value="Placement">Placement</SelectItem>
-                                    <SelectItem value="Rejected">Rejected</SelectItem>
-                                    <SelectItem value="Blacklist">Blacklist</SelectItem>
+                                    {availableStatuses.map((s) => (
+                                        <SelectItem key={s.status} value={s.status}>
+                                            {s.status}
+                                        </SelectItem>
+                                    ))}
+                                    {/* Fallback if no statuses loaded yet */}
+                                    {availableStatuses.length === 0 && (
+                                        <SelectItem value="Pool Candidate">Pool Candidate</SelectItem>
+                                    )}
                                 </SelectContent>
                             </Select>
                         </div>
