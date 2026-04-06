@@ -451,52 +451,69 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                         </CardHeader>
                         <CardContent className="pt-6">
                             {(candidate.gross_salary_base_b_mth || candidate.other_income || candidate.bonus_mth || candidate.car_allowance_b_mth || candidate.medical_b_annual || candidate.provident_fund_pct || candidate.gasoline_b_mth || candidate.phone_b_mth || candidate.insurance || candidate.housing_for_expat_b_mth || candidate.others_benefit) ? (
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-6 text-sm">
-                                    <div className="space-y-1.5">
-                                        <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Gross Salary (฿/mth)</p>
-                                        <p className="font-bold text-base text-emerald-700">{formatNumberWithCommas(candidate.gross_salary_base_b_mth) || "-"}</p>
+                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-6 text-sm">
+                                        <div className="space-y-1.5">
+                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Gross Salary (฿/M)</p>
+                                            <p className="font-bold text-lg text-emerald-600">
+                                                {candidate.gross_salary_base_b_mth ? `฿${formatNumberWithCommas(candidate.gross_salary_base_b_mth)}` : "-"}
+                                            </p>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Bonus (Months)</p>
+                                            <p className="font-bold text-slate-700">{candidate.bonus_mth ? `${candidate.bonus_mth} m` : "-"}</p>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Other Income</p>
+                                            <p className="font-bold text-slate-700">{candidate.other_income || "-"}</p>
+                                        </div>
+                                        
+                                        <div className="space-y-1.5">
+                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Car Allowance (฿/M)</p>
+                                            <p className="font-bold text-slate-700">{candidate.car_allowance_b_mth ? `฿${formatNumberWithCommas(candidate.car_allowance_b_mth)}` : "-"}</p>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Gasoline (฿/M)</p>
+                                            <p className="font-bold text-slate-700">{candidate.gasoline_b_mth ? `฿${formatNumberWithCommas(candidate.gasoline_b_mth)}` : "-"}</p>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Phone (฿/M)</p>
+                                            <p className="font-bold text-slate-700">{candidate.phone_b_mth ? `฿${formatNumberWithCommas(candidate.phone_b_mth)}` : "-"}</p>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Provident Fund (%)</p>
+                                            <p className="font-bold text-slate-700">{candidate.provident_fund_pct ? `${candidate.provident_fund_pct}%` : "-"}</p>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Medical (฿/Yr)</p>
+                                            <p className="font-bold text-slate-700">{candidate.medical_b_annual ? `฿${formatNumberWithCommas(candidate.medical_b_annual)}` : "-"}</p>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Medical (฿/M)</p>
+                                            <p className="font-bold text-slate-700">{candidate.medical_b_mth ? `฿${formatNumberWithCommas(candidate.medical_b_mth)}` : "-"}</p>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Insurance</p>
+                                            <div className="flex flex-wrap gap-1">
+                                                {candidate.insurance ? (
+                                                    candidate.insurance.split(',').map((item: string, i: number) => (
+                                                        <span key={i} className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[11px] font-bold border border-indigo-100">
+                                                            {item.trim()}
+                                                        </span>
+                                                    ))
+                                                ) : "-"}
+                                            </div>
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Housing / Expat</p>
+                                            <p className="font-bold text-slate-700">{candidate.housing_for_expat_b_mth || "-"}</p>
+                                        </div>
+                                        <div className="space-y-1.5 md:col-span-2">
+                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Other Benefits</p>
+                                            <p className="font-bold text-slate-500 whitespace-pre-wrap leading-relaxed">{candidate.others_benefit || "-"}</p>
+                                        </div>
                                     </div>
-                                    <div className="space-y-1.5">
-                                        <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Performance Bonus</p>
-                                        <p className="font-semibold text-foreground/80">{candidate.bonus_mth ? `${candidate.bonus_mth} Months` : "-"}</p>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Other Income</p>
-                                        <p className="font-semibold text-foreground/80">{candidate.other_income || "-"}</p>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Car Allowance (฿/mth)</p>
-                                        <p className="font-semibold text-foreground/80">{formatNumberWithCommas(candidate.car_allowance_b_mth) || "-"}</p>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Gasoline (฿/mth)</p>
-                                        <p className="font-semibold text-foreground/80">{formatNumberWithCommas(candidate.gasoline_b_mth) || "-"}</p>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Phone Allowance (฿/mth)</p>
-                                        <p className="font-semibold text-foreground/80">{formatNumberWithCommas(candidate.phone_b_mth) || "-"}</p>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Provident Fund (%)</p>
-                                        <p className="font-semibold text-foreground/80">{candidate.provident_fund_pct || "-"}</p>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Medical (Annual/Mth)</p>
-                                        <p className="font-semibold text-foreground/80">{[candidate.medical_b_annual, candidate.medical_b_mth].filter(Boolean).join(" / ") || "-"}</p>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Insurance</p>
-                                        <p className="font-semibold text-foreground/80">{candidate.insurance || "-"}</p>
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Housing / Expat</p>
-                                        <p className="font-semibold text-foreground/80">{candidate.housing_for_expat_b_mth || "-"}</p>
-                                    </div>
-                                    <div className="space-y-1.5 md:col-span-2">
-                                        <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Other Benefits</p>
-                                        <p className="font-semibold text-foreground/80">{candidate.others_benefit || "-"}</p>
-                                    </div>
-                                </div>
                             ) : (
                                 <div className="text-center py-8">
                                     <p className="text-sm text-muted-foreground italic mb-4">No compensation details available.</p>

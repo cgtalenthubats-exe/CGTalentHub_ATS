@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Save, User, Check, ChevronsUpDown, Camera, Loader2, FileText, X, UploadCloud } from "lucide-react";
+import { Save, User, Check, ChevronsUpDown, Camera, Loader2, FileText, X, UploadCloud, ChevronDown } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -89,7 +90,7 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
             try {
                 // 1. Fetch Nationalities
                 const { data: natData } = await supabase.from('nationality').select('nationality').order('nationality');
-                if (natData) setNationalities((natData as any).map((n: any) => n.nationality));
+                if (natData) setNationalities(["N/A", ...(natData as any).map((n: any) => n.nationality)]);
 
                 // 2. Fetch Candidate
                 const res = await fetch(`/api/candidates/${candidateId}`);
@@ -121,8 +122,8 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                     other_income: data.other_income || "",
                     bonus_mth: data.bonus_mth || "",
                     provident_fund_pct: data.provident_fund_pct || "",
-                    medical_b_annual: data.medical_b_annual || "",
-                    medical_b_mth: data.medical_b_mth || "",
+                    medical_b_annual: formatNumberWithCommas(data.medical_b_annual) || "",
+                    medical_b_mth: formatNumberWithCommas(data.medical_b_mth) || "",
                     insurance: data.insurance || "",
                     housing_for_expat_b_mth: data.housing_for_expat_b_mth || "",
                     others_benefit: data.others_benefit || ""
@@ -167,7 +168,7 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { id, value } = e.target;
-        const salaryFields = ["gross_salary_base_b_mth", "car_allowance_b_mth", "gasoline_b_mth", "phone_b_mth"];
+        const salaryFields = ["gross_salary_base_b_mth", "car_allowance_b_mth", "gasoline_b_mth", "phone_b_mth", "medical_b_annual", "medical_b_mth"];
         
         if (salaryFields.includes(id)) {
             const cleanValue = parseNumberFromCommas(value);
@@ -303,8 +304,8 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                 other_income: formData.other_income || null,
                 bonus_mth: formData.bonus_mth || null,
                 provident_fund_pct: formData.provident_fund_pct || null,
-                medical_b_annual: formData.medical_b_annual || null,
-                medical_b_mth: formData.medical_b_mth || null,
+                medical_b_annual: parseNumberFromCommas(formData.medical_b_annual) || null,
+                medical_b_mth: parseNumberFromCommas(formData.medical_b_mth) || null,
                 insurance: formData.insurance || null,
                 housing_for_expat_b_mth: formData.housing_for_expat_b_mth || null,
                 others_benefit: formData.others_benefit || null,
@@ -560,31 +561,97 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                             Compensation & Benefits
                         </h4>
-                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                            <div className="space-y-1">
-                                <Label className="text-[10px] text-slate-400 font-bold uppercase">Salary (B/m)</Label>
-                                <Input id="gross_salary_base_b_mth" placeholder="0" value={formData.gross_salary_base_b_mth} onChange={handleChange} className="h-8 text-xs" />
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="space-y-1.5">
+                                <Label className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Salary (฿/M)</Label>
+                                <Input id="gross_salary_base_b_mth" placeholder="0" value={formData.gross_salary_base_b_mth} onChange={handleChange} className="h-9 text-sm" />
                             </div>
-                            <div className="space-y-1">
-                                <Label className="text-[10px] text-slate-400 font-bold uppercase">Bonus (m)</Label>
-                                <Input id="bonus_mth" placeholder="0" value={formData.bonus_mth} onChange={handleChange} className="h-8 text-xs" />
+                            <div className="space-y-1.5">
+                                <Label className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Bonus (Months)</Label>
+                                <Input id="bonus_mth" placeholder="0" value={formData.bonus_mth} onChange={handleChange} className="h-9 text-sm" />
                             </div>
-                            <div className="space-y-1">
-                                <Label className="text-[10px] text-slate-400 font-bold uppercase">Other Inc.</Label>
-                                <Input id="other_income" placeholder="0" value={formData.other_income} onChange={handleChange} className="h-8 text-xs" />
+                            <div className="space-y-1.5">
+                                <Label className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Other Income</Label>
+                                <Input id="other_income" placeholder="Allowances..." value={formData.other_income} onChange={handleChange} className="h-9 text-sm" />
                             </div>
-                            <div className="space-y-1">
-                                <Label className="text-[10px] text-slate-400 font-bold uppercase">Car (B/m)</Label>
-                                <Input id="car_allowance_b_mth" placeholder="0" value={formData.car_allowance_b_mth} onChange={handleChange} className="h-8 text-xs" />
+                            <div className="space-y-1.5">
+                                <Label className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Car (฿/M)</Label>
+                                <Input id="car_allowance_b_mth" placeholder="0" value={formData.car_allowance_b_mth} onChange={handleChange} className="h-9 text-sm" />
                             </div>
-                            <div className="space-y-1">
-                                <Label className="text-[10px] text-slate-400 font-bold uppercase">Gas (B/m)</Label>
-                                <Input id="gasoline_b_mth" placeholder="0" value={formData.gasoline_b_mth} onChange={handleChange} className="h-8 text-xs" />
+                            <div className="space-y-1.5">
+                                <Label className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Gas (฿/M)</Label>
+                                <Input id="gasoline_b_mth" placeholder="0" value={formData.gasoline_b_mth} onChange={handleChange} className="h-9 text-sm" />
                             </div>
-                            <div className="space-y-1">
-                                <Label className="text-[10px] text-slate-400 font-bold uppercase">Phone (B/m)</Label>
-                                <Input id="phone_b_mth" placeholder="0" value={formData.phone_b_mth} onChange={handleChange} className="h-8 text-xs" />
+                            <div className="space-y-1.5">
+                                <Label className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Phone (฿/M)</Label>
+                                <Input id="phone_b_mth" placeholder="0" value={formData.phone_b_mth} onChange={handleChange} className="h-9 text-sm" />
                             </div>
+                            <div className="space-y-1.5">
+                                <Label className="text-[10px] text-slate-400 font-black uppercase tracking-widest">PFund (%)</Label>
+                                <Input id="provident_fund_pct" placeholder="0" value={formData.provident_fund_pct} onChange={handleChange} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1.5" /> {/* Empty for grid alignment */}
+
+                            <div className="space-y-1.5">
+                                <Label className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Medical (฿/Yr)</Label>
+                                <Input id="medical_b_annual" placeholder="0" value={formData.medical_b_annual} onChange={handleChange} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Medical (฿/M)</Label>
+                                <Input id="medical_b_mth" placeholder="0" value={formData.medical_b_mth} onChange={handleChange} className="h-9 text-sm" />
+                            </div>
+                            <div className="space-y-1.5 flex flex-col">
+                                <Label className="text-[10px] text-slate-400 font-black uppercase tracking-widest mb-1.5">Insurance</Label>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button variant="outline" className="h-9 text-sm justify-start font-normal px-3 py-1 bg-white border-slate-200 truncate">
+                                            {formData.insurance || "Select options..."}
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-56 p-3" align="start">
+                                        <div className="space-y-3">
+                                            {["Self", "Immediate family", "Can Subscribe"].map((opt) => {
+                                                const currentOptions = formData.insurance ? formData.insurance.split(',').map(s => s.trim()) : [];
+                                                const isChecked = currentOptions.includes(opt);
+                                                return (
+                                                    <div key={opt} className="flex items-center space-x-2">
+                                                        <Checkbox 
+                                                            id={`ins-${opt}`} 
+                                                            checked={isChecked}
+                                                            onCheckedChange={(checked) => {
+                                                                let newOptions;
+                                                                if (checked) {
+                                                                    newOptions = [...new Set([...currentOptions, opt])];
+                                                                } else {
+                                                                    newOptions = currentOptions.filter(o => o !== opt);
+                                                                }
+                                                                setFormData(prev => ({ ...prev, insurance: newOptions.join(', ') }));
+                                                            }}
+                                                        />
+                                                        <label htmlFor={`ins-${opt}`} className="text-xs font-bold leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">
+                                                            {opt}
+                                                        </label>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </PopoverContent>
+                                </Popover>
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Housing / Expat</Label>
+                                <Input id="housing_for_expat_b_mth" placeholder="Notes..." value={formData.housing_for_expat_b_mth} onChange={handleChange} className="h-9 text-sm" />
+                            </div>
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Additional Benefits Pool (Other Benefits)</Label>
+                            <textarea
+                                id="others_benefit"
+                                placeholder="Describe other benefits..."
+                                className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                value={formData.others_benefit}
+                                onChange={handleChange}
+                            />
                         </div>
                     </div>
                 </CardContent>

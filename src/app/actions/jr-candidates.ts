@@ -116,7 +116,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
             .from('status_log')
             .select('log_id, jr_candidate_id, status, timestamp')
             .in('jr_candidate_id', jrCandIds)
-            .returns<{ log_id: number; jr_candidate_id: string; status: string; timestamp: string }>(),
+            .returns<{ log_id: number; jr_candidate_id: string; status: string; timestamp: string }[]>(),
 
         // Query 5: Other JR History Count (Surgical Add)
         supabase
@@ -627,4 +627,86 @@ export async function getExistingCandidateIdsForJR(jrId: string): Promise<string
     }
 
     return data.map((d: any) => d.candidate_id);
+}
+export async function getJRHistoryOverview(jrId: string) {
+    const supabase = adminAuthClient;
+
+    // 1. Get current candidates
+    const currentCandidates = await getJRCandidates(jrId);
+    const withHistory = currentCandidates.filter(c => (c.history_count || 0) > 0);
+
+    if (withHistory.length === 0) return [];
+
+    const candidateIds = withHistory.map(c => c.candidate_id);
+
+    // 2. Fetch ALL other JR associations for these candidates
+    const { data: others, error: othersError } = await (supabase
+        .from('jr_candidates')
+        .select('jr_candidate_id, jr_id, candidate_id')
+        .neq('jr_id', jrId)
+        .in('candidate_id', candidateIds) as any);
+
+    if (othersError || !others) return [];
+
+    const otherJrCandIds = (others as any[]).map(o => o.jr_candidate_id);
+    const otherJrIds = [...new Set((others as any[]).map(o => o.jr_id))];
+
+    // 3. Fetch logs and feedback in parallel for these other JRs
+    const [logsRes, feedbackRes, jrInfoRes] = await Promise.all([
+        supabase
+            .from('status_log')
+            .select('jr_candidate_id, status, timestamp, log_id')
+            .in('jr_candidate_id', otherJrCandIds)
+            .order('log_id', { ascending: false }),
+        supabase
+            .from('interview_feedback')
+            .select('jr_candidate_id, rating_score, feedback_text, overall_recommendation, interview_date')
+            .in('jr_candidate_id', otherJrCandIds)
+            .order('interview_date', { ascending: false }),
+        (supabase
+            .from('job_requisitions')
+            .select('jr_id, position_jr')
+            .in('jr_id', otherJrIds) as any)
+    ]);
+
+    const logs = (logsRes.data || []) as any[];
+    const feedbacks = (feedbackRes.data || []) as any[];
+    const jrInfos = (jrInfoRes.data || []) as any[];
+
+    const jrInfoMap = new Map(jrInfos.map(j => [j.jr_id, j.position_jr]));
+
+    // 4. Aggregate per candidate
+    return withHistory.map(c => {
+        const cOthers = (others as any[]).filter(o => o.candidate_id === c.candidate_id);
+        
+        const histories = cOthers.map(o => {
+            const cLogs = logs.filter(l => String(l.jr_candidate_id) === String(o.jr_candidate_id));
+            const cFeedbacks = feedbacks.filter(f => String(f.jr_candidate_id) === String(o.jr_candidate_id));
+
+            // Resolve latest status from logs
+            let finalStatus = "N/A";
+            if (cLogs.length > 0) {
+                // Sort by log_id desc
+                cLogs.sort((a, b) => b.log_id - a.log_id);
+                finalStatus = cLogs[0].status;
+            }
+
+            return {
+                jr_id: o.jr_id,
+                jr_candidate_id: o.jr_candidate_id,
+                position: jrInfoMap.get(o.jr_id) || "Unknown",
+                final_status: finalStatus,
+                latest_feedback: cFeedbacks[0] || null
+            };
+        });
+
+        return {
+            jr_candidate_id: c.id,
+            candidate_id: c.candidate_id,
+            name: c.candidate_name,
+            photo: c.candidate_image_url,
+            current_status: c.status,
+            histories
+        };
+    });
 }

@@ -438,74 +438,80 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
                         Has history in other JRs
                     </div>
                     {selectedIds.length > 0 && (
-                        <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-1 rounded-md animate-in fade-in slide-in-from-left-2 shadow-sm border border-slate-200">
-                            <span className="text-[10px] font-black uppercase text-slate-500 tracking-wider pr-2 border-r border-slate-200">{selectedIds.length} Selected</span>
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button size="sm" variant="ghost" className="h-7 px-2 text-[10px] font-black text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 gap-1.5 uppercase tracking-wide">
-                                        <ArrowRight className="h-3 w-3" /> Status
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="start" className="w-[180px] rounded-xl shadow-2xl border-slate-100">
-                                    <DropdownMenuLabel className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-3 py-2">Batch Status Update</DropdownMenuLabel>
-                                    {statusOptions.map((opt, idx) => (
-                                        <DropdownMenuItem
-                                            key={`${opt.status}-${idx}`}
-                                            className="py-2 font-bold text-xs cursor-pointer rounded-lg mx-1"
-                                            onClick={() => handleBatchStatusChange(opt.status)}
-                                        >
-                                            {opt.status}
-                                        </DropdownMenuItem>
-                                    ))}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
+                        <div className="flex items-center gap-3 bg-white dark:bg-slate-900 px-4 py-2 rounded-xl animate-in fade-in slide-in-from-left-2 shadow-lg border border-slate-200">
+                            <div className="flex flex-col pr-4 border-r border-slate-200">
+                                <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest">Selection</span>
+                                <span className="text-sm font-black text-slate-900 leading-none">{selectedIds.length} <span className="text-[10px] text-slate-400">Candidates</span></span>
+                            </div>
+                            
+                            <div className="flex items-center gap-2">
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button size="sm" variant="outline" className="h-9 px-3 text-[11px] font-black text-indigo-600 border-indigo-100 hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200 gap-2 uppercase tracking-wide transition-all shadow-sm">
+                                            <ArrowRight className="h-3.5 w-3.5" /> Status
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="start" className="w-[200px] rounded-xl shadow-2xl border-slate-100 p-1">
+                                        <DropdownMenuLabel className="text-[9px] font-black uppercase text-slate-400 tracking-widest px-3 py-2">Batch Status Update</DropdownMenuLabel>
+                                        {statusOptions.map((opt, idx) => (
+                                            <DropdownMenuItem
+                                                key={`${opt.status}-${idx}`}
+                                                className="py-2.5 font-bold text-xs cursor-pointer rounded-lg mx-1"
+                                                onClick={() => handleBatchStatusChange(opt.status)}
+                                            >
+                                                {opt.status}
+                                            </DropdownMenuItem>
+                                        ))}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
 
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 px-2 text-[10px] font-black text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 gap-1.5 uppercase tracking-wide"
-                                onClick={() => handleRefreshData(selectedIds)}
-                                title="Send to n8n for Update"
-                            >
-                                <RefreshCw className="h-3 w-3" /> Refresh
-                            </Button>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-9 px-3 text-[11px] font-black text-emerald-600 border-emerald-100 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 gap-2 uppercase tracking-wide transition-all shadow-sm"
+                                    onClick={() => handleRefreshData(selectedIds)}
+                                    title="Send to n8n for Update"
+                                >
+                                    <RefreshCw className="h-3.5 w-3.5" /> Refresh
+                                </Button>
 
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-400 hover:text-indigo-600" title="Copy to JR">
-                                        <Copy className="h-3.5 w-3.5" />
-                                    </Button>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-64 p-2 shadow-xl border-slate-100 rounded-xl" align="start">
-                                    <div className="flex flex-col gap-2">
-                                        <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-1">Copy to other JR</span>
-                                        <ScrollArea className="h-[200px] pr-2">
-                                            <div className="flex flex-col gap-1">
-                                                {allJRs.map((j, idx) => (
-                                                    <button
-                                                        key={`${j.id}-${idx}`}
-                                                        className="text-left py-2 px-3 rounded-lg hover:bg-slate-50 text-[11px] font-bold border border-transparent hover:border-slate-100 transition-all group"
-                                                        onClick={() => handleCopy(selectedIds, j.id)}
-                                                    >
-                                                        <div className="text-slate-800 group-hover:text-primary">{j.job_title}</div>
-                                                        <div className="text-slate-400 text-[9px] uppercase tracking-tighter">{j.id} • {j.department}</div>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </ScrollArea>
-                                    </div>
-                                </PopoverContent>
-                            </Popover>
+                                <Popover>
+                                    <PopoverTrigger asChild>
+                                        <Button size="sm" variant="outline" className="h-9 px-3 text-[11px] font-black text-slate-600 border-slate-200 hover:bg-slate-50 hover:text-indigo-600 hover:border-indigo-200 gap-2 uppercase tracking-wide transition-all shadow-sm">
+                                            <Copy className="h-3.5 w-3.5" /> Copy Selected Candidate to JR
+                                        </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent className="w-72 p-2 shadow-2xl border-slate-100 rounded-2xl" align="start">
+                                        <div className="flex flex-col gap-2">
+                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest px-2 py-1">Target Requisition</span>
+                                            <ScrollArea className="h-[240px] pr-2">
+                                                <div className="flex flex-col gap-1.5 p-1">
+                                                    {allJRs.map((j, idx) => (
+                                                        <button
+                                                            key={`${j.id}-${idx}`}
+                                                            className="text-left py-2.5 px-3 rounded-xl hover:bg-indigo-50 text-[12px] font-bold border border-transparent hover:border-indigo-100 transition-all group flex flex-col gap-0.5"
+                                                            onClick={() => handleCopy(selectedIds, j.id)}
+                                                        >
+                                                            <div className="text-slate-800 group-hover:text-indigo-700 leading-snug">{j.job_title}</div>
+                                                            <div className="text-slate-400 text-[10px] uppercase tracking-wider font-mono">{j.id} • {j.department}</div>
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </ScrollArea>
+                                        </div>
+                                    </PopoverContent>
+                                </Popover>
 
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 w-7 p-0 text-red-400 hover:text-red-600"
-                                title="Delete"
-                                onClick={() => handleRemove(selectedIds)}
-                            >
-                                <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-9 px-3 text-[11px] font-black text-rose-600 border-rose-100 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200 gap-2 uppercase tracking-wide transition-all shadow-sm"
+                                    title="Delete"
+                                    onClick={() => handleRemove(selectedIds)}
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" /> Remove
+                                </Button>
+                            </div>
                         </div>
                     )}
                 </div>

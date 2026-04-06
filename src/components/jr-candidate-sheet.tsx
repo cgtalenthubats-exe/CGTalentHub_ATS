@@ -457,49 +457,81 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
                                                     </div>
                                                 </div>
                                             )}
-
                                             {/* Compensation Grid */}
-                                            <div className="space-y-3">
+                                            <div className="space-y-4">
                                                 <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
-                                                    Financial Profile
+                                                    Financial Profile & Benefits
                                                 </h3>
-                                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                                                    <Card className="border-none bg-emerald-50 shadow-none rounded-2xl p-4">
-                                                        <span className="text-[9px] font-black uppercase text-emerald-600 opacity-70 tracking-widest block mb-1 text-center">Base Salary (฿)</span>
-                                                        <span className="text-lg font-black text-emerald-700 tracking-tight block text-center">
-                                                            {candidate?.gross_salary_base_b_mth ? `฿${formatNumberWithCommas(candidate.gross_salary_base_b_mth)}` : "N/A"}
-                                                        </span>
-                                                        <span className="text-[8px] font-bold text-emerald-600/60 block mt-1 uppercase tracking-tighter text-center">Monthly Base</span>
-                                                    </Card>
-                                                    <Card className="border-none bg-indigo-50 shadow-none rounded-2xl p-4">
-                                                        <span className="text-[9px] font-black uppercase text-indigo-600 opacity-70 tracking-widest block mb-1 text-center">Performance Bonus</span>
-                                                        <span className="text-lg font-black text-indigo-700 tracking-tight block text-center">
-                                                            {candidate?.bonus_mth ? `${candidate.bonus_mth} Months` : "N/A"}
-                                                        </span>
-                                                        <span className="text-[8px] font-bold text-indigo-600/60 block mt-1 uppercase tracking-tighter text-center">Annual Variable</span>
-                                                    </Card>
-                                                    <Card className="border-none bg-amber-50 shadow-none rounded-2xl p-4">
-                                                        <span className="text-[9px] font-black uppercase text-amber-600 opacity-70 tracking-widest block mb-1 text-center">Alt. Income / Benefits</span>
-                                                        <span className="text-sm font-bold text-amber-700 tracking-tight block text-center h-7 items-center flex justify-center truncate">
-                                                            {candidate?.other_income || "N/A"}
-                                                        </span>
-                                                        <span className="text-[8px] font-bold text-amber-600/60 block mt-1 uppercase tracking-tighter text-center">Misc Monthly</span>
-                                                    </Card>
-                                                    <Card className="border-none bg-purple-50 shadow-none rounded-2xl p-4">
-                                                        <span className="text-[9px] font-black uppercase text-purple-600 opacity-70 tracking-widest block mb-1 text-center">Allowance / Gas</span>
-                                                        <span className="text-sm font-bold text-purple-700 tracking-tight block text-center h-7 items-center flex justify-center truncate">
-                                                            {[candidate?.car_allowance_b_mth, candidate?.gasoline_b_mth].filter(Boolean).map(formatNumberWithCommas).join(" / ") || "N/A"}
-                                                        </span>
-                                                        <span className="text-[8px] font-bold text-purple-600/60 block mt-1 uppercase tracking-tighter text-center">Standard Perks</span>
-                                                    </Card>
-                                                </div>
-                                                {candidate?.others_benefit && (
-                                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100">
-                                                        <span className="text-[9px] uppercase font-black text-slate-400 tracking-widest block mb-1">Additional Benefits Pool</span>
-                                                        <p className="text-xs font-bold text-slate-600">{candidate.others_benefit}</p>
+                                                <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100/50">
+                                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5 text-sm">
+                                                        <div className="space-y-1">
+                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Salary (฿/M)</p>
+                                                            <p className="font-bold text-base text-emerald-600">
+                                                                {candidate?.gross_salary_base_b_mth ? `฿${formatNumberWithCommas(candidate.gross_salary_base_b_mth)}` : "-"}
+                                                            </p>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Bonus (m)</p>
+                                                            <p className="font-bold text-slate-700">{candidate?.bonus_mth ? `${candidate.bonus_mth} m` : "-"}</p>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Other Inc.</p>
+                                                            <p className="font-bold text-slate-700 truncate" title={candidate?.other_income}>{candidate?.other_income || "-"}</p>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Car (฿/M)</p>
+                                                            <p className="font-bold text-slate-700">{candidate?.car_allowance_b_mth ? `฿${formatNumberWithCommas(candidate.car_allowance_b_mth)}` : "-"}</p>
+                                                        </div>
+                                                        
+                                                        <div className="space-y-1">
+                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Gas (฿/M)</p>
+                                                            <p className="font-bold text-slate-700">{candidate?.gasoline_b_mth ? `฿${formatNumberWithCommas(candidate.gasoline_b_mth)}` : "-"}</p>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Phone (฿/M)</p>
+                                                            <p className="font-bold text-slate-700">{candidate?.phone_b_mth ? `฿${formatNumberWithCommas(candidate.phone_b_mth)}` : "-"}</p>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">PFund (%)</p>
+                                                            <p className="font-bold text-slate-700">{candidate?.provident_fund_pct ? `${candidate.provident_fund_pct}%` : "-"}</p>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Insurance</p>
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {candidate?.insurance ? (
+                                                                    candidate.insurance.split(',').map((item: string, i: number) => (
+                                                                        <span key={i} className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-bold border border-indigo-100 uppercase">
+                                                                            {item.trim()}
+                                                                        </span>
+                                                                    ))
+                                                                ) : "-"}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="space-y-1">
+                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Med (฿/Yr)</p>
+                                                            <p className="font-bold text-slate-700">{candidate?.medical_b_annual ? `฿${formatNumberWithCommas(candidate.medical_b_annual)}` : "-"}</p>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Med (฿/M)</p>
+                                                            <p className="font-bold text-slate-700">{candidate?.medical_b_mth ? `฿${formatNumberWithCommas(candidate.medical_b_mth)}` : "-"}</p>
+                                                        </div>
+                                                        <div className="space-y-1 md:col-span-2">
+                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Housing / Expat</p>
+                                                            <p className="font-bold text-slate-700 truncate" title={candidate?.housing_for_expat_b_mth}>{candidate?.housing_for_expat_b_mth || "-"}</p>
+                                                        </div>
                                                     </div>
-                                                )}
-                                        </div>
+
+                                                    {candidate?.others_benefit && (
+                                                        <div className="mt-6 pt-5 border-t border-slate-200/50">
+                                                            <p className="text-[9px] uppercase font-black text-slate-400 tracking-widest block mb-2">Additional Benefits Pool</p>
+                                                            <p className="text-xs font-medium text-slate-600 leading-relaxed italic">
+                                                                &ldquo;{candidate.others_benefit}&rdquo;
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
                                     </div>
                                 </div>
                             )}

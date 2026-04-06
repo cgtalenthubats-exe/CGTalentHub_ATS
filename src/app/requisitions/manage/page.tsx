@@ -9,6 +9,7 @@ import { JobRequisition } from "@/types/requisition";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
 import { CandidateList } from "@/components/candidate-list";
 import { KanbanBoard } from "@/components/kanban-board";
+import { HistoryInsights } from "@/components/history-insights";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -28,7 +29,7 @@ import { getJRAnalytics } from "@/app/actions/jr-candidates";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
     Plus, List, Kanban, MessageSquare, Briefcase, Share2, Loader2, 
-    Copy, Trophy, Trash2, Edit, User, Activity 
+    Copy, Trophy, Trash2, Edit, User, Activity, History 
 } from "lucide-react";
 import { useJobRequisitionRealtime } from "@/hooks/use-jr-realtime";
 import {
@@ -495,6 +496,9 @@ export default function JRManagePage() {
                                         <TabsTrigger value="kanban" className="h-10 px-6 data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800 data-[state=active]:text-primary">
                                             <Kanban className="mr-2 h-4 w-4" /> Pipeline
                                         </TabsTrigger>
+                                        <TabsTrigger value="history" className="h-10 px-6 data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800 data-[state=active]:text-primary">
+                                            <History className="mr-2 h-4 w-4" /> History Insights
+                                        </TabsTrigger>
                                     </TabsList>
                                 </div>
 
@@ -504,6 +508,10 @@ export default function JRManagePage() {
 
                                 <TabsContent value="kanban" className="mt-0">
                                     <KanbanBoard key={`kanban-${selectedJR.id}-${refreshKey}`} jrId={selectedJR.id} jobTitle={selectedJR.job_title} bu={selectedJR.division} subBu={selectedJR.department} updatedBy={selectedCreatedBy} />
+                                </TabsContent>
+
+                                <TabsContent value="history" className="mt-0">
+                                    <HistoryInsights key={`history-${selectedJR.id}-${refreshKey}`} jrId={selectedJR.id} />
                                 </TabsContent>
                             </Tabs>
                         </div>
