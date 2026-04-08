@@ -23,7 +23,8 @@ import {
     UserCircle2,
     Briefcase,
     History,
-    RefreshCw
+    RefreshCw,
+    Linkedin
 } from "lucide-react";
 import { getStatusMaster } from "@/app/actions/status-master";
 import {
@@ -570,6 +571,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[185px]">Status</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[65px]">P</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[120px]">ID</th>
+                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[50px]">LI</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[280px]">Candidate Details</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[160px]">Remark</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[120px]">Sex/Age</th>
@@ -763,6 +765,17 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
                                         >
                                             {c.candidate_id}
                                         </button>
+                                    </td>
+                                    <td className="px-4 py-4">
+                                        {c.candidate_linkedin_url ? (
+                                            <a href={c.candidate_linkedin_url} target="_blank" rel="noopener noreferrer" className="inline-block">
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all" title="View LinkedIn Profile">
+                                                    <Linkedin className="h-4 w-4" />
+                                                </Button>
+                                            </a>
+                                        ) : (
+                                            <span className="text-slate-200">—</span>
+                                        )}
                                     </td>
                                     <td className="px-4 py-4">
                                         <div className="flex flex-col">

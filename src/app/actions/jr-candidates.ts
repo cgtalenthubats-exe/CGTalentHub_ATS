@@ -147,6 +147,23 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
     const profileMap = new Map((profiles as any)?.map((p: any) => [p.candidate_id, p]));
 
     // Build experience map: prefer is_current_job='Current', else most recent by start_date
+    const parseExperienceDate = (dateStr: string | null): number => {
+        if (!dateStr) return 0;
+        const parts = dateStr.trim().split(/[-/]/); // Support both - and /
+        if (parts.length === 2) {
+            const m = parseInt(parts[0]);
+            const y = parseInt(parts[1]);
+            // If it's M-YYYY
+            if (m <= 12 && y > 1000) return y * 100 + m;
+            // If it's YYYY-MM (fallback)
+            if (m > 1000) return m * 100 + y;
+        } else if (parts.length === 1) {
+            const y = parseInt(parts[0]);
+            if (!isNaN(y)) return y * 100;
+        }
+        return 0;
+    };
+
     const expMap = new Map<string, { company: string; position: string; label: string; country: string; note: string }>();
     if (experiences && (experiences as any[]).length > 0) {
         // Group by candidate_id
@@ -163,11 +180,13 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
                 const bIsCurrent = (b.is_current_job || '').toString().trim().toLowerCase() === 'current';
                 if (aIsCurrent && !bIsCurrent) return -1;
                 if (!aIsCurrent && bIsCurrent) return 1;
-                const dateA = new Date(a.start_date || 0).getTime();
-                const dateB = new Date(b.start_date || 0).getTime();
-                if (!isNaN(dateA) && !isNaN(dateB)) return dateB - dateA;
+                
+                const valA = parseExperienceDate(a.start_date);
+                const valB = parseExperienceDate(b.start_date);
+                if (valA !== valB) return valB - valA; // Descending
                 return 0;
             });
+
 
             const best = exps[0];
             const isCurrent = (best.is_current_job || '').toString().trim().toLowerCase() === 'current';
