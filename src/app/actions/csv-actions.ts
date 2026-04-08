@@ -37,12 +37,14 @@ export async function processCsvUpload(rows: CsvRow[], uploaderName: string, fil
     const logs: UploadLog[] = [];
 
     // 1. Validation & Pre-processing (Identify who needs an ID)
-    const validRowsToProcess: { name: string, linkedin: string, email: string, rowIdx: number }[] = [];
+    const validRowsToProcess: { name: string, normalizedName: string, linkedin: string, email: string, rowIdx: number }[] = [];
 
     // Extract Names, LinkedIns, and Emails for targeted DB Query
-    const allNames = rows.map(r => {
+    const allNames = rows.flatMap(r => {
         const val = r['Name'] || r['name'] || Object.keys(r).find(k => k.trim().toLowerCase() === 'name') ? r[Object.keys(r).find(k => k.trim().toLowerCase() === 'name')!] : '';
-        return normalizeName(val || "");
+        if (!val) return [];
+        // Return both original and normalized to catch both cases in the DB
+        return [val.trim(), normalizeName(val)];
     }).filter(n => n.length > 0);
 
     const allLinkedIns = rows.map(r => {
@@ -98,7 +100,8 @@ export async function processCsvUpload(rows: CsvRow[], uploaderName: string, fil
 
         if (!rawName) continue; // Skip empty rows
 
-        const name = normalizeName(rawName);
+        const nameForStorage = rawName.trim();
+        const nameForComparison = normalizeName(rawName);
         const linkedin = normalizeLinkedIn(rawLinkedIn);
         const email = normalizeEmail(rawEmail);
 
@@ -108,7 +111,7 @@ export async function processCsvUpload(rows: CsvRow[], uploaderName: string, fil
 
         // Duplicate Check (DB)
         const duplicate = existingCandidates?.find((c: any) => {
-            const nameMatch = normalizeName(c.name || "").toLowerCase() === name.toLowerCase();
+            const nameMatch = normalizeName(c.name || "").toLowerCase() === nameForComparison.toLowerCase();
             const linkedinMatch = c.linkedin && normalizeLinkedIn(c.linkedin).toLowerCase() === linkedin.toLowerCase();
             const emailMatch = c.email && normalizeEmail(c.email) === email && email !== "";
 
@@ -119,7 +122,7 @@ export async function processCsvUpload(rows: CsvRow[], uploaderName: string, fil
             status = "Duplicate found";
             note = `Found duplicate with ${duplicate.candidate_id}`;
             candidateId = duplicate.candidate_id;
-            logs.push({ batch_id: batchId, batch_name: batchName, candidate_id: candidateId, name, linkedin, status, note, uploader_email: uploaderName });
+            logs.push({ batch_id: batchId, batch_name: batchName, candidate_id: candidateId, name: nameForStorage, linkedin, status, note, uploader_email: uploaderName });
             continue;
         }
 
@@ -127,13 +130,13 @@ export async function processCsvUpload(rows: CsvRow[], uploaderName: string, fil
         if (!linkedin.toLowerCase().includes("linkedin")) {
             status = "Found Non LinkedIn URLs";
             note = "Invalid LinkedIn URL - Skipped scraping";
-            logs.push({ batch_id: batchId, batch_name: batchName, candidate_id: "", name, linkedin, status, note, uploader_email: uploaderName });
+            logs.push({ batch_id: batchId, batch_name: batchName, candidate_id: "", name: nameForStorage, linkedin, status, note, uploader_email: uploaderName });
             continue;
         }
 
         // Duplicate Check (In-Batch)
         const inBatchDuplicate = validRowsToProcess.find(r =>
-            r.name.toLowerCase() === name.toLowerCase() ||
+            r.normalizedName === nameForComparison ||
             (r.linkedin && r.linkedin.toLowerCase() === linkedin.toLowerCase()) ||
             (r.email && r.email === email && email !== "")
         );
@@ -141,7 +144,7 @@ export async function processCsvUpload(rows: CsvRow[], uploaderName: string, fil
         if (inBatchDuplicate) {
             status = "Duplicate found";
             note = "Found duplicate in batch";
-            logs.push({ batch_id: batchId, batch_name: batchName, candidate_id: "", name, linkedin, status, note, uploader_email: uploaderName });
+            logs.push({ batch_id: batchId, batch_name: batchName, candidate_id: "", name: nameForStorage, linkedin, status, note, uploader_email: uploaderName });
             continue;
         }
 
@@ -152,19 +155,19 @@ export async function processCsvUpload(rows: CsvRow[], uploaderName: string, fil
             .in('status', ['Scraping', 'Processing', 'PENDING']);
 
         const isProcessing = activeLogs?.some((log: any) =>
-            (log.name && normalizeName(log.name).toLowerCase() === name.toLowerCase()) ||
+            (log.name && normalizeName(log.name).toLowerCase() === nameForComparison.toLowerCase()) ||
             (log.linkedin && normalizeLinkedIn(log.linkedin).toLowerCase() === linkedin.toLowerCase())
         );
 
         if (isProcessing) {
             status = "Duplicate found";
             note = "Already in processing queue (Scraping)";
-            logs.push({ batch_id: batchId, batch_name: batchName, candidate_id: "", name, linkedin, status, note, uploader_email: uploaderName });
+            logs.push({ batch_id: batchId, batch_name: batchName, candidate_id: "", name: nameForStorage, linkedin, status, note, uploader_email: uploaderName });
             continue;
         }
 
         // If valid and new, add to processing list
-        validRowsToProcess.push({ name, linkedin, email, rowIdx: index });
+        validRowsToProcess.push({ name: nameForStorage, normalizedName: nameForComparison, linkedin, email, rowIdx: index });
     }
 
     // 2. Reserve IDs Atomically (Concurrency Safe)
