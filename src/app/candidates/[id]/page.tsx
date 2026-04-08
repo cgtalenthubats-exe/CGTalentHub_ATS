@@ -151,9 +151,10 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                                 <div className="flex items-center gap-2 bg-blue-50/50 dark:bg-blue-900/20 px-3 py-1.5 rounded-full border border-blue-100/50 dark:border-blue-800/50 shadow-sm">
                                     <MapPin className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                                     <span className="text-muted-foreground font-semibold text-[11px] uppercase tracking-wider">Address from LI:</span>
-                                    <span className="text-foreground font-bold">
-                                        {[candidate.enhancement?.country, candidate.enhancement?.full_address].filter(Boolean).join(", ")}
+                                     <span className="text-foreground font-bold">
+                                        {candidate.enhancement?.country || candidate.enhancement?.full_address}
                                     </span>
+
                                 </div>
                             )}
                         </div>

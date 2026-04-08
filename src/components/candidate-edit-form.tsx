@@ -58,6 +58,7 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
         name: "",
         candidate_status: "",
         email: "",
+        alt_email: "",
         phone: "",
         nationality: "",
         gender: "",
@@ -69,6 +70,9 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
         skills: "",
         education: "",
         languages: "",
+        about: "",
+        country: "",
+        full_address: "",
         blacklist_note: "",
         // Compensation & Benefits
         gross_salary_base_b_mth: "",
@@ -102,6 +106,7 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                     name: data.name || "",
                     candidate_status: data.candidate_status || "",
                     email: data.email || "",
+                    alt_email: data.enhancement?.alt_email || "",
                     phone: data.mobile_phone || "",
                     nationality: data.nationality || "",
                     gender: data.gender || "",
@@ -110,9 +115,12 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                     date_of_birth: formatDateForInput(data.date_of_birth),
                     year_of_bachelor_education: extractYear(data.year_of_bachelor_education)?.toString() || "",
                     age: data.age?.toString() || "",
-                    skills: data.other_skill || data.enhancement?.skills || "",
+                    skills: data.enhancement?.skills || data.other_skill || "",
                     education: data.enhancement?.education_summary || "",
-                    languages: data.language_skill || data.enhancement?.languages || "",
+                    languages: data.enhancement?.languages || data.language_skill || "",
+                    about: data.enhancement?.about || "",
+                    country: data.enhancement?.country || "",
+                    full_address: data.enhancement?.full_address || "",
                     blacklist_note: data.blacklist_note || "",
                     // Compensation & Benefits
                     gross_salary_base_b_mth: formatNumberWithCommas(data.gross_salary_base_b_mth) || "",
@@ -288,6 +296,7 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                 name: formData.name,
                 candidate_status: formData.candidate_status,
                 email: formData.email,
+                alt_email: formData.alt_email,
                 mobile_phone: formData.phone,
                 nationality: formData.nationality,
                 gender: formData.gender,
@@ -297,6 +306,14 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                 age: formData.age,
                 photo: photoUrl,
                 resume_url: resumeUrl,
+                // Enhancement data
+                country: formData.country,
+                full_address: formData.full_address,
+                about: formData.about,
+                education: formData.education,
+                skills: formData.skills,
+                languages: formData.languages,
+                // Compensation & Benefits fields
                 gross_salary_base_b_mth: parseNumberFromCommas(formData.gross_salary_base_b_mth) || null,
                 car_allowance_b_mth: parseNumberFromCommas(formData.car_allowance_b_mth) || null,
                 gasoline_b_mth: parseNumberFromCommas(formData.gasoline_b_mth) || null,
@@ -499,16 +516,31 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                                     <Label htmlFor="linkedin" className="text-xs">LinkedIn URL</Label>
                                     <Input id="linkedin" value={formData.linkedin} onChange={handleChange} className="h-9 text-sm" />
                                 </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="country" className="text-xs">Country (from LI)</Label>
+                                    <Input id="country" placeholder="e.g. Thailand" value={formData.country} onChange={handleChange} className="h-9 text-sm" />
+                                </div>
+                            </div>
+
+                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="email" className="text-xs">Primary Email</Label>
+                                    <Input id="email" type="text" value={formData.email} onChange={handleChange} className="h-9 text-sm" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="alt_email" className="text-xs">Alt. Email (from LI)</Label>
+                                    <Input id="alt_email" type="text" value={formData.alt_email} onChange={handleChange} className="h-9 text-sm" />
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
-                                    <Label htmlFor="email" className="text-xs">Email</Label>
-                                    <Input id="email" type="text" value={formData.email} onChange={handleChange} className="h-9 text-sm" />
-                                </div>
-                                <div className="space-y-1.5">
                                     <Label htmlFor="phone" className="text-xs">Mobile Phone</Label>
                                     <Input id="phone" value={formData.phone} onChange={handleChange} className="h-9 text-sm" />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="full_address" className="text-xs">Full Address (from LI)</Label>
+                                    <Input id="full_address" value={formData.full_address} onChange={handleChange} className="h-9 text-sm" />
                                 </div>
                             </div>
 
@@ -652,6 +684,66 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                                 value={formData.others_benefit}
                                 onChange={handleChange}
                             />
+                        </div>
+                    </div>
+
+                    {/* Enhanced Profile Data (LinkedIn) */}
+                    <div className="pt-6 border-t font-semibold px-0 space-y-6">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-purple-100 rounded-lg text-purple-600">
+                                <FileText className="h-5 w-5" />
+                            </div>
+                            <div>
+                                <h4 className="text-base font-bold text-slate-700">LinkedIn Enhanced Information</h4>
+                                <p className="text-xs text-muted-foreground font-medium">Fields usually captured from LinkedIn scraping.</p>
+                            </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 gap-5">
+                             <div className="space-y-1.5">
+                                <Label htmlFor="about" className="text-xs font-bold text-slate-500">About Summary</Label>
+                                <textarea
+                                    id="about"
+                                    placeholder="LinkedIn About Section..."
+                                    className="min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                    value={formData.about}
+                                    onChange={handleChange}
+                                />
+                            </div>
+
+                            <div className="space-y-1.5">
+                                <Label htmlFor="education" className="text-xs font-bold text-slate-500">Education Summary</Label>
+                                <textarea
+                                    id="education"
+                                    placeholder="Education details..."
+                                    className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                    value={formData.education}
+                                    onChange={handleChange}
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="skills" className="text-xs font-bold text-slate-500">Skills</Label>
+                                    <textarea
+                                        id="skills"
+                                        placeholder="List of skills..."
+                                        className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                        value={formData.skills}
+                                        onChange={handleChange}
+                                    />
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="languages" className="text-xs font-bold text-slate-500">Languages</Label>
+                                    <textarea
+                                        id="languages"
+                                        placeholder="Languages..."
+                                        className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                        value={formData.languages}
+                                        onChange={handleChange}
+                                    />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </CardContent>

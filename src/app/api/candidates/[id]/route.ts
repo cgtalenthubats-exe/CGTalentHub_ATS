@@ -272,21 +272,45 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         // Add timestamp
         updateData.modify_date = new Date().toISOString();
 
-        if (Object.keys(updateData).length === 0) {
-            return NextResponse.json({ message: "No fields to update" });
+        // 1. Update Candidate Profile
+        if (Object.keys(updateData).length > 0) {
+            const { error: profileError } = await (adminAuthClient
+                .from('Candidate Profile') as any)
+                .update(updateData)
+                .eq('candidate_id', candidateId);
+
+            if (profileError) {
+                console.error("Update Profile Error:", profileError);
+                return NextResponse.json({ error: profileError.message }, { status: 500 });
+            }
         }
 
-        const { error } = await (adminAuthClient
-            .from('Candidate Profile') as any)
-            .update(updateData)
-            .eq('candidate_id', candidateId);
+        // 2. Update Enhancement Data (candidate_profile_enhance)
+        const enhancementFields: any = {};
+        if (body.about !== undefined) enhancementFields.about_summary = body.about || null;
+        if (body.education !== undefined) enhancementFields.education_summary = body.education || null;
+        if (body.languages !== undefined) enhancementFields.languages = body.languages || null;
+        if (body.skills !== undefined) enhancementFields.skills_list = body.skills || null;
+        if (body.alt_email !== undefined) enhancementFields.email = body.alt_email || null;
+        if (body.country !== undefined) enhancementFields.country = body.country || null;
+        if (body.full_address !== undefined) enhancementFields.full_address = body.full_address || null;
 
-        if (error) {
-            console.error("Update Error:", error);
-            return NextResponse.json({ error: error.message }, { status: 500 });
+        if (Object.keys(enhancementFields).length > 0) {
+            // Include candidate_id for upsert
+            enhancementFields.candidate_id = candidateId;
+            
+            const { error: enhError } = await adminAuthClient
+                .from('candidate_profile_enhance')
+                .upsert(enhancementFields, { onConflict: 'candidate_id' });
+
+            if (enhError) {
+                console.error("Update Enhancement Error:", enhError);
+                return NextResponse.json({ error: "Failed to update enhancement data: " + enhError.message }, { status: 500 });
+            }
         }
 
-        return NextResponse.json({ success: true, message: "Candidate updated successfully" });
+        return NextResponse.json({ success: true, message: "Candidate and enhancement data updated successfully" });
+
 
     } catch (error: any) {
         console.error("PATCH API Error:", error);
