@@ -8,7 +8,7 @@ import {
     UserCheck, UserPlus, Focus, ZoomIn, ZoomOut, Plus, 
     ExternalLink, Sparkles, Loader2, Trash2, Info, UploadCloud,
     Users, ChevronUp, Download, Image as ImageIcon, FileText,
-    AlertTriangle, X, MoreHorizontal
+    AlertTriangle, X, MoreHorizontal, Target, Search, ArrowLeft
 } from 'lucide-react'
 import {
     DropdownMenu,
@@ -175,8 +175,8 @@ const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCrea
                 <div className="absolute -top-1.5 -right-1.5 z-50">
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-5 w-5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm rounded-full p-0 flex items-center justify-center hover:bg-slate-50 transition-all">
-                                <MoreHorizontal size={10} strokeWidth={3} />
+                            <Button variant="ghost" size="icon" className="h-6 w-6 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm rounded-full p-0 flex items-center justify-center hover:bg-slate-50 transition-all hover:scale-110">
+                                <MoreHorizontal size={14} strokeWidth={3} />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-44">
@@ -230,7 +230,7 @@ const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCrea
 }
 
 // Custom Node Component
-const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVerifying, onToggleExpand, expandedSet, onDeleteNode, onAddSubordinate, onReplaceNode, onMoveNode }: any) => {
+const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVerifying, onToggleExpand, expandedSet, onDeleteNode, onAddSubordinate, onReplaceNode, onMoveNode, onFocusTeam, highlightNodeId }: any) => {
     // Hide phantom nodes (Standard Grid columns)
     if (nodeDatum.isPhantom && !nodeDatum.isTeamGrid) {
         return <g />
@@ -311,14 +311,15 @@ const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVe
     }
 
     return (
-        <g>
+        <g id={`node-card-${nodeDatum.node_id}`}>
             <foreignObject width="280" height="110" x="-140" y="-55">
                 <div className="p-1 h-full flex items-center justify-center">
                     <div
                         className={cn(
                             "relative w-full h-full border-2 rounded-xl transition-all duration-300 flex flex-col p-3 group",
                             cardColorClass,
-                            hasChildren && "cursor-pointer hover:ring-2 hover:ring-indigo-400 hover:ring-offset-1"
+                            hasChildren && "cursor-pointer hover:ring-2 hover:ring-indigo-400 hover:ring-offset-1",
+                            highlightNodeId === nodeDatum.node_id && "ring-4 ring-indigo-500 ring-offset-2 animate-pulse shadow-xl shadow-indigo-200 bg-indigo-50"
                         )}
                         onClick={hasChildren ? () => onToggleExpand(nodeDatum.node_id) : undefined}
                         style={{
@@ -332,8 +333,8 @@ const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVe
                         <div className="absolute -top-2.5 -right-2.5 z-50" onClick={(e) => e.stopPropagation()}>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-7 w-7 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-md rounded-full p-0 flex items-center justify-center hover:bg-slate-100 transition-all hover:scale-110">
-                                        <MoreHorizontal size={14} strokeWidth={3} />
+                                    <Button variant="ghost" size="icon" className="h-8 w-8 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-md rounded-full p-0 flex items-center justify-center hover:bg-slate-100 transition-all hover:scale-110">
+                                        <MoreHorizontal size={16} strokeWidth={3} />
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-48">
@@ -345,6 +346,9 @@ const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVe
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => onMoveNode(nodeDatum)}>
                                         <Focus size={16} className="mr-2" /> Move Node
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => onFocusTeam(nodeDatum.node_id)} className="text-indigo-600 focus:text-indigo-600 focus:bg-indigo-50">
+                                        <Target size={16} className="mr-2" /> Focus on this Team
                                     </DropdownMenuItem>
                                     <DropdownMenuItem className="text-rose-600 focus:text-rose-600 focus:bg-rose-50" onClick={() => onDeleteNode({ node_id: nodeDatum.node_id, name: nodeDatum.name })}>
                                         <Trash2 size={16} className="mr-2" /> Remove Node
@@ -710,12 +714,112 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
     const logoInputRef = React.useRef<HTMLInputElement>(null)
     const captureRef = React.useRef<HTMLDivElement>(null)
     const [isExporting, setIsExporting] = useState(false)
+    const [renderKey, setRenderKey] = useState(0)
+
+    // Phase 2 Features: Focus & Search
+    const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null)
+    const [searchQuery, setSearchQuery] = useState('')
+    const [searchResults, setSearchResults] = useState<OrgNode[]>([])
+    const [highlightNodeId, setHighlightNodeId] = useState<string | null>(null)
+
+    const allChartNodes = React.useMemo(() => extractNodes(initialData), [initialData])
+
+    const findSubTree = (node: OrgNode | null, targetId: string): OrgNode | null => {
+        if (!node) return null
+        if (node.node_id === targetId) return JSON.parse(JSON.stringify(node))
+        if (node.children) {
+            for (const child of node.children) {
+                const found = findSubTree(child, targetId)
+                if (found) return found
+            }
+        }
+        return null
+    }
+
+    const findPathToNode = (root: OrgNode | null, targetId: string): string[] => {
+        if (!root) return []
+        if (root.node_id === targetId) return [root.node_id]
+        if (root.children) {
+            for (const child of root.children) {
+                const path = findPathToNode(child, targetId)
+                if (path.length > 0) return [root.node_id, ...path]
+            }
+        }
+        return []
+    }
+
+    const activeData = React.useMemo(() => {
+        const baseData = transformedData || initialData;
+        if (focusedNodeId) return findSubTree(baseData, focusedNodeId) || baseData
+        return baseData
+    }, [transformedData, initialData, focusedNodeId])
+
+    const handleSearchInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const q = e.target.value
+        setSearchQuery(q)
+        if (!q || q.length < 2) {
+            setSearchResults([])
+            return
+        }
+        const lowerQ = q.toLowerCase()
+        const results = allChartNodes.filter(n => 
+            n.name.toLowerCase().includes(lowerQ) || 
+            (n.candidate_id && n.candidate_id.toLowerCase().includes(lowerQ))
+        )
+        setSearchResults(results.slice(0, 8))
+    }
+
+    const executeSearchResult = (nodeId: string) => {
+        setSearchQuery('')
+        setSearchResults([])
+        if (focusedNodeId) setFocusedNodeId(null)
+
+        const path = findPathToNode(initialData, nodeId)
+        if (path.length > 0) {
+            setExpandedSet(prev => {
+                const next = new Set(prev)
+                path.forEach(id => next.add(id))
+                return next
+            })
+            // Animate pan and highlight
+            setTimeout(() => {
+                const el = document.getElementById(`node-card-${nodeId}`)
+                if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' })
+                    setHighlightNodeId(nodeId)
+                    setTimeout(() => setHighlightNodeId(null), 4000)
+                }
+            }, 300)
+        }
+    }
+
+    const handleFocusTeam = (nodeId: string) => {
+        setFocusedNodeId(nodeId)
+        setZoom(0.8)
+        centerChart()
+    }
+
+    useEffect(() => {
+        if (!containerRef.current) return;
+        let lastWidth = 0;
+        const observer = new ResizeObserver((entries) => {
+            for (let entry of entries) {
+                const width = entry.contentRect.width;
+                if (lastWidth === 0 && width > 0) {
+                    setRenderKey(prev => prev + 1);
+                }
+                lastWidth = width;
+            }
+        });
+        observer.observe(containerRef.current);
+        return () => observer.disconnect();
+    }, []);
 
     const exportImage = async (format: 'png' | 'jpeg' | 'pdf') => {
         if (!captureRef.current || !containerRef.current) return
         try {
             setIsExporting(true)
-            toast.info("Preparing high-resolution export... 📸")
+            toast.info("กำลังประมวลผลเซฟรูปแบบคมชัด อาจใช้เวลาสักครู่...", { duration: 5000 })
 
             await new Promise(r => setTimeout(r, 100))
 
@@ -996,6 +1100,58 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
     return (
         <TooltipProvider>
             <div ref={captureRef} className="flex flex-col h-full w-full relative rounded-xl overflow-hidden border shadow-sm group bg-white dark:bg-slate-950">
+            
+            {/* Focus Mode Banner */}
+            {focusedNodeId && (
+                <div className="absolute top-0 left-0 w-full z-[80] flex justify-center mt-2 animate-in slide-in-from-top-4">
+                    <div className="bg-indigo-600 text-white px-5 py-2 rounded-full shadow-lg flex items-center gap-3 text-xs font-bold border border-indigo-500">
+                        <Target size={16} className="animate-pulse" />
+                        FOCUS MODE ACTIVE: VIEWING SUB-TEAM
+                        <button 
+                            onClick={() => { setFocusedNodeId(null); centerChart() }}
+                            className="ml-2 bg-indigo-800 hover:bg-rose-500 transition-colors px-2.5 py-1 rounded-full flex items-center gap-1"
+                        >
+                            <X size={12} />
+                            EXIT
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Global Tree Search */}
+            <div className="absolute top-4 right-64 z-[80] w-64 max-w-sm" id="export-exclude-zone-search">
+                <div className="relative">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                        <Search size={14} />
+                    </div>
+                    <input
+                        type="text"
+                        className="w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-xs rounded-full focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block pl-9 p-2 shadow-sm"
+                        placeholder="Search employee or ID..."
+                        value={searchQuery}
+                        onChange={handleSearchInput}
+                    />
+                    {searchResults.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 rounded-xl max-h-64 overflow-y-auto animate-in fade-in slide-in-from-top-2 p-1">
+                            {searchResults.map(res => (
+                                <div 
+                                    key={res.node_id} 
+                                    onClick={() => executeSearchResult(res.node_id)}
+                                    className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex items-center gap-3 rounded-lg border-b last:border-0 border-slate-100 dark:border-slate-800 transition-colors"
+                                >
+                                    <CandidateAvatar src={res.candidate_photo} name={res.name} className="h-8 w-8" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{res.name}</p>
+                                        <p className="text-[10px] text-slate-500 truncate">{res.title || 'No Title'}</p>
+                                    </div>
+                                    {res.candidate_id && <Badge variant="outline" className="text-[8px] px-1 py-0 border-indigo-200 bg-indigo-50 text-indigo-700">{res.candidate_id}</Badge>}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+
             {/* Notes Display Top Right */}
             {notes && (
                 <div className="absolute top-4 right-4 z-10 max-w-[30%]">
@@ -1123,16 +1279,36 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                         CHART KEY
                     </Button>
 
-                    {/* Recenter */}
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={centerChart}
-                        className="h-9 w-9 shadow-sm border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 hover:bg-slate-50 rounded-full"
-                        title="Recenter Chart"
-                    >
-                        <Focus size={16} className="text-slate-600" />
-                    </Button>
+                    {/* Zoom / Recenter Controls */}
+                    <div className="flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-0.5 shadow-sm">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setZoom(prev => Math.max(0.1, prev - 0.1))}
+                            className="h-8 w-8 rounded-full hover:bg-slate-50"
+                            title="Zoom Out"
+                        >
+                            <ZoomOut size={16} className="text-slate-600" />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={centerChart}
+                            className="h-8 w-8 rounded-full border-none hover:bg-slate-50"
+                            title="Recenter Chart"
+                        >
+                            <Focus size={16} className="text-slate-600" />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setZoom(prev => Math.min(2.0, prev + 0.1))}
+                            className="h-8 w-8 rounded-full hover:bg-slate-50"
+                            title="Zoom In"
+                        >
+                            <ZoomIn size={16} className="text-slate-600" />
+                        </Button>
+                    </div>
 
                     <Separator orientation="vertical" className="h-4 bg-slate-200 mx-0.5" />
                     
@@ -1254,7 +1430,8 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                     }
                 `}} />
                 <Tree
-                    data={transformedData || initialData}
+                    key={`org-tree-${renderKey}`}
+                    data={activeData || initialData}
                     translate={translate}
                     zoom={zoom}
                     renderCustomNodeElement={(rd3tProps) => (
@@ -1270,6 +1447,8 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                             onAddSubordinate={handleAddSubordinate}
                             onReplaceNode={handleReplaceNode}
                             onMoveNode={handleMoveNode}
+                            onFocusTeam={handleFocusTeam}
+                            highlightNodeId={highlightNodeId}
                         />
                     )}
                     orientation="vertical"
@@ -1288,8 +1467,8 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                     draggable={true}
                     collapsible={false}
                     nodeSize={{ x: 310, y: 160 }}
-                    enableLegacyTransitions={true}
-                    transitionDuration={400}
+                    enableLegacyTransitions={false}
+                    transitionDuration={0}
                     onUpdate={(target: any) => {
                         if (target.zoom !== zoom) setZoom(target.zoom)
                         if (target.translate.x !== translate.x || target.translate.y !== translate.y) {
