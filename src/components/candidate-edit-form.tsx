@@ -32,9 +32,10 @@ interface CandidateEditFormProps {
     onSuccess?: (data?: any) => void;
     onCancel?: () => void;
     showCancel?: boolean;
+    hideFooter?: boolean;
 }
 
-export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel = true }: CandidateEditFormProps) {
+export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel = true, hideFooter = false }: CandidateEditFormProps) {
     const [loading, setLoading] = useState(false);
     const [fetching, setFetching] = useState(true);
 
@@ -361,7 +362,7 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
     }
 
     return (
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form id="candidate-edit-form" onSubmit={handleSubmit} className="space-y-6">
             <Card className="border-none shadow-none ring-0">
                 <CardHeader className="px-0 pt-0">
                     <div className="flex items-center justify-between">
@@ -748,16 +749,18 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                     </div>
                 </CardContent>
 
-                <CardFooter className="flex justify-end gap-3 px-0 pb-0 border-t pt-6 mt-4">
-                    {showCancel && (
-                        <Button type="button" variant="ghost" onClick={onCancel} disabled={loading} className="font-bold text-slate-500">
-                            Cancel
+                {!hideFooter && (
+                    <CardFooter className="flex justify-end gap-3 px-0 pb-0 border-t pt-6 mt-4">
+                        {showCancel && (
+                            <Button type="button" variant="ghost" onClick={onCancel} disabled={loading} className="font-bold text-slate-500">
+                                Cancel
+                            </Button>
+                        )}
+                        <Button type="submit" disabled={loading} className="gap-2 bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 min-w-[140px]">
+                            {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : <><Save className="h-4 w-4" /> Save Changes</>}
                         </Button>
-                    )}
-                    <Button type="submit" disabled={loading} className="gap-2 bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-100 min-w-[140px]">
-                        {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : <><Save className="h-4 w-4" /> Save Changes</>}
-                    </Button>
-                </CardFooter>
+                    </CardFooter>
+                )}
             </Card>
         </form>
     );

@@ -615,7 +615,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
             {/* Top Synchronized Scrollbar */}
             <div 
                 ref={topScrollRef}
-                className="w-full overflow-x-auto overflow-y-hidden h-3 bg-slate-50/50 border-b border-slate-100 sticky top-0 z-20"
+                className="w-full overflow-x-auto overflow-y-hidden h-3 bg-white border-b border-slate-100 z-20"
                 style={{ scrollbarWidth: 'thin' }}
             >
                 <div style={{ width: tableWidth, height: '1px' }} />
