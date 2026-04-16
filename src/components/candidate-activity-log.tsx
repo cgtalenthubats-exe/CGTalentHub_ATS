@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { formatDateForDisplay } from "@/lib/date-utils";
 import { StatusLog } from "@/types/requisition";
 import { addActivityLog, updateActivityLog, deleteActivityLog } from "@/app/actions/jr-candidate-logs";
 import { getUserProfiles, UserProfile, getCurrentUserRealName } from "@/app/actions/user-actions";
@@ -34,7 +35,8 @@ export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }
     const [formData, setFormData] = useState({
         status: "",
         note: "",
-        updatedBy: ""
+        updatedBy: "",
+        timestamp: new Date().toISOString().split('T')[0]
     });
 
     useEffect(() => {
@@ -57,7 +59,12 @@ export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }
     const handleAdd = () => {
         setEditingLog(null);
         // Reset but keep the last selected or current user if possible
-        setFormData(prev => ({ ...prev, status: "Pool Candidate", note: "" }));
+        setFormData(prev => ({ 
+            ...prev, 
+            status: "Pool Candidate", 
+            note: "", 
+            timestamp: new Date().toISOString().split('T')[0] 
+        }));
         setIsDialogOpen(true);
     };
 
@@ -66,7 +73,8 @@ export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }
         setFormData({ 
             status: log.status, 
             note: log.note || "", 
-            updatedBy: log.updated_By || "" 
+            updatedBy: log.updated_by || "",
+            timestamp: log.timestamp
         });
         setIsDialogOpen(true);
     };
@@ -96,7 +104,7 @@ export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }
             if (editingLog) {
                 res = await updateActivityLog(editingLog.log_id, formData.status, formData.note, formData.updatedBy);
             } else {
-                res = await addActivityLog(jrCandidateId, formData.status, formData.note, formData.updatedBy);
+                res = await addActivityLog(jrCandidateId, formData.status, formData.note, formData.updatedBy, formData.timestamp);
             }
 
             if (res.success) {
@@ -165,9 +173,9 @@ export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }
                                     )}
                                 </div>
                                 <div className="flex items-center gap-2 text-[12px] text-slate-400 font-bold">
-                                    <span>{log.timestamp}</span>
+                                    <span>{formatDateForDisplay(log.timestamp)}</span>
                                     <span>•</span>
-                                    <span className="text-slate-500">{log.updated_By}</span>
+                                    <span className="text-slate-500">{log.updated_by}</span>
                                 </div>
                                 {log.note && (
                                     <p className="text-[14px] text-slate-900 bg-slate-50 rounded-lg p-2.5 mt-1 font-semibold border border-slate-100">
@@ -207,11 +215,22 @@ export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }
                                         </SelectItem>
                                     ))}
                                     {/* Fallback if no statuses loaded yet */}
-                                    {availableStatuses.length === 0 && (
-                                        <SelectItem value="Pool Candidate">Pool Candidate</SelectItem>
-                                    )}
                                 </SelectContent>
                             </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="timestamp" className="text-xs font-black uppercase text-slate-500">Event Date (Backdating)</Label>
+                            <div className="flex flex-col gap-1">
+                                <Input
+                                    id="timestamp"
+                                    type="date"
+                                    value={formData.timestamp}
+                                    onChange={(e) => setFormData(prev => ({ ...prev, timestamp: e.target.value }))}
+                                />
+                                <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest pl-1">
+                                    Format: {formatDateForDisplay(formData.timestamp)}
+                                </span>
+                            </div>
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="updatedBy" className="text-xs font-black uppercase text-slate-500">Updated By</Label>

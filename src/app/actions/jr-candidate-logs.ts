@@ -143,7 +143,13 @@ export async function getJRCandidateDetails(jrCandidateId: string) {
     };
 }
 
-export async function addActivityLog(jrCandidateId: string, status: string, note: string | null = null, updatedBy: string = "System") {
+export async function addActivityLog(
+    jrCandidateId: string, 
+    status: string, 
+    note: string | null = null, 
+    updatedBy: string = "System",
+    customTimestamp?: string
+) {
     const supabase = adminAuthClient;
 
     try {
@@ -160,7 +166,7 @@ export async function addActivityLog(jrCandidateId: string, status: string, note
         }
 
         const now = new Date();
-        const timestampStr = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()}`;
+        const timestampStr = customTimestamp || now.toISOString().split('T')[0]; // Save as YYYY-MM-DD
 
         const { error } = await supabase
             .from('status_log')
@@ -168,7 +174,6 @@ export async function addActivityLog(jrCandidateId: string, status: string, note
                 log_id: nextId,
                 jr_candidate_id: jrCandidateId,
                 status,
-                updated_By: updatedBy,
                 updated_by: updatedBy,
                 timestamp: timestampStr,
                 note
@@ -192,7 +197,6 @@ export async function updateActivityLog(logId: number, status: string, note: str
         };
 
         if (updatedBy) {
-            updates.updated_By = updatedBy;
             updates.updated_by = updatedBy;
         }
 

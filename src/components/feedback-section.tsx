@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MessageSquare, Star, FileText, Plus, Pencil, MoreVertical, Trash2, History as HistoryIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { formatDateForDisplay } from "@/lib/date-utils";
 import { AddFeedbackDialog } from "@/components/add-feedback-dialog";
 import {
     DropdownMenu,
@@ -166,7 +167,7 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback, isRead
                                     </a>
                                 )}
                                 <div className="flex justify-between items-center pt-2">
-                                    <span className="text-[10px] font-bold text-slate-400">{f.interview_date}</span>
+                                    <span className="text-[10px] font-bold text-slate-400">{formatDateForDisplay(f.interview_date)}</span>
                                     <Badge variant="outline" className={cn(
                                         "text-[9px] font-black uppercase tracking-widest",
                                         ['Strong Recommend', 'Hire', 'Recommend', 'Strongly Recommend'].includes(f.overall_recommendation)
@@ -222,7 +223,7 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback, isRead
                         <div className="flex justify-between items-center py-3 px-4 bg-slate-50 rounded-2xl border border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-widest">
                             <div className="flex items-center gap-2">
                                 <HistoryIcon className="h-4 w-4 text-indigo-400" />
-                                <span>{viewingFeedback?.interview_date}</span>
+                                <span>{formatDateForDisplay(viewingFeedback?.interview_date)}</span>
                             </div>
                             <Badge className={cn(
                                 "font-black tracking-widest px-3 py-1",

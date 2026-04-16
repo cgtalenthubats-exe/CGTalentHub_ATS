@@ -26,6 +26,7 @@ import { Loader2, Upload } from "lucide-react";
 import { submitInterviewFeedback } from "@/app/actions/interview-feedback";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase/client";
+import { formatDateForDisplay } from "@/lib/date-utils";
 
 interface AddFeedbackDialogProps {
     open: boolean;
@@ -181,12 +182,19 @@ export function AddFeedbackDialog({
                     <div className="grid grid-cols-2 gap-4">
                         <div className="flex flex-col gap-2">
                             <Label htmlFor="date" className="text-xs font-bold uppercase text-slate-500">Interview Date <span className="text-red-500">*</span></Label>
-                            <Input
-                                id="date"
-                                type="date"
-                                value={interviewDate}
-                                onChange={(e) => setInterviewDate(e.target.value)}
-                            />
+                            <div className="flex flex-col gap-1">
+                                <Input
+                                    id="date"
+                                    type="date"
+                                    value={interviewDate}
+                                    onChange={(e) => setInterviewDate(e.target.value)}
+                                />
+                                {interviewDate && (
+                                    <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest pl-1">
+                                        Preview: {formatDateForDisplay(interviewDate)}
+                                    </span>
+                                )}
+                            </div>
                         </div>
                         <div className="flex flex-col gap-2">
                             <Label htmlFor="type" className="text-xs font-bold uppercase text-slate-500">Interview Type <span className="text-red-500">*</span></Label>

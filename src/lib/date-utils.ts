@@ -126,17 +126,17 @@ export function formatDateForInput(date: string | Date | null | undefined): stri
 }
 
 /**
- * Formats date for display (e.g. 25 Mar 1964).
+ * Formats date for display (e.g. Apr-16-2026).
  */
 export function formatDateForDisplay(date: string | Date | null | undefined): string {
     const d = date instanceof Date ? date : parseAnyDate(date as string);
     if (!d || isNaN(d.getTime())) return "N/A";
 
-    return d.toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric'
-    });
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = d.toLocaleDateString('en-GB', { month: 'short' });
+    const year = d.getFullYear();
+
+    return `${month}-${day}-${year}`;
 }
 
 /**

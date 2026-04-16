@@ -59,7 +59,7 @@ export interface StatusLog {
     jr_candidate_id: string;
     status: string;
     timestamp: string;
-    updated_By: string;
+    updated_by: string;
     note: string | null;
 }
 
