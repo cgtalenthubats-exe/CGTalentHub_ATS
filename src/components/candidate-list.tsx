@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { JRCandidate } from "@/types/requisition";
 import { getJRCandidates } from "@/app/actions/jr-candidates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -101,6 +101,63 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
     const [pendingStatus, setPendingStatus] = useState<string>("");
     const [pendingCandidateId, setPendingCandidateId] = useState<string | null>(null); // null if batch update
     const [isBatchUpdate, setIsBatchUpdate] = useState(false);
+    
+    // Scroll Synchronization Refs
+    const topScrollRef = useRef<HTMLDivElement>(null);
+    const tableContainerRef = useRef<HTMLDivElement>(null);
+    const [tableWidth, setTableWidth] = useState(0);
+
+    // Sync scroll between top and bottom
+    useEffect(() => {
+        const top = topScrollRef.current;
+        const bottom = tableContainerRef.current;
+        if (!top || !bottom) return;
+
+        let isSyncingTop = false;
+        let isSyncingBottom = false;
+
+        const onTopScroll = () => {
+            if (!isSyncingBottom) {
+                isSyncingTop = true;
+                bottom.scrollLeft = top.scrollLeft;
+            }
+            isSyncingBottom = false;
+        };
+
+        const onBottomScroll = () => {
+            if (!isSyncingTop) {
+                isSyncingBottom = true;
+                top.scrollLeft = bottom.scrollLeft;
+            }
+            isSyncingTop = false;
+        };
+
+        top.addEventListener('scroll', onTopScroll);
+        bottom.addEventListener('scroll', onBottomScroll);
+
+        return () => {
+            top.removeEventListener('scroll', onTopScroll);
+            bottom.removeEventListener('scroll', onBottomScroll);
+        };
+    }, [candidates.length]);
+
+    // Update table width for dummy scrollbar
+    useEffect(() => {
+        const obs = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                const table = entry.target.querySelector('table');
+                if (table) {
+                    setTableWidth(table.scrollWidth);
+                }
+            }
+        });
+
+        if (tableContainerRef.current) {
+            obs.observe(tableContainerRef.current);
+        }
+
+        return () => obs.disconnect();
+    }, [candidates.length]);
 
     useEffect(() => {
         async function load() {
@@ -554,7 +611,17 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
                     </div>
                 </div>
             </CardHeader>
-            <CardContent className="p-0 overflow-x-auto">
+
+            {/* Top Synchronized Scrollbar */}
+            <div 
+                ref={topScrollRef}
+                className="w-full overflow-x-auto overflow-y-hidden h-3 bg-slate-50/50 border-b border-slate-100 sticky top-0 z-20"
+                style={{ scrollbarWidth: 'thin' }}
+            >
+                <div style={{ width: tableWidth, height: '1px' }} />
+            </div>
+
+            <CardContent ref={tableContainerRef} className="p-0 overflow-x-auto">
                 <table className="w-full text-sm border-collapse">
                     <thead>
                         <tr className="bg-slate-50/80 dark:bg-slate-900/50 border-b border-slate-200 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
