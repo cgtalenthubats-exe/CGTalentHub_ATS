@@ -34,6 +34,7 @@ export function ImportOrgDialog() {
     const [companyName, setCompanyName] = useState('')
     const [notes, setNotes] = useState('')
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
+    const [lastUploadSuccess, setLastUploadSuccess] = useState<{name: string, time: string} | null>(null)
     const [isDragging, setIsDragging] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const router = useRouter()
@@ -45,10 +46,12 @@ export function ImportOrgDialog() {
             setNotes('')
             setSelectedFile(null)
             setIsDragging(false)
+            setLastUploadSuccess(null)
         }
     }, [isOpen])
 
     const processSelectedFile = async (file: File) => {
+        setLastUploadSuccess(null) // Clear success message when new file added
         if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
             setSelectedFile(file)
             
@@ -147,21 +150,21 @@ export function ImportOrgDialog() {
             console.log('[ImportOrg] Server action result:', result);
 
             if (result.success) {
-                console.log('[ImportOrg] Success! Closing dialog and resetting state.');
+                console.log('[ImportOrg] Success! Clearing form for next upload...');
                 toast.success("OrgChart import initiated!")
                 
-                // 1. Close dialog FIRST
-                setIsOpen(false)
+                // Show success badge inside the modal
+                setLastUploadSuccess({
+                    name: companyName,
+                    time: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
+                })
                 
-                // 2. Clear fields immediately
+                // Clear fields immediately for the next bulk upload
                 setCompanyName('')
                 setNotes('')
                 setSelectedFile(null)
                 
-                // 3. Force reset for next open
-                setFormKey(prev => prev + 1)
-                
-                // 4. Refresh to show the "Processing..." badge in the background
+                // Refresh background data
                 router.refresh()
             } else {
                 console.error('[ImportOrg] Server action failed:', result.error);
@@ -192,6 +195,19 @@ export function ImportOrgDialog() {
                     </DialogHeader>
                     
                     <div className="grid gap-4 py-4">
+                        {lastUploadSuccess && (
+                            <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 rounded-lg p-3 flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                                <div className="h-8 w-8 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
+                                    <CheckCircle2 size={18} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">Uploaded Successfully!</p>
+                                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 truncate">
+                                        "{lastUploadSuccess.name}" was sent for processing at {lastUploadSuccess.time}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
                                 <div className="grid gap-2">
                                     <Label htmlFor="company">Company Name (Master)</Label>
                                     <CompanySuggestionInput
