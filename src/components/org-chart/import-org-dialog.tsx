@@ -142,15 +142,16 @@ export function ImportOrgDialog() {
             // 4. Trigger Server Action for DB Logging and Webhook
             const result = await importOrgChart(uploadId, companyName, fileName, publicUrl, notes)
 
-                if (result.success) {
-                    toast.success("OrgChart import initiated! The system is processing the PDF.")
-                    setIsOpen(false)
-                    setCompanyName('')
-                    setNotes('')
-                    setSelectedFile(null)
-                    // Just refresh the data to show the new item in the list, no redirect
-                    router.refresh()
-                } else {
+            if (result.success) {
+                toast.success("OrgChart import initiated! The system is processing the PDF.")
+                // Keep modal open for bulk uploads as requested, but clear the state
+                setCompanyName('')
+                setNotes('')
+                setSelectedFile(null)
+                
+                // Refresh data to show the new item in the background list
+                router.refresh()
+            } else {
                 toast.error(result.error || "Failed to trigger import")
             }
         } catch (err: any) {
