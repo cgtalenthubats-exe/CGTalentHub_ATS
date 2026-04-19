@@ -14,7 +14,6 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { UploadCloud, FileText, Loader2, Plus, CheckCircle2 } from 'lucide-react'
 import { toast } from '@/lib/notifications'
@@ -124,11 +123,10 @@ export function ImportOrgDialog() {
         try {
             // 1. Generate Upload ID & File Name on Client
             const uploadId = 'db' + Math.random().toString(16).slice(2, 8)
-            const fileExt = selectedFile.name.split('.').pop() || 'pdf'
             const sanitizedBase = selectedFile.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]/g, '_')
             const fileName = `${uploadId}_${sanitizedBase}`
 
-            // 2. Client-side upload straight to Supabase Storage (Safe from Next.js server limits/hangs)
+            // 2. Client-side upload straight to Supabase Storage
             const { error: uploadError } = await supabase.storage
                 .from('org_charts')
                 .upload(fileName, selectedFile)
@@ -145,29 +143,27 @@ export function ImportOrgDialog() {
             const publicUrl = urlData.publicUrl
 
             // 4. Trigger Server Action for DB Logging and Webhook
-            console.log('[ImportOrg] Triggering server action:', { uploadId, companyName, fileName });
             const result = await importOrgChart(uploadId, companyName, fileName, publicUrl, notes)
-            console.log('[ImportOrg] Server action result:', result);
 
             if (result.success) {
-                console.log('[ImportOrg] Success! Clearing form for next upload...');
                 toast.success("OrgChart import initiated!")
                 
-                // Show success badge inside the modal
+                // Show success badge BEFORE resetting form fields
                 setLastUploadSuccess({
                     name: companyName,
                     time: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
                 })
                 
-                // Clear fields immediately for the next bulk upload
+                // RESET EVERYTHING TO IMAGE 1 STATE
                 setCompanyName('')
                 setNotes('')
                 setSelectedFile(null)
                 
-                // Refresh background data
+                // HARD RESET: Force re-mount of child components (Clears internal states)
+                setFormKey(prev => prev + 1)
+                
                 router.refresh()
             } else {
-                console.error('[ImportOrg] Server action failed:', result.error);
                 toast.error(result.error || "Failed to trigger import")
             }
         } catch (err: any) {
@@ -186,7 +182,7 @@ export function ImportOrgDialog() {
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
-                <form onSubmit={handleSubmit} key={formKey}>
+                <form onSubmit={handleSubmit}>
                     <DialogHeader>
                         <DialogTitle>Import New OrgChart</DialogTitle>
                         <DialogDescription>
@@ -195,6 +191,7 @@ export function ImportOrgDialog() {
                     </DialogHeader>
                     
                     <div className="grid gap-4 py-4">
+                        {/* 1. SUCCESS BADGE (Outside keyed div so it stays) */}
                         {lastUploadSuccess && (
                             <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 rounded-lg p-3 flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
                                 <div className="h-8 w-8 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
@@ -208,87 +205,93 @@ export function ImportOrgDialog() {
                                 </div>
                             </div>
                         )}
-                                <div className="grid gap-2">
-                                    <Label htmlFor="company">Company Name (Master)</Label>
-                                    <CompanySuggestionInput
-                                        value={companyName}
-                                        onChange={setCompanyName}
+
+                        {/* 2. INTERACTIVE FORM (Inside keyed div for HARD RESET to Image 1) */}
+                        <div key={formKey} className="space-y-4 animate-in fade-in duration-500">
+                            <div className="grid gap-2">
+                                <Label htmlFor="company">Company Name (Master)</Label>
+                                <CompanySuggestionInput
+                                    value={companyName}
+                                    onChange={setCompanyName}
+                                    disabled={isUploading}
+                                    placeholder="e.g. Asset World Corp"
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="notes">Notes (Optional)</Label>
+                                <Textarea 
+                                    id="notes" 
+                                    placeholder="Any context or details about this chart..."
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                    disabled={isUploading}
+                                    className="resize-none h-20"
+                                />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label htmlFor="file">OrgChart PDF</Label>
+                                <div
+                                    className={cn(
+                                        "border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all duration-200",
+                                        isDragging ? "border-primary bg-primary/5 scale-[1.02] ring-2 ring-primary/20" : 
+                                        selectedFile ? "border-indigo-400 bg-indigo-50/50" : 
+                                        "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                                    )}
+                                    onClick={() => !isUploading && fileInputRef.current?.click()}
+                                    onDragOver={handleDragOver}
+                                    onDragEnter={handleDragOver}
+                                    onDragLeave={handleDragLeave}
+                                    onDrop={handleDrop}
+                                >
+                                    <input
+                                        type="file"
+                                        id="file"
+                                        className="hidden"
+                                        accept=".pdf"
+                                        ref={fileInputRef}
+                                        onChange={handleFileChange}
                                         disabled={isUploading}
-                                        placeholder="e.g. Asset World Corp"
                                     />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="notes">Notes (Optional)</Label>
-                                    <Textarea 
-                                        id="notes" 
-                                        placeholder="Any context or details about this chart..."
-                                        value={notes}
-                                        onChange={(e) => setNotes(e.target.value)}
-                                        disabled={isUploading}
-                                        className="resize-none h-20"
-                                    />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="file">OrgChart PDF</Label>
-                                    <div
-                                        className={`
-                                            border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all duration-200
-                                            ${isDragging ? 'border-primary bg-primary/5 scale-[1.02] ring-2 ring-primary/20' : selectedFile ? 'border-indigo-400 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'}
-                                        `}
-                                        onClick={() => !isUploading && fileInputRef.current?.click()}
-                                        onDragOver={handleDragOver}
-                                        onDragEnter={handleDragOver}
-                                        onDragLeave={handleDragLeave}
-                                        onDrop={handleDrop}
-                                    >
-                                        <input
-                                            type="file"
-                                            id="file"
-                                            className="hidden"
-                                            accept=".pdf"
-                                            ref={fileInputRef}
-                                            onChange={handleFileChange}
-                                            disabled={isUploading}
-                                        />
-                                        {selectedFile ? (
-                                            <div className="flex flex-col items-center">
-                                                <FileText className="h-10 w-10 text-rose-500 mb-2" />
-                                                <span className="text-xs font-medium text-slate-900 truncate max-w-[200px]">
-                                                    {selectedFile.name}
-                                                </span>
-                                                <span className="text-[10px] text-slate-500 mt-1">
-                                                    {(selectedFile.size / 1024).toFixed(1)} KB
-                                                </span>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                <UploadCloud className="h-10 w-10 text-slate-300 mb-2" />
-                                                <span className="text-sm text-slate-600">Click to upload PDF</span>
-                                                <span className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">Only PDF allowed</span>
-                                            </>
-                                        )}
-                                    </div>
+                                    {selectedFile ? (
+                                        <div className="flex flex-col items-center">
+                                            <FileText className="h-10 w-10 text-rose-500 mb-2" />
+                                            <span className="text-xs font-medium text-slate-900 truncate max-w-[200px]">
+                                                {selectedFile.name}
+                                            </span>
+                                            <span className="text-[10px] text-slate-500 mt-1">
+                                                {(selectedFile.size / 1024).toFixed(1)} KB
+                                            </span>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <UploadCloud className="h-10 w-10 text-slate-300 mb-2" />
+                                            <span className="text-sm text-slate-600">Click to upload PDF</span>
+                                            <span className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">Only PDF allowed</span>
+                                        </>
+                                    )}
                                 </div>
                             </div>
-                            <DialogFooter>
-                                <Button
-                                    type="submit"
-                                    className={cn(
-                                        "w-full h-11 transition-all duration-300 bg-indigo-600 hover:bg-indigo-700 text-white",
-                                        isUploading && "bg-slate-400 pointer-events-none opacity-80"
-                                    )}
-                                    disabled={isUploading}
-                                >
-                                    {isUploading ? (
-                                        <>
-                                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                            UPLOADING & TRIGGERING...
-                                        </>
-                                    ) : (
-                                        'UPLOAD & START IMPORT'
-                                    )}
-                                </Button>
-                            </DialogFooter>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            type="submit"
+                            className={cn(
+                                "w-full h-11 transition-all duration-300 bg-indigo-600 hover:bg-indigo-700 text-white",
+                                isUploading && "bg-slate-400 pointer-events-none opacity-80"
+                            )}
+                            disabled={isUploading}
+                        >
+                            {isUploading ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    UPLOADING & TRIGGERING...
+                                </>
+                            ) : (
+                                'UPLOAD & START IMPORT'
+                            )}
+                        </Button>
+                    </DialogFooter>
                 </form>
             </DialogContent>
         </Dialog>
