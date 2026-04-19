@@ -14,7 +14,9 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { upload_id, status = 'Completed' } = body;
+        // Support both snake_case and camelCase
+        const upload_id = body.upload_id || body.uploadId;
+        const status = body.status || 'Completed';
 
         console.log(`[OrgChart-Callback] Updating Upload ID: ${upload_id} to status: ${status}`);
 
