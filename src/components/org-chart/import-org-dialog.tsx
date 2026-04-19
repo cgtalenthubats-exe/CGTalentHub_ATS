@@ -36,6 +36,16 @@ export function ImportOrgDialog() {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const router = useRouter()
 
+    // Reset state when dialog closes
+    React.useEffect(() => {
+        if (!isOpen) {
+            setCompanyName('')
+            setNotes('')
+            setSelectedFile(null)
+            setIsDragging(false)
+        }
+    }, [isOpen])
+
     const processSelectedFile = async (file: File) => {
         if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
             setSelectedFile(file)
@@ -45,22 +55,20 @@ export function ImportOrgDialog() {
             setNotes(baseName)
             
             // Smart Auto-fill: Search for the first 6 characters and pick the first match
-            if (!companyName) {
-                const prefix = baseName.substring(0, 6)
-                setCompanyName(prefix) // Default to prefix first
-                
-                try {
-                    const response = await searchCompanies(prefix, 1)
-                    if (response.results && response.results.length > 0) {
-                        const matchedName = response.results[0]
-                        setCompanyName(matchedName)
-                        toast.success(`Smart Match: Found company "${matchedName}"`)
-                    } else {
-                        toast.info(`Smart Match: No company found for "${prefix}". Please verify manually.`)
-                    }
-                } catch (err) {
-                    console.error('Error auto-filling company:', err)
+            const prefix = baseName.substring(0, 6)
+            setCompanyName(prefix) // Default to prefix first
+            
+            try {
+                const response = await searchCompanies(prefix, 1)
+                if (response.results && response.results.length > 0) {
+                    const matchedName = response.results[0]
+                    setCompanyName(matchedName)
+                    toast.success(`Smart Match: Found company "${matchedName}"`)
+                } else {
+                    toast.info(`Smart Match: No company found for "${prefix}". Please verify manually.`)
                 }
+            } catch (err) {
+                console.error('Error auto-filling company:', err)
             }
         } else {
             toast.error("Please drop or select a PDF file")
