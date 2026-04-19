@@ -52,7 +52,11 @@ export function ImportOrgDialog() {
                 try {
                     const response = await searchCompanies(prefix, 1)
                     if (response.results && response.results.length > 0) {
-                        setCompanyName(response.results[0])
+                        const matchedName = response.results[0]
+                        setCompanyName(matchedName)
+                        toast.success(`Smart Match: Found company "${matchedName}"`)
+                    } else {
+                        toast.info(`Smart Match: No company found for "${prefix}". Please verify manually.`)
                     }
                 } catch (err) {
                     console.error('Error auto-filling company:', err)
