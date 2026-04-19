@@ -137,9 +137,9 @@ export function ImportOrgDialog() {
                             <CheckCircle2 size={48} className="stroke-[2.5]" />
                         </div>
                         <div className="space-y-2">
-                            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Upload เสร็จเรียบร้อยแล้ว!</h2>
+                            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Upload Successful!</h2>
                             <p className="text-sm text-slate-500 dark:text-slate-400 max-w-[280px] mx-auto">
-                                ไฟล์ของคุณถูกส่งเข้าสู่ระบบแล้ว กำลังประมวลผลอยู่เบื้องหลัง คุณสามารถปิดหน้านี้ได้เลย หรืออัปโหลดไฟล์ถัดไป
+                                Your file has been uploaded and is being processed in the background. You can close this window or upload another file.
                             </p>
                         </div>
                         <div className="flex flex-col gap-2 w-full pt-4">
