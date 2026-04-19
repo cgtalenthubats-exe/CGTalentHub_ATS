@@ -129,9 +129,7 @@ export function AddCandidateDialog({
                     job_title: row.position_jr || "Untitled Position",
                     department: row.sub_bu || "General",
                     division: row.bu || "Corporate",
-                    status: "Open" as const, // Fixed type error and defaulting to Open
                     opened_date: row.request_date,
-                    is_active: true,
                     created_by: row.create_by || "System",
                     hiring_manager_id: "",
                     headcount_total: 1,

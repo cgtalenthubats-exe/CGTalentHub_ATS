@@ -28,11 +28,11 @@ function mapRowsToJRs(data: any[]): JobRequisition[] {
         hiring_manager_name: row.hiring_manager_name || "Unknown",
         department: row.sub_bu || "General",
         division: row.bu || "Corporate",
-        status: row.status || row.is_active || "Open",
+        status: "Open",
         headcount_total: row.headcount || 1,
         headcount_hired: row.hired_count || 0,
         opened_date: row.request_date,
-        is_active: String(row.is_active).toLowerCase() === 'active',
+        is_active: true,
         location: row.location || "Bangkok",
         created_at: row.created_at || new Date().toISOString(),
         updated_at: row.updated_at || new Date().toISOString(),
@@ -82,9 +82,9 @@ export async function getJRSelectionDataLean() {
         job_title: row.position_jr || "Untitled Position",
         department: row.sub_bu || "General",
         division: row.bu || "Corporate",
-        status: row.status || (row.is_active === true ? "Active" : "Closed"),
+        status: "Open",
         opened_date: row.request_date,
-        is_active: row.status === 'Active' || row.is_active === true || row.is_active === 'Active',
+        is_active: true,
         created_by: row.create_by || "System",
         hiring_manager_id: "",
         headcount_total: 1,
@@ -134,11 +134,11 @@ export async function getRequisition(id: string): Promise<JobRequisition | null>
         hiring_manager_name: row.hiring_manager_name || "Unknown", // Would need join usually
         department: row.sub_bu || "General",
         division: row.bu || "Corporate",
-        status: row.status || row.is_active || "Open",
+        status: "Open",
         headcount_total: row.headcount || 1,
         headcount_hired: row.hired_count || 0,
         opened_date: row.request_date,
-        is_active: String(row.is_active).toLowerCase() === 'active',
+        is_active: true,
         location: row.location,
         created_at: row.created_at || new Date().toISOString(),
         updated_at: row.updated_at || new Date().toISOString(),
@@ -151,10 +151,7 @@ export async function getRequisition(id: string): Promise<JobRequisition | null>
 
 
 function normalizeStatus(status: string): 'Open' | 'Closed' | 'On Hold' | 'Draft' {
-    const s = String(status || "").toLowerCase();
-    if (s === 'active') return 'Open';
-    if (s === 'inactive' || s === 'closed') return 'Closed';
-    return 'Open'; // Default
+    return 'Open'; // Defaulting all to Open as per deprecation of is_active
 }
 
 export async function getJRStats(): Promise<DashboardStats> {
@@ -246,11 +243,11 @@ export async function updateJobRequisition(jrId: string, data: any, isFileUpdate
                 hiring_manager_name: updatedData.create_by || "Unknown",
                 department: updatedData.sub_bu,
                 division: updatedData.bu,
-                status: updatedData.status || updatedData.is_active || "Open",
+                status: "Open",
                 headcount_total: updatedData.headcount || 1,
                 headcount_hired: updatedData.hired_count || 0,
                 opened_date: updatedData.request_date,
-                is_active: String(updatedData.is_active).toLowerCase() === 'active',
+                is_active: true,
                 location: updatedData.location || "Bangkok",
                 created_at: updatedData.created_at,
                 updated_at: updatedData.updated_at,
@@ -318,7 +315,6 @@ export async function createJobRequisition(data: any): Promise<JobRequisition | 
             create_by: data.create_by || await getCurrentUserRealName(),
 
             // Defaults
-            is_active: 'Active',
             created_at: new Date().toISOString()
         };
 
@@ -476,8 +472,7 @@ export async function getAgingSummary(): Promise<number> {
     const supabase = adminAuthClient;
     const { data: activeJrDates } = await supabase
         .from('job_requisitions')
-        .select('request_date')
-        .ilike('is_active', 'active');
+        .select('request_date');
 
     let avgAging = 0;
     if (activeJrDates && activeJrDates.length > 0) {
@@ -530,7 +525,6 @@ export async function copyJobRequisition(sourceJrId: string, newJrData: Partial<
             jr_type: 'New',
             request_date: new Date().toISOString().split('T')[0],
             create_by: newJrData.created_by || "System (Copy)",
-            is_active: 'Active',
             created_at: new Date().toISOString()
         };
 

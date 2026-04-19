@@ -20,7 +20,6 @@ export interface JRRecord {
     bu: string;
     sub_bu: string;
     request_date: string;
-    is_active: string;
 }
 
 export interface RawPlacementData {
@@ -38,7 +37,7 @@ export async function getRawPlacementData(): Promise<RawPlacementData> {
             .select('jr_id, position, bu, sub_bu, candidate_name, hire_date, hiring_status, outsource_fee_20_percent, job_grade, annual_salary'),
         supabase
             .from('job_requisitions')
-            .select('jr_id, bu, sub_bu, request_date, is_active'),
+            .select('jr_id, bu, sub_bu, request_date'),
     ]);
 
     const placements: PlacementRecord[] = (erRes.data || []).map((r: any) => ({

@@ -188,7 +188,7 @@ export default function PlacementTab() {
     const totalSearch = filteredJRs.length;
     const totalPlacement = filteredPlacements.length;
     const totalSaving = useMemo(() => filteredPlacements.reduce((s, r) => s + r.outsource_fee_20_percent, 0), [filteredPlacements]);
-    const activeJR = useMemo(() => filteredJRs.filter(r => r.is_active === 'Active').length, [filteredJRs]);
+    const activeJR = filteredJRs.length; // Deprecated status filtering; count all.
 
     const buChartData = Object.entries(byBU).filter(([, v]) => v.placement > 0).map(([bu, v]) => ({ name: bu, value: v.placement }));
     const jgChartData = Object.entries(byJobGrade).map(([jg, count]) => ({ name: jg, value: count }));
@@ -256,7 +256,7 @@ export default function PlacementTab() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatCard label="Total Search (JR)" value={totalSearch} icon={Search} color="from-indigo-600 to-indigo-500" />
                 <StatCard label="Successful Placement" value={totalPlacement} icon={Target} color="from-emerald-600 to-emerald-500" />
-                <StatCard label="Active JR" value={activeJR} icon={TrendingUp} color="from-amber-500 to-orange-500" />
+                <StatCard label="Total JR" value={activeJR} icon={TrendingUp} color="from-amber-500 to-orange-500" />
                 <StatCard label="Total Cost Saving" value={formatMillion(totalSaving)} icon={Coins} color="from-purple-600 to-purple-500" />
             </div>
 

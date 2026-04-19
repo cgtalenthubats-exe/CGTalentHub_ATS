@@ -16,7 +16,8 @@ import {
     Network,
     History as HistoryIcon,
     Bot,
-    Search
+    Search,
+    Building2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -32,6 +33,7 @@ const menuItems = [
     { name: "AI Primary Search", icon: Bot, path: "/assistant" },
     { name: "Settings", icon: Settings, path: "/settings" },
     { name: "n8n Integration", icon: Webhook, path: "/admin/n8n" },
+    { name: "Company Master", icon: Building2, path: "/admin/companies" },
     { name: "Data Aging Report", icon: HistoryIcon, path: "/reports/aging" },
 ];
 

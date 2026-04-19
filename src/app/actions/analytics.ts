@@ -13,17 +13,16 @@ export async function getDashboardOverviewStats(lookbackDays: number = 30) {
         { count: totalCandidates },
         { count: resumeCount },
         { count: orgChartCount },
-        { count: totalJRs },
-        { count: activeJRs }
+        { count: totalJRs }
     ] = await Promise.all([
         client.from('Candidate Profile').select('*', { count: 'exact', head: true }),
         client.from('Candidate Profile').select('*', { count: 'exact', head: true })
             .not('resume_url', 'is', null)
             .neq('resume_url', ''),
         client.from('org_chart_uploads').select('*', { count: 'exact', head: true }),
-        client.from('job_requisitions').select('*', { count: 'exact', head: true }),
-        client.from('job_requisitions').select('*', { count: 'exact', head: true }).eq('is_active', 'Active')
+        client.from('job_requisitions').select('*', { count: 'exact', head: true })
     ]);
+    const activeJRs = totalJRs || 0; // Deprecated is_active filter
 
     // 2. Trend Data (Created Date for Candidates, Request Date for JRs)
     // Increase limit to 10,000 to avoid Supabase default 1,000 suppression

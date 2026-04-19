@@ -96,8 +96,7 @@ export default function JobsPage() {
                     <div className="col-span-4">Position</div>
                     <div className="col-span-2">BU / Dept</div>
                     <div className="col-span-2">Created</div>
-                    <div className="col-span-1">Status</div>
-                    <div className="col-span-1 text-right">Actions</div>
+                    <div className="col-span-2 text-right">Actions</div>
                 </div>
 
                 {/* Scrollable Rows */}
@@ -113,17 +112,7 @@ export default function JobsPage() {
                                 <div className="col-span-4 font-bold text-foreground truncate text-base" title={job.position_jr}>{job.position_jr || "Untitled"}</div>
                                 <div className="col-span-2 text-muted-foreground text-xs font-medium">{job.bu}</div>
                                 <div className="col-span-2 text-muted-foreground text-xs">{job.request_date}</div>
-                                <div className="col-span-1">
-                                    <Badge variant={job.is_active?.toLowerCase() === 'active' ? "default" : "secondary"}
-                                        className={
-                                            job.is_active?.toLowerCase() === 'active'
-                                                ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border-none px-2"
-                                                : "bg-slate-100 text-slate-600 hover:bg-slate-200 border-none px-2"
-                                        }>
-                                        {job.is_active || 'Unknown'}
-                                    </Badge>
-                                </div>
-                                <div className="col-span-1 flex justify-end">
+                                <div className="col-span-2 flex justify-end">
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
                                             <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity">
