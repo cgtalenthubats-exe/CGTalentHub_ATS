@@ -16,12 +16,38 @@ export async function POST(req: NextRequest) {
         const body = await req.json();
         const { name, email, phone, position, nationality, createdBy: explicitCreatedBy } = body;
 
-        // Calculate age on server to ensure DB sync
-        const calculatedAge = getEffectiveAge(
-            body.age_input_type === 'dob' ? body.date_of_birth : null,
-            body.age_input_type === 'bachelor' ? body.year_of_bachelor_education : null
-        );
-        const ageToSave = calculatedAge ? parseInt(calculatedAge) : (body.age ? parseInt(body.age) : null);
+        // Handle Age Sync on Create (Business Rule)
+        // 1. DOB is highest priority
+        // 2. Grad Year is second priority
+        // 3. Manual Age is third priority
+        
+        let finalDob = formatDateForInput(body.date_of_birth) || null;
+        let finalGradYear = extractYear(body.year_of_bachelor_education) || null;
+        let finalAge = body.age ? parseInt(body.age.toString()) : null;
+
+        const currentYear = new Date().getFullYear();
+
+        if (finalDob) {
+            // Priority 1: Calculate Age from DOB
+            const birthDate = new Date(finalDob);
+            let age = currentYear - birthDate.getFullYear();
+            const m = new Date().getMonth() - birthDate.getMonth();
+            if (m < 0 || (m === 0 && new Date().getDate() < birthDate.getDate())) {
+                age--;
+            }
+            finalAge = age;
+            if (!finalGradYear) finalGradYear = currentYear - age + 22; // Auto-fill grad year
+        } else if (finalGradYear) {
+            // Priority 2: Calculate Age from Grad Year
+            finalAge = (currentYear - finalGradYear) + 22;
+        } else if (finalAge) {
+            // Priority 3: Calculate Grad Year backwards from Manual Age
+            finalGradYear = currentYear - finalAge + 22;
+        } else {
+            // All empty
+            finalAge = null;
+            finalGradYear = null;
+        }
 
         // Get current user for audit trail (Fallback)
         const supabaseServer = await createServerClient();
@@ -81,9 +107,9 @@ export async function POST(req: NextRequest) {
                     nationality: nationality || null,
                     gender: body.gender || null,
                     linkedin: body.linkedin || null,
-                    date_of_birth: formatDateForInput(body.date_of_birth) || null,
-                    year_of_bachelor_education: extractYear(body.year_of_bachelor_education) || null,
-                    age: ageToSave,
+                    date_of_birth: finalDob,
+                    year_of_bachelor_education: finalGradYear,
+                    age: finalAge,
                     checked: getCheckedStatus(body.linkedin),
                     action_needed: 'Wait_for_vector', // AI System Flag
                     // Compensation & Benefits (all optional)

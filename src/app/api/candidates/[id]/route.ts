@@ -239,23 +239,49 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         if (body.nationality !== undefined) updateData.nationality = body.nationality || null;
         if (body.gender !== undefined) updateData.gender = body.gender || null;
         
-        // Handle Age Sync on Update
-        if (body.date_of_birth !== undefined || body.year_of_bachelor_education !== undefined) {
-            const dob = body.date_of_birth !== undefined ? body.date_of_birth : profileData.date_of_birth;
-            const grad = body.year_of_bachelor_education !== undefined ? body.year_of_bachelor_education : profileData.year_of_bachelor_education;
-            
-            if (body.date_of_birth !== undefined) updateData.date_of_birth = formatDateForInput(body.date_of_birth) || null;
-            if (body.year_of_bachelor_education !== undefined) updateData.year_of_bachelor_education = extractYear(body.year_of_bachelor_education) || null;
-            
-            // Calculate new age based on updated fields
-            const calculatedAge = getEffectiveAge(dob, grad);
-            if (calculatedAge) {
-                updateData.age = parseInt(calculatedAge);
+        // Handle Age Sync on Update (Business Rule)
+        // 1. DOB is highest priority
+        // 2. Grad Year is second priority
+        // 3. Manual Age is third priority
+        
+        // Extract provided or existing values
+        const dobStr = body.date_of_birth !== undefined ? body.date_of_birth : profileData.date_of_birth;
+        const gradStr = body.year_of_bachelor_education !== undefined ? body.year_of_bachelor_education : profileData.year_of_bachelor_education;
+        const manualAgeStr = body.age !== undefined ? body.age : null; // Only use age from body as manual trigger, not profileData.age to avoid loops if only other fields change
+
+        let finalDob = formatDateForInput(dobStr) || null;
+        let finalGradYear = extractYear(gradStr) || null;
+        let finalAge = manualAgeStr ? parseInt(manualAgeStr.toString()) : null;
+
+        const currentYear = new Date().getFullYear();
+
+        if (finalDob) {
+            // Priority 1: Calculate Age from DOB
+            const birthDate = new Date(finalDob);
+            let age = currentYear - birthDate.getFullYear();
+            const m = new Date().getMonth() - birthDate.getMonth();
+            if (m < 0 || (m === 0 && new Date().getDate() < birthDate.getDate())) {
+                age--;
             }
-        } else if (body.age !== undefined) {
-            updateData.age = body.age ? parseInt(body.age) : null;
+            finalAge = age;
+            if (!finalGradYear) finalGradYear = currentYear - age + 22; // Auto-fill grad year
+        } else if (finalGradYear) {
+            // Priority 2: Calculate Age from Grad Year
+            finalAge = (currentYear - finalGradYear) + 22;
+        } else if (finalAge) {
+            // Priority 3: Calculate Grad Year backwards from Manual Age
+            finalGradYear = currentYear - finalAge + 22;
+        } else {
+            // All empty
+            finalAge = null;
+            finalGradYear = null;
         }
 
+        // Apply to updateData
+        updateData.date_of_birth = finalDob;
+        updateData.year_of_bachelor_education = finalGradYear;
+        updateData.age = finalAge;
+        
         if (body.checked !== undefined) updateData.checked = body.checked || null;
 
         // Compensation & Benefits fields

@@ -168,7 +168,7 @@ export async function POST(req: Request) {
                         checked: extraData.checked || p.checked,
                         date_of_birth: extraData.date_of_birth || p.date_of_birth,
                         year_of_bachelor_education: extraData.year_of_bachelor_education || p.year_of_bachelor_education,
-                        age: getEffectiveAge(extraData.date_of_birth || p.date_of_birth, extraData.year_of_bachelor_education || p.year_of_bachelor_education),
+                        age: extraData.age || p.age || getEffectiveAge(extraData.date_of_birth || p.date_of_birth, extraData.year_of_bachelor_education || p.year_of_bachelor_education),
                         experiences: fullExp.filter((e: any) => e.candidate_id === p.candidate_id)
                     };
                 }
@@ -177,7 +177,7 @@ export async function POST(req: Request) {
                 ...p,
                 blacklist_note: null,
                 experiences: [],
-                age: getEffectiveAge(p.date_of_birth, p.year_of_bachelor_education)
+                age: p.age || getEffectiveAge(p.date_of_birth, p.year_of_bachelor_education)
             };
         });
 
