@@ -13,6 +13,7 @@ type Upload = {
     company_name: string
     created_at: string
     notes?: string
+    status?: string // 'Processing' | 'Completed' | etc.
 }
 
 type OrgDirectoryProps = {
@@ -148,7 +149,13 @@ export function OrgDirectory({ uploads, currentId }: OrgDirectoryProps) {
                                                     )}
                                                 >
                                                     <span className="truncate flex-1">{u.company_name}</span>
-                                                    <span className="text-[9px] opacity-60 font-mono shrink-0">({dateStr})</span>
+                                                    {u.status === 'Processing' ? (
+                                                        <span className="text-[9px] px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 font-bold rounded animate-pulse">
+                                                            Processing...
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[9px] opacity-60 font-mono shrink-0">({dateStr})</span>
+                                                    )}
                                                 </button>
                                             )
                                         })}

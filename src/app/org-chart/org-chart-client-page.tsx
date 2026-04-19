@@ -18,6 +18,7 @@ type OrgChartClientPageProps = {
     notes: string | null
     chartFileUrl: string | null
     modifyDate: string | null
+    status?: string
 }
 
 export function OrgChartClientPage({
@@ -43,6 +44,19 @@ export function OrgChartClientPage({
 
             {/* Main Content: Chart/Table */}
             <div className="relative h-[800px] md:h-[85vh] w-full">
+                {(uploads.find(u => u.upload_id === currentUploadId)?.status === 'Processing') && (
+                    <div className="absolute inset-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-sm rounded-xl flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
+                        <div className="mb-6 relative">
+                            <div className="absolute inset-0 bg-indigo-500/20 blur-xl rounded-full scale-150 animate-pulse" />
+                            <div className="h-16 w-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin relative z-10" />
+                        </div>
+                        <h3 className="text-xl font-black text-slate-900 dark:text-slate-100 mb-2">Building Your Organization Chart...</h3>
+                        <p className="text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
+                            Our system is currently processing the PDF data. This usually takes 1-2 minutes. 
+                            The chart will appear here automatically once it's ready.
+                        </p>
+                    </div>
+                )}
                 <Tabs defaultValue="chart" className="flex flex-col h-full">
                     <div className="flex mb-1 shrink-0 justify-between items-center bg-white/50 dark:bg-slate-950/50 p-1 rounded-lg border border-slate-100 dark:border-slate-800 px-3">
                         <TabsList className="h-8 bg-transparent p-0 gap-1">

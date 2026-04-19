@@ -143,7 +143,9 @@ export function ImportOrgDialog() {
             const publicUrl = urlData.publicUrl
 
             // 4. Trigger Server Action for DB Logging and Webhook
+            console.log('[ImportOrg] Triggering server action:', { uploadId, companyName, fileName });
             const result = await importOrgChart(uploadId, companyName, fileName, publicUrl, notes)
+            console.log('[ImportOrg] Server action result:', result);
 
             if (result.success) {
                 toast.success("OrgChart import initiated!")
@@ -159,15 +161,15 @@ export function ImportOrgDialog() {
                 // Force reset all child components (like the suggestion input)
                 setFormKey(prev => prev + 1)
                 
-                // Refresh data in background
-                router.refresh()
-                
                 // Close modal after a brief success display
                 setTimeout(() => {
+                    console.log('[ImportOrg] Closing modal and refreshing...');
                     setIsOpen(false)
-                    setIsSuccess(false)
-                }, 1200)
+                    setIsSuccess(false) // Reset success state for next time
+                    router.refresh()
+                }, 1500)
             } else {
+                console.error('[ImportOrg] Server action failed:', result.error);
                 toast.error(result.error || "Failed to trigger import")
             }
         } catch (err: any) {

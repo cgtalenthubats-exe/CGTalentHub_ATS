@@ -50,6 +50,7 @@ export default async function OrgChartPage({
             notes={notes}
             chartFileUrl={chartFileUrl}
             modifyDate={modifyDate}
+            status={uploads.find((u: any) => u.upload_id === currentUploadId)?.status}
         />
     )
 }
