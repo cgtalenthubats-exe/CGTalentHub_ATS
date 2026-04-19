@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { UploadCloud, FileText, Loader2, Plus } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import { importOrgChart } from '@/app/actions/org-chart-actions'
 import { CompanySuggestionInput } from './company-suggestion-input'
 import { Textarea } from '@/components/ui/textarea'

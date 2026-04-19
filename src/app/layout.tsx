@@ -5,7 +5,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { Sidebar } from "@/components/sidebar";
 import { ConnectionStatus } from "@/components/connection-status";
 import { Button } from "@/components/ui/button";
-import { Bell, UserCircle } from "lucide-react";
+import { NotificationCenter } from "@/components/NotificationCenter";
+import { UserCircle } from "lucide-react";
 import ThemeToggle from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 import { Toaster } from "sonner";
@@ -49,10 +50,7 @@ export default function RootLayout({
 
                   <ThemeToggle />
 
-                  <Button variant="ghost" size="icon" className="rounded-xl relative">
-                    <Bell className="h-5 w-5" />
-                    <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-primary" />
-                  </Button>
+                  <NotificationCenter />
 
                   <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center border border-primary/10">
                     <UserCircle className="h-6 w-6 text-primary" />

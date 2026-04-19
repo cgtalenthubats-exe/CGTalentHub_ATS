@@ -25,7 +25,7 @@ import {
     assignCandidateToOrgChart,
     verifyOrgChart
 } from '@/app/actions/org-chart-actions'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import { Loader2, Network } from 'lucide-react'
 
 type AssignCandidateOrgDialogProps = {

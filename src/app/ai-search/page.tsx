@@ -8,7 +8,7 @@ import { CandidateDetailPanel } from "@/components/ai-search/CandidateDetailPane
 import { ConsolidatedResult } from "@/components/ai-search/types";
 import { getSearchResults, getSearchJob, getSearchJobStatuses, onboardExternalCandidate, bulkOnboardExternalCandidates } from "@/app/actions/ai-search";
 import { Loader2, AlertCircle, Sparkles, Globe, ChevronDown, ChevronRight, UserPlus, CheckCircle } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { motion, AnimatePresence } from "framer-motion";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
 import { StatusPipeline } from "@/components/ai-search/StatusPipeline";

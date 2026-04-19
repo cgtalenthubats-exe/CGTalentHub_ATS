@@ -23,7 +23,7 @@ import { AddCandidateDialog } from "@/components/add-candidate-dialog";
 import { ReportViewDialog } from "@/components/report-view-dialog";
 import { triggerReport } from "@/app/actions/n8n-actions";
 import { CopyJRDialog } from "@/components/copy-jr-dialog";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { deleteJobRequisition, getUserProfiles, getRequisition } from "@/app/actions/requisitions";
 import { getJRAnalytics } from "@/app/actions/jr-candidates";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";

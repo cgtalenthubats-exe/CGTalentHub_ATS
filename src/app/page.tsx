@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { getTrackingData, TrackingStats } from "@/app/actions/tracking";
 import OverviewAnalytics from "./OverviewAnalytics";
+import OrgChartAlerts from "./OrgChartAlerts";
 
 interface Metrics {
   totalCandidates: number;
@@ -284,6 +285,11 @@ export default function OverviewPage() {
             </table>
           </CardContent>
         </Card>
+      </div>
+
+      {/* OrgChart Verification Tasks at the bottom */}
+      <div className="mt-12 pt-8 border-t border-slate-100">
+          <OrgChartAlerts />
       </div>
     </div>
   );

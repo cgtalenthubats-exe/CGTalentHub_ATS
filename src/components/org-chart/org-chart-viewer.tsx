@@ -41,7 +41,7 @@ import { cn } from "@/lib/utils"
 import { CandidateAvatar } from '@/components/candidate-avatar'
 import { CandidateLinkedinButton } from '@/components/candidate-linkedin-button'
 import { getCheckedStatus } from '@/lib/candidate-utils'
-import { toast } from 'sonner'
+import { toast } from "@/lib/notifications"
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import { updateMasterCompanyLogo, deleteOrgChart, verifyOrgChart } from '@/app/actions/org-chart-actions'

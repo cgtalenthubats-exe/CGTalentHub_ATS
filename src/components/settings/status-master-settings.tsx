@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { getStatusMaster, createStatus, updateStatusColors, deleteStatus, StatusMasterRow } from "@/app/actions/status-master";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { Trash2, Plus, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 

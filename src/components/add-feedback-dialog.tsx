@@ -24,7 +24,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { Loader2, Upload } from "lucide-react";
 import { submitInterviewFeedback } from "@/app/actions/interview-feedback";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { supabase } from "@/lib/supabase/client";
 import { formatDateForDisplay } from "@/lib/date-utils";
 

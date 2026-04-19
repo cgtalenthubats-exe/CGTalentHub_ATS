@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, Building2, Layers, Briefcase, Trash2, Plus, Info } from "lucide-react";
 import { updateCompanyMaster, getCompanyVariations, CompanyVariation } from "@/app/actions/company-mgmt";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 

@@ -9,7 +9,7 @@ import {
     DropdownMenuItem,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { supabase } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 

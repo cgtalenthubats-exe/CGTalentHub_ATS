@@ -16,7 +16,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { deleteInterviewFeedback } from "@/app/actions/jr-candidate-logs";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { useRouter } from "next/navigation";
 import {
     Sheet,

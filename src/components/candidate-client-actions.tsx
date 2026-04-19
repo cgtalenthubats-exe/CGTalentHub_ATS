@@ -24,7 +24,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 const scrollWithReload = (candidateId: string) => {
     // Navigate with hash to ensure the browser scrolls to the section on reload

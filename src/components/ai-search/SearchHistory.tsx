@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { deleteSearchSession } from "@/app/actions/ai-search";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 interface SearchHistoryProps {
     onSelectSession: (sessionId: string) => void;

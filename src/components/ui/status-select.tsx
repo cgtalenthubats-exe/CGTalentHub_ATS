@@ -29,7 +29,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getStatuses, addStatus } from "@/app/actions/candidate-filters";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 interface Status {
     status: string;

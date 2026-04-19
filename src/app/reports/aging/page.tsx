@@ -10,7 +10,7 @@ import { ReportCandidateTable } from "@/components/reports/ReportCandidateTable"
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 export default function DataQualityPage() {
     const [activeTab, setActiveTab] = useState("aging");

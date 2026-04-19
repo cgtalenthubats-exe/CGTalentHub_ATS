@@ -15,7 +15,7 @@ import { StatusLog } from "@/types/requisition";
 import { addActivityLog, updateActivityLog, deleteActivityLog } from "@/app/actions/jr-candidate-logs";
 import { getUserProfiles, UserProfile, getCurrentUserRealName } from "@/app/actions/user-actions";
 import { getStatusMaster, StatusMasterRow } from "@/app/actions/status-master";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 

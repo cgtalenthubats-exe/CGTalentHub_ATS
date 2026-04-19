@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Save, Send, Webhook } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 export function N8nIntegrations() {
     const [configs, setConfigs] = useState<N8nConfig[]>([]);

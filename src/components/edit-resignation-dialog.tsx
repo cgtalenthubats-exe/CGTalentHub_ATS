@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { updateEmploymentRecord, getResignationReasons, addResignationReason } from "@/app/actions/employment";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { Save, Loader2, Calendar, FileText, Check, ChevronsUpDown, Plus, User, Building, Briefcase, GraduationCap } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";

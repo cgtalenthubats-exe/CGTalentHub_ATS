@@ -5,7 +5,7 @@ import { Search, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { submitSearch } from "@/app/actions/ai-search";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 interface SearchFormProps {

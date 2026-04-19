@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { toast } from "sonner"
+import { toast } from "@/lib/notifications"
 import { UploadCloud, Download, Trash2, Loader2, CheckCircle2, AlertCircle, Info } from "lucide-react"
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb"
 

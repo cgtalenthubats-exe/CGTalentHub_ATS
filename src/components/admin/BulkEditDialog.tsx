@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Layers, Briefcase, AlertTriangle } from "lucide-react";
 import { bulkUpdateCompanies } from "@/app/actions/company-mgmt";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 interface BulkEditDialogProps {
     ids: number[];

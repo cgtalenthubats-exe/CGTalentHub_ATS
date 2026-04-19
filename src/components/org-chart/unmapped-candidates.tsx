@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { CandidateAvatar } from '@/components/candidate-avatar'
 import { UserPlus, Loader2, Users } from 'lucide-react'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import Link from 'next/link'
 
 type UnmappedCandidatesProps = {

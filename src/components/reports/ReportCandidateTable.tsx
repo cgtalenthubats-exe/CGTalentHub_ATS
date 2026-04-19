@@ -15,7 +15,7 @@ import {
     ExternalLink
 } from "lucide-react";
 import Link from "next/link";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { cn } from "@/lib/utils";
 import { deleteCandidates, refreshCandidate } from "@/app/actions/report-actions";
 

@@ -29,7 +29,7 @@ import {
     CardDescription
 } from "@/components/ui/card";
 import { Users, Plus, Pencil, Trash2, Loader2, Save, X } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { Badge } from "@/components/ui/badge";
 
 export function UserManagement() {

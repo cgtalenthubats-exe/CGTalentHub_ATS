@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/tooltip"
 import { Edit2, Plus, UserCheck, AlertCircle, Search, X, Loader2, UserPlus, Info } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import { cn } from "@/lib/utils"
 import { NodeFormDialog } from './node-form-dialog'
 import { VerificationDialog } from './verification-dialog'

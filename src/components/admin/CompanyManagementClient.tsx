@@ -10,7 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import HierarchySidebar from "./HierarchySidebar";
 import CompanyDataTable from "./CompanyDataTable";
 import { getCompaniesPaginated, globalCompanySearch } from "@/app/actions/company-mgmt";
-import { toast } from "sonner"; // Assuming sonner is available
+import { toast } from "@/lib/notifications"; // Assuming sonner is available
 
 interface CompanyStats {
     groups: Record<string, number>;

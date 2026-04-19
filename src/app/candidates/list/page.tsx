@@ -29,7 +29,7 @@ import { CandidateTableView } from "./table-view";
 import { AddCandidateDialog } from "@/components/ai-search/AddCandidateDialog";
 import { Plus, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import {
     Popover,
     PopoverContent,

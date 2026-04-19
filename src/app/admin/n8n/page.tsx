@@ -14,7 +14,7 @@ import {
     Loader2, Save, Undo, Webhook, CheckCircle2, AlertCircle, 
     ExternalLink, Copy, FlaskConical, Sparkles, Key, FileJson 
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
 
 // Payload documentation for each webhook

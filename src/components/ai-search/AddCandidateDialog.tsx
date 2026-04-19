@@ -26,7 +26,7 @@ import { createJobRequisition } from "@/app/actions/requisitions";
 import { bulkAddCandidatesToJR, bulkAddByFilterToJR } from "@/app/actions/jr-candidates";
 import { JobRequisition } from "@/types/requisition";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";

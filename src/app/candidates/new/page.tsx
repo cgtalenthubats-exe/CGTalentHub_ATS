@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/popover";
 import { getUserProfiles, type UserProfile } from "@/app/actions/user-actions";
 import { getN8nConfigs } from "@/app/actions/admin-actions";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { getEffectiveAge, extractYear, calculateBachelorYearFromAge } from "@/lib/date-utils";
 import { checkCandidateDuplicate } from "@/app/actions/candidate";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";

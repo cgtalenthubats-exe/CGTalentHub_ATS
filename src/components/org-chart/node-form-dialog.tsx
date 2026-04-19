@@ -16,7 +16,7 @@ import {
 import { Search, X, Loader2, UserCheck } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { toast } from 'sonner'
+import { toast } from '@/lib/notifications'
 import { useRouter } from 'next/navigation'
 
 interface NodeFormDialogProps {

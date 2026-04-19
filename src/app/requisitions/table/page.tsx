@@ -18,7 +18,7 @@ import { CreateJobRequisitionForm } from "@/components/create-jr-form";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CopyJRDialog } from "@/components/copy-jr-dialog";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { useRouter } from "next/navigation";
 import { deleteJobRequisition } from "@/app/actions/requisitions";
 import {

@@ -16,7 +16,6 @@ import { Button } from "@/components/ui/button";
 import { Tooltip as ReactTooltip } from "react-tooltip";
 import { cn } from "@/lib/utils";
 import PipelineTab from "./PipelineTab";
-import PlacementTab from "./PlacementTab";
 import PackageInfoTab from "./PackageInfoTab";
 
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";

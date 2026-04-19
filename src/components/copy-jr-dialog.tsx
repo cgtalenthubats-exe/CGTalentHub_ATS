@@ -21,7 +21,7 @@ import {
 import { Copy, Loader2, AlertCircle } from "lucide-react";
 import { JobRequisition } from "@/types/requisition";
 import { copyJobRequisition, getDistinctFieldValues } from "@/app/actions/requisitions";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 interface CopyJRDialogProps {
     open: boolean;

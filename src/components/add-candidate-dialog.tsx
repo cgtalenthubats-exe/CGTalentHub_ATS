@@ -50,7 +50,7 @@ import { SmartCandidateSearch } from "@/components/smart-candidate-search";
 import { AsyncFilterMultiSelect } from "@/components/ui/async-filter-multi-select";
 import { searchCompanies, searchPositions } from "@/app/actions/candidate-filters";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 
 interface AddCandidateDialogProps {
     open: boolean;

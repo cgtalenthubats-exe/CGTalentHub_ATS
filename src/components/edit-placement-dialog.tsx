@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { updateEmploymentRecord, updateCandidateDOB } from "@/app/actions/employment";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { CheckCircle2, Calculator, Loader2, Save, CalendarIcon } from "lucide-react";
 
 interface EditPlacementDialogProps {

@@ -322,3 +322,55 @@ export async function getMarketSalaryStats() {
         }
     };
 }
+
+export async function getOrgChartVerificationAlerts() {
+    const client = adminAuthClient as any;
+
+    // 1. Fetch all OrgChart uploads
+    const { data: uploads, error: uploadErr } = await client
+        .from('org_chart_uploads')
+        .select('upload_id, company_name, status, created_at')
+        .order('created_at', { ascending: false });
+
+    if (uploadErr) {
+        console.error('Error fetching org chart uploads for alerts:', uploadErr);
+        return [];
+    }
+
+    if (!uploads || uploads.length === 0) return [];
+
+    // 2. Fetch all nodes with verification status for these uploads
+    const { data: nodes, error: nodeErr } = await client
+        .from('all_org_nodes')
+        .select('upload_id, is_verified')
+        .in('upload_id', uploads.map((u: any) => u.upload_id));
+
+    if (nodeErr) {
+        console.error('Error fetching org nodes for alerts:', nodeErr);
+        return [];
+    }
+
+    // 3. Aggregate results
+    const alertData = uploads.map((u: any) => {
+        const uploadNodes = nodes?.filter((n: any) => n.upload_id === u.upload_id) || [];
+        const totalNodes = uploadNodes.length;
+        const verifiedNodes = uploadNodes.filter((n: any) => n.is_verified === 'TRUE' || n.is_verified === true || n.is_verified === 'true').length;
+        const pendingNodes = totalNodes - verifiedNodes;
+        
+        return {
+            upload_id: u.upload_id,
+            company_name: u.company_name,
+            total_nodes: totalNodes,
+            verified_nodes: verifiedNodes,
+            pending_nodes: pendingNodes,
+            progress: totalNodes > 0 ? Math.round((verifiedNodes / totalNodes) * 100) : 0,
+            status: u.status,
+            created_at: u.created_at
+        };
+    });
+
+    // 4. Return only those with pending nodes or recently completed (optional: user asked for items with verify items)
+    // We'll return everything and let the UI filter if needed, 
+    // but typically we only want those that aren't 100% finished or those that are newly finished.
+    return alertData.filter(a => a.pending_nodes > 0 || a.total_nodes === 0);
+}

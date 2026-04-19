@@ -24,7 +24,7 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { getEffectiveAge, formatDateForInput, extractYear, calculateBachelorYearFromAge } from "@/lib/date-utils";
 
 interface CandidateEditFormProps {

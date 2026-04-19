@@ -35,7 +35,7 @@ import {
     copyCandidatesToJR
 } from "@/app/actions/status-updates";
 import { triggerCandidateRefresh } from "@/app/actions/n8n-actions";
-import { toast } from "sonner";
+import { toast } from "@/lib/notifications";
 import { getJobRequisitions } from "@/app/actions/requisitions";
 import { cn } from "@/lib/utils";
 import {
