@@ -35,9 +35,25 @@ export function ImportOrgDialog() {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const router = useRouter()
 
+    const processSelectedFile = (file: File) => {
+        if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+            setSelectedFile(file)
+            
+            // Auto-fill Notes and Company
+            const baseName = file.name.replace(/\.pdf$/i, '')
+            setNotes(baseName)
+            if (!companyName) {
+                // Auto-fill first 6 characters of the filename into Company Name Master
+                setCompanyName(baseName.substring(0, 6))
+            }
+        } else {
+            toast.error("Please drop or select a PDF file")
+        }
+    }
+
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
-            setSelectedFile(e.target.files[0])
+            processSelectedFile(e.target.files[0])
         }
     }
 
@@ -60,12 +76,7 @@ export function ImportOrgDialog() {
         if (isUploading) return
         
         if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-            const file = e.dataTransfer.files[0]
-            if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
-                setSelectedFile(file)
-            } else {
-                toast.error("Please drop a PDF file")
-            }
+            processSelectedFile(e.dataTransfer.files[0])
         }
     }
 
@@ -174,6 +185,7 @@ export function ImportOrgDialog() {
                                 `}
                                 onClick={() => !isUploading && fileInputRef.current?.click()}
                                 onDragOver={handleDragOver}
+                                onDragEnter={handleDragOver}
                                 onDragLeave={handleDragLeave}
                                 onDrop={handleDrop}
                             >
