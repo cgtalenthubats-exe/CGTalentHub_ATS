@@ -273,7 +273,6 @@ export function ImportOrgDialog() {
                                     )}
                                 </Button>
                             </DialogFooter>
-                    </div>
                 </form>
             </DialogContent>
         </Dialog>
