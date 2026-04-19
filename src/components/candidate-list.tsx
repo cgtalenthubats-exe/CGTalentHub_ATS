@@ -878,9 +878,16 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
                                     <td className="px-4 py-4">
                                         <div className="flex items-start gap-2 text-[13px] font-bold text-slate-700">
                                             <Building2 className="h-4 w-4 text-slate-300 shrink-0 mt-0.5" />
-                                            <span className="whitespace-normal leading-snug">
-                                                {safeRender(c.candidate_current_company)}
-                                            </span>
+                                            <div className="flex flex-col gap-0.5">
+                                                <span className="whitespace-normal leading-snug">
+                                                    {safeRender(c.candidate_current_company)}
+                                                </span>
+                                                {c.candidate_current_company_industry && (
+                                                    <span className="text-[11px] text-slate-400 font-medium leading-tight line-clamp-2" title={c.candidate_current_company_industry}>
+                                                        {c.candidate_current_company_industry}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
                                     </td>
                                     {/* NEW: Separate Position column */}

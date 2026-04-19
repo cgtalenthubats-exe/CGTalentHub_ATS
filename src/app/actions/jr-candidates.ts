@@ -108,7 +108,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         // Query 3: Candidate Experiences
         (supabase as any)
             .from('candidate_experiences')
-            .select('candidate_id, company, position, is_current_job, start_date, country, note')
+            .select('candidate_id, company, position, is_current_job, start_date, country, note, company_industry')
             .in('candidate_id', candidateIds),
 
         // Query 4: Status Logs
@@ -164,7 +164,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         return 0;
     };
 
-    const expMap = new Map<string, { company: string; position: string; label: string; country: string; note: string }>();
+    const expMap = new Map<string, { company: string; position: string; label: string; country: string; note: string; company_industry: string; }>();
     if (experiences && (experiences as any[]).length > 0) {
         // Group by candidate_id
         const groupedExp: Record<string, any[]> = {};
@@ -195,7 +195,8 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
                 position: best.position || '',
                 label: isCurrent ? 'Current' : 'Latest Position',
                 country: best.country || '',
-                note: best.note || ''
+                note: best.note || '',
+                company_industry: best.company_industry || ''
             });
         }
     }
@@ -228,6 +229,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
             candidate_mobile: profile?.mobile_phone || undefined,
             candidate_current_position: exp?.position || undefined,
             candidate_current_company: exp?.company || undefined,
+            candidate_current_company_industry: exp?.company_industry || undefined,
             candidate_is_current_job: exp ? exp.label : undefined,
             candidate_country: countryDisplay || undefined,
             candidate_image_url: profile?.photo || undefined,
