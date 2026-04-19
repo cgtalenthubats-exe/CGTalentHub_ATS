@@ -71,7 +71,7 @@ export function ResultsTable({
             <Container className={containerClasses}>
                 {/* Header with Select All */}
                 {results.length > 0 && onToggleSelectAll && (
-                    <div className="flex items-center gap-3 px-4 py-2 bg-white/50 border-b border-slate-200/50 sticky top-0 z-20 backdrop-blur-sm">
+                    <div className="flex items-center gap-3 px-4 py-2 bg-white border-b border-slate-200/50">
                         <div className="flex items-center gap-3">
                             <Checkbox
                                 checked={selectedIds.length === results.length && results.length > 0}
