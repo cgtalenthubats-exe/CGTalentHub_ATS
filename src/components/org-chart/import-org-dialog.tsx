@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { UploadCloud, FileText, Loader2, Plus, CheckCircle2 } from 'lucide-react'
+import { UploadCloud, FileText, Loader2, Plus, CheckCircle2, ChevronRight, RefreshCw } from 'lucide-react'
 import { toast } from '@/lib/notifications'
 import { importOrgChart } from '@/app/actions/org-chart-actions'
 import { searchCompanies } from '@/app/actions/candidate-filters'
@@ -29,11 +29,11 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 export function ImportOrgDialog() {
     const [isOpen, setIsOpen] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
+    const [isSuccess, setIsSuccess] = useState(false)
     const [formKey, setFormKey] = useState(0)
     const [companyName, setCompanyName] = useState('')
     const [notes, setNotes] = useState('')
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
-    const [lastUploadSuccess, setLastUploadSuccess] = useState<{name: string, time: string} | null>(null)
     const [isDragging, setIsDragging] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const router = useRouter()
@@ -41,26 +41,23 @@ export function ImportOrgDialog() {
     // Reset state when dialog closes
     React.useEffect(() => {
         if (!isOpen) {
-            setCompanyName('')
-            setNotes('')
-            setSelectedFile(null)
-            setIsDragging(false)
-            setLastUploadSuccess(null)
+            setTimeout(() => {
+                setIsSuccess(false)
+                setCompanyName('')
+                setNotes('')
+                setSelectedFile(null)
+                setIsDragging(false)
+            }, 300)
         }
     }, [isOpen])
 
     const processSelectedFile = async (file: File) => {
-        setLastUploadSuccess(null) // Clear success message when new file added
         if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
             setSelectedFile(file)
-            
-            // Auto-fill Notes and Company
             const baseName = file.name.replace(/\.pdf$/i, '')
             setNotes(baseName)
-            
-            // Smart Auto-fill: Search for the first 6 characters and pick the first match
             const prefix = baseName.substring(0, 6)
-            setCompanyName(prefix) // Default to prefix first
+            setCompanyName(prefix)
             
             try {
                 const response = await searchCompanies(prefix, 1)
@@ -68,8 +65,6 @@ export function ImportOrgDialog() {
                     const matchedName = response.results[0]
                     setCompanyName(matchedName)
                     toast.success(`Smart Match: Found company "${matchedName}"`)
-                } else {
-                    toast.info(`Smart Match: No company found for "${prefix}". Please verify manually.`)
                 }
             } catch (err) {
                 console.error('Error auto-filling company:', err)
@@ -79,89 +74,35 @@ export function ImportOrgDialog() {
         }
     }
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files[0]) {
-            processSelectedFile(e.target.files[0])
-        }
-    }
-
-    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault()
-        e.stopPropagation()
-        if (!isUploading) setIsDragging(true)
-    }
-
-    const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault()
-        e.stopPropagation()
-        setIsDragging(false)
-    }
-
-    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-        e.preventDefault()
-        e.stopPropagation()
-        setIsDragging(false)
-        if (isUploading) return
-        
-        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-            processSelectedFile(e.dataTransfer.files[0])
-        }
-    }
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!companyName.trim()) {
-            toast.error("Please enter a company name")
-            return
-        }
-        if (!selectedFile) {
-            toast.error("Please select a PDF file")
-            return
-        }
+        if (!companyName.trim()) { toast.error("Please enter a company name"); return; }
+        if (!selectedFile) { toast.error("Please select a PDF file"); return; }
 
         setIsUploading(true)
         try {
-            // 1. Generate Upload ID & File Name on Client
             const uploadId = 'db' + Math.random().toString(16).slice(2, 8)
             const sanitizedBase = selectedFile.name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]/g, '_')
             const fileName = `${uploadId}_${sanitizedBase}`
 
-            // 2. Client-side upload straight to Supabase Storage
             const { error: uploadError } = await supabase.storage
                 .from('org_charts')
                 .upload(fileName, selectedFile)
 
-            if (uploadError) {
-                throw new Error(`Upload failed: ${uploadError.message}`)
-            }
+            if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`)
 
-            // 3. Get Public URL
-            const { data: urlData } = supabase.storage
-                .from('org_charts')
-                .getPublicUrl(fileName)
-
+            const { data: urlData } = supabase.storage.from('org_charts').getPublicUrl(fileName)
             const publicUrl = urlData.publicUrl
 
-            // 4. Trigger Server Action for DB Logging and Webhook
             const result = await importOrgChart(uploadId, companyName, fileName, publicUrl, notes)
 
             if (result.success) {
-                toast.success("OrgChart import initiated!")
-                
-                // Show success badge BEFORE resetting form fields
-                setLastUploadSuccess({
-                    name: companyName,
-                    time: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })
-                })
-                
-                // RESET EVERYTHING TO IMAGE 1 STATE
+                setIsSuccess(true)
+                // Clear state
                 setCompanyName('')
                 setNotes('')
                 setSelectedFile(null)
-                
-                // HARD RESET: Force re-mount of child components (Clears internal states)
                 setFormKey(prev => prev + 1)
-                
                 router.refresh()
             } else {
                 toast.error(result.error || "Failed to trigger import")
@@ -173,6 +114,14 @@ export function ImportOrgDialog() {
         }
     }
 
+    const resetForNewImport = () => {
+        setIsSuccess(false)
+        setCompanyName('')
+        setNotes('')
+        setSelectedFile(null)
+        setFormKey(prev => prev + 1)
+    }
+
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
@@ -182,32 +131,45 @@ export function ImportOrgDialog() {
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
-                <form onSubmit={handleSubmit}>
-                    <DialogHeader>
-                        <DialogTitle>Import New OrgChart</DialogTitle>
-                        <DialogDescription>
-                            Upload a PDF file of the organization structure to generate a new interactive chart.
-                        </DialogDescription>
-                    </DialogHeader>
-                    
-                    <div className="grid gap-4 py-4">
-                        {/* 1. SUCCESS BADGE (Outside keyed div so it stays) */}
-                        {lastUploadSuccess && (
-                            <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/50 rounded-lg p-3 flex items-center gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                                <div className="h-8 w-8 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
-                                    <CheckCircle2 size={18} />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">Uploaded Successfully!</p>
-                                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 truncate">
-                                        "{lastUploadSuccess.name}" was sent for processing at {lastUploadSuccess.time}
-                                    </p>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* 2. INTERACTIVE FORM (Inside keyed div for HARD RESET to Image 1) */}
-                        <div key={formKey} className="space-y-4 animate-in fade-in duration-500">
+                {isSuccess ? (
+                    <div className="py-8 flex flex-col items-center text-center space-y-6 animate-in zoom-in-95 duration-300">
+                        <div className="h-20 w-20 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                            <CheckCircle2 size={48} className="stroke-[2.5]" />
+                        </div>
+                        <div className="space-y-2">
+                            <h2 className="text-xl font-bold text-slate-900 dark:text-white">Upload เสร็จเรียบร้อยแล้ว!</h2>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 max-w-[280px] mx-auto">
+                                ไฟล์ของคุณถูกส่งเข้าสู่ระบบแล้ว กำลังประมวลผลอยู่เบื้องหลัง คุณสามารถปิดหน้านี้ได้เลย หรืออัปโหลดไฟล์ถัดไป
+                            </p>
+                        </div>
+                        <div className="flex flex-col gap-2 w-full pt-4">
+                            <Button 
+                                onClick={resetForNewImport}
+                                variant="outline"
+                                className="w-full h-11 border-indigo-200 text-indigo-600 hover:bg-indigo-50 gap-2 font-bold"
+                            >
+                                <RefreshCw size={16} />
+                                IMPORT ANOTHER ORGCHART
+                            </Button>
+                            <Button 
+                                onClick={() => setIsOpen(false)}
+                                variant="ghost"
+                                className="w-full text-slate-500 hover:bg-slate-100 h-10"
+                            >
+                                CLOSE
+                            </Button>
+                        </div>
+                    </div>
+                ) : (
+                    <form onSubmit={handleSubmit}>
+                        <DialogHeader>
+                            <DialogTitle>Import New OrgChart</DialogTitle>
+                            <DialogDescription>
+                                Upload a PDF file of the organization structure to generate a new interactive chart.
+                            </DialogDescription>
+                        </DialogHeader>
+                        
+                        <div key={formKey} className="grid gap-4 py-4">
                             <div className="grid gap-2">
                                 <Label htmlFor="company">Company Name (Master)</Label>
                                 <CompanySuggestionInput
@@ -238,18 +200,20 @@ export function ImportOrgDialog() {
                                         "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                                     )}
                                     onClick={() => !isUploading && fileInputRef.current?.click()}
-                                    onDragOver={handleDragOver}
-                                    onDragEnter={handleDragOver}
-                                    onDragLeave={handleDragLeave}
-                                    onDrop={handleDrop}
+                                    onDragOver={(e) => {e.preventDefault(); if (!isUploading) setIsDragging(true)}}
+                                    onDragLeave={() => setIsDragging(false)}
+                                    onDrop={(e) => {
+                                        e.preventDefault(); 
+                                        setIsDragging(false);
+                                        if (!isUploading && e.dataTransfer.files[0]) processSelectedFile(e.dataTransfer.files[0])
+                                    }}
                                 >
                                     <input
                                         type="file"
-                                        id="file"
                                         className="hidden"
                                         accept=".pdf"
                                         ref={fileInputRef}
-                                        onChange={handleFileChange}
+                                        onChange={(e) => e.target.files?.[0] && processSelectedFile(e.target.files[0])}
                                         disabled={isUploading}
                                     />
                                     {selectedFile ? (
@@ -265,34 +229,34 @@ export function ImportOrgDialog() {
                                     ) : (
                                         <>
                                             <UploadCloud className="h-10 w-10 text-slate-300 mb-2" />
-                                            <span className="text-sm text-slate-600">Click to upload PDF</span>
+                                            <span className="text-sm text-slate-600 font-medium">Click or Drag to upload PDF</span>
                                             <span className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">Only PDF allowed</span>
                                         </>
                                     )}
                                 </div>
                             </div>
                         </div>
-                    </div>
-                    <DialogFooter>
-                        <Button
-                            type="submit"
-                            className={cn(
-                                "w-full h-11 transition-all duration-300 bg-indigo-600 hover:bg-indigo-700 text-white",
-                                isUploading && "bg-slate-400 pointer-events-none opacity-80"
-                            )}
-                            disabled={isUploading}
-                        >
-                            {isUploading ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    UPLOADING & TRIGGERING...
-                                </>
-                            ) : (
-                                'UPLOAD & START IMPORT'
-                            )}
-                        </Button>
-                    </DialogFooter>
-                </form>
+                        <DialogFooter>
+                            <Button
+                                type="submit"
+                                className={cn(
+                                    "w-full h-11 transition-all duration-300 bg-indigo-600 hover:bg-indigo-700 text-white font-bold",
+                                    isUploading && "bg-slate-400 pointer-events-none opacity-80"
+                                )}
+                                disabled={isUploading}
+                            >
+                                {isUploading ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        UPLOADING & TRIGGERING...
+                                    </>
+                                ) : (
+                                    'UPLOAD & START IMPORT'
+                                )}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                )}
             </DialogContent>
         </Dialog>
     )
