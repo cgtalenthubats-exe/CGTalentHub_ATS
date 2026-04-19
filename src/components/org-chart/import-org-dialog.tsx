@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import {
     Dialog,
@@ -30,11 +31,41 @@ export function ImportOrgDialog() {
     const [companyName, setCompanyName] = useState('')
     const [notes, setNotes] = useState('')
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
+    const [isDragging, setIsDragging] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
+    const router = useRouter()
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             setSelectedFile(e.target.files[0])
+        }
+    }
+
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault()
+        e.stopPropagation()
+        if (!isUploading) setIsDragging(true)
+    }
+
+    const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setIsDragging(false)
+    }
+
+    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setIsDragging(false)
+        if (isUploading) return
+        
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+            const file = e.dataTransfer.files[0]
+            if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                setSelectedFile(file)
+            } else {
+                toast.error("Please drop a PDF file")
+            }
         }
     }
 
@@ -82,6 +113,11 @@ export function ImportOrgDialog() {
                 setCompanyName('')
                 setNotes('')
                 setSelectedFile(null)
+                // Redirect user to the new upload details immediately
+                if (result.uploadId) {
+                    router.push(`/org-chart?id=${result.uploadId}`)
+                    router.refresh()
+                }
             } else {
                 toast.error(result.error || "Failed to trigger import")
             }
@@ -133,10 +169,13 @@ export function ImportOrgDialog() {
                             <Label htmlFor="file">OrgChart PDF</Label>
                             <div
                                 className={`
-                                    border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-colors
-                                    ${selectedFile ? 'border-indigo-400 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'}
+                                    border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all duration-200
+                                    ${isDragging ? 'border-primary bg-primary/5 scale-[1.02] ring-2 ring-primary/20' : selectedFile ? 'border-indigo-400 bg-indigo-50/50' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'}
                                 `}
                                 onClick={() => !isUploading && fileInputRef.current?.click()}
+                                onDragOver={handleDragOver}
+                                onDragLeave={handleDragLeave}
+                                onDrop={handleDrop}
                             >
                                 <input
                                     type="file"
