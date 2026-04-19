@@ -30,7 +30,6 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 export function ImportOrgDialog() {
     const [isOpen, setIsOpen] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
-    const [isSuccess, setIsSuccess] = useState(false)
     const [formKey, setFormKey] = useState(0)
     const [companyName, setCompanyName] = useState('')
     const [notes, setNotes] = useState('')
@@ -148,26 +147,22 @@ export function ImportOrgDialog() {
             console.log('[ImportOrg] Server action result:', result);
 
             if (result.success) {
+                console.log('[ImportOrg] Success! Closing dialog and resetting state.');
                 toast.success("OrgChart import initiated!")
                 
-                // Set success state for UI feedback
-                setIsSuccess(true)
+                // 1. Close dialog FIRST
+                setIsOpen(false)
                 
-                // Clear fields immediately
+                // 2. Clear fields immediately
                 setCompanyName('')
                 setNotes('')
                 setSelectedFile(null)
                 
-                // Force reset all child components (like the suggestion input)
+                // 3. Force reset for next open
                 setFormKey(prev => prev + 1)
                 
-                // Close modal after a brief success display
-                setTimeout(() => {
-                    console.log('[ImportOrg] Closing modal and refreshing...');
-                    setIsOpen(false)
-                    setIsSuccess(false) // Reset success state for next time
-                    router.refresh()
-                }, 1500)
+                // 4. Refresh to show the "Processing..." badge in the background
+                router.refresh()
             } else {
                 console.error('[ImportOrg] Server action failed:', result.error);
                 toast.error(result.error || "Failed to trigger import")
@@ -196,19 +191,7 @@ export function ImportOrgDialog() {
                         </DialogDescription>
                     </DialogHeader>
                     
-                    {isSuccess ? (
-                        <div className="flex flex-col items-center justify-center py-12 space-y-4 animate-in fade-in zoom-in duration-300">
-                            <div className="h-20 w-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                                <CheckCircle2 size={48} className="animate-in slide-in-from-bottom-2" />
-                            </div>
-                            <div className="text-center">
-                                <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">Upload Initiated!</h3>
-                                <p className="text-sm text-slate-500">The system is processing your PDF in the background.</p>
-                            </div>
-                        </div>
-                    ) : (
-                        <>
-                            <div className="grid gap-4 py-4">
+                    <div className="grid gap-4 py-4">
                                 <div className="grid gap-2">
                                     <Label htmlFor="company">Company Name (Master)</Label>
                                     <CompanySuggestionInput
@@ -290,8 +273,7 @@ export function ImportOrgDialog() {
                                     )}
                                 </Button>
                             </DialogFooter>
-                        </>
-                    )}
+                    </div>
                 </form>
             </DialogContent>
         </Dialog>
