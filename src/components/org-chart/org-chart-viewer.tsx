@@ -1103,7 +1103,7 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
             
             {/* Focus Mode Banner */}
             {focusedNodeId && (
-                <div className="absolute top-0 left-0 w-full z-[80] flex justify-center mt-2 animate-in slide-in-from-top-4">
+                <div className="absolute top-0 left-0 w-full z-10 flex justify-center mt-2 animate-in slide-in-from-top-4">
                     <div className="bg-indigo-600 text-white px-5 py-2 rounded-full shadow-lg flex items-center gap-3 text-xs font-bold border border-indigo-500">
                         <Target size={16} className="animate-pulse" />
                         FOCUS MODE ACTIVE: VIEWING SUB-TEAM
@@ -1119,7 +1119,7 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
             )}
 
             {/* Global Tree Search */}
-            <div className="absolute top-4 right-64 z-[80] w-64 max-w-sm" id="export-exclude-zone-search">
+            <div className="absolute top-4 right-64 z-10 w-64 max-w-sm" id="export-exclude-zone-search">
                 <div className="relative">
                     <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
                         <Search size={14} />

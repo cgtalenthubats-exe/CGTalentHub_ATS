@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label"
 import { UploadCloud, FileText, Loader2, Plus } from 'lucide-react'
 import { toast } from '@/lib/notifications'
 import { importOrgChart } from '@/app/actions/org-chart-actions'
+import { searchCompanies } from '@/app/actions/candidate-filters'
 import { CompanySuggestionInput } from './company-suggestion-input'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -35,16 +36,27 @@ export function ImportOrgDialog() {
     const fileInputRef = useRef<HTMLInputElement>(null)
     const router = useRouter()
 
-    const processSelectedFile = (file: File) => {
+    const processSelectedFile = async (file: File) => {
         if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
             setSelectedFile(file)
             
             // Auto-fill Notes and Company
             const baseName = file.name.replace(/\.pdf$/i, '')
             setNotes(baseName)
+            
+            // Smart Auto-fill: Search for the first 6 characters and pick the first match
             if (!companyName) {
-                // Auto-fill first 6 characters of the filename into Company Name Master
-                setCompanyName(baseName.substring(0, 6))
+                const prefix = baseName.substring(0, 6)
+                setCompanyName(prefix) // Default to prefix first
+                
+                try {
+                    const response = await searchCompanies(prefix, 1)
+                    if (response.results && response.results.length > 0) {
+                        setCompanyName(response.results[0])
+                    }
+                } catch (err) {
+                    console.error('Error auto-filling company:', err)
+                }
             }
         } else {
             toast.error("Please drop or select a PDF file")
