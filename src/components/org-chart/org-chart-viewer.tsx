@@ -99,13 +99,13 @@ const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCrea
     return (
         <div 
             className={cn(
-                "relative w-full h-[98px] border-2 rounded-xl flex flex-col justify-between p-2.5 transition-all shadow-sm group",
+                "relative w-full border-2 rounded-xl flex flex-col justify-between p-2.5 transition-all shadow-sm group",
                 cardColorClass,
                 hasChildren && "cursor-pointer hover:ring-indigo-400 hover:shadow-md"
             )}
             onClick={hasChildren ? () => onExpand(nodeDatum.node_id) : undefined}
             style={{
-                display: 'flex', flexDirection: 'column', justifyContent: 'space-between', width: '100%', height: '98px', padding: '10px',
+                display: 'flex', flexDirection: 'column', justifyContent: 'space-between', width: '100%', padding: '10px',
                 borderWidth: '2px', borderRadius: '12px', borderStyle: 'solid', boxSizing: 'border-box', position: 'relative',
                 backgroundColor: (isVerified || status === 'matched') ? '#ecfdf5' : ((isNotMatch || status === 'mismatch_company') ? '#fff1f2' : (status === 'mismatch_position' ? '#fffbeb' : (status === 'n8n_processing' ? '#eef2ff' : '#ffffff'))),
                 borderColor: (isVerified || status === 'matched') ? '#10b981' : ((isNotMatch || status === 'mismatch_company') ? '#f43f5e' : (status === 'mismatch_position' ? '#fbbf24' : (status === 'n8n_processing' ? '#818cf8' : '#e2e8f0'))),
@@ -268,24 +268,48 @@ const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVe
     else if (status === 'n8n_processing') cardColorClass = 'border-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border-dashed animate-pulse'
 
     if (isTeamGrid && nodeDatum.members) {
-        // Multi-Column Grid aligned strictly to D3 base slots to mathematically eliminate overlap
+        // Absolute positioning for TeamGrid to bypass html-to-image CSS Grid bugs
         const memberCount = nodeDatum.members.length;
         const columns = Math.ceil(memberCount / 5); // 5 rows max
-        const gridWidth = columns * 280 + Math.max(0, columns - 1) * 8; // 8px gap
-        const gridHeight = Math.min(memberCount, 5) * 102; 
+        const rowsCount = Math.min(memberCount, 5);
+        
+        const cardWidth = 280;
+        const cardHeight = 140;
+        const gap = 8;
+        const padding = 8;
+
+        const gridWidth = columns * cardWidth + Math.max(0, columns - 1) * gap;
+        const gridHeight = rowsCount * cardHeight + Math.max(0, rowsCount - 1) * gap;
+        
+        const foreignObjectX = -(gridWidth + padding * 2) / 2;
+
+        const startY = -50;
 
         return (
             <g>
-                <foreignObject width={gridWidth + 20} height={gridHeight + 20} x={-140} y="-50">
-                    <div className="p-2 inline-grid gap-2 rounded-2xl border-2 border-slate-200 shadow-inner bg-slate-100/90 h-fit overflow-visible" style={{ 
-                        display: 'inline-grid', gap: '8px', padding: '8px', borderRadius: '16px', borderWidth: '2px', borderStyle: 'solid', boxSizing: 'border-box',
-                        gridTemplateColumns: `repeat(${columns}, 280px)`,
-                        gridAutoRows: '98px',
+                {/* Background Box for the Grid */}
+                <foreignObject width={gridWidth + padding * 2} height={gridHeight + padding * 2} x={foreignObjectX} y={startY}>
+                    <div style={{ 
+                        width: '100%',
+                        height: '100%',
+                        borderRadius: '16px', 
+                        borderWidth: '2px', 
+                        borderStyle: 'solid', 
                         backgroundColor: '#f1f5f9',
-                        borderColor: '#e2e8f0'
-                    }}>
-                        {nodeDatum.members.map((member: any) => (
-                            <div key={member.node_id} className="p-0.5">
+                        borderColor: '#e2e8f0',
+                    }} />
+                </foreignObject>
+
+                {/* Individual Cards drawn natively in SVG space */}
+                {nodeDatum.members.map((member: any, i: number) => {
+                    const col = Math.floor(i / 5);
+                    const row = i % 5;
+                    const x = foreignObjectX + padding + col * (cardWidth + gap);
+                    const y = startY + padding + row * (cardHeight + gap);
+                    
+                    return (
+                        <foreignObject key={member.node_id} width={cardWidth} height={cardHeight} x={x} y={y}>
+                            <div style={{ width: '100%', height: '100%' }}>
                                 <TeamMemberMiniCard 
                                     nodeDatum={member} 
                                     onToggleVerify={onToggleVerify}
@@ -298,9 +322,9 @@ const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVe
                                     onMoveNode={onMoveNode}
                                 />
                             </div>
-                        ))}
-                    </div>
-                </foreignObject>
+                        </foreignObject>
+                    );
+                })}
             </g>
         )
     }
@@ -312,18 +336,18 @@ const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVe
 
     return (
         <g id={`node-card-${nodeDatum.node_id}`}>
-            <foreignObject width="280" height="110" x="-140" y="-55">
-                <div className="p-1 h-full flex items-center justify-center">
+            <foreignObject width="280" height="160" x="-140" y="-80">
+                <div className="p-1 flex items-start justify-center">
                     <div
                         className={cn(
-                            "relative w-full h-full border-2 rounded-xl transition-all duration-300 flex flex-col p-3 group",
+                            "relative w-full border-2 rounded-xl transition-all duration-300 flex flex-col p-3 group",
                             cardColorClass,
                             hasChildren && "cursor-pointer hover:ring-2 hover:ring-indigo-400 hover:ring-offset-1",
                             highlightNodeId === nodeDatum.node_id && "ring-4 ring-indigo-500 ring-offset-2 animate-pulse shadow-xl shadow-indigo-200 bg-indigo-50"
                         )}
                         onClick={hasChildren ? () => onToggleExpand(nodeDatum.node_id) : undefined}
                         style={{
-                            display: 'flex', flexDirection: 'column', width: '100%', height: '100%', padding: '12px', borderWidth: '2px', borderRadius: '12px', borderStyle: 'solid', boxSizing: 'border-box', position: 'relative',
+                            display: 'flex', flexDirection: 'column', width: '100%', padding: '12px', borderWidth: '2px', borderRadius: '12px', borderStyle: 'solid', boxSizing: 'border-box', position: 'relative',
                             backgroundColor: (isVerified || status === 'matched') ? '#ecfdf5' : ((isNotMatch || status === 'mismatch_company') ? '#fff1f2' : (status === 'mismatch_position' ? '#fffbeb' : (status === 'n8n_processing' ? '#eef2ff' : '#ffffff'))),
                             borderColor: (isVerified || status === 'matched') ? '#10b981' : ((isNotMatch || status === 'mismatch_company') ? '#f43f5e' : (status === 'mismatch_position' ? '#fbbf24' : (status === 'n8n_processing' ? '#818cf8' : '#e2e8f0'))),
                             fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
@@ -819,112 +843,125 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
         if (!captureRef.current || !containerRef.current) return
         try {
             setIsExporting(true)
-            toast.info("กำลังประมวลผลเซฟรูปแบบคมชัด อาจใช้เวลาสักครู่...", { duration: 5000 })
-
-            await new Promise(r => setTimeout(r, 100))
+            toast.info("กำลังจัดเตรียมไฟล์ export อาจใช้เวลาสักครู่...", { duration: 5000 })
 
             const htmlToImage = await import('html-to-image')
-            const jsPDFModule = await import('jspdf')
-            const jsPDF = jsPDFModule.default || jsPDFModule.jsPDF
 
+            // Save current view and element state
+            const origZoom = zoom;
+            const origTranslate = translate;
             const element = captureRef.current;
-            const svgG = element.querySelector('.rd3t-g') as SVGGElement;
-            const bbox = svgG?.getBBox();
-
+            
             const origWidth = element.style.width;
             const origHeight = element.style.height;
             const origPosition = element.style.position;
             const origTop = element.style.top;
             const origLeft = element.style.left;
             const origZIndex = element.style.zIndex;
+            const origOverflow = element.style.overflow;
 
-            const origZoom = zoom;
-            const origTranslate = translate;
+            // Calculate full tree bounding box
+            const svgG = containerRef.current.querySelector('.rd3t-g') as SVGGElement;
+            const bbox = svgG?.getBBox();
 
-            let dataUrl;
+            let dataUrl: string;
 
             try {
                 if (bbox) {
-                    const reqWidth = Math.max(element.offsetWidth, Math.abs(bbox.x) + bbox.width + 300);
-                    const reqHeight = Math.max(element.offsetHeight, Math.abs(bbox.y) + bbox.height + 300);
+                    // Calculate required container size to fit the entire tree
+                    const reqWidth = Math.max(element.offsetWidth, (Math.abs(bbox.x) + bbox.width) * 2 + 200);
+                    const reqHeight = Math.max(element.offsetHeight, (Math.abs(bbox.y) + bbox.height) + 400);
 
+                    // Expand the element to fit the full tree — position:fixed off-screen
                     element.style.position = 'fixed';
                     element.style.top = '0px';
                     element.style.left = '0px';
                     element.style.zIndex = '-9999';
+                    element.style.overflow = 'visible';
                     element.style.width = `${reqWidth}px`;
                     element.style.height = `${reqHeight}px`;
 
+                    // Center the tree at zoom 1.0 inside the enlarged container
                     setZoom(1.0);
-                    setTranslate({ x: reqWidth / 2, y: 150 });
-                    
-                    await new Promise(r => setTimeout(r, 800));
+                    setTranslate({ x: reqWidth / 2, y: 200 });
+
+                    // Wait for tree to re-render at the new size
+                    await new Promise(r => setTimeout(r, 1000));
                 }
 
-                const options = {
+                // Counteract devicePixelRatio to prevent foreignObject content scaling
+                const dpr = window.devicePixelRatio || 1;
+
+                const options: any = {
                     quality: 1,
-                    pixelRatio: 1, // Fall back to 1x to prevent massive 20MB files!
+                    pixelRatio: 1 / dpr,
+                    skipAutoScale: true,
+                    cacheBust: true,
                     backgroundColor: document.documentElement.classList.contains('dark') ? '#0f172a' : '#ffffff',
                     filter: (node: HTMLElement) => {
                         if (node.id === 'export-exclude-zone') return false;
                         return true;
-                    }
+                    },
                 };
 
-                if (format === 'jpeg') {
-                    dataUrl = await htmlToImage.toJpeg(element, options);
-                } else if (format === 'pdf') {
-                    // Preconvert to compressed JPEG for PDF size optimization
-                    dataUrl = await htmlToImage.toJpeg(element, { ...options, quality: 0.90 });
+                if (format === 'jpeg' || format === 'pdf') {
+                    dataUrl = await htmlToImage.toJpeg(element, { ...options, quality: 0.95 });
                 } else {
                     dataUrl = await htmlToImage.toPng(element, options);
                 }
             } finally {
+                // Always restore original element state
                 element.style.width = origWidth;
                 element.style.height = origHeight;
                 element.style.position = origPosition;
                 element.style.top = origTop;
                 element.style.left = origLeft;
                 element.style.zIndex = origZIndex;
-                
+                element.style.overflow = origOverflow;
+
                 setZoom(origZoom);
                 setTranslate(origTranslate);
-                
                 await new Promise(r => setTimeout(r, 100));
             }
 
+            // Export file
             if (format === 'pdf') {
-                const PDF = await jsPDF;
-                const pdf = new PDF({ orientation: 'landscape', unit: 'px', format: 'a4' });
+                const jsPDFModule = await import('jspdf')
+                const jsPDF = jsPDFModule.default || jsPDFModule.jsPDF
+
+                const pdf = new jsPDF({
+                    orientation: 'landscape',
+                    unit: 'px',
+                    format: 'a4',
+                    hotfixes: ['px_scaling']
+                });
+
                 const pdfWidth = pdf.internal.pageSize.getWidth();
                 const pdfHeight = pdf.internal.pageSize.getHeight();
-                
+
                 const img = new Image();
                 img.src = dataUrl;
-                await new Promise((resolve) => { img.onload = resolve; });
+                await new Promise((res) => { img.onload = res; });
 
                 const imgRatio = img.width / img.height;
                 const pdfRatio = pdfWidth / pdfHeight;
-                
-                let drawWidth = pdfWidth;
-                let drawHeight = pdfHeight;
-                
-                // Allow a slight empty margin on A4
-                const maxDrawWidth = pdfWidth * 0.96;
-                const maxDrawHeight = pdfHeight * 0.96;
-                
+
+                const maxW = pdfWidth * 0.96;
+                const maxH = pdfHeight * 0.96;
+                let drawW: number, drawH: number;
+
                 if (imgRatio > pdfRatio) {
-                    drawWidth = maxDrawWidth;
-                    drawHeight = maxDrawWidth / imgRatio;
+                    drawW = maxW;
+                    drawH = maxW / imgRatio;
                 } else {
-                    drawHeight = maxDrawHeight;
-                    drawWidth = maxDrawHeight * imgRatio;
+                    drawH = maxH;
+                    drawW = maxH * imgRatio;
                 }
-                
-                const x = (pdfWidth - drawWidth) / 2;
-                const y = (pdfHeight - drawHeight) / 2;
-                
-                pdf.addImage(dataUrl, 'JPEG', x, y, drawWidth, drawHeight, undefined, 'FAST');
+
+                const x = (pdfWidth - drawW) / 2;
+                const y = (pdfHeight - drawH) / 2;
+
+                pdf.addImage(dataUrl, 'JPEG', x, y, drawW, drawH, undefined, 'FAST');
                 pdf.save(`OrgChart_${companyId || 'Export'}_${Date.now()}.pdf`);
             } else {
                 const link = document.createElement('a');
@@ -932,11 +969,11 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                 link.href = dataUrl;
                 link.click();
             }
-            
-            toast.success(`Exported ${format.toUpperCase()} successfully! 🎉`)
+
+            toast.success(`Export ${format.toUpperCase()} สำเร็จ! 🎉`)
         } catch (err) {
-            console.error(err)
-            toast.error("Failed to export chart.")
+            console.error('Export error:', err)
+            toast.error("Export ล้มเหลว กรุณาลองใหม่")
         } finally {
             setIsExporting(false)
         }
@@ -1466,9 +1503,9 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                     zoomable={true}
                     draggable={true}
                     collapsible={false}
-                    nodeSize={{ x: 310, y: 160 }}
+                    nodeSize={{ x: 310, y: 220 }}
                     enableLegacyTransitions={false}
-                    transitionDuration={0}
+                    transitionDuration={isExporting ? 0 : 400}
                     onUpdate={(target: any) => {
                         if (target.zoom !== zoom) setZoom(target.zoom)
                         if (target.translate.x !== translate.x || target.translate.y !== translate.y) {

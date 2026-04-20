@@ -1,6 +1,6 @@
 "use client";
 
-import { toast as sonnerToast } from "@/lib/notifications";
+import { toast as sonnerToast } from "sonner";
 import { notificationStore, NotificationType } from "./notification-store";
 
 /**
