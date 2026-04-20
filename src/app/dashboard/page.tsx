@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip as ReactTooltip } from "react-tooltip";
 import { cn } from "@/lib/utils";
 import PipelineTab from "./PipelineTab";
+import PlacementTab from "./PlacementTab";
 import PackageInfoTab from "./PackageInfoTab";
 
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
@@ -222,6 +223,41 @@ export default function DashboardPage() {
         };
     }, [globalData, gpJrNames, gpBus, gpSubBus, gpTopProfile, gpGender, gpAgeRange, gpCountries, gpIndustries, gpGroups, gpCompanies, gpRatings, gpSets]);
 
+    // --- Logic: Salary Benchmark Filtering ---
+    const filteredSalaryData = useMemo(() => {
+        if (!salaryData) return { stats: [], details: [], availableOptions: { industries: [], groups: [], companies: [] } };
+
+        const details = salaryData.details;
+        const finalStats = salaryData.companyStats;
+
+        const matches = (item: any, exclude?: string) => {
+            const mInd = exclude === 'industry' || salaryIndustries.length === 0 || salaryIndustries.includes(item.industry);
+            const mGrp = exclude === 'group' || salaryGroups.length === 0 || salaryGroups.includes(item.group);
+            const mComp = exclude === 'company' || salaryCompanies.length === 0 || salaryCompanies.includes(item.company);
+            return mInd && mGrp && mComp;
+        };
+
+        const optsInd = new Set<string>();
+        const optsGrp = new Set<string>();
+        const optsComp = new Set<string>();
+
+        details.forEach((d: any) => {
+            if (matches(d, 'industry')) optsInd.add(d.industry);
+            if (matches(d, 'group')) optsGrp.add(d.group);
+            if (matches(d, 'company')) optsComp.add(d.company);
+        });
+
+        return {
+            stats: finalStats.filter((s: any) => matches(s)),
+            details: details.filter((d: any) => matches(d)),
+            availableOptions: {
+                industries: Array.from(optsInd).sort(),
+                groups: Array.from(optsGrp).sort(),
+                companies: Array.from(optsComp).sort()
+            }
+        };
+    }, [salaryData, salaryIndustries, salaryGroups, salaryCompanies]);
+
     // Scales for Map
     const maxCount = Math.max(...(filteredStats.map((s: any) => s.count) || [0]), 10);
     const popScale = scaleLinear().domain([0, maxCount]).range([3, 15]);
@@ -369,7 +405,7 @@ export default function DashboardPage() {
                     </div>
                 </TabsContent>
 
-                {/* Other Tabs Placeholder */}
+                {/* --- TAB 2: SALARY BENCHMARK --- */}
                 <TabsContent value="market" className="relative min-h-[400px] outline-none">
                     {salaryLoading && (
                         <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-[2px] rounded-3xl">
@@ -382,16 +418,123 @@ export default function DashboardPage() {
                             </div>
                         </div>
                     )}
-                    <Card className="p-12 text-center text-slate-400 font-bold uppercase tracking-widest border-none shadow-xl rounded-3xl">
-                        Market Analysis Module Active
-                    </Card>
+                    
+                    <div className="space-y-6">
+                        {/* Filters */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <FilterMultiSelect label="Industry" options={availableOptions.industries} selected={salaryIndustries} onChange={v => toggle(salaryIndustries, v, setSalaryIndustries)} />
+                            <FilterMultiSelect label="Group" options={availableOptions.groups} selected={salaryGroups} onChange={v => toggle(salaryGroups, v, setSalaryGroups)} />
+                            <FilterMultiSelect label="Company" options={availableOptions.companies} selected={salaryCompanies} onChange={v => toggle(salaryCompanies, v, setSalaryCompanies)} />
+                            <div className="flex items-end">
+                                <Button variant="outline" onClick={() => { setSalaryIndustries([]); setSalaryGroups([]); setSalaryCompanies([]); }} className="rounded-xl gap-2 w-full">
+                                    <RotateCcw className="h-4 w-4" /> Reset Filters
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                            {/* Scatter Chart */}
+                            <Card className="lg:col-span-12 border-none shadow-xl rounded-3xl overflow-hidden bg-white">
+                                <CardHeader>
+                                    <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-500">Market Salary Distribution (Annual)</CardTitle>
+                                    <CardDescription>Average vs Max salaries by company</CardDescription>
+                                </CardHeader>
+                                <CardContent className="h-[400px]">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <ScatterChart margin={{ top: 20, right: 30, bottom: 20, left: 10 }}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                            <XAxis type="number" dataKey="avgSalary" name="Avg Salary" unit="฿" tickFormatter={(v) => `฿${(v/1000).toFixed(0)}k`} fontSize={10} axisLine={false} tickLine={false} />
+                                            <YAxis type="number" dataKey="maxSalary" name="Max Salary" unit="฿" tickFormatter={(v) => `฿${(v/1000).toFixed(0)}k`} fontSize={10} axisLine={false} tickLine={false} />
+                                            <Tooltip content={<CustomTooltip />} />
+                                            <Scatter name="Companies" data={filteredSalaryData.stats} fill="#3b82f6">
+                                                {filteredSalaryData.stats.map((entry: any, index: number) => (
+                                                    <Cell key={`cell-${index}`} fill={entry.avgSalary > 5000000 ? '#ef4444' : '#3b82f6'} />
+                                                ))}
+                                            </Scatter>
+                                        </ScatterChart>
+                                    </ResponsiveContainer>
+                                </CardContent>
+                            </Card>
+
+                            {/* Detailed List */}
+                            <Card className="lg:col-span-12 border-none shadow-xl rounded-3xl overflow-hidden bg-white">
+                                <CardHeader>
+                                    <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-500">Detailed Salary Breakdown</CardTitle>
+                                </CardHeader>
+                                <CardContent className="p-0">
+                                    <div className="max-h-[500px] overflow-auto scrollbar-thin">
+                                        <table className="w-full text-xs">
+                                            <thead className="bg-slate-900 text-white sticky top-0 z-10 shadow-sm">
+                                                <tr>
+                                                    <th className="p-4 text-left font-black uppercase tracking-widest">Industry</th>
+                                                    <th className="p-4 text-left font-black uppercase tracking-widest">Company</th>
+                                                    <th className="p-4 text-left font-black uppercase tracking-widest">Name</th>
+                                                    <th className="p-4 text-left font-black uppercase tracking-widest">Position</th>
+                                                    <th className="p-4 text-right font-black uppercase tracking-widest">Base Salary (Mth)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {filteredSalaryData.details.map((s: any, i: number) => (
+                                                    <tr key={i} className="hover:bg-slate-50 transition-colors">
+                                                        <td className="p-4 font-bold text-slate-400">{s.industry || '-'}</td>
+                                                        <td className="p-4 font-black text-slate-800">{s.company}</td>
+                                                        <td className="p-4 font-bold text-slate-600">{s.name}</td>
+                                                        <td className="p-4 text-slate-500">{s.position}</td>
+                                                        <td className="p-4 text-right font-black text-blue-600">฿{s.salaryMonthly.toLocaleString()}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                        {filteredSalaryData.details.length === 0 && (
+                                            <div className="p-12 text-center text-slate-400 font-bold uppercase tracking-widest">No matching salary data found</div>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </div>
+                    </div>
                 </TabsContent>
-                <TabsContent value="pipeline"><Card className="p-12 text-center text-slate-400 font-bold uppercase tracking-widest">Pipeline Management Active</Card></TabsContent>
+
+                {/* --- TAB 3: RECRUITMENT PIPELINE --- */}
+                <TabsContent value="pipeline" className="space-y-6 outline-none">
+                    <PipelineTab />
+                </TabsContent>
+
+                {/* --- TAB 4: SEARCH & PLACEMENT --- */}
+                <TabsContent value="placement" className="space-y-6 outline-none">
+                    <PlacementTab />
+                </TabsContent>
+
+                {/* --- TAB 5: PACKAGE INFO --- */}
+                <TabsContent value="package" className="space-y-6 outline-none">
+                    <PackageInfoTab />
+                </TabsContent>
             </Tabs>
             <ReactTooltip id="global-tooltip" style={{ borderRadius: '12px', fontWeight: 'bold' }} />
         </div>
     );
 }
+
+const CustomTooltip = ({ active, payload }: any) => {
+    if (active && payload && payload.length) {
+        const data = payload[0].payload;
+        return (
+            <div className="bg-slate-900 text-white border-none rounded-2xl p-4 shadow-2xl text-[10px] z-50">
+                <p className="font-black text-xs mb-2 uppercase tracking-widest border-b border-slate-700 pb-2">{data.company}</p>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                    <span className="text-slate-400 uppercase font-black">Avg:</span>
+                    <span className="text-right font-black text-blue-400">฿{data.avgSalary.toLocaleString()}</span>
+                    <span className="text-slate-400 uppercase font-black">Max:</span>
+                    <span className="text-right font-black text-red-400">฿{data.maxSalary.toLocaleString()}</span>
+                    <span className="text-slate-400 uppercase font-black">Count:</span>
+                    <span className="text-right font-black">{data.headcount}</span>
+                </div>
+                <p className="text-[8px] text-slate-500 mt-3 uppercase tracking-[0.2em]">{data.industry}</p>
+            </div>
+        );
+    }
+    return null;
+};
 
 function MetricBox({ title, value, color }: any) {
     return (
