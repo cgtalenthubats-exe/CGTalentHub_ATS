@@ -17,7 +17,8 @@ import {
     History as HistoryIcon,
     Bot,
     Search,
-    Building2
+    Building2,
+    ClipboardList
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -25,6 +26,7 @@ import { Button } from "@/components/ui/button";
 
 const menuItems = [
     { name: "Overview", icon: LayoutDashboard, path: "/" },
+    { name: "Pending Task for Recruiter", icon: ClipboardList, path: "/pending-tasks" },
     { name: "Dashboard", icon: BarChart3, path: "/dashboard" },
     { name: "Candidates", icon: Users, path: "/candidates" },
     { name: "Job Requisitions", icon: Briefcase, path: "/requisitions" },

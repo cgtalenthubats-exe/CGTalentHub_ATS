@@ -81,22 +81,6 @@ export default function OverviewAnalytics() {
                     icon={<Briefcase className="h-4 w-4" />}
                 />
             </div>
-
-            {/* Distribution Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <DistributionChart 
-                    data={data?.industryDist || []} 
-                    title="Market Industry Distribution" 
-                    description="Concentration of talent across sectors"
-                    color="#10b981"
-                />
-                <DistributionChart 
-                    data={data?.groupDist || []} 
-                    title="Business Group Distribution" 
-                    description="Talent allocation by business units"
-                    color="#f59e0b"
-                />
-            </div>
         </div>
     );
 }
