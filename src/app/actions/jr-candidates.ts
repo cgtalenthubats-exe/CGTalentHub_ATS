@@ -103,19 +103,22 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         (supabase
             .from('Candidate Profile' as any)
             .select('candidate_id, name, email, mobile_phone, job_function, photo, age, gender, candidate_projects, candidate_status, linkedin')
-            .in('candidate_id', candidateIds) as any),
+            .in('candidate_id', candidateIds)
+            .limit(2000) as any),
 
         // Query 3: Candidate Experiences
         (supabase as any)
             .from('candidate_experiences')
             .select('candidate_id, company, position, is_current_job, start_date, country, note, company_industry')
-            .in('candidate_id', candidateIds),
+            .in('candidate_id', candidateIds)
+            .limit(10000),
 
         // Query 4: Status Logs
         supabase
             .from('status_log')
             .select('log_id, jr_candidate_id, status, timestamp')
             .in('jr_candidate_id', jrCandIds)
+            .limit(5000)
             .returns<{ log_id: number; jr_candidate_id: string; status: string; timestamp: string }[]>(),
 
         // Query 5: Other JR History Count (Surgical Add)
