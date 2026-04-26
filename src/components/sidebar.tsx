@@ -37,6 +37,7 @@ const menuItems = [
     { name: "n8n Integration", icon: Webhook, path: "/admin/n8n" },
     { name: "Company Master", icon: Building2, path: "/admin/companies" },
     { name: "Data Aging Report", icon: HistoryIcon, path: "/reports/aging" },
+    { name: "KPI (Demo)", icon: BarChart3, path: "/kpi-demo" },
 ];
 
 
