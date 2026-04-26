@@ -94,49 +94,65 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         return rankA - rankB;
     });
 
-    // 2. Fetch Profiles, Experiences, and Status Logs in PARALLEL
+    // 2. Fetch Profiles, Experiences, and Status Logs in PARALLEL with CHUNKING
+    // Supabase has URL length limits and max_rows limits (often 1000). 
+    // Chunking ensures we never hit these limits for large JRs (e.g. 900+ candidates).
     const jrCandIds = candidates.map(c => c.jr_candidate_id);
     const candidateIds = candidates.map(c => c.candidate_id).filter(Boolean);
 
-    const [profilesResult, experiencesResult, logsResult, historyResult] = await Promise.all([
+    function chunkArray<T>(array: T[], size: number): T[][] {
+        const chunked: T[][] = [];
+        for (let i = 0; i < array.length; i += size) {
+            chunked.push(array.slice(i, i + size));
+        }
+        return chunked;
+    }
+
+    const CHUNK_SIZE = 150;
+    const candidateIdChunks = chunkArray(candidateIds, CHUNK_SIZE);
+    const jrCandIdChunks = chunkArray(jrCandIds, CHUNK_SIZE);
+
+    const [profilesChunks, experiencesChunks, logsChunks, historyChunks] = await Promise.all([
         // Query 2: Candidate Profiles
-        (supabase
-            .from('Candidate Profile' as any)
-            .select('candidate_id, name, email, mobile_phone, job_function, photo, age, gender, candidate_projects, candidate_status, linkedin')
-            .in('candidate_id', candidateIds)
-            .limit(2000) as any),
+        Promise.all(candidateIdChunks.map(chunk => 
+            (supabase
+                .from('Candidate Profile' as any)
+                .select('candidate_id, name, email, mobile_phone, job_function, photo, age, gender, candidate_projects, candidate_status, linkedin')
+                .in('candidate_id', chunk) as any)
+        )),
 
         // Query 3: Candidate Experiences
-        (supabase as any)
-            .from('candidate_experiences')
-            .select('candidate_id, company, position, is_current_job, start_date, country, note, company_industry')
-            .in('candidate_id', candidateIds)
-            .limit(10000),
+        Promise.all(candidateIdChunks.map(chunk => 
+            (supabase as any)
+                .from('candidate_experiences')
+                .select('candidate_id, company, position, is_current_job, start_date, country, note, company_industry')
+                .in('candidate_id', chunk)
+        )),
 
         // Query 4: Status Logs
-        supabase
-            .from('status_log')
-            .select('log_id, jr_candidate_id, status, timestamp')
-            .in('jr_candidate_id', jrCandIds)
-            .limit(5000)
-            .returns<{ log_id: number; jr_candidate_id: string; status: string; timestamp: string }[]>(),
+        Promise.all(jrCandIdChunks.map(chunk => 
+            supabase
+                .from('status_log')
+                .select('log_id, jr_candidate_id, status, timestamp')
+                .in('jr_candidate_id', chunk)
+                .returns<{ log_id: number; jr_candidate_id: string; status: string; timestamp: string }[]>()
+        )),
 
         // Query 5: Other JR History Count (Surgical Add)
-        supabase
-            .from('jr_candidates')
-            .select('candidate_id')
-            .neq('jr_id', jrId)
-            .in('candidate_id', candidateIds)
+        Promise.all(candidateIdChunks.map(chunk => 
+            supabase
+                .from('jr_candidates')
+                .select('candidate_id')
+                .neq('jr_id', jrId)
+                .in('candidate_id', chunk)
+        ))
     ]);
 
-    const profiles = profilesResult.data;
-    const experiences = experiencesResult.data;
-    const logs = logsResult.data;
-    const historyData = (historyResult as any)?.data;
-
-    if (experiencesResult.error) {
-        console.error('[getJRCandidates] candidate_experiences fetch error:', experiencesResult.error);
-    }
+    // Flatten results
+    const profiles = profilesChunks.flatMap(res => res.data || []);
+    const experiences = experiencesChunks.flatMap(res => res.data || []);
+    const logs = logsChunks.flatMap(res => res.data || []);
+    const historyData = historyChunks.flatMap(res => (res as any).data || []);
 
     // Build lookup maps
     const historyMap = new Map<string, number>();
