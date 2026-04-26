@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { getRecruiterKPIDetails, KPIDetailResult } from "@/app/actions/kpi-details-actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { ArrowLeft, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { format } from "date-fns";
 
-export default function KPIDetailPage() {
+function KPIDetailContent() {
     const searchParams = useSearchParams();
     const recruiter = searchParams.get('recruiter') || '';
     
@@ -235,5 +235,13 @@ export default function KPIDetailPage() {
                 </Tabs>
             )}
         </div>
+    );
+}
+
+export default function KPIDetailPage() {
+    return (
+        <Suspense fallback={<div className="p-8">Loading details...</div>}>
+            <KPIDetailContent />
+        </Suspense>
     );
 }
