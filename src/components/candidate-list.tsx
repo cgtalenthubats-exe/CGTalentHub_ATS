@@ -209,6 +209,11 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
     const handleBatchStatusChange = async (newStatus: string) => {
         if (selectedIds.length === 0) return;
 
+        if (newStatus === 'Successful Placement') {
+            toast.error("Successful Placement cannot be set via batch update. Please use the individual 'Confirm Placement' flow.");
+            return;
+        }
+
         setPendingCandidateId(null);
         setPendingStatus(newStatus);
         setIsBatchUpdate(true);

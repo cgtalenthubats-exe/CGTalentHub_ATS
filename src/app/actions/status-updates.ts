@@ -23,6 +23,10 @@ export async function updateCandidateStatus(
 ) {
     const supabase = adminAuthClient;
     const resolvedUpdatedBy = updatedBy || await getCurrentUserEmail();
+    
+    if (newStatus === 'Successful Placement') {
+        return { success: false, error: "Please use 'Confirm Placement' button for Successful Placement to ensure employment records are created correctly." };
+    }
 
     try {
         // 1. Get current max ID for log_id (numeric)
@@ -76,6 +80,10 @@ export async function batchUpdateCandidateStatus(
 ) {
     const supabase = adminAuthClient;
     const resolvedUpdatedBy = updatedBy || await getCurrentUserEmail();
+    
+    if (newStatus === 'Successful Placement') {
+        return { success: false, error: "Successful Placement cannot be set via batch update. Please use the individual 'Confirm Placement' flow." };
+    }
 
     try {
         // 1. Get current max ID for log_id (numeric)

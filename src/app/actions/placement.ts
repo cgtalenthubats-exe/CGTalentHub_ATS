@@ -81,7 +81,8 @@ export async function confirmPlacement(data: PlacementData) {
             throw new Error("Failed to update candidate timestamp: " + updateError.message);
         }
 
-        // 6. Update Job Requisition Status -> Inactive
+        /* 
+        // 6. Update Job Requisition Status -> Inactive (REMOVED AS PER USER REQUEST)
         const { error: jrUpdateError } = await (supabase
             .from('job_requisitions' as any)
             .update({
@@ -91,6 +92,7 @@ export async function confirmPlacement(data: PlacementData) {
             .eq('jr_id', jrCand.jr_id) as any);
 
         if (jrUpdateError) console.error("Failed to deactivate JR:", jrUpdateError);
+        */
 
         // 7. Create Employment Record
         const { error: insertError } = await (supabase
@@ -121,11 +123,28 @@ export async function confirmPlacement(data: PlacementData) {
         }
 
         // 8. Create Log
+        const { data: maxLogResult } = await (supabase
+            .from('status_log' as any)
+            .select('log_id')
+            .order('log_id', { ascending: false })
+            .limit(1)
+            .maybeSingle() as any);
+
+        let nextLogId = 1;
+        if (maxLogResult && (maxLogResult as any).log_id) {
+            nextLogId = parseInt((maxLogResult as any).log_id) + 1;
+        }
+
+        const now = new Date();
+        const timestampStr = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()}`;
+
         await (supabase.from('status_log' as any).insert({
+            log_id: nextLogId,
             jr_candidate_id: data.jr_candidate_id,
             status: 'Successful Placement', // 'status' col in log
             updated_By: 'System', // 'updated_By' in log
-            timestamp: new Date().toISOString()
+            updated_by: 'System', // also update lowercase col
+            timestamp: timestampStr
         }) as any);
 
         revalidatePath('/requisitions/placements');
