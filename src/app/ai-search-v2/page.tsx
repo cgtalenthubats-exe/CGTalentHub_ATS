@@ -111,6 +111,24 @@ export default function AISearchV2Page() {
         sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
     }, [sessionId]);
 
+    // On mount: restore messages + report if session already exists
+    useEffect(() => {
+        const savedId = sessionStorage.getItem(SESSION_STORAGE_KEY);
+        if (!savedId) return;
+        (async () => {
+            const chatRes = await v2GetChatMessages(savedId);
+            if (chatRes.success && chatRes.data && chatRes.data.length > 0) {
+                setMessages(chatRes.data.map((m: any) => ({
+                    id: m.id,
+                    role: m.role as "user" | "assistant",
+                    content: m.content,
+                    timestamp: new Date(m.created_at),
+                })));
+                await fetchReport(savedId, true);
+            }
+        })();
+    }, []);
+
     // Poll report when processing
     useEffect(() => {
         if (sessionStatus !== "processing") return;
@@ -140,6 +158,10 @@ export default function AISearchV2Page() {
                         content: m.content,
                         timestamp: new Date(m.created_at),
                     }));
+                // If polling found a response while still loading, clear the spinner
+                if (newMsgs.length > 0 && isLoading) {
+                    setIsLoading(false);
+                }
                 // Stop polling when Stage 3 complete message arrives
                 if (newMsgs.some((m) => m.content.includes("Ranking Complete"))) {
                     setPipelineActive(false);
