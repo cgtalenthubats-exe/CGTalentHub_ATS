@@ -23,6 +23,10 @@ export interface ConsolidatedResult {
     company_tier?: string;
     business_model?: string;
     photo_url?: string;
+    linkedin_url?: string;
+    sex?: string;
+    age?: number | null;
+    country?: string;
 
     // New Score Structure
     final_total_score: number;

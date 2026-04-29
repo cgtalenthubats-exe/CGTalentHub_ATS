@@ -162,9 +162,10 @@ export default function AISearchV2Page() {
                 if (newMsgs.length > 0 && isLoading) {
                     setIsLoading(false);
                 }
-                // Stop polling when Stage 3 complete message arrives
+                // Stop polling when Stage 3 complete — enrich top candidates
                 if (newMsgs.some((m) => m.content.includes("Ranking Complete"))) {
                     setPipelineActive(false);
+                    fetchReport(sessionId, true, true);
                 }
                 return newMsgs.length > 0 ? [...prev, ...newMsgs] : prev;
             });
@@ -172,11 +173,11 @@ export default function AISearchV2Page() {
         return () => clearInterval(interval);
     }, [sessionId, isLoading, pipelineActive]);
 
-    async function fetchReport(sid: string, silent = false) {
+    async function fetchReport(sid: string, silent = false, enrich = false) {
         const [jobRes, statusRes, resultsRes] = await Promise.all([
             v2GetSession(sid),
             v2GetPipelineStatuses(sid),
-            v2GetSearchResults(sid),
+            v2GetSearchResults(sid, enrich),
         ]);
         if (jobRes.success && jobRes.data) {
             setSessionStatus(jobRes.data.status);
@@ -258,6 +259,10 @@ export default function AISearchV2Page() {
         const t1 = setTimeout(() => setThinkingStatus("Analyzing..."), 10000);
         const t2 = setTimeout(() => setThinkingStatus("Almost there..."), 40000);
 
+        // Abort after 120s to prevent infinite spinner
+        const controller = new AbortController();
+        const t3 = setTimeout(() => controller.abort(), 120000);
+
         try {
             // Ensure session row exists
             await v2EnsureSession(sessionId, "sumethwork@gmail.com");
@@ -268,6 +273,7 @@ export default function AISearchV2Page() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ message: text, sessionId, userEmail: "sumethwork@gmail.com" }),
+                signal: controller.signal,
             });
             const data = await res.json();
             const answer = data.answer || "ไม่มีคำตอบจากระบบ";
@@ -281,16 +287,29 @@ export default function AISearchV2Page() {
             await fetchReport(sessionId, true);
             if (results.length > 0) setReportReady(true);
 
-            // Start pipeline polling if user triggered Stage 2
-            const triggerWords = ["เริ่มเลย", "start", "go", "ได้เลย", "จัดไป", "สร้าง report"];
-            if (triggerWords.some((w) => text.toLowerCase().includes(w.toLowerCase()))) {
-                setPipelineActive(true);
-            }
+            // Start pipeline polling if response or user message indicates pipeline was triggered
+            const pipelineIndicators = ["screening", "ranking", "stage 2", "stage2", "screen", "กำลัง", "เริ่ม screen", "เริ่ม rank", "กำลัง rank"];
+            const userTriggers = ["เริ่มเลย", "start", "go", "ได้เลย", "จัดไป", "สร้าง report", "confirm", "proceed", "ยืนยัน"];
+            const shouldActivate =
+                pipelineIndicators.some((w) => answer.toLowerCase().includes(w)) ||
+                userTriggers.some((w) => text.toLowerCase().includes(w.toLowerCase()));
+            if (shouldActivate) setPipelineActive(true);
+
         } catch (err: any) {
-            setMessages((p) => [...p, { id: `err_${Date.now()}`, role: "assistant", content: `Error: ${err.message}`, timestamp: new Date() }]);
+            if (err.name === "AbortError") {
+                setMessages((p) => [...p, {
+                    id: `timeout_${Date.now()}`,
+                    role: "assistant",
+                    content: "⏱️ ใช้เวลานานกว่าปกติ กรุณาลองส่งข้อความใหม่อีกครั้ง",
+                    timestamp: new Date()
+                }]);
+            } else {
+                setMessages((p) => [...p, { id: `err_${Date.now()}`, role: "assistant", content: `Error: ${err.message}`, timestamp: new Date() }]);
+            }
         } finally {
             clearTimeout(t1);
             clearTimeout(t2);
+            clearTimeout(t3);
             setIsLoading(false);
         }
     }

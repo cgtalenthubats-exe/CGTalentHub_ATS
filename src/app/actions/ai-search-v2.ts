@@ -10,7 +10,8 @@ const supabase = createClient(
 );
 
 // --- 1. Get Search Results ---
-export async function v2GetSearchResults(sessionId: string) {
+// enrich=true fetches profile photo/linkedin/sex/age for top N candidates only (after Stage 3)
+export async function v2GetSearchResults(sessionId: string, enrich = false) {
     try {
         const { data: results, error } = await supabase
             .from("v2_search_results")
@@ -22,18 +23,38 @@ export async function v2GetSearchResults(sessionId: string) {
 
         if (error) throw error;
 
+        // Only enrich top 30 scored candidates — skip for raw Stage 1 counts
+        const enrichThreshold = 30;
         const enriched = await Promise.all(
-            results.map(async (r) => {
+            results.map(async (r, idx) => {
                 let photo_url: string | null = null;
+                let linkedin_url: string | undefined;
+                let sex: string | undefined;
+                let age: number | null = null;
+                let country: string | undefined;
                 let onboarded_id: string | undefined = undefined;
 
-                const { data: profile } = await supabase
-                    .from("Candidate Profile")
-                    .select("photo")
-                    .eq("candidate_id", r.candidate_id)
-                    .maybeSingle();
+                const shouldEnrich = enrich && idx < enrichThreshold;
+                if (shouldEnrich) {
+                    const { data: profile } = await supabase
+                        .from("Candidate Profile")
+                        .select("photo, linkedin_url, sex, dob, country")
+                        .eq("candidate_id", r.candidate_id)
+                        .maybeSingle();
 
-                if (profile) photo_url = profile.photo;
+                    if (profile) {
+                        photo_url = profile.photo;
+                        linkedin_url = profile.linkedin_url ?? undefined;
+                        sex = profile.sex ?? undefined;
+                        country = profile.country ?? undefined;
+                        if (profile.dob) {
+                            const birth = new Date(profile.dob);
+                            const today = new Date();
+                            age = today.getFullYear() - birth.getFullYear();
+                            if (today < new Date(today.getFullYear(), birth.getMonth(), birth.getDate())) age--;
+                        }
+                    }
+                }
 
                 const mapped: ConsolidatedResult = {
                     id: r.id,
@@ -44,6 +65,10 @@ export async function v2GetSearchResults(sessionId: string) {
                     position: r.position ?? "",
                     company: r.company ?? "",
                     photo_url: photo_url ?? undefined,
+                    linkedin_url,
+                    sex,
+                    age,
+                    country,
                     onboarded_id,
 
                     // Scores — populated after Stage 3
