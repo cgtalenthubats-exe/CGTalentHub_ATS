@@ -444,16 +444,92 @@ export default function AISearchV2Page() {
                                             exit={{ height: 0, opacity: 0 }}
                                             className="overflow-hidden"
                                         >
-                                            <div className="bg-gradient-to-br from-indigo-50/50 to-white border border-indigo-100 rounded-xl p-5 shadow-sm space-y-4">
+                                            <div className="bg-gradient-to-br from-indigo-50/50 to-white border border-indigo-100 rounded-xl p-5 shadow-sm space-y-5">
                                                 <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
                                                     <Sparkles className="w-4 h-4 text-indigo-600" />
                                                     AI Insights
                                                 </h3>
                                                 {(() => {
+                                                    // Try parse as structured JSON (new format)
+                                                    let parsed: any = null;
+                                                    try { parsed = JSON.parse(searchJob.stage3_overall_summary); } catch {}
+
+                                                    if (parsed?.highlights) {
+                                                        // New structured format
+                                                        return (
+                                                            <>
+                                                                {/* Bullet highlights */}
+                                                                <ul className="space-y-2">
+                                                                    {parsed.highlights.map((b: string, i: number) => (
+                                                                        <li key={i} className="flex items-start gap-2">
+                                                                            <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
+                                                                            <span className="text-xs text-slate-700 leading-relaxed">{b}</span>
+                                                                        </li>
+                                                                    ))}
+                                                                </ul>
+
+                                                                {/* Top 5 Candidate Analysis */}
+                                                                {parsed.top5?.length > 0 && (
+                                                                    <div className="space-y-3">
+                                                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Candidate Analysis</p>
+                                                                        <div className="space-y-2">
+                                                                            {parsed.top5.map((c: any) => {
+                                                                                const matchedResult = results.find(r => r.name === c.name);
+                                                                                return (
+                                                                                    <div key={c.rank} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
+                                                                                        <div className="flex items-center gap-3 mb-2">
+                                                                                            {matchedResult?.photo_url ? (
+                                                                                                <img src={matchedResult.photo_url} className="w-9 h-9 rounded-full object-cover border border-slate-200 flex-shrink-0" />
+                                                                                            ) : (
+                                                                                                <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center flex-shrink-0">
+                                                                                                    <span className="text-sm font-bold text-slate-400">{c.name?.charAt(0)}</span>
+                                                                                                </div>
+                                                                                            )}
+                                                                                            <div className="flex-1 min-w-0">
+                                                                                                <div className="flex items-center gap-2">
+                                                                                                    <span className={cn(
+                                                                                                        "text-[9px] font-black px-1.5 py-0.5 rounded-full",
+                                                                                                        c.rank === 1 ? "bg-amber-400 text-white" : c.rank <= 3 ? "bg-slate-700 text-white" : "bg-slate-100 text-slate-500"
+                                                                                                    )}>#{c.rank}</span>
+                                                                                                    <span className="text-xs font-bold text-slate-800 truncate">{c.name}</span>
+                                                                                                    <span className="text-[10px] font-black text-indigo-600 ml-auto">{c.score}</span>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                        <p className="text-[11px] text-slate-600 leading-relaxed mb-2">{c.why}</p>
+                                                                                        <div className="grid grid-cols-2 gap-2">
+                                                                                            <div className="bg-red-50 border border-red-100 rounded-lg px-2 py-1.5">
+                                                                                                <p className="text-[9px] font-black uppercase text-red-500 mb-0.5">Risk</p>
+                                                                                                <p className="text-[10px] text-red-700 leading-snug">{c.risk}</p>
+                                                                                            </div>
+                                                                                            <div className="bg-amber-50 border border-amber-100 rounded-lg px-2 py-1.5">
+                                                                                                <p className="text-[9px] font-black uppercase text-amber-500 mb-0.5">Trade-off</p>
+                                                                                                <p className="text-[10px] text-amber-700 leading-snug">{c.tradeoff}</p>
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Final recommendation */}
+                                                                {parsed.final_recommendation && (
+                                                                    <div className="bg-indigo-600 rounded-xl px-4 py-3">
+                                                                        <p className="text-xs font-semibold text-white leading-relaxed">
+                                                                            💡 {parsed.final_recommendation}
+                                                                        </p>
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        );
+                                                    }
+
+                                                    // Fallback: old plain text format
                                                     const parts = searchJob.stage3_overall_summary.split("\n\n");
                                                     const mainText = parts.find((p: string) => !p.startsWith("💡")) ?? "";
                                                     const finalInsight = parts.find((p: string) => p.startsWith("💡"));
-                                                    // Split main text into sentence-level bullets
                                                     const bullets = mainText.split(/(?<=\.)\s+/).filter((s: string) => s.trim().length > 10);
                                                     return (
                                                         <>
@@ -467,9 +543,7 @@ export default function AISearchV2Page() {
                                                             </ul>
                                                             {finalInsight && (
                                                                 <div className="bg-indigo-600 rounded-xl px-4 py-3">
-                                                                    <p className="text-xs font-semibold text-white leading-relaxed">
-                                                                        {finalInsight.replace("💡 ", "")}
-                                                                    </p>
+                                                                    <p className="text-xs font-semibold text-white leading-relaxed">{finalInsight.replace("💡 ", "")}</p>
                                                                 </div>
                                                             )}
                                                         </>
@@ -491,7 +565,9 @@ export default function AISearchV2Page() {
 
                         {/* Top 20 Candidates */}
                         {(() => {
-                            const top20 = filteredResults.filter(r => r.stage2_pass !== false && r.stage3_score != null).slice(0, 20);
+                            const scored = filteredResults.filter(r => r.stage2_pass !== false && r.stage3_score != null);
+                            const top20 = scored.slice(0, 20);
+                            const beyondTop20 = scored.slice(20);
                             const otherQualified = filteredResults.filter(r => r.stage2_pass !== false && r.stage3_score == null);
                             const notQualified = filteredResults.filter(r => r.stage2_pass === false);
 
@@ -535,11 +611,20 @@ export default function AISearchV2Page() {
                                             <ResultsTable results={top20} {...sharedProps} />
                                         </div>
                                     )}
+                                    {beyondTop20.length > 0 && (
+                                        <div>
+                                            <div className="flex items-center gap-2 mb-3">
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">📋 Other Scored</span>
+                                                <span className="text-[10px] text-slate-400">({beyondTop20.length} candidates — ranked #{21} and below)</span>
+                                            </div>
+                                            <ResultsTable results={beyondTop20} {...sharedProps} />
+                                        </div>
+                                    )}
                                     {otherQualified.length > 0 && (
                                         <div>
                                             <div className="flex items-center gap-2 mb-3">
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">📋 Other Qualified</span>
-                                                <span className="text-[10px] text-slate-400">({otherQualified.length} candidates — pending Stage 3)</span>
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">⏳ Pending Analysis</span>
+                                                <span className="text-[10px] text-slate-400">({otherQualified.length} candidates — awaiting Stage 3)</span>
                                             </div>
                                             <ResultsTable results={otherQualified} {...sharedProps} />
                                         </div>
