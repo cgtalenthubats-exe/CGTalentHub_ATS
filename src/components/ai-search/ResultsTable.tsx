@@ -291,13 +291,23 @@ export function ResultsTable({
                                                 </div>
                                             </div>
 
-                                            <div className="mt-2 group/summary relative">
-                                                <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed italic px-2 border-l-2 border-slate-100">
-                                                    {result.executive_summary || "No executive summary available."}
-                                                </p>
-                                                <span className="text-[9px] text-indigo-400 font-bold mt-1 block opacity-0 group-hover/summary:opacity-100 transition-opacity">
-                                                    Click to view more details →
-                                                </span>
+                                            <div className="mt-2 space-y-1.5">
+                                                {(result.highlight_project || result.stage3_tradeoff) ? (
+                                                    <>
+                                                        {result.highlight_project && (
+                                                            <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed font-medium">
+                                                                {result.highlight_project}
+                                                            </p>
+                                                        )}
+                                                        {result.stage3_tradeoff && (
+                                                            <p className="text-[10px] text-amber-700 line-clamp-2 leading-relaxed">
+                                                                <span className="font-black">↔</span> {result.stage3_tradeoff}
+                                                            </p>
+                                                        )}
+                                                    </>
+                                                ) : (
+                                                    <p className="text-[10px] text-slate-400 italic">Pending Stage 3 analysis...</p>
+                                                )}
                                             </div>
 
                                             <div className="flex flex-wrap items-center gap-1.5 mt-3">
@@ -329,11 +339,6 @@ export function ResultsTable({
                                                     <Badge className="text-[9px] bg-red-100 hover:bg-red-100 text-red-700 border border-red-200 py-0.5 px-1.5 h-auto flex items-center gap-1 whitespace-normal">
                                                         <XCircle className="w-2.5 h-2.5 flex-shrink-0" />
                                                         Not qualified{result.stage2_reason ? ` · ${result.stage2_reason}` : ""}
-                                                    </Badge>
-                                                )}
-                                                {result.stage3_tradeoff && (
-                                                    <Badge className="text-[9px] bg-amber-50 hover:bg-amber-50 text-amber-700 border border-amber-200 py-0.5 px-1.5 h-auto flex items-center gap-1 whitespace-normal">
-                                                        ↔ {result.stage3_tradeoff}
                                                     </Badge>
                                                 )}
                                             </div>

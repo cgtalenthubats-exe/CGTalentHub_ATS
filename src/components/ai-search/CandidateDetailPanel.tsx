@@ -239,26 +239,22 @@ export function CandidateDetailPanel({ result, onClose, onImportToJR }: Props) {
                     {/* 2. Stacked Layout for Core Intelligence */}
                     <div className="space-y-6">
 
-                        {/* Executive Summary & Highlights */}
-                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                            <h4 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2 mb-4">
-                                <FileText className="w-4 h-4 text-indigo-500" /> Executive Summary
+                        {/* AI Analysis */}
+                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                            <h4 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
+                                <FileText className="w-4 h-4 text-indigo-500" /> Why This Candidate
                             </h4>
-                            <p className="text-sm text-slate-700 leading-relaxed font-medium text-justify">
-                                {result.executive_summary || "No detailed summary available."}
+                            <p className="text-sm text-slate-700 leading-relaxed font-medium">
+                                {result.highlight_project || result.executive_summary || "Pending Stage 3 analysis."}
                             </p>
+                            {result.stage3_tradeoff && (
+                                <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3">
+                                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-1">Trade-off</p>
+                                    <p className="text-sm text-amber-800 leading-relaxed font-medium">{result.stage3_tradeoff}</p>
+                                </div>
+                            )}
                         </div>
 
-                        {result.highlight_project && (
-                            <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
-                                <h3 className="text-xs font-black text-blue-900 mb-3 uppercase tracking-[0.2em] flex items-center gap-2">
-                                    <Zap className="w-4 h-4" /> Key Project Highlight
-                                </h3>
-                                <p className="text-sm text-blue-800 leading-relaxed font-medium">
-                                    {result.highlight_project}
-                                </p>
-                            </div>
-                        )}
 
                         {/* Intelligence Insights (External Only) */}
                         {result.source === 'external_db' && (

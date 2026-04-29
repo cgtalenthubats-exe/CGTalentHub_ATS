@@ -444,20 +444,37 @@ export default function AISearchV2Page() {
                                             exit={{ height: 0, opacity: 0 }}
                                             className="overflow-hidden"
                                         >
-                                            <div className="bg-gradient-to-br from-indigo-50/50 to-white border border-indigo-100 rounded-xl p-5 shadow-sm space-y-3">
+                                            <div className="bg-gradient-to-br from-indigo-50/50 to-white border border-indigo-100 rounded-xl p-5 shadow-sm space-y-4">
                                                 <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
                                                     <Sparkles className="w-4 h-4 text-indigo-600" />
-                                                    Internal DB Insights
+                                                    AI Insights
                                                 </h3>
-                                                {searchJob.stage3_overall_summary.split("\n\n").map((part: string, i: number) =>
-                                                    part.startsWith("💡") ? (
-                                                        <div key={i} className="bg-white/60 rounded-lg p-3 border border-indigo-100">
-                                                            <p className="text-xs font-semibold text-indigo-800 italic leading-relaxed">{part}</p>
-                                                        </div>
-                                                    ) : (
-                                                        <p key={i} className="text-xs text-slate-700 leading-relaxed">{part}</p>
-                                                    )
-                                                )}
+                                                {(() => {
+                                                    const parts = searchJob.stage3_overall_summary.split("\n\n");
+                                                    const mainText = parts.find((p: string) => !p.startsWith("💡")) ?? "";
+                                                    const finalInsight = parts.find((p: string) => p.startsWith("💡"));
+                                                    // Split main text into sentence-level bullets
+                                                    const bullets = mainText.split(/(?<=\.)\s+/).filter((s: string) => s.trim().length > 10);
+                                                    return (
+                                                        <>
+                                                            <ul className="space-y-2">
+                                                                {bullets.map((b: string, i: number) => (
+                                                                    <li key={i} className="flex items-start gap-2">
+                                                                        <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-indigo-400 flex-shrink-0" />
+                                                                        <span className="text-xs text-slate-700 leading-relaxed">{b.trim()}</span>
+                                                                    </li>
+                                                                ))}
+                                                            </ul>
+                                                            {finalInsight && (
+                                                                <div className="bg-indigo-600 rounded-xl px-4 py-3">
+                                                                    <p className="text-xs font-semibold text-white leading-relaxed">
+                                                                        {finalInsight.replace("💡 ", "")}
+                                                                    </p>
+                                                                </div>
+                                                            )}
+                                                        </>
+                                                    );
+                                                })()}
                                             </div>
                                         </motion.div>
                                     )}
