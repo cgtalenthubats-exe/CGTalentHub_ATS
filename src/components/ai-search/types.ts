@@ -7,6 +7,7 @@ export interface SearchJob {
     report?: any;
     internal_db_summary?: string;
     external_db_summary?: string;
+    stage3_overall_summary?: string;
 }
 
 export interface ConsolidatedResult {
@@ -39,6 +40,16 @@ export interface ConsolidatedResult {
     executive_summary?: string;
     created_at: string;
     onboarded_id?: string; // New field for identifying if external is already internal
+
+    // Stage 2 screening result
+    stage2_pass?: boolean | null;
+    stage2_reason?: string;
+
+    // Stage 3 scoring
+    stage3_score?: number | null;
+    stage3_rank?: number | null;
+    stage3_tradeoff?: string;
+    stage3_summary?: string;
 }
 
 export interface ExternalCandidateDetail {

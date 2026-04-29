@@ -82,6 +82,25 @@ const WEBHOOK_DOCS: Record<string, {
 }`,
         response: `{ answer: "คำตอบจาก AI" }`,
     },
+    "v2_chat_assistant": {
+        trigger: "ถูกเรียกจาก AI Power Search V2 — Phase 1 clarify query ก่อน trigger Stage 1 search",
+        payload: `POST  {
+  message: "คำถามจาก user",
+  sessionId: "v2_...",
+  userEmail: "email@..."
+}`,
+        response: `{
+  answer: "ข้อความตอบกลับ AI",
+  trigger_search: true | false,
+  structured_query: {          // มีเฉพาะเมื่อ trigger_search = true
+    original_query: "...",
+    role: "...",
+    industry: "...",
+    location: "..."
+  }
+}`,
+        note: "n8n ใช้ n8n_chat_histories (keyed by sessionId) เป็น memory — เมื่อ AI รวบรวมข้อมูลครบ (role + industry + location) ให้ return trigger_search: true",
+    },
     "OrgChart Workflow": {
         trigger: "ถูกเรียกเมื่อมีการอัปโหลดรูปภาพแผนผังองค์กรสำเร็จ",
         payload: `POST  {

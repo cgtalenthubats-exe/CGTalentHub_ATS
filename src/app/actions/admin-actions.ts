@@ -53,7 +53,8 @@ export async function getN8nConfigs() {
         { name: 'JR Report', description: 'Triggered when a JR report is requested' },
         { name: 'Candidate Refresh', description: 'Triggered when candidate data needs to be updated' },
         { name: 'Job Description Upload', description: 'Triggered when a Job Requisition is created or updated' },
-        { name: 'Interview Feedback', description: 'Triggered when interview feedback with file is submitted' }
+        { name: 'Interview Feedback', description: 'Triggered when interview feedback with file is submitted' },
+        { name: 'v2_chat_assistant', description: 'AI Power Search V2 — Chatbot webhook (Phase 1 clarify + trigger search)' },
     ];
 
     // Check if any required config is missing and try to insert it for real

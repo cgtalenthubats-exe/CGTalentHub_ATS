@@ -18,7 +18,8 @@ import {
     Bot,
     Search,
     Building2,
-    ClipboardList
+    ClipboardList,
+    Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -33,6 +34,7 @@ const menuItems = [
     { name: "Org Chart", icon: Network, path: "/org-chart" },
     { name: "AI Power Search", icon: Search, path: "/ai-search" },
     { name: "AI Primary Search", icon: Bot, path: "/assistant" },
+    { name: "AI Power Search V2", icon: Sparkles, path: "/ai-search-v2" },
     { name: "Settings", icon: Settings, path: "/settings" },
     { name: "n8n Integration", icon: Webhook, path: "/admin/n8n" },
     { name: "Company Master", icon: Building2, path: "/admin/companies" },

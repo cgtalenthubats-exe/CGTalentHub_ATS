@@ -12,7 +12,8 @@ import {
     Database,
     Linkedin,
     UserPlus,
-    CheckCircle
+    CheckCircle,
+    XCircle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -188,10 +189,12 @@ export function ResultsTable({
                                     onClick={() => onSelectResult(result)}
                                     className={cn(
                                         "group relative bg-white border rounded-xl p-4 cursor-pointer transition-all duration-300 w-full overflow-hidden",
-                                        "hover:shadow-lg hover:shadow-indigo-500/5 hover:border-indigo-200",
+                                        result.stage2_pass === false
+                                            ? "border-red-200 bg-red-50/30 hover:shadow-lg hover:shadow-red-500/5 hover:border-red-300"
+                                            : "hover:shadow-lg hover:shadow-indigo-500/5 hover:border-indigo-200",
                                         activeResultId === result.id
                                             ? "border-indigo-500 shadow-md ring-1 ring-indigo-500/20"
-                                            : "border-slate-200",
+                                            : result.stage2_pass !== false && "border-slate-200",
                                         selectedIds.includes(result.id) && "bg-indigo-50/30 border-indigo-200"
                                     )}
                                 >
@@ -208,6 +211,19 @@ export function ResultsTable({
                                                 checked={selectedIds.includes(result.id)}
                                                 className="h-5 w-5 border-slate-200 bg-white shadow-sm data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
                                             />
+                                        </div>
+                                    )}
+                                    {/* Rank Badge */}
+                                    {result.stage3_rank != null && result.stage3_rank <= 20 && (
+                                        <div className="absolute top-3 right-3 z-10">
+                                            <span className={cn(
+                                                "text-[9px] font-black px-1.5 py-0.5 rounded-full",
+                                                result.stage3_rank === 1 ? "bg-amber-400 text-white" :
+                                                result.stage3_rank <= 3 ? "bg-slate-700 text-white" :
+                                                "bg-slate-100 text-slate-500"
+                                            )}>
+                                                #{result.stage3_rank}
+                                            </span>
                                         </div>
                                     )}
 
@@ -307,6 +323,17 @@ export function ResultsTable({
                                                 {result.business_model && (
                                                     <Badge variant="outline" className="text-[9px] h-4 text-slate-500 border-slate-200 py-0">
                                                         {result.business_model}
+                                                    </Badge>
+                                                )}
+                                                {result.stage2_pass === false && (
+                                                    <Badge className="text-[9px] bg-red-100 hover:bg-red-100 text-red-700 border border-red-200 py-0.5 px-1.5 h-auto flex items-center gap-1 whitespace-normal">
+                                                        <XCircle className="w-2.5 h-2.5 flex-shrink-0" />
+                                                        Not qualified{result.stage2_reason ? ` · ${result.stage2_reason}` : ""}
+                                                    </Badge>
+                                                )}
+                                                {result.stage3_tradeoff && (
+                                                    <Badge className="text-[9px] bg-amber-50 hover:bg-amber-50 text-amber-700 border border-amber-200 py-0.5 px-1.5 h-auto flex items-center gap-1 whitespace-normal">
+                                                        ↔ {result.stage3_tradeoff}
                                                     </Badge>
                                                 )}
                                             </div>
