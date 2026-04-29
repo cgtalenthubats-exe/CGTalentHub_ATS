@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { MessageSquare, BarChart2, History, Plus, Send, Loader2, Sparkles, ChevronDown, ChevronRight, X, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -49,9 +49,17 @@ function generateSessionId(): string {
     return `v2_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+const SESSION_STORAGE_KEY = "ai_search_v2_session_id";
+
 export default function AISearchV2Page() {
     const [view, setView] = useState<View>("chat");
-    const [sessionId, setSessionId] = useState<string>(() => generateSessionId());
+    const [sessionId, setSessionId] = useState<string>(() => {
+        if (typeof window !== "undefined") {
+            return sessionStorage.getItem(SESSION_STORAGE_KEY) || generateSessionId();
+        }
+        return generateSessionId();
+    });
+    const [pipelineActive, setPipelineActive] = useState(false);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -98,12 +106,49 @@ export default function AISearchV2Page() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [historyOpen]);
 
-    // Poll when processing
+    // Persist sessionId across refresh
+    useEffect(() => {
+        sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+    }, [sessionId]);
+
+    // Poll report when processing
     useEffect(() => {
         if (sessionStatus !== "processing") return;
         const interval = setInterval(() => fetchReport(sessionId, true), 5000);
         return () => clearInterval(interval);
     }, [sessionId, sessionStatus]);
+
+    // Poll chat messages while pipeline is active (Stage 2.5 / Stage 3 notifications)
+    // Triggered by isLoading OR pipelineActive — stops when pipeline finishes
+    useEffect(() => {
+        if (!isLoading && !pipelineActive) return;
+        const interval = setInterval(async () => {
+            const res = await v2GetChatMessages(sessionId);
+            if (!res.success || !res.data) return;
+            setMessages((prev) => {
+                const existingIds = new Set(prev.map((m) => m.id));
+                const existingContents = new Set(prev.map((m) => m.content));
+                const newMsgs = res.data
+                    .filter((m: any) =>
+                        m.role === "assistant" &&
+                        !existingIds.has(m.id) &&
+                        !existingContents.has(m.content)
+                    )
+                    .map((m: any) => ({
+                        id: m.id,
+                        role: m.role as "user" | "assistant",
+                        content: m.content,
+                        timestamp: new Date(m.created_at),
+                    }));
+                // Stop polling when Stage 3 complete message arrives
+                if (newMsgs.some((m) => m.content.includes("Ranking Complete"))) {
+                    setPipelineActive(false);
+                }
+                return newMsgs.length > 0 ? [...prev, ...newMsgs] : prev;
+            });
+        }, 4000);
+        return () => clearInterval(interval);
+    }, [sessionId, isLoading, pipelineActive]);
 
     async function fetchReport(sid: string, silent = false) {
         const [jobRes, statusRes, resultsRes] = await Promise.all([
@@ -128,7 +173,9 @@ export default function AISearchV2Page() {
     }
 
     function handleNewSession() {
-        setSessionId(generateSessionId());
+        const newId = generateSessionId();
+        sessionStorage.setItem(SESSION_STORAGE_KEY, newId);
+        setSessionId(newId);
         setMessages([]);
         setResults([]);
         setPipelineStatuses([]);
@@ -137,6 +184,7 @@ export default function AISearchV2Page() {
         setReportReady(false);
         setSelectedResult(null);
         setSearchJob(null);
+        setPipelineActive(false);
         setView("chat");
     }
 
@@ -207,9 +255,15 @@ export default function AISearchV2Page() {
 
             setMessages((p) => [...p, { id: `a_${Date.now()}`, role: "assistant", content: answer, timestamp: new Date() }]);
 
-            // Auto-fetch report after every AI response (lightweight — checks v2_search_sessions)
+            // Auto-fetch report after every AI response
             await fetchReport(sessionId, true);
             if (results.length > 0) setReportReady(true);
+
+            // Start pipeline polling if user triggered Stage 2
+            const triggerWords = ["เริ่มเลย", "start", "go", "ได้เลย", "จัดไป", "สร้าง report"];
+            if (triggerWords.some((w) => text.toLowerCase().includes(w.toLowerCase()))) {
+                setPipelineActive(true);
+            }
         } catch (err: any) {
             setMessages((p) => [...p, { id: `err_${Date.now()}`, role: "assistant", content: `Error: ${err.message}`, timestamp: new Date() }]);
         } finally {
