@@ -8,6 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, RotateCcw, TrendingUp, Target, Coins, Search, RefreshCw } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
+import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 const COLORS = ["#4f46e5", "#7c3aed", "#0891b2", "#0d9488", "#dc2626", "#ea580c", "#ca8a04", "#15803d"];
 
@@ -53,9 +56,9 @@ export default function PlacementTab() {
     const [rawJRs, setRawJRs] = useState<JRRecord[]>([]);
     const [loading, setLoading] = useState(true);
 
-    const [selectedBU, setSelectedBU] = useState("all");
-    const [selectedSubBU, setSelectedSubBU] = useState("all");
-    const [selectedYear, setSelectedYear] = useState("all");
+    const [selectedBU, setSelectedBU] = useState<string[]>([]);
+    const [selectedSubBU, setSelectedSubBU] = useState<string[]>([]);
+    const [selectedYear, setSelectedYear] = useState<string[]>([]);
     const [selectedStatus, setSelectedStatus] = useState("all");
 
     const fetchData = useCallback(async () => {
@@ -91,33 +94,45 @@ export default function PlacementTab() {
     }, [rawPlacements, rawJRs]);
 
     const filteredPlacements = useMemo(() => rawPlacements.filter(r => {
-        if (selectedBU !== "all" && r.bu !== selectedBU) return false;
-        if (selectedSubBU !== "all" && r.sub_bu !== selectedSubBU) return false;
-        if (selectedYear !== "all" && parseYear(r.hire_date) !== parseInt(selectedYear)) return false;
+        if (selectedBU.length > 0 && !selectedBU.includes(r.bu)) return false;
+        if (selectedSubBU.length > 0 && !selectedSubBU.includes(r.sub_bu)) return false;
+        const y = parseYear(r.hire_date);
+        if (selectedYear.length > 0 && (!y || !selectedYear.includes(y.toString()))) return false;
         if (selectedStatus !== "all" && r.hiring_status !== selectedStatus) return false;
         return true;
     }), [rawPlacements, selectedBU, selectedSubBU, selectedYear, selectedStatus]);
 
     const filteredJRs = useMemo(() => rawJRs.filter(r => {
-        if (selectedBU !== "all" && r.bu !== selectedBU) return false;
-        if (selectedSubBU !== "all" && r.sub_bu !== selectedSubBU) return false;
-        if (selectedYear !== "all" && parseYear(r.request_date) !== parseInt(selectedYear)) return false;
+        if (selectedBU.length > 0 && !selectedBU.includes(r.bu)) return false;
+        if (selectedSubBU.length > 0 && !selectedSubBU.includes(r.sub_bu)) return false;
+        const y = parseYear(r.request_date);
+        if (selectedYear.length > 0 && (!y || !selectedYear.includes(y.toString()))) return false;
         return true;
     }), [rawJRs, selectedBU, selectedSubBU, selectedYear]);
 
     const buList = useMemo(() => {
         const s = new Set<string>();
-        filteredPlacements.forEach(r => r.bu && s.add(r.bu));
-        filteredJRs.forEach(r => r.bu && s.add(r.bu));
+        // If BU is selected, only show those BUs in table columns
+        if (selectedBU.length > 0) {
+            selectedBU.forEach(bu => s.add(bu));
+        } else {
+            rawPlacements.forEach(r => r.bu && s.add(r.bu));
+            rawJRs.forEach(r => r.bu && s.add(r.bu));
+        }
         return Array.from(s).sort();
-    }, [filteredPlacements, filteredJRs]);
+    }, [rawPlacements, rawJRs, selectedBU]);
 
     const yearList = useMemo(() => {
         const s = new Set<number>();
-        rawPlacements.forEach(r => { const y = parseYear(r.hire_date); if (y) s.add(y); });
-        rawJRs.forEach(r => { const y = parseYear(r.request_date); if (y) s.add(y); });
+        // If Year is selected, only show those years in table rows
+        if (selectedYear.length > 0) {
+            selectedYear.forEach(y => s.add(parseInt(y)));
+        } else {
+            rawPlacements.forEach(r => { const y = parseYear(r.hire_date); if (y) s.add(y); });
+            rawJRs.forEach(r => { const y = parseYear(r.request_date); if (y) s.add(y); });
+        }
         return Array.from(s).sort((a, b) => b - a);
-    }, [rawPlacements, rawJRs]);
+    }, [rawPlacements, rawJRs, selectedYear]);
 
     const byBU = useMemo(() => {
         const result: Record<string, { search: number; placement: number; saving: number }> = {};
@@ -134,24 +149,25 @@ export default function PlacementTab() {
 
     const byYearBU = useMemo(() => {
         const result: Record<number, Record<string, { search: number; placement: number; saving: number }>> = {};
-        yearList.forEach(y => { result[y] = {}; buList.forEach(bu => result[y][bu] = { search: 0, placement: 0, saving: 0 }); });
-        rawJRs.forEach(jr => {
+        yearList.forEach(y => {
+            result[y] = {};
+            buList.forEach(bu => result[y][bu] = { search: 0, placement: 0, saving: 0 });
+        });
+
+        filteredJRs.forEach(jr => {
             const y = parseYear(jr.request_date);
-            if (!y || !jr.bu) return;
-            if (!result[y]) result[y] = {};
-            if (!result[y][jr.bu]) result[y][jr.bu] = { search: 0, placement: 0, saving: 0 };
+            if (!y || !jr.bu || !result[y] || !result[y][jr.bu]) return;
             result[y][jr.bu].search++;
         });
-        rawPlacements.forEach(er => {
+
+        filteredPlacements.forEach(er => {
             const y = parseYear(er.hire_date);
-            if (!y || !er.bu) return;
-            if (!result[y]) result[y] = {};
-            if (!result[y][er.bu]) result[y][er.bu] = { search: 0, placement: 0, saving: 0 };
+            if (!y || !er.bu || !result[y] || !result[y][er.bu]) return;
             result[y][er.bu].placement++;
             result[y][er.bu].saving += er.outsource_fee_20_percent;
         });
         return result;
-    }, [yearList, buList, rawJRs, rawPlacements]);
+    }, [yearList, buList, filteredJRs, filteredPlacements]);
 
     const allBUStats = useMemo(() => {
         const result: Record<number, { search: number; placement: number; saving: number }> = {};
@@ -159,15 +175,15 @@ export default function PlacementTab() {
             const yJRs = rawJRs.filter(r => {
                 const yr = parseYear(r.request_date);
                 if (yr !== y) return false;
-                if (selectedBU !== "all" && r.bu !== selectedBU) return false;
-                if (selectedSubBU !== "all" && r.sub_bu !== selectedSubBU) return false;
+                if (selectedBU.length > 0 && !selectedBU.includes(r.bu)) return false;
+                if (selectedSubBU.length > 0 && !selectedSubBU.includes(r.sub_bu)) return false;
                 return true;
             });
             const yERs = rawPlacements.filter(r => {
                 const yr = parseYear(r.hire_date);
                 if (yr !== y) return false;
-                if (selectedBU !== "all" && r.bu !== selectedBU) return false;
-                if (selectedSubBU !== "all" && r.sub_bu !== selectedSubBU) return false;
+                if (selectedBU.length > 0 && !selectedBU.includes(r.bu)) return false;
+                if (selectedSubBU.length > 0 && !selectedSubBU.includes(r.sub_bu)) return false;
                 if (selectedStatus !== "all" && r.hiring_status !== selectedStatus) return false;
                 return true;
             });
@@ -217,27 +233,31 @@ export default function PlacementTab() {
 
             {/* Filters */}
             <div className="flex flex-wrap gap-3 items-center p-4 bg-muted/30 rounded-lg border">
-                <Select value={selectedBU} onValueChange={v => { setSelectedBU(v); setSelectedSubBU("all"); }}>
-                    <SelectTrigger className="w-[130px] text-sm"><SelectValue placeholder="BU" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All BU</SelectItem>
-                        {buOptions.map(bu => <SelectItem key={bu} value={bu}>{bu}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                <Select value={selectedSubBU} onValueChange={setSelectedSubBU} disabled={selectedBU === "all"}>
-                    <SelectTrigger className="w-[130px] text-sm"><SelectValue placeholder="Sub BU" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Sub BU</SelectItem>
-                        {subBuOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-                <Select value={selectedYear} onValueChange={setSelectedYear}>
-                    <SelectTrigger className="w-[110px] text-sm"><SelectValue placeholder="Year" /></SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Years</SelectItem>
-                        {yearOptions.map(y => <SelectItem key={y} value={y.toString()}>{y}</SelectItem>)}
-                    </SelectContent>
-                </Select>
+                <FilterMultiSelect
+                    label="BU"
+                    options={buOptions}
+                    selected={selectedBU}
+                    onChange={(val) => {
+                        setSelectedBU(prev => prev.includes(val) ? prev.filter(i => i !== val) : [...prev, val]);
+                    }}
+                />
+                <FilterMultiSelect
+                    label="Sub BU"
+                    options={subBuOptions}
+                    selected={selectedSubBU}
+                    onChange={(val) => {
+                        setSelectedSubBU(prev => prev.includes(val) ? prev.filter(i => i !== val) : [...prev, val]);
+                    }}
+                    disabled={selectedBU.length === 0}
+                />
+                <FilterMultiSelect
+                    label="Year"
+                    options={yearOptions.map(y => y.toString())}
+                    selected={selectedYear}
+                    onChange={(val) => {
+                        setSelectedYear(prev => prev.includes(val) ? prev.filter(i => i !== val) : [...prev, val]);
+                    }}
+                />
                 <Select value={selectedStatus} onValueChange={setSelectedStatus}>
                     <SelectTrigger className="w-[130px] text-sm"><SelectValue placeholder="Status" /></SelectTrigger>
                     <SelectContent>
@@ -246,17 +266,16 @@ export default function PlacementTab() {
                         <SelectItem value="Resigned">Resigned</SelectItem>
                     </SelectContent>
                 </Select>
-                <Button variant="ghost" size="sm" onClick={() => { setSelectedBU("all"); setSelectedSubBU("all"); setSelectedYear("all"); setSelectedStatus("all"); }}
+                <Button variant="ghost" size="sm" onClick={() => { setSelectedBU([]); setSelectedSubBU([]); setSelectedYear([]); setSelectedStatus("all"); }}
                     className="gap-2 text-slate-500 hover:text-red-500">
                     <RotateCcw className="h-3 w-3" /> Reset
                 </Button>
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <StatCard label="Total Search (JR)" value={totalSearch} icon={Search} color="from-indigo-600 to-indigo-500" />
                 <StatCard label="Successful Placement" value={totalPlacement} icon={Target} color="from-emerald-600 to-emerald-500" />
-                <StatCard label="Total JR" value={activeJR} icon={TrendingUp} color="from-amber-500 to-orange-500" />
                 <StatCard label="Total Cost Saving" value={formatMillion(totalSaving)} icon={Coins} color="from-purple-600 to-purple-500" />
             </div>
 
@@ -269,19 +288,38 @@ export default function PlacementTab() {
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="bg-slate-800 text-slate-200">
-                                <th className="text-left px-4 py-3 text-xs font-semibold uppercase w-[90px]">Year</th>
+                                <th className="text-left px-4 py-3 text-xs font-semibold uppercase w-[100px]">Year</th>
                                 <th className="text-center px-2 py-2 text-xs font-bold text-indigo-300 border-l border-slate-600" colSpan={3}>All BU</th>
                                 {buList.map(bu => (
-                                    <th key={bu} className="text-center px-2 py-2 text-xs font-bold text-slate-300 border-l border-slate-600" colSpan={3}>{bu}</th>
+                                <th key={bu} className="text-center px-2 py-6 text-xs font-bold text-slate-300 border-l border-slate-700/50" colSpan={3}>
+                                        <div className="flex flex-col items-center gap-2">
+                                            <div className="w-32 h-16 relative bg-white/5 rounded-lg flex items-center justify-center overflow-hidden border border-white/10 group">
+                                                <img 
+                                                    src={`/images/bu-logos/${bu.toLowerCase()}.png`} 
+                                                    alt={bu}
+                                                    className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-110"
+                                                    onError={(e: any) => {
+                                                        const target = e.target as HTMLImageElement;
+                                                        if (!target.src.endsWith('.jpg')) {
+                                                            target.src = `/images/bu-logos/${bu.toLowerCase()}.jpg`;
+                                                        } else {
+                                                            target.style.display = 'none';
+                                                        }
+                                                    }}
+                                                />
+                                            </div>
+                                            <span className="uppercase tracking-[0.25em] text-[13px] font-black text-slate-400">{bu}</span>
+                                        </div>
+                                    </th>
                                 ))}
                             </tr>
                             <tr className="bg-slate-700 text-[10px] uppercase tracking-wider text-slate-300">
                                 <th className="px-4 py-2"></th>
-                                {["Search", "PPL.", "Saving"].map(h => (
-                                    <th key={`all-${h}`} className="px-2 py-2 text-center font-medium text-indigo-300 border-l border-slate-600/50">{h}</th>
+                                {["Search", "Placement", "Saving"].map(h => (
+                                    <th key={`all-${h}`} className={cn("px-3 py-3 text-center font-medium text-indigo-300 border-l border-slate-600/50", h === "Saving" ? "w-[100px]" : "w-[80px]")}>{h}</th>
                                 ))}
-                                {buList.flatMap(bu => ["Search", "PPL.", "Saving"].map(h => (
-                                    <th key={`${bu}-${h}`} className="px-2 py-2 text-center font-medium border-l border-slate-600/50">{h}</th>
+                                {buList.flatMap(bu => ["Search", "Placement", "Saving"].map(h => (
+                                    <th key={`${bu}-${h}`} className={cn("px-3 py-3 text-center font-medium border-l border-slate-600/50", h === "Saving" ? "w-[100px]" : "w-[80px]")}>{h}</th>
                                 )))}
                             </tr>
                         </thead>
