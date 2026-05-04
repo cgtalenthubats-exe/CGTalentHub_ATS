@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import PipelineTab from "./PipelineTab";
 import PlacementTab from "./PlacementTab";
 import PackageInfoTab from "./PackageInfoTab";
+import RecruiterPerformanceTab from "./RecruiterPerformanceTab";
 
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
@@ -306,6 +307,7 @@ export default function DashboardPage() {
                     <TabsTrigger value="market" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Salary Benchmark</TabsTrigger>
                     <TabsTrigger value="pipeline" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Recruitment Pipeline</TabsTrigger>
                     <TabsTrigger value="placement" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Search & Placement</TabsTrigger>
+                    <TabsTrigger value="recruiter" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Recruiter Performance</TabsTrigger>
                     <TabsTrigger value="package" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Package Info</TabsTrigger>
                 </TabsList>
 
@@ -605,7 +607,12 @@ export default function DashboardPage() {
                     <PlacementTab />
                 </TabsContent>
 
-                {/* --- TAB 5: PACKAGE INFO --- */}
+                {/* --- TAB 5: RECRUITER PERFORMANCE --- */}
+                <TabsContent value="recruiter" className="space-y-6 outline-none">
+                    <RecruiterPerformanceTab />
+                </TabsContent>
+
+                {/* --- TAB 6: PACKAGE INFO --- */}
                 <TabsContent value="package" className="space-y-6 outline-none">
                     <PackageInfoTab />
                 </TabsContent>

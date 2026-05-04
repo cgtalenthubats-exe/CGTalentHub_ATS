@@ -81,10 +81,24 @@ export async function getKPIData(): Promise<KPIRawData> {
         supabase.from('user_profiles').select('email, real_name')
     ]);
 
+    // Normalize inconsistent date formats to ISO string
+    const normalizeDate = (d: string | null): string => {
+        if (!d) return "";
+        // Already ISO-like (starts with 4-digit year)
+        if (/^\d{4}/.test(d)) return d;
+        // M/DD/YYYY or MM/DD/YYYY format
+        const parts = d.split('/');
+        if (parts.length === 3) {
+            const [m, day, y] = parts;
+            return `${y}-${m.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        }
+        return d;
+    };
+
     return {
-        sourcing: sourceData as KPICandidateSource[],
-        prescreens: preScreenData as KPIPreScreen[],
-        interviews: interviewData as KPIInterview[],
+        sourcing: (sourceData as KPICandidateSource[]).map(s => ({ ...s, created_date: normalizeDate(s.created_date) })),
+        prescreens: (preScreenData as KPIPreScreen[]).map(p => ({ ...p, screening_date: normalizeDate(p.screening_date) })),
+        interviews: (interviewData as KPIInterview[]).map(i => ({ ...i, interview_date: normalizeDate(i.interview_date) })),
         jrs: jrData as KPIJobRequisition[],
         profiles: (profileRes.data || []) as KPIUserProfile[],
     };
