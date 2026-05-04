@@ -250,7 +250,7 @@ export default function RecruiterPerformanceTab() {
                                         <TableRow key={row.name} className="hover:bg-slate-50/50">
                                             <TableCell className="font-medium">
                                                 <Link
-                                                    href={`/kpi-demo/details?recruiter=${encodeURIComponent(row.name)}`}
+                                                    href={`/dashboard/recruiter/details?recruiter=${encodeURIComponent(row.name)}`}
                                                     className="text-blue-600 hover:text-blue-800 hover:underline"
                                                 >
                                                     {row.name}
