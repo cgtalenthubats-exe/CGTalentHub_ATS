@@ -436,7 +436,7 @@ export default function JRManagePage() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <Card className="h-[250px]">
                                         <CardContent className="h-full pt-4">
-                                            <h3 className="text-sm font-semibold text-muted-foreground mb-4">Candidates per Status</h3>
+                                            <h3 className="text-sm font-semibold text-muted-foreground mb-4">Activity Transaction</h3>
                                             <ResponsiveContainer width="100%" height="80%">
                                                 <BarChart
                                                     data={analytics.countsByStatus.filter((i: any) => i.count > 0)}
@@ -626,3 +626,4 @@ export default function JRManagePage() {
         </div >
     );
 }
+

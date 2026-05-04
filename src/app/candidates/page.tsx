@@ -190,12 +190,12 @@ export default function CandidatesMenuPage() {
                     onClick={() => router.push('/ai-search')}
                 />
 
-                {/* 2. Upload Resume */}
+                {/* 2. Upload Resume & CSV */}
                 <MenuCard
-                    title="Upload Resume"
+                    title="Upload Resume & CSV"
                     icon={UploadCloud}
                     color="bg-cyan-500"
-                    description="Drag & drop to parse with n8n"
+                    description="Bulk import via Resume, Excel or CSV"
                     onClick={() => router.push('/candidates/import')}
                 />
 
@@ -206,14 +206,6 @@ export default function CandidatesMenuPage() {
                     color="bg-orange-500"
                     description="Entry form for walk-ins"
                     onClick={() => router.push('/candidates/new')}
-                />
-
-                <MenuCard
-                    title="Upload CSV File"
-                    icon={FileText}
-                    color="bg-emerald-500"
-                    description="Bulk import via Excel/CSV"
-                    onClick={() => router.push('/candidates/import')}
                 />
 
                 {/* 5. All List */}
@@ -231,6 +223,7 @@ export default function CandidatesMenuPage() {
                     icon={TableProperties}
                     color="bg-purple-500"
                     description="Initial screening results"
+                    onClick={() => router.push('/candidates/pre-screen')}
                 />
 
             </div>

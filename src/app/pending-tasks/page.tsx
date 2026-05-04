@@ -7,7 +7,6 @@ import { BarChart3, Clock, Briefcase, Webhook } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import JRMaintenanceBoard from "./JRMaintenanceBoard";
-import DistributionAnalytics from "./DistributionAnalytics";
 import OrgChartAlerts from "@/app/OrgChartAlerts";
 
 export default function PendingTasksPage() {
@@ -48,10 +47,7 @@ export default function PendingTasksPage() {
                 <JRMaintenanceBoard />
             </div>
 
-            {/* 2 & 3. Distributions */}
-            <div className="pt-4 border-t border-slate-100">
-                <DistributionAnalytics />
-            </div>
+            {/* 2 & 3. Distributions moved to Overview */}
 
             {/* 4. Pipeline Performance */}
             <div className="grid gap-8 lg:grid-cols-5 pt-8 border-t border-slate-100 italic duration-1000">

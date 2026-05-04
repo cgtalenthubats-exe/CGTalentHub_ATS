@@ -25,6 +25,7 @@ import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
 import { formatDateForDisplay } from "@/lib/date-utils";
 import { CandidateOrgChartButton } from "@/components/candidate-org-chart-button";
 import { JRCandidateSheet } from "@/components/jr-candidate-sheet";
+import { AddCandidateDialog } from "@/components/ai-search/AddCandidateDialog";
 
 export default function CandidateDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = React.use(params);
@@ -33,6 +34,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
     const [error, setError] = React.useState<string | null>(null);
     const [selectedJrCandidateId, setSelectedJrCandidateId] = React.useState<string | null>(null);
     const [isSheetOpen, setIsSheetOpen] = React.useState(false);
+    const [openJrDialog, setOpenJrDialog] = React.useState(false);
 
     React.useEffect(() => {
         const fetchCandidate = async () => {
@@ -529,10 +531,17 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
 
                     {/* Job Requisition Applied */}
                     <Card className="border shadow-sm bg-card overflow-hidden">
-                        <CardHeader className="bg-gradient-to-r from-slate-50 to-white border-b px-6 py-4">
+                        <CardHeader className="bg-gradient-to-r from-slate-50 to-white border-b px-6 py-4 flex flex-row items-center justify-between">
                             <CardTitle className="text-lg font-bold flex items-center gap-2 text-slate-800">
                                 <span className="p-2 rounded-lg bg-amber-100 text-amber-600"><Briefcase className="h-5 w-5" /></span> Job Applications
                             </CardTitle>
+                            <Button 
+                                size="sm" 
+                                className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"
+                                onClick={() => setOpenJrDialog(true)}
+                            >
+                                <Plus className="h-4 w-4" /> Add to JR
+                            </Button>
                         </CardHeader>
                         <CardContent className="p-0">
                             {candidate.jobHistory && candidate.jobHistory.length > 0 ? (
@@ -643,6 +652,18 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                 jrCandidateId={selectedJrCandidateId} 
                 open={isSheetOpen} 
                 onOpenChange={setIsSheetOpen} 
+            />
+            
+            <AddCandidateDialog
+                open={openJrDialog}
+                onOpenChange={setOpenJrDialog}
+                candidateIds={[candidate.candidate_id]}
+                candidateNames={[candidate.name || candidate.candidate_id]}
+                onSuccess={() => {
+                    setOpenJrDialog(false);
+                    // Refresh the page or the candidate data to show the new JR
+                    window.location.reload();
+                }}
             />
         </div>
     );

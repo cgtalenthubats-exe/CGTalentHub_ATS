@@ -44,20 +44,24 @@ export async function getRawBenchmarkData(): Promise<RawBenchmarkData> {
                 job_grouping, job_function
             `)
         .not('gross_salary_base_b_mth', 'is', null)
-        .neq('gross_salary_base_b_mth', '');
+        .gt('gross_salary_base_b_mth', 0); // Correct way to filter numeric salary
 
-    if (cpRes.error) console.error('benchmark cp error:', cpRes.error);
+    if (cpRes.error) {
+        console.error('benchmark cp error:', cpRes.error);
+        return { candidates: [] };
+    }
 
     const candidatesWithSalary = cpRes.data || [];
     if (candidatesWithSalary.length === 0) return { candidates: [] };
 
     const candidateIds = candidatesWithSalary.map(c => c.candidate_id);
 
-    // Fetch experiences ONLY for these candidates to avoid hitting limits or fetching unnecessary data
+    // Fetch experiences ONLY for these candidates
     const { data: expData, error: expError } = await supabase
         .from('candidate_experiences')
         .select('candidate_id, company, position, company_industry, company_group, is_current_job, start_date')
-        .in('candidate_id', candidateIds);
+        .in('candidate_id', candidateIds)
+        .order('start_date', { ascending: false }); // Better to sort in SQL
 
     if (expError) console.error('benchmark exp error:', expError);
 

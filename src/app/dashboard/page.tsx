@@ -8,9 +8,9 @@ import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from "re
 import { scaleLinear } from "d3-scale";
 import {
     ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend,
-    BarChart, Bar
+    BarChart, Bar, LabelList
 } from 'recharts';
-import { RotateCcw, Loader2, Globe, TrendingUp, Users, Building, MapPin } from "lucide-react";
+import { RotateCcw, Loader2, Globe, TrendingUp, Users, Building, MapPin, Filter } from "lucide-react";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
 import { Button } from "@/components/ui/button";
 import { Tooltip as ReactTooltip } from "react-tooltip";
@@ -64,11 +64,11 @@ export default function DashboardPage() {
         loadTab(tab);
     };
 
-// Filter State - Global Pool
+    // Filter State - Global Pool
     const [gpJrNames, setGpJrNames] = useState<string[]>([]);
     const [gpBus, setGpBus] = useState<string[]>([]);
     const [gpSubBus, setGpSubBus] = useState<string[]>([]);
-    const [gpTopProfile, setGpTopProfile] = useState<string[]>([]); // "Yes" / "No"
+    const [gpTopProfile, setGpTopProfile] = useState<string[]>([]);
     const [gpGender, setGpGender] = useState<string[]>([]);
     const [gpAgeRange, setGpAgeRange] = useState<[number, number]>([0, 80]);
     const [gpCountries, setGpCountries] = useState<string[]>([]);
@@ -81,10 +81,11 @@ export default function DashboardPage() {
     // Map View State
     const [mapPosition, setMapPosition] = useState<{ center: [number, number], zoom: number }>(CONTINENT_COORDS["World"]);
 
-    // Filter State - Salary Benchmark
-    const [salaryIndustries, setSalaryIndustries] = useState<string[]>([]);
-    const [salaryGroups, setSalaryGroups] = useState<string[]>([]);
+    // Filter State - Salary Benchmark (V2)
+    const [salaryJobFamilies, setSalaryJobFamilies] = useState<string[]>([]);
     const [salaryCompanies, setSalaryCompanies] = useState<string[]>([]);
+    const [salaryPositions, setSalaryPositions] = useState<string[]>([]);
+    const [salaryRatings, setSalaryRatings] = useState<string[]>([]);
 
     // --- Helper: Toggle ---
     const toggle = (current: string[], value: string, setter: (val: string[]) => void) => {
@@ -223,40 +224,70 @@ export default function DashboardPage() {
         };
     }, [globalData, gpJrNames, gpBus, gpSubBus, gpTopProfile, gpGender, gpAgeRange, gpCountries, gpIndustries, gpGroups, gpCompanies, gpRatings, gpSets]);
 
-    // --- Logic: Salary Benchmark Filtering ---
-    const filteredSalaryData = useMemo(() => {
-        if (!salaryData) return { stats: [], details: [], availableOptions: { industries: [], groups: [], companies: [] } };
+    // --- Logic: Salary Benchmark Filtering (V2 Interdependent) ---
+    const { filteredSalaryData, salaryOptions, chartData, uniqueKeywords } = useMemo(() => {
+        if (!salaryData) return { filteredSalaryData: [], salaryOptions: { jobFamilies: [], companies: [], positions: [], ratings: [] }, chartData: [], uniqueKeywords: [] };
 
-        const details = salaryData.details;
-        const finalStats = salaryData.companyStats;
+        const allDetails = salaryData.details;
 
         const matches = (item: any, exclude?: string) => {
-            const mInd = exclude === 'industry' || salaryIndustries.length === 0 || salaryIndustries.includes(item.industry);
-            const mGrp = exclude === 'group' || salaryGroups.length === 0 || salaryGroups.includes(item.group);
+            const mJobFam = exclude === 'jobFamily' || salaryJobFamilies.length === 0 || salaryJobFamilies.includes(item.jobFamily);
             const mComp = exclude === 'company' || salaryCompanies.length === 0 || salaryCompanies.includes(item.company);
-            return mInd && mGrp && mComp;
+            const mPos = exclude === 'position' || salaryPositions.length === 0 || salaryPositions.includes(item.positionKeyword);
+            const mRat = exclude === 'rating' || salaryRatings.length === 0 || salaryRatings.includes(item.rating);
+            return mJobFam && mComp && mPos && mRat;
         };
 
-        const optsInd = new Set<string>();
-        const optsGrp = new Set<string>();
+        // Available Options (Cascading)
+        const optsJobFam = new Set<string>();
         const optsComp = new Set<string>();
+        const optsPos = new Set<string>();
+        const optsRat = new Set<string>();
 
-        details.forEach((d: any) => {
-            if (matches(d, 'industry')) optsInd.add(d.industry);
-            if (matches(d, 'group')) optsGrp.add(d.group);
+        allDetails.forEach((d: any) => {
+            if (matches(d, 'jobFamily')) optsJobFam.add(d.jobFamily);
             if (matches(d, 'company')) optsComp.add(d.company);
+            if (matches(d, 'position')) optsPos.add(d.positionKeyword);
+            if (matches(d, 'rating')) optsRat.add(d.rating);
+        });
+
+        const filteredDetails = allDetails.filter((d: any) => matches(d));
+
+        // Format for Grouped Bar Chart
+        const compMap: Record<string, any> = {};
+        const keywords = new Set<string>();
+
+        filteredDetails.forEach((d: any) => {
+            if (!compMap[d.company]) {
+                compMap[d.company] = { 
+                    company: d.company, 
+                    rating: d.rating,
+                    industry: d.industry
+                };
+            }
+            compMap[d.company][d.positionKeyword] = d.salary;
+            keywords.add(d.positionKeyword);
+        });
+
+        const finalChartData = Object.values(compMap).sort((a: any, b: any) => {
+            // Sort by average of all keywords present in this company
+            const avgA = Object.keys(a).filter(k => k !== 'company' && k !== 'rating' && k !== 'industry').reduce((sum, k) => sum + a[k], 0);
+            const avgB = Object.keys(b).filter(k => k !== 'company' && k !== 'rating' && k !== 'industry').reduce((sum, k) => sum + b[k], 0);
+            return avgB - avgA;
         });
 
         return {
-            stats: finalStats.filter((s: any) => matches(s)),
-            details: details.filter((d: any) => matches(d)),
-            availableOptions: {
-                industries: Array.from(optsInd).sort(),
-                groups: Array.from(optsGrp).sort(),
-                companies: Array.from(optsComp).sort()
-            }
+            filteredSalaryData: filteredDetails,
+            salaryOptions: {
+                jobFamilies: Array.from(optsJobFam).sort(),
+                companies: Array.from(optsComp).sort(),
+                positions: Array.from(optsPos).sort(),
+                ratings: Array.from(optsRat).sort()
+            },
+            chartData: finalChartData,
+            uniqueKeywords: Array.from(keywords).sort()
         };
-    }, [salaryData, salaryIndustries, salaryGroups, salaryCompanies]);
+    }, [salaryData, salaryJobFamilies, salaryCompanies, salaryPositions, salaryRatings]);
 
     // Scales for Map
     const maxCount = Math.max(...(filteredStats.map((s: any) => s.count) || [0]), 10);
@@ -420,39 +451,108 @@ export default function DashboardPage() {
                     )}
                     
                     <div className="space-y-6">
-                        {/* Filters */}
-                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <FilterMultiSelect label="Industry" options={availableOptions.industries} selected={salaryIndustries} onChange={v => toggle(salaryIndustries, v, setSalaryIndustries)} />
-                            <FilterMultiSelect label="Group" options={availableOptions.groups} selected={salaryGroups} onChange={v => toggle(salaryGroups, v, setSalaryGroups)} />
-                            <FilterMultiSelect label="Company" options={availableOptions.companies} selected={salaryCompanies} onChange={v => toggle(salaryCompanies, v, setSalaryCompanies)} />
-                            <div className="flex items-end">
-                                <Button variant="outline" onClick={() => { setSalaryIndustries([]); setSalaryGroups([]); setSalaryCompanies([]); }} className="rounded-xl gap-2 w-full">
-                                    <RotateCcw className="h-4 w-4" /> Reset Filters
+                        {/* Filters V2 */}
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+                            <FilterMultiSelect label="Job Family" options={salaryOptions?.jobFamilies || []} selected={salaryJobFamilies} onChange={v => toggle(salaryJobFamilies, v, setSalaryJobFamilies)} />
+                            <FilterMultiSelect label="Company" options={salaryOptions?.companies || []} selected={salaryCompanies} onChange={v => toggle(salaryCompanies, v, setSalaryCompanies)} />
+                            <FilterMultiSelect label="Position" options={salaryOptions?.positions || []} selected={salaryPositions} onChange={v => toggle(salaryPositions, v, setSalaryPositions)} />
+                            <FilterMultiSelect label="Rating" options={salaryOptions?.ratings || []} selected={salaryRatings} onChange={v => toggle(salaryRatings, v, setSalaryRatings)} />
+                            <div className="flex gap-2">
+                                <Button variant="outline" onClick={() => { 
+                                    setSalaryJobFamilies([]); 
+                                    setSalaryCompanies([]); 
+                                    setSalaryPositions([]); 
+                                    setSalaryRatings([]); 
+                                }} className="rounded-xl gap-2 flex-1">
+                                    <RotateCcw className="h-4 w-4" /> Reset
                                 </Button>
                             </div>
                         </div>
 
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                            {/* Scatter Chart */}
+                            {/* Bar Chart V2 with Scroll Support */}
                             <Card className="lg:col-span-12 border-none shadow-xl rounded-3xl overflow-hidden bg-white">
-                                <CardHeader>
-                                    <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-500">Market Salary Distribution (Annual)</CardTitle>
-                                    <CardDescription>Average vs Max salaries by company</CardDescription>
+                                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                                    <div>
+                                        <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-500">Market Salary Comparison (Annual)</CardTitle>
+                                        <CardDescription>Comparison by Company and Position Level</CardDescription>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <div className="text-[10px] font-black uppercase text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
+                                            {chartData.length} Companies Analyzed
+                                        </div>
+                                    </div>
                                 </CardHeader>
-                                <CardContent className="h-[400px]">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <ScatterChart margin={{ top: 20, right: 30, bottom: 20, left: 10 }}>
-                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                            <XAxis type="number" dataKey="avgSalary" name="Avg Salary" unit="฿" tickFormatter={(v) => `฿${(v/1000).toFixed(0)}k`} fontSize={10} axisLine={false} tickLine={false} />
-                                            <YAxis type="number" dataKey="maxSalary" name="Max Salary" unit="฿" tickFormatter={(v) => `฿${(v/1000).toFixed(0)}k`} fontSize={10} axisLine={false} tickLine={false} />
-                                            <Tooltip content={<CustomTooltip />} />
-                                            <Scatter name="Companies" data={filteredSalaryData.stats} fill="#3b82f6">
-                                                {filteredSalaryData.stats.map((entry: any, index: number) => (
-                                                    <Cell key={`cell-${index}`} fill={entry.avgSalary > 5000000 ? '#ef4444' : '#3b82f6'} />
-                                                ))}
-                                            </Scatter>
-                                        </ScatterChart>
-                                    </ResponsiveContainer>
+                                <CardContent className="h-[500px] relative p-0 overflow-hidden">
+                                    {/* Empty / Initial State */}
+                                    {salaryJobFamilies.length === 0 && salaryCompanies.length === 0 && salaryPositions.length === 0 && salaryRatings.length === 0 ? (
+                                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/50 z-10 p-8 text-center">
+                                            <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4">
+                                                <Filter className="h-8 w-8" />
+                                            </div>
+                                            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Select Filters to Compare</h3>
+                                            <p className="text-sm text-slate-500 max-w-xs mt-2">Please select a Job Family, Company, or Rating to visualize the market salary benchmark.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="h-full overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
+                                            <div style={{ width: Math.max(1400, chartData.length * 280), height: '100%' }}>
+                                                <div className="pt-6 px-10 flex justify-center border-b border-slate-50">
+                                                    <CustomLegend keywords={uniqueKeywords || []} />
+                                                </div>
+                                                <div className="p-4">
+                                                    <ResponsiveContainer width="100%" height={420}>
+                                                        <BarChart 
+                                                            data={chartData} 
+                                                            margin={{ top: 40, right: 40, bottom: 100, left: 40 }}
+                                                            barCategoryGap="20%"
+                                                            barGap={2}
+                                                        >
+                                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                                            <XAxis 
+                                                                dataKey="company" 
+                                                                fontSize={10} 
+                                                                fontWeight="900" 
+                                                                axisLine={{ stroke: '#0f172a', strokeWidth: 2 }} 
+                                                                tickLine={{ stroke: '#0f172a' }} 
+                                                                interval={0}
+                                                                dy={10}
+                                                                tick={{ fill: '#0f172a' }}
+                                                                tickFormatter={(value) => value.length > 25 ? `${value.substring(0, 25)}...` : value}
+                                                            />
+                                                            <YAxis 
+                                                                fontSize={11} 
+                                                                fontWeight="900"
+                                                                axisLine={{ stroke: '#0f172a', strokeWidth: 2 }} 
+                                                                tickLine={{ stroke: '#0f172a' }} 
+                                                                tickFormatter={(v) => `฿${(v/1000000).toFixed(1)}M`} 
+                                                                domain={[0, 'auto']}
+                                                                tick={{ fill: '#0f172a' }}
+                                                            />
+                                                            <Tooltip content={<SalaryV2Tooltip />} cursor={{ fill: '#f8fafc' }} />
+                                                            {(uniqueKeywords || []).map((kw, i) => (
+                                                                <Bar 
+                                                                    key={kw} 
+                                                                    dataKey={kw} 
+                                                                    name={kw} 
+                                                                    fill={CHART_COLORS[i % CHART_COLORS.length]} 
+                                                                    radius={[6, 6, 0, 0]} 
+                                                                    barSize={60}
+                                                                >
+                                                                    <LabelList 
+                                                                        dataKey={kw} 
+                                                                        position="top" 
+                                                                        offset={10}
+                                                                        formatter={(v: any) => v ? `฿${(v/1000000).toFixed(1)}M` : ''}
+                                                                        style={{ fill: CHART_COLORS[i % CHART_COLORS.length], fontSize: '11px', fontWeight: '900' }}
+                                                                    />
+                                                                </Bar>
+                                                            ))}
+                                                        </BarChart>
+                                                    </ResponsiveContainer>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </CardContent>
                             </Card>
 
@@ -474,18 +574,18 @@ export default function DashboardPage() {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
-                                                {filteredSalaryData.details.map((s: any, i: number) => (
+                                                {(filteredSalaryData || []).map((s: any, i: number) => (
                                                     <tr key={i} className="hover:bg-slate-50 transition-colors">
                                                         <td className="p-4 font-bold text-slate-400">{s.industry || '-'}</td>
                                                         <td className="p-4 font-black text-slate-800">{s.company}</td>
                                                         <td className="p-4 font-bold text-slate-600">{s.name}</td>
                                                         <td className="p-4 text-slate-500">{s.position}</td>
-                                                        <td className="p-4 text-right font-black text-blue-600">฿{s.salaryMonthly.toLocaleString()}</td>
+                                                        <td className="p-4 text-right font-black text-blue-600">฿{(s.salaryMonthly || 0).toLocaleString()}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
                                         </table>
-                                        {filteredSalaryData.details.length === 0 && (
+                                        {(!filteredSalaryData || filteredSalaryData.length === 0) && (
                                             <div className="p-12 text-center text-slate-400 font-bold uppercase tracking-widest">No matching salary data found</div>
                                         )}
                                     </div>
@@ -515,26 +615,47 @@ export default function DashboardPage() {
     );
 }
 
-const CustomTooltip = ({ active, payload }: any) => {
+const CHART_COLORS = ['#1e293b', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
+
+const CustomLegend = ({ keywords }: { keywords: string[] }) => (
+    <div className="flex flex-wrap gap-x-6 gap-y-3 justify-center">
+        {keywords.map((kw, i) => (
+            <div key={kw} className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100 shadow-sm">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+                <span className="text-[10px] font-black uppercase tracking-tight text-slate-700">{kw}</span>
+            </div>
+        ))}
+    </div>
+);
+
+const SalaryV2Tooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
         const data = payload[0].payload;
         return (
-            <div className="bg-slate-900 text-white border-none rounded-2xl p-4 shadow-2xl text-[10px] z-50">
-                <p className="font-black text-xs mb-2 uppercase tracking-widest border-b border-slate-700 pb-2">{data.company}</p>
-                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                    <span className="text-slate-400 uppercase font-black">Avg:</span>
-                    <span className="text-right font-black text-blue-400">฿{data.avgSalary.toLocaleString()}</span>
-                    <span className="text-slate-400 uppercase font-black">Max:</span>
-                    <span className="text-right font-black text-red-400">฿{data.maxSalary.toLocaleString()}</span>
-                    <span className="text-slate-400 uppercase font-black">Count:</span>
-                    <span className="text-right font-black">{data.headcount}</span>
+            <div className="bg-slate-900 text-white border-none rounded-2xl p-4 shadow-2xl text-[10px] z-50 min-w-[180px]">
+                <div className="flex justify-between items-start mb-2 border-b border-slate-700 pb-2">
+                    <div>
+                        <p className="font-black text-xs uppercase tracking-widest">{data.company}</p>
+                        <p className="text-[8px] text-slate-500 uppercase tracking-widest">{data.industry}</p>
+                    </div>
+                    <div className="bg-blue-600 px-2 py-0.5 rounded text-[9px] font-black">
+                        {data.rating}
+                    </div>
                 </div>
-                <p className="text-[8px] text-slate-500 mt-3 uppercase tracking-[0.2em]">{data.industry}</p>
+                <div className="space-y-2">
+                    {Object.keys(data).filter(k => k !== 'company' && k !== 'rating' && k !== 'industry').map(k => (
+                        <div key={k} className="flex justify-between items-center gap-4">
+                            <span className="text-slate-400 uppercase font-bold">{k}:</span>
+                            <span className="font-black text-blue-400">฿{(data[k]/1000000).toFixed(2)}M /yr</span>
+                        </div>
+                    ))}
+                </div>
             </div>
         );
     }
     return null;
 };
+
 
 function MetricBox({ title, value, color }: any) {
     return (

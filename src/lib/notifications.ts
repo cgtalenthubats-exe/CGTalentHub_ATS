@@ -27,6 +27,12 @@ export const toast = {
     message: (message: string, options?: any) => {
         sonnerToast(message, options);
         notificationStore.add(message, 'info', options?.description);
+    },
+    loading: (message: string, options?: any) => {
+        return sonnerToast.loading(message, options);
+    },
+    dismiss: (id?: string | number) => {
+        sonnerToast.dismiss(id);
     }
 };
 

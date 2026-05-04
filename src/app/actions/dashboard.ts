@@ -217,7 +217,15 @@ export async function getGlobalPoolDisplay() {
 export async function getMarketSalaryStats() {
     const client = adminAuthClient as any;
 
-    // 1. Get Experience Data for primary jobs
+    // 1. Fetch Company Master for Rating & Industry mapping
+    const { data: companyMaster } = await client.from("company_master").select("company_id, company_master, rating, industry, group");
+    const companyLookup: Record<number, any> = {};
+    if (companyMaster) {
+        companyMaster.forEach((c: any) => companyLookup[c.company_id] = c);
+    }
+
+    // 2. Get All Experiences to find the Primary Job for each candidate
+    // We need position_keyword and company_id from here!
     let allExps: any[] = [];
     let page = 0;
     const pageSize = 1000;
@@ -238,20 +246,20 @@ export async function getMarketSalaryStats() {
         groupedExps[exp.candidate_id].push(exp);
     });
 
-    const expMap: Record<string, any> = {};
+    const primaryExpMap: Record<string, any> = {};
     Object.keys(groupedExps).forEach(cid => {
         const primary = getPrimaryJob(groupedExps[cid]);
-        if (primary) expMap[cid] = primary;
+        if (primary) primaryExpMap[cid] = primary;
     });
 
-    // 2. Get Profiles with salary data
+    // 3. Get Profiles with salary data
     let profiles: any[] = [];
     page = 0;
     hasMore = true;
     while (hasMore && page < 50) {
         const { data, error } = await client
             .from("Candidate Profile")
-            .select("candidate_id, gross_salary_base_b_mth, name, level")
+            .select("candidate_id, gross_salary_base_b_mth, name, job_function")
             .gt("gross_salary_base_b_mth", 0)
             .range(page * pageSize, (page + 1) * pageSize - 1);
 
@@ -263,62 +271,103 @@ export async function getMarketSalaryStats() {
         } else { hasMore = false; }
     }
 
-    if (!profiles || profiles.length === 0) return { companyStats: [], details: [], filterOptions: { industries: [], groups: [], companies: [] } };
+    if (!profiles || profiles.length === 0) return { companyStats: [], details: [], filterOptions: { industries: [], groups: [], companies: [], jobFamilies: [], positions: [], ratings: [] } };
 
-    const companyAgg: Record<string, { salaries: number[], industry: string, group: string }> = {};
+    // 4. Build Detailed Records & Metadata for Filters
     const details: any[] = [];
-
+    const jobFamilies = new Set<string>();
+    const companies = new Set<string>();
+    const positions = new Set<string>();
+    const ratings = new Set<string>();
     const industries = new Set<string>();
     const groups = new Set<string>();
-    const companies = new Set<string>();
 
     profiles.forEach((p: any) => {
-        const exp = expMap[p.candidate_id];
-        if (exp && exp.company) {
-            const annualSalary = p.gross_salary_base_b_mth * 12;
-            const comp = exp.company;
+        const exp = primaryExpMap[p.candidate_id];
+        if (exp) {
+            const masterComp = exp.company_id ? companyLookup[exp.company_id] : null;
+            const compName = masterComp?.company_master || exp.company || "Unknown";
+            const annualSalary = (p.gross_salary_base_b_mth || 0) * 12;
+            const rating = masterComp?.rating || "N/A";
+            const ind = masterComp?.industry || exp.company_industry || "Unknown";
+            const grp = masterComp?.group || exp.company_group || "Unknown";
+            
+            // KEY FIX: position_keyword comes from candidate_experiences
+            const pos = exp.position_keyword || "Other";
+            const jobFam = p.job_function || "Other";
 
-            if (exp.company_industry) industries.add(exp.company_industry);
-            if (exp.company_group) groups.add(exp.company_group);
-            companies.add(comp);
-
-            if (!companyAgg[comp]) companyAgg[comp] = { salaries: [], industry: exp.company_industry, group: exp.company_group };
-            companyAgg[comp].salaries.push(annualSalary);
+            jobFamilies.add(jobFam);
+            companies.add(compName);
+            positions.add(pos);
+            ratings.add(rating);
+            industries.add(ind);
+            groups.add(grp);
 
             details.push({
                 name: p.name,
-                company: comp,
+                company: compName,
                 position: exp.position,
-                level: p.level,
+                positionKeyword: pos,
+                jobFamily: jobFam,
                 salary: annualSalary,
                 salaryMonthly: p.gross_salary_base_b_mth,
-                industry: exp.company_industry,
-                group: exp.company_group
+                industry: ind,
+                group: grp,
+                rating: rating
             });
         }
     });
 
-    const companyStats: CompanySalaryStat[] = Object.keys(companyAgg).map(comp => {
-        const salaries = companyAgg[comp].salaries;
-        const sum = salaries.reduce((a, b) => a + b, 0);
+    // 5. Aggregate by Company & Position for the Chart
+    const companyAgg: Record<string, any> = {};
+    details.forEach(d => {
+        if (!companyAgg[d.company]) {
+            companyAgg[d.company] = { 
+                company: d.company, 
+                rating: d.rating, 
+                industry: d.industry,
+                group: d.group,
+                positions: {} 
+            };
+        }
+        if (!companyAgg[d.company].positions[d.positionKeyword]) {
+            companyAgg[d.company].positions[d.positionKeyword] = { salaries: [], avg: 0 };
+        }
+        companyAgg[d.company].positions[d.positionKeyword].salaries.push(d.salary);
+    });
+
+    const companyStats = Object.keys(companyAgg).map(comp => {
+        const cData = companyAgg[comp];
+        const posData = Object.keys(cData.positions).map(pk => {
+            const sals = cData.positions[pk].salaries;
+            const avg = Math.round(sals.reduce((a: number, b: number) => a + b, 0) / sals.length);
+            return { keyword: pk, avgSalary: avg, maxSalary: Math.max(...sals), headcount: sals.length };
+        });
+        
+        // Find main average for sorting
+        const allSals = posData.flatMap(p => p.avgSalary);
+        const mainAvg = allSals.length > 0 ? Math.round(allSals.reduce((a: number, b: number) => a + b, 0) / allSals.length) : 0;
+
         return {
             company: comp,
-            minSalary: Math.min(...salaries),
-            maxSalary: Math.max(...salaries),
-            avgSalary: Math.round(sum / salaries.length),
-            headcount: salaries.length,
-            industry: companyAgg[comp].industry || "N/A",
-            group: companyAgg[comp].group || "N/A"
+            rating: cData.rating,
+            industry: cData.industry,
+            group: cData.group,
+            positions: posData,
+            mainAvgSalary: mainAvg
         };
-    }).sort((a, b) => b.avgSalary - a.avgSalary).slice(0, 50);
+    }).sort((a, b) => b.mainAvgSalary - a.mainAvgSalary);
 
     return {
         companyStats,
         details,
         filterOptions: {
+            jobFamilies: Array.from(jobFamilies).sort(),
+            companies: Array.from(companies).sort(),
+            positions: Array.from(positions).sort(),
+            ratings: Array.from(ratings).sort(),
             industries: Array.from(industries).sort(),
-            groups: Array.from(groups).sort(),
-            companies: Array.from(companies).sort()
+            groups: Array.from(groups).sort()
         }
     };
 }

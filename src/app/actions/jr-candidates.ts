@@ -280,11 +280,14 @@ export async function getJRAnalytics(jrId: string): Promise<JRAnalytics> {
         supabase.from('jr_candidates').select('jr_candidate_id, temp_status').eq('jr_id', jrId).returns<{ jr_candidate_id: string; temp_status: string }[]>()
     ]);
 
-    const allStatuses: string[] = (masters as any)?.map((m: any) => m.status) || ["Pool Candidate", "Phone Screen", "Interview", "Offer", "Hired"];
+    // Use sorted status list from master
+    const allStatuses = (masters as any[])?.map(m => m.status) || [];
+    const statusOrderMap: Record<string, number> = {};
+    (masters as any[])?.forEach(m => statusOrderMap[m.status] = m.stage_order);
 
     if (!jrCands || jrCands.length === 0) return { countsByStatus: [], agingByStatus: [] };
 
-    // 1. Fetch Logs to resolve REAL status
+    // 1. Fetch ALL Logs for these candidates to count transactions
     const jrCandIds = jrCands.map(c => c.jr_candidate_id);
     const { data: logs } = await supabase
         .from('status_log')
@@ -296,29 +299,29 @@ export async function getJRAnalytics(jrId: string): Promise<JRAnalytics> {
     const countMap: Record<string, number> = {};
     const agingMap: Record<string, { totalDays: number, count: number }> = {};
 
-    // Initialize counts
+    // Initialize counts with master order
     allStatuses.forEach(s => countMap[s] = 0);
     const now = new Date();
 
+    // Count EVERY log entry as an activity transaction
+    if (logs) {
+        logs.forEach(log => {
+            const status = log.status || "Unknown";
+            if (countMap[status] !== undefined) {
+                countMap[status]++;
+            } else {
+                // If status is not in master, add it to the end
+                countMap[status] = (countMap[status] || 0) + 1;
+            }
+        });
+    }
+
     jrCands.forEach(c => {
-        // Resolve Status
         const status = getLatestStatus(logs || [], c.jr_candidate_id, "Pool Candidate");
 
-        // Count
-        if (countMap[status] !== undefined) countMap[status]++;
-        else {
-            const k = "Unknown";
-            countMap[k] = (countMap[k] || 0) + 1;
-        }
-
-        // Aging
-        // Find When they entered this status (First log of this status? Or just latest log?)
-        // User said: "Check timestamp... Logic: timestamp of log"
-        // Aging usually means "Time since they entered the CURRENT stage".
-        // So we need the timestamp of the LATEST log found.
+        // Aging: Time since the LATEST activity in the current status
         if (logs) {
             const cLogs = logs.filter(l => l.jr_candidate_id === c.jr_candidate_id);
-            // Re-sort same way
             cLogs.sort((a, b) => {
                 const dateA = new Date(a.timestamp).getTime();
                 const dateB = new Date(b.timestamp).getTime();
@@ -336,11 +339,20 @@ export async function getJRAnalytics(jrId: string): Promise<JRAnalytics> {
         }
     });
 
-    const countsByStatus = Object.keys(countMap).map(k => ({ status: k, count: countMap[k] }));
-    const agingByStatus = Object.keys(agingMap).map(s => ({
-        status: s,
-        avgDays: Math.round(agingMap[s].totalDays / agingMap[s].count)
-    }));
+    // Prepare result sorted by stage_order (master order)
+    const sortedStatuses = Object.keys(countMap).sort((a, b) => {
+        const orderA = statusOrderMap[a] ?? 999;
+        const orderB = statusOrderMap[b] ?? 999;
+        return orderA - orderB;
+    });
+
+    const countsByStatus = sortedStatuses.map(s => ({ status: s, count: countMap[s] }));
+    const agingByStatus = sortedStatuses
+        .filter(s => agingMap[s]) // Only show aging for statuses that have candidates
+        .map(s => ({
+            status: s,
+            avgDays: Math.round(agingMap[s].totalDays / agingMap[s].count)
+        }));
 
     return { countsByStatus, agingByStatus };
 }

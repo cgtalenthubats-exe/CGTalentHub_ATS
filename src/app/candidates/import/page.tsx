@@ -876,12 +876,12 @@ export default function CandidateImportPage() {
                         <Dialog open={openManualDialog} onOpenChange={setOpenManualDialog}>
                             <DialogTrigger asChild>
                                 <Button variant="outline" className="border-indigo-200 text-indigo-700 hover:bg-indigo-50">
-                                    <PlusCircle className="mr-2 h-4 w-4" /> Manual Add
+                                    <PlusCircle className="mr-2 h-4 w-4" /> Manual LinkedIn
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="sm:max-w-md">
                                 <DialogHeader>
-                                    <DialogTitle>Manual Candidate Addition</DialogTitle>
+                                    <DialogTitle>Manual LinkedIn Addition</DialogTitle>
                                     <DialogDescription>
                                         Enter name and LinkedIn URL to trigger AI scraping.
                                     </DialogDescription>

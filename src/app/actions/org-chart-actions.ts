@@ -448,7 +448,11 @@ export async function updateOrgNode(nodeId: string, updates: Partial<RawOrgNode>
     if (updates.linkedin && getCheckedStatus(updates.linkedin) === 'LinkedIN profile') {
         const { data: node } = await supabase.from('all_org_nodes').select('name, node_id').eq('node_id', nodeId).single()
         if (node) {
-            await triggerCandidateRefresh([{ id: updates.matched_candidate_id || `node-${nodeId}`, name: node.name, linkedin: updates.linkedin }], 'System (OrgChart Update)')
+            try {
+                await triggerCandidateRefresh([{ id: updates.matched_candidate_id || `node-${nodeId}`, name: node.name, linkedin: updates.linkedin }], 'System (OrgChart Update)')
+            } catch (err) {
+                console.error('[OrgChart Update] Failed to trigger candidate refresh webhook:', err)
+            }
         }
     }
 
@@ -602,7 +606,11 @@ export async function bulkCreateOrgProfiles(uploadId: string) {
 
         // 6. Trigger Webhook for all qualifying candidates
         if (candidatesToRefresh.length > 0) {
-            await triggerCandidateRefresh(candidatesToRefresh, 'System (OrgChart Bulk)')
+            try {
+                await triggerCandidateRefresh(candidatesToRefresh, 'System (OrgChart Bulk)')
+            } catch (err) {
+                console.error('[BulkCreate] Failed to trigger candidate refresh webhook:', err)
+            }
         }
 
         revalidatePath('/org-chart')
@@ -689,7 +697,11 @@ export async function createSingleOrgProfile(nodeId: string) {
             await supabase.from('candidate_experiences').insert(expData)
         } else if (getCheckedStatus(node.linkedin) === 'LinkedIN profile') {
             // Trigger Webhook
-            await triggerCandidateRefresh([{ id: newCandidateId, name: node.name, linkedin: node.linkedin }], 'System (OrgChart Single Create)')
+            try {
+                await triggerCandidateRefresh([{ id: newCandidateId, name: node.name, linkedin: node.linkedin }], 'System (OrgChart Single Create)')
+            } catch (err) {
+                console.error('[CreateSingle] Failed to trigger candidate refresh webhook:', err)
+            }
             mode = 'n8n'
         }
 

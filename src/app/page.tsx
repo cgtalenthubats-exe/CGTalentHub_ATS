@@ -92,14 +92,14 @@ export default function OverviewPage() {
       <div className="grid gap-6 md:grid-cols-3 lg:grid-cols-5">
         <Card className="relative overflow-hidden group border-none bg-white ring-1 ring-slate-200 shadow-xl transition-all hover:shadow-2xl">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Global Talent Pool</CardTitle>
+            <CardTitle className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Total Profile</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-5xl font-black tracking-tighter text-slate-900">
               {loading ? "..." : metrics.totalCandidates.toLocaleString()}
             </div>
-            <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-emerald-500 uppercase">
-              <TrendingUp className="h-3 w-3" /> Growth: Active
+            <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase">
+              Database Records
             </div>
           </CardContent>
           <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
@@ -109,7 +109,7 @@ export default function OverviewPage() {
 
         <Card className="relative overflow-hidden group border-none bg-white ring-1 ring-slate-200 shadow-xl transition-all hover:shadow-2xl">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Resumes in System</CardTitle>
+            <CardTitle className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Total CV</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-5xl font-black tracking-tighter text-slate-900">
@@ -126,14 +126,14 @@ export default function OverviewPage() {
 
         <Card className="relative overflow-hidden group border-none bg-white ring-1 ring-slate-200 shadow-xl transition-all hover:shadow-2xl">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black text-amber-500 uppercase tracking-widest">OrgChart Data</CardTitle>
+            <CardTitle className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Total Org</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-5xl font-black tracking-tighter text-slate-900">
               {loading ? "..." : metrics.orgChartCount.toLocaleString()}
             </div>
             <div className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-              Structure Uploads
+              Org Nodes
             </div>
           </CardContent>
           <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
@@ -143,16 +143,14 @@ export default function OverviewPage() {
 
         <Card className="relative overflow-hidden group border-none bg-white ring-1 ring-slate-200 shadow-xl transition-all hover:shadow-2xl">
           <CardHeader className="pb-2">
-            <CardTitle className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Job Requisitions</CardTitle>
+            <CardTitle className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Total JR</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-5xl font-black tracking-tighter text-slate-900">
               {loading ? "..." : metrics.totalJRs.toLocaleString()}
             </div>
-            <div className="mt-4 text-[10px] font-bold flex gap-3 text-slate-500 uppercase">
-              <span className="text-indigo-600 font-black">{metrics.activeJobs} ACTIVE</span>
-              <span className="opacity-40">|</span>
-              <span className="text-slate-400 font-black">{metrics.inactiveJobs} CLOSED</span>
+            <div className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+              System Requisitions
             </div>
           </CardContent>
           <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
