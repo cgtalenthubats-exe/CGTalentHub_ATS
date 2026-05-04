@@ -14,7 +14,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-    BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, Cell
 } from "recharts";
 import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { JRTabs } from "@/components/jr-tabs";
@@ -60,6 +60,8 @@ export default function JRManagePage() {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isAddCandOpen, setIsAddCandOpen] = useState(false);
     const [analytics, setAnalytics] = useState<any>(null);
+    const [salaryStats, setSalaryStats] = useState<any[]>([]);
+    const [isSalaryLoading, setIsSalaryLoading] = useState(false);
     const [isJRLoading, setIsJRLoading] = useState(false); // Track URL-based loading
     const [isInitialized, setIsInitialized] = useState(false); // Track initial mount
     const [refreshKey, setRefreshKey] = useState(0); // Trigger refresh for candidates
@@ -204,6 +206,25 @@ export default function JRManagePage() {
         }
         loadAnalytics();
     }, [selectedJR?.id]);
+
+    // Load Salary Stats for the specific JR
+    useEffect(() => {
+        async function loadSalary() {
+            if (selectedJR && currentTab === "salary") {
+                setIsSalaryLoading(true);
+                try {
+                    const { getJRSalaryStats } = await import("@/app/actions/jr-candidates");
+                    const data = await getJRSalaryStats(selectedJR.id);
+                    setSalaryStats(data);
+                } catch (e) {
+                    console.error("Failed to load salary stats", e);
+                } finally {
+                    setIsSalaryLoading(false);
+                }
+            }
+        }
+        loadSalary();
+    }, [selectedJR?.id, currentTab]);
 
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
@@ -499,6 +520,9 @@ export default function JRManagePage() {
                                         <TabsTrigger value="history" className="h-10 px-6 data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800 data-[state=active]:text-primary">
                                             <History className="mr-2 h-4 w-4" /> History Insights
                                         </TabsTrigger>
+                                        <TabsTrigger value="salary" className="h-10 px-6 data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800 data-[state=active]:text-primary">
+                                            <Briefcase className="mr-2 h-4 w-4" /> Salary Benchmark
+                                        </TabsTrigger>
                                     </TabsList>
                                 </div>
 
@@ -512,6 +536,143 @@ export default function JRManagePage() {
 
                                 <TabsContent value="history" className="mt-0">
                                     <HistoryInsights key={`history-${selectedJR.id}-${refreshKey}`} jrId={selectedJR.id} />
+                                </TabsContent>
+
+                                <TabsContent value="salary" className="mt-0">
+                                    <Card className="overflow-hidden border-2 border-slate-100 dark:border-slate-800 shadow-xl rounded-2xl bg-white dark:bg-slate-900">
+                                        <CardContent className="p-0">
+                                            <div className="p-6 border-b border-slate-50 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex justify-between items-center">
+                                                <div>
+                                                    <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">Market Salary Benchmark</h3>
+                                                    <p className="text-sm text-slate-500 font-medium">Comparison of candidate salaries in this Job Requisition (฿M)</p>
+                                                </div>
+                                                <div className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl border border-indigo-100 dark:border-indigo-800">
+                                                    <span className="text-xs font-black text-indigo-700 uppercase tracking-widest">Live JR Data</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="p-8">
+                                                {isSalaryLoading ? (
+                                                    <div className="h-[420px] flex flex-col items-center justify-center space-y-4">
+                                                        <Loader2 className="h-12 w-10 animate-spin text-primary" />
+                                                        <p className="text-slate-400 font-bold italic">Analyzing market data for candidates...</p>
+                                                    </div>
+                                                ) : salaryStats.length > 0 ? (
+                                                    <div className="relative">
+                                                        {/* CUSTOM LEGEND */}
+                                                        <div className="flex flex-wrap justify-center gap-4 mb-10 p-4 bg-white/50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm max-w-fit mx-auto">
+                                                            {Array.from(new Set(salaryStats.flatMap(item => Object.keys(item).filter(key => key !== 'company'))))
+                                                                .map((pos, idx) => (
+                                                                    <div key={pos} className="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-white dark:hover:bg-slate-800 transition-all cursor-default group">
+                                                                        <div 
+                                                                            className="w-3.5 h-3.5 rounded-full shadow-sm ring-2 ring-white dark:ring-slate-900 group-hover:scale-110 transition-transform" 
+                                                                            style={{ backgroundColor: COLORS[idx % COLORS.length] }} 
+                                                                        />
+                                                                        <span className="text-xs font-black text-slate-700 dark:text-slate-200">{pos}</span>
+                                                                    </div>
+                                                                ))}
+                                                        </div>
+
+                                                        {/* SCROLLABLE CHART CONTAINER */}
+                                                        <div className="overflow-x-auto pb-6 scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
+                                                            <div style={{ width: Math.max(800, salaryStats.length * 280), minWidth: '100%' }}>
+                                                                <div className="h-[420px] w-full">
+                                                                    <ResponsiveContainer width="100%" height="100%">
+                                                                        <BarChart 
+                                                                            data={salaryStats} 
+                                                                            margin={{ top: 40, right: 30, left: 20, bottom: 60 }}
+                                                                            barCategoryGap="20%"
+                                                                            barGap={2}
+                                                                        >
+                                                                            <XAxis 
+                                                                                dataKey="company" 
+                                                                                axisLine={{ stroke: '#0f172a', strokeWidth: 2 }}
+                                                                                tickLine={{ stroke: '#0f172a' }}
+                                                                                tick={{ fill: '#475569', fontSize: 12, fontWeight: 800 }}
+                                                                                height={60}
+                                                                                interval={0}
+                                                                                tickFormatter={(val) => val.length > 25 ? `${val.substring(0, 25)}...` : val}
+                                                                            />
+                                                                            <YAxis 
+                                                                                axisLine={{ stroke: '#0f172a', strokeWidth: 2 }}
+                                                                                tickLine={{ stroke: '#0f172a' }}
+                                                                                tick={{ fill: '#475569', fontSize: 11, fontWeight: 700 }}
+                                                                                label={{ value: 'Annual Salary (฿M)', angle: -90, position: 'insideLeft', offset: -5, fill: '#64748b', fontSize: 12, fontWeight: 900 }}
+                                                                            />
+                                                                            <Tooltip 
+                                                                                cursor={{ fill: 'rgba(241, 245, 249, 0.5)' }}
+                                                                                content={({ active, payload, label }) => {
+                                                                                    if (active && payload && payload.length) {
+                                                                                        return (
+                                                                                            <div className="bg-slate-900/95 backdrop-blur-md border border-slate-800 p-4 rounded-xl shadow-2xl ring-1 ring-white/10">
+                                                                                                <p className="text-sm font-black text-white mb-3 border-b border-slate-700 pb-2">{label}</p>
+                                                                                                <div className="space-y-2">
+                                                                                                    {payload.map((p: any, idx: number) => (
+                                                                                                        <div key={idx} className="flex items-center justify-between gap-6">
+                                                                                                            <div className="flex items-center gap-2">
+                                                                                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
+                                                                                                                <span className="text-xs font-bold text-slate-300">{p.name}:</span>
+                                                                                                            </div>
+                                                                                                            <span className="text-xs font-black text-white">฿{p.value.toFixed(2)}M</span>
+                                                                                                        </div>
+                                                                                                    ))}
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        );
+                                                                                    }
+                                                                                    return null;
+                                                                                }}
+                                                                            />
+                                                                            {Array.from(new Set(salaryStats.flatMap(item => Object.keys(item).filter(key => key !== 'company'))))
+                                                                                .map((pos, idx) => (
+                                                                                    <Bar 
+                                                                                        key={pos} 
+                                                                                        dataKey={pos} 
+                                                                                        fill={COLORS[idx % COLORS.length]} 
+                                                                                        radius={[6, 6, 0, 0]}
+                                                                                        barSize={60}
+                                                                                    >
+                                                                                        <LabelList dataKey={pos} position="top" formatter={(val: any) => `฿${val.toFixed(1)}M`} style={{ fill: '#1e293b', fontSize: 10, fontWeight: 900 }} />
+                                                                                    </Bar>
+                                                                                ))}
+                                                                        </BarChart>
+                                                                    </ResponsiveContainer>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* SALARY DETAILS TABLE (Reusing standard CandidateList with Salary column) */}
+                                                        <div className="mt-12">
+                                                            <div className="mb-4 flex items-center gap-2">
+                                                                <List className="h-4 w-4 text-slate-500" />
+                                                                <span className="text-sm font-black text-slate-700 dark:text-slate-300">Candidate Salary Details</span>
+                                                            </div>
+                                                            <CandidateList 
+                                                                jrId={selectedJR.id}
+                                                                jobTitle={selectedJR.job_title}
+                                                                bu={selectedJR.department || ""}
+                                                                subBu={selectedJR.sub_department || ""}
+                                                                updatedBy={selectedCreatedBy}
+                                                                showSalary={true}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="h-[400px] flex flex-col items-center justify-center text-center space-y-4 border-2 border-dashed border-slate-100 rounded-3xl bg-slate-50/50">
+                                                        <div className="p-4 rounded-full bg-white shadow-sm ring-1 ring-slate-100">
+                                                            <Briefcase className="h-10 w-10 text-slate-300" />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-lg font-black text-slate-800">Insufficient Salary Data</h4>
+                                                            <p className="text-slate-400 font-medium max-w-sm mt-1 mx-auto text-sm">
+                                                                We couldn't find enough salary information for the candidates in this Job Requisition. Make sure their profiles have 'Annual Salary' and 'Current/Latest Experience' filled in.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </CardContent>
+                                    </Card>
                                 </TabsContent>
                             </Tabs>
                         </div>

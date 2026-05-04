@@ -1,0 +1,370 @@
+[
+  {
+    "brand": "St. Regis",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Marriott Hotels",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Le Méridien",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Renaissance",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Conrad",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Hilton Hotels & Resorts",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Canopy by Hilton",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Signia by Hilton",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Hilton Garden Inn",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Hampton by Hilton",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Tru by Hilton",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "The Unbound Collection by Hyatt",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Hyatt Ziva",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Hyatt Zilara",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Hyatt Centric",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Destination by Hyatt",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "JdV by Hyatt",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Hyatt (legacy)",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Hyatt Place",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Hyatt House",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Wyndham Grand",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Wyndham",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Wyndham Garden",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "TRYP by Wyndham",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Best Western Premier",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Best Western",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Best Western Plus",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Sonesta Hotels & Resorts",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Royal Sonesta",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Sonesta Select",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Sonesta ES Suites",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Sonesta Simply Suites",
+    "expected": "2 Star"
+  },
+  {
+    "brand": "MGM Grand",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Park MGM",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Harrah’s",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Raffles",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Pullman",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "MGallery",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Gran Meliá",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "ME by Meliá",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Meliá Hotels & Resorts",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "INNSiDE by Meliá",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Sol by Meliá",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "NH Collection",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "NH Hotels",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "NYX Hotels",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "The Langham",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "TUI BLUE",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "TUI SUNEO",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Anantara",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Avani",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Centara Reserve",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Centara Grand",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Centara",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Centara Boutique Collection",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Centra by Centara",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Dusit Thani",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Dusit Suites",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Banyan Tree",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Cassia",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Pan Pacific",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Ascott",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Fraser Suites",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Fraser Residence",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Fraser Place",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "Travelodge",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Lotte Hotels & Resorts",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "L7 by Lotte",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "OYO Townhouse",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Taj",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "The Oberoi",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Southern Sun",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Four Seasons",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Rosewood",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "The Peninsula",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Capella Hotels & Resorts",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "One&Only",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Six Senses",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "The StandardX",
+    "expected": "4 Star"
+  },
+  {
+    "brand": "SALA Samui",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "SALA Phuket",
+    "expected": "5 Star"
+  },
+  {
+    "brand": "Fairfield by Marriott",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Holiday Inn",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "SureStay Hotels",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Four Points by Sheraton",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Microtel by Wyndham",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Comfort Hotel",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Park Inn by Radisson",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "JI Hotel",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Jinjiang Inn",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Vienna Hotel",
+    "expected": "3 Star"
+  },
+  {
+    "brand": "Metropolo",
+    "expected": "3 Star"
+  }
+]

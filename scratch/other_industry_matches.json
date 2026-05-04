@@ -1,0 +1,1100 @@
+[
+  {
+    "company_name": "Inchcape APAC",
+    "industry": "Transportation, Logistics, Supply Chain",
+    "rating": null,
+    "matched_brand": "Cape"
+  },
+  {
+    "company_name": "Raffles Medical Group",
+    "industry": "Hospital",
+    "rating": null,
+    "matched_brand": "Raffles"
+  },
+  {
+    "company_name": "Imex Pan Pacific Group",
+    "industry": "Wholesale",
+    "rating": null,
+    "matched_brand": "Pan Pacific"
+  },
+  {
+    "company_name": "Pacifica Elements Co. Ltd.",
+    "industry": "FMCG / Consumer Goods",
+    "rating": null,
+    "matched_brand": "Element"
+  },
+  {
+    "company_name": "Groupe Bon March? le Bon March? Rive Gauche -La Grande Epicerie de Paris- La Samaritaine",
+    "industry": "Retail Luxury Goods",
+    "rating": null,
+    "matched_brand": "Amari"
+  },
+  {
+    "company_name": "Rev Edition",
+    "industry": "Publishing",
+    "rating": null,
+    "matched_brand": "EDITION"
+  },
+  {
+    "company_name": "Avani Hai Phong Harbour View and Office Tower - Part of Minor Hotel Group",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Avani"
+  },
+  {
+    "company_name": "Sparkitecture",
+    "industry": "Consulting",
+    "rating": null,
+    "matched_brand": "Spark"
+  },
+  {
+    "company_name": "Learnscape",
+    "industry": "Education",
+    "rating": null,
+    "matched_brand": "Cape"
+  },
+  {
+    "company_name": "Question Ventures, LLC",
+    "industry": "Investment Management",
+    "rating": null,
+    "matched_brand": "Quest"
+  },
+  {
+    "company_name": "METRO Cash and Carry Bulgaria",
+    "industry": "Wholesale",
+    "rating": null,
+    "matched_brand": "ARIA"
+  },
+  {
+    "company_name": "Amarin Book Center",
+    "industry": "Publishing",
+    "rating": null,
+    "matched_brand": "Amari"
+  },
+  {
+    "company_name": "Eisenhower Fellowships",
+    "industry": "Non-Profit Organizations",
+    "rating": null,
+    "matched_brand": "nhow"
+  },
+  {
+    "company_name": "PT Barclay Products ( Tempo Scan Group )",
+    "industry": "FMCG / Consumer Goods",
+    "rating": null,
+    "matched_brand": "Tempo"
+  },
+  {
+    "company_name": "Varian",
+    "industry": "Medical Device Manufacturing",
+    "rating": null,
+    "matched_brand": "ARIA"
+  },
+  {
+    "company_name": "Carrefour Express Roma Centro",
+    "industry": "Retail",
+    "rating": null,
+    "matched_brand": "Centro"
+  },
+  {
+    "company_name": "The Residences at Mandarin Oriental Bangkok",
+    "industry": "Real Estate",
+    "rating": null,
+    "matched_brand": "Mandarin Oriental"
+  },
+  {
+    "company_name": "City Mall Food Co., Ltd (ESCAPE Bangkok)",
+    "industry": "Food and Beverage",
+    "rating": null,
+    "matched_brand": "Cape"
+  },
+  {
+    "company_name": "Little Tribe",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Tribe"
+  },
+  {
+    "company_name": "Shama Luxe Grand Central",
+    "industry": "Real Estate",
+    "rating": null,
+    "matched_brand": "Shama"
+  },
+  {
+    "company_name": "Baan Dusit Thani",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Dusit Thani"
+  },
+  {
+    "company_name": "Global Gourmet Systems Co., Ltd ( Indus Contemporary Indian Dining)",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Tempo"
+  },
+  {
+    "company_name": "Homm Sukhumvit 34 Bangkok",
+    "industry": "Real Estate",
+    "rating": null,
+    "matched_brand": "Homm"
+  },
+  {
+    "company_name": "Oakwood Journey Hub Hotel",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Oakwood"
+  },
+  {
+    "company_name": "Kamaliss MontAzure Phuket – MGallery Collection",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "MGallery"
+  },
+  {
+    "company_name": "Terra Contemporary Italian Restaurant",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Tempo"
+  },
+  {
+    "company_name": "Tempo | Restaurant - Lounge - KTV",
+    "industry": "Food and Beverage",
+    "rating": null,
+    "matched_brand": "Tempo"
+  },
+  {
+    "company_name": "Grand Swiss Hotel Bangkok (Ramada by Wyndham Sukhumvit 11 Bangkok -2020)",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Wyndham"
+  },
+  {
+    "company_name": "Anantara Phuket Layan Resort & Spa",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Anantara"
+  },
+  {
+    "company_name": "ROYALPARK Suites Hotel, Pan Pacific Hotels Group",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Pan Pacific"
+  },
+  {
+    "company_name": "The Naka Island, A luxury Collection Resort and Spa, Phuket, And The Renaissance Koh Samui",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Renaissance"
+  },
+  {
+    "company_name": "Anantara Ubud Bali Resort",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Anantara"
+  },
+  {
+    "company_name": "Varivana Resort Koh Phanagn, The Centara Collection",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Centara"
+  },
+  {
+    "company_name": "The Library Hotel",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "The Library"
+  },
+  {
+    "company_name": "Centara Life  Lamai Resort Samui",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Centara"
+  },
+  {
+    "company_name": "Westman Linmark(Thailand)Ltd./Tamarind Trading (Shanghai) Company Ltd.",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Amari"
+  },
+  {
+    "company_name": "Escape Hua hin",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Cape"
+  },
+  {
+    "company_name": "St. Pancras Renaissance London",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Renaissance"
+  },
+  {
+    "company_name": "Swissôtel Hotels & Resorts (Destination group)",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Swissôtel"
+  },
+  {
+    "company_name": "Quest Vacation Sdn. Bhd.",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Quest"
+  },
+  {
+    "company_name": "The Sanctuary Resort Pattaya Best Western Signature collection",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Best Western"
+  },
+  {
+    "company_name": "Centra by Centara Cha-Am Beach Resort Hua Hin",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Centra by Centara"
+  },
+  {
+    "company_name": "Cape Fahn Hotel - Private Island, Samui",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Cape"
+  },
+  {
+    "company_name": "Kalanan Riverside Resort",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Alana"
+  },
+  {
+    "company_name": "Amari Atrium Hotel Bangkok",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Amari"
+  },
+  {
+    "company_name": "Park Park Plaza, Mumbai, India",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Park Plaza"
+  },
+  {
+    "company_name": "Constance Halaveli Resort Maldives, Park Hyatt Maldives Hadahaa",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Park Hyatt"
+  },
+  {
+    "company_name": "Andaz Pattaya Jomtien Beach",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Andaz"
+  },
+  {
+    "company_name": "Escape Bangkok | Flamenco Sky Bar (The Mall Group)",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Cape"
+  },
+  {
+    "company_name": "Centara Karon Resort",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Centara"
+  },
+  {
+    "company_name": "Shama Sukhumvit Bangkok Shama Ekamai Bangkok Emmaline Hotel Nan",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Shama"
+  },
+  {
+    "company_name": "WhereScape",
+    "industry": "Software Development",
+    "rating": null,
+    "matched_brand": "Cape"
+  },
+  {
+    "company_name": "Inchcape",
+    "industry": "Motor Vehicle Manufacturing",
+    "rating": null,
+    "matched_brand": "Cape"
+  },
+  {
+    "company_name": "BMO Harris Bank",
+    "industry": "Banking / Financial Services",
+    "rating": null,
+    "matched_brand": "HARRIS"
+  },
+  {
+    "company_name": "Pantavanij",
+    "industry": "Information Technology & Services",
+    "rating": null,
+    "matched_brand": "Avani"
+  },
+  {
+    "company_name": "Samaritaine Paris Pont-Neuf",
+    "industry": "Retail Luxury Goods",
+    "rating": null,
+    "matched_brand": "Amari"
+  },
+  {
+    "company_name": "La Mar by Gaston Acurio",
+    "industry": "Food and Beverage",
+    "rating": null,
+    "matched_brand": "ASTON"
+  },
+  {
+    "company_name": "Prime Hotel Central Station Bangkok (Formerly Centara Hotel)",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Centara"
+  },
+  {
+    "company_name": "Aloft Bangkok - Sukhumvit 11",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Aloft"
+  },
+  {
+    "company_name": "Questt AI",
+    "industry": "Software Development",
+    "rating": null,
+    "matched_brand": "Quest"
+  },
+  {
+    "company_name": "ttb spark",
+    "industry": "Banking / Financial Services",
+    "rating": null,
+    "matched_brand": "Spark"
+  },
+  {
+    "company_name": "The Xcape River Kwai",
+    "industry": "Events Services",
+    "rating": null,
+    "matched_brand": "Cape"
+  },
+  {
+    "company_name": "Curamando",
+    "industry": "Consulting",
+    "rating": null,
+    "matched_brand": "Aman"
+  },
+  {
+    "company_name": "Yellow Stuff",
+    "industry": "Consulting",
+    "rating": null,
+    "matched_brand": "Yello"
+  },
+  {
+    "company_name": "Varian Medical Systems",
+    "industry": "Medical Device Manufacturing",
+    "rating": null,
+    "matched_brand": "ARIA"
+  },
+  {
+    "company_name": "The Secretariat Of The Prime Minister (Thailand)",
+    "industry": "Government Administration",
+    "rating": null,
+    "matched_brand": "ARIA"
+  },
+  {
+    "company_name": "AMAN",
+    "industry": "N/A",
+    "rating": "5 Star",
+    "matched_brand": "Aman"
+  },
+  {
+    "company_name": "Arianee",
+    "industry": "Information Technology & Services",
+    "rating": null,
+    "matched_brand": "ARIA"
+  },
+  {
+    "company_name": "Harper Collective",
+    "industry": "E-commerce / Digital Business",
+    "rating": null,
+    "matched_brand": "Harper"
+  },
+  {
+    "company_name": "GreenYellow Asia",
+    "industry": "Utilities",
+    "rating": null,
+    "matched_brand": "Yello"
+  },
+  {
+    "company_name": "Shama Lakeview Asoke",
+    "industry": "Real Estate",
+    "rating": null,
+    "matched_brand": "Shama"
+  },
+  {
+    "company_name": "Tribe Sky Beach Club | Escape Bangkok | Flamenco Sky Bar | Coco Chill.   (The Mall Group)",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Tribe"
+  },
+  {
+    "company_name": "KROMO Bangkok, Curio Collection by Hilton",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Curio Collection"
+  },
+  {
+    "company_name": "Swissôtel Le Concorde Bangkok",
+    "industry": "Telecommunications",
+    "rating": null,
+    "matched_brand": "Swissôtel"
+  },
+  {
+    "company_name": "HOMM Sukhumvit34 Bangkok",
+    "industry": "Real Estate",
+    "rating": null,
+    "matched_brand": "Homm"
+  },
+  {
+    "company_name": "Amari Atruim Hotel",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Amari"
+  },
+  {
+    "company_name": "JC Kevin Sathorn Bangkok Hotel (Former Anantara Sathorn Bangkok Hotel)",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Anantara"
+  },
+  {
+    "company_name": "VIC3 and Citadines Grand Central Sriracha",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Citadines"
+  },
+  {
+    "company_name": "The Chedi Chiang Mai (now Anantara Chiang Mai Resort & Spa)",
+    "industry": "Self-Employed",
+    "rating": null,
+    "matched_brand": "Anantara"
+  },
+  {
+    "company_name": "Moontribe Concept Store",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Tribe"
+  },
+  {
+    "company_name": "Hi Residence Bangkok (formerly Ramada Encore Hi)",
+    "industry": "Real Estate",
+    "rating": null,
+    "matched_brand": "Ramada Encore"
+  },
+  {
+    "company_name": "Embassy Park Plaza",
+    "industry": "Real Estate",
+    "rating": null,
+    "matched_brand": "Park Plaza"
+  },
+  {
+    "company_name": "Visit Natural Detox Resort & Wild Tribe Cafe",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Tribe"
+  },
+  {
+    "company_name": "Balcony Seaside Hotel Sriracha and Balcony Courtyard Hotel Sriracha",
+    "industry": "Real Estate",
+    "rating": null,
+    "matched_brand": "Courtyard Hotel"
+  },
+  {
+    "company_name": "Hôtel de Crillon, A Rosewood Hotel",
+    "industry": "Hospital",
+    "rating": null,
+    "matched_brand": "Rosewood"
+  },
+  {
+    "company_name": "Avani Ratchada Bangkok",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Avani"
+  },
+  {
+    "company_name": "Chon Inter Hotel(former Mercure Hotel Chonburi)",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Mercure"
+  },
+  {
+    "company_name": "Amari Vang Vieng, Laos",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Amari"
+  },
+  {
+    "company_name": "Culinary Capers Catering Beijing",
+    "industry": "Food and Beverage",
+    "rating": null,
+    "matched_brand": "Cape"
+  },
+  {
+    "company_name": "Beverages Network Co.,Ltd. / Laguna Banyan Tree Co.Ltd.",
+    "industry": "Food and Beverage",
+    "rating": null,
+    "matched_brand": "Banyan Tree"
+  },
+  {
+    "company_name": "Oakwood City Residence",
+    "industry": "Real Estate",
+    "rating": null,
+    "matched_brand": "Oakwood"
+  },
+  {
+    "company_name": "Cosmo Bulgaria Mobile",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "ARIA"
+  },
+  {
+    "company_name": "YellowKorner",
+    "industry": "Retail Luxury Goods",
+    "rating": null,
+    "matched_brand": "Yello"
+  },
+  {
+    "company_name": "Centara Seaview Khao Lak",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Centara"
+  },
+  {
+    "company_name": "Amari Residences Sukhumvit",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Amari"
+  },
+  {
+    "company_name": "Cape Dara Resort, Pattaya",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Cape"
+  },
+  {
+    "company_name": "Swissôtel Nai Lert Park, Bangkok",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Swissôtel"
+  },
+  {
+    "company_name": "The Farmhouse at Polo Escape",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Cape"
+  },
+  {
+    "company_name": "The Okura Prestige Bangkok",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Okura"
+  },
+  {
+    "company_name": "Centara Villas Samui",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Centara"
+  },
+  {
+    "company_name": "Pure Escapes",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Cape"
+  },
+  {
+    "company_name": "Chen Sea Resort & Spa, Centara Boutique Collection",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Centara Boutique Collection"
+  },
+  {
+    "company_name": "Vib Best Western Sanam Pao",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Best Western"
+  },
+  {
+    "company_name": "Navera Phuket - MGallery Collection",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "MGallery"
+  },
+  {
+    "company_name": "Swissôtel Bangkok Ratchada",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Swissôtel"
+  },
+  {
+    "company_name": "Centara Ao Nang Beach Resort & Spa Krabi and Centara Anda Dhevi Resort & Spa Krabi",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Centara"
+  },
+  {
+    "company_name": "Renaissance Riverside Hotel Saigon",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Renaissance"
+  },
+  {
+    "company_name": "Quality Resort and Spa Patong & Clarian Hotel Beach Patong",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "ARIA"
+  },
+  {
+    "company_name": "Avani+ Koh Lanta Krabi Resort",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Avani"
+  },
+  {
+    "company_name": "The B Premiere Hotel, Centara Boutique Collection",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Centara Boutique Collection"
+  },
+  {
+    "company_name": "Questus Hospitality",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Quest"
+  },
+  {
+    "company_name": "Centara Kata Resort, Phuket",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Centara"
+  },
+  {
+    "company_name": "Centara Anda dhevi Resort",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Centara"
+  },
+  {
+    "company_name": "A1 Bulgaria",
+    "industry": "Telecommunications",
+    "rating": null,
+    "matched_brand": "ARIA"
+  },
+  {
+    "company_name": "Aman Nai Lert Bangkok",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Aman"
+  },
+  {
+    "company_name": "Avani Ao Nang Cliff Krabi Resort & Avani+ Koh Lanta Krabi Resort",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Avani"
+  },
+  {
+    "company_name": "Avani+ Hua Hin Resort",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Avani"
+  },
+  {
+    "company_name": "Banana Island Resort Doha by Anantara",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Anantara"
+  },
+  {
+    "company_name": "Bistro Dietrichs, Grand Hyatt Berlin",
+    "industry": "Food and Beverage",
+    "rating": null,
+    "matched_brand": "Grand Hyatt"
+  },
+  {
+    "company_name": "Carlsberg Bulgaria",
+    "industry": "Food and Beverage Manufacturing",
+    "rating": null,
+    "matched_brand": "ARIA"
+  },
+  {
+    "company_name": "China World Summit Wing, Beijing - A Shangri-La Hotel",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Shangri-La"
+  },
+  {
+    "company_name": "Conrad Bora Bora",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Conrad"
+  },
+  {
+    "company_name": "D2 Khao Yai, Dusit Thani International",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Dusit Thani"
+  },
+  {
+    "company_name": "Great China Millennium(Thailand)-The Berkeley Hotel Pratunam~Prince Palace Hotel~Ibis Samui Bophut",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "ibis"
+  },
+  {
+    "company_name": "Kerry Beijing, China – Shangri-la Hotels",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Shangri-La"
+  },
+  {
+    "company_name": "Le Centre Sheraton Montreal Hotel",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Sheraton"
+  },
+  {
+    "company_name": "Lee Hecht Harrison",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "HARRIS"
+  },
+  {
+    "company_name": "Les biens de prestiges du Groupe Mercure",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Mercure"
+  },
+  {
+    "company_name": "Manchester Grand Hyatt San Diego",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Grand Hyatt"
+  },
+  {
+    "company_name": "Phulay Bay, a Ritz-Carlton Reserve Krabi",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Ritz-Carlton"
+  },
+  {
+    "company_name": "P Landscape Co., Ltd.",
+    "industry": "Engineering",
+    "rating": null,
+    "matched_brand": "Cape"
+  },
+  {
+    "company_name": "The Plaza, A Fairmont Managed Hotel",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Fairmont"
+  },
+  {
+    "company_name": "The Plaza Doha, LXR Hotels & Resorts",
+    "industry": "Real Estate",
+    "rating": null,
+    "matched_brand": "LXR Hotels & Resorts"
+  },
+  {
+    "company_name": "Renaissance International School Saigon",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Renaissance"
+  },
+  {
+    "company_name": "The Savoy, A Fairmont Hotel",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "Fairmont"
+  },
+  {
+    "company_name": "The Silveri Hong Kong-MGallery (Pre-opening & Opening) and Novotel Citygate Hong Kong",
+    "industry": "Others",
+    "rating": null,
+    "matched_brand": "MGallery"
+  },
+  {
+    "company_name": "Centara West Bay Residences & Suite",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Centara"
+  },
+  {
+    "company_name": "Centara Korat",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Centara"
+  },
+  {
+    "company_name": "Pakasai Resort, Red Ginger Chic Resort",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Ginger"
+  },
+  {
+    "company_name": "Centara Hotesl & Resorts",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Centara"
+  },
+  {
+    "company_name": "The Cape Residences",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Cape"
+  },
+  {
+    "company_name": "4D Escapes",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Cape"
+  },
+  {
+    "company_name": "ibis, ibis Styles, ibis budget",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "ibis Styles"
+  },
+  {
+    "company_name": "Renaissance Bali Uluwatu Resort & Spa",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Renaissance"
+  },
+  {
+    "company_name": "Mercure Rayong Lomtalay Villas & Resort",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Mercure"
+  },
+  {
+    "company_name": "Centara Muscat Hotel, Centra by Centara-Muscat Dunes Hotel and Al Hail Waves Hotel Oman",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Centra by Centara"
+  },
+  {
+    "company_name": "Peach Hill & Andaman Cannacia Resort",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Aman"
+  },
+  {
+    "company_name": "Hommchui Company",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Homm"
+  },
+  {
+    "company_name": "Regent Phuket Cape Panwa",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Cape"
+  },
+  {
+    "company_name": "Oakwood Hotel & Residence Sri Racha | Oakwood Residence Sukhumvit Soi 24",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Oakwood"
+  },
+  {
+    "company_name": "Renaissance Minsk Hotel",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Renaissance"
+  },
+  {
+    "company_name": "Casa de La Flora (5-STAR Luxury Resort, a member of design hotels and la flora group)",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Design Hotels"
+  },
+  {
+    "company_name": "AMANOR Hotel Chiang Mai",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Aman"
+  },
+  {
+    "company_name": "Madina Hotel",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Adina"
+  },
+  {
+    "company_name": "ibis Bangkok Riverside",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "ibis"
+  },
+  {
+    "company_name": "Club Andaman Beach Resort, Phuket",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Aman"
+  },
+  {
+    "company_name": "Courtyard Pangyo Seoul South Korea",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Courtyard"
+  },
+  {
+    "company_name": "Ibis Pattaya",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "ibis"
+  },
+  {
+    "company_name": "Res Agraria S.r.l.",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "ARIA"
+  },
+  {
+    "company_name": "Anantara Baanrajprasong /Minor International",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Anantara"
+  },
+  {
+    "company_name": "Human Resources Centara Grand at Central Plaza Ladprao Bangkok",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Centara Grand"
+  },
+  {
+    "company_name": "Cosi Vientiane Nam Phu",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "COSI"
+  },
+  {
+    "company_name": "Renaissance Beijing Capital Hotel",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Renaissance"
+  },
+  {
+    "company_name": "Anantara Sathorn Bangkok Hotel",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Anantara"
+  },
+  {
+    "company_name": "Oakwood Residence Sukhumvit Thonglor",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Oakwood"
+  },
+  {
+    "company_name": "Anantara Quy Nhon Villas and Avani Quy Nhon Resort",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Anantara"
+  },
+  {
+    "company_name": "Renaissance Seoul Hotel",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Renaissance"
+  },
+  {
+    "company_name": "Amari Vogue Resort",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Amari"
+  },
+  {
+    "company_name": "SAii Phi Phi Village",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "SAii"
+  },
+  {
+    "company_name": "Anantara Resort & Spa - Hua-Hin/Minor International Hotel",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Anantara"
+  },
+  {
+    "company_name": "Renaissance Hotels",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Renaissance"
+  },
+  {
+    "company_name": "Husqvarna  Padure&Gradina",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Adina"
+  },
+  {
+    "company_name": "Modena by Fraser Buriram",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Modena"
+  },
+  {
+    "company_name": "Qiu hotel bangkok sukhumvit",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "IU Hotel"
+  },
+  {
+    "company_name": "Escape de Phuket",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Cape"
+  },
+  {
+    "company_name": "Formerly at Centara Life Maris resort Jomtien Pattaya",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Centara"
+  },
+  {
+    "company_name": "Avista Hideaway Phuket Patong - MGallery Hotel Collection",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "MGallery"
+  },
+  {
+    "company_name": "Adagio City Aparthotel Brussels",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Adagio"
+  },
+  {
+    "company_name": "Mercure Phuket Deevana & Mercure Krabi Deevana (Accor Asia Pacific)",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Mercure"
+  },
+  {
+    "company_name": "Centara Chaan Talay Resort & Villas, Trat",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Centara"
+  },
+  {
+    "company_name": "Pacific City Club, managed by Six Senses Hotels & Spa",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Six Senses"
+  },
+  {
+    "company_name": "Centara Hotel and Covention Centre, Udon Thani",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "Centara"
+  },
+  {
+    "company_name": "Avista Grande Phuket Karon, MGallery Hotel Collection",
+    "industry": "Wait AI Check",
+    "rating": null,
+    "matched_brand": "MGallery"
+  }
+]

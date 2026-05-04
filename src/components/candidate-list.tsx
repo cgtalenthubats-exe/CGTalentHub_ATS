@@ -63,11 +63,12 @@ interface CandidateListProps {
     bu: string;
     subBu: string;
     updatedBy?: string;
+    showSalary?: boolean;
 }
 
 import { ConfirmPlacementDialog } from "@/components/confirm-placement-dialog";
 
-export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: CandidateListProps) {
+export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary }: CandidateListProps) {
     const [candidates, setCandidates] = useState<JRCandidate[]>([]);
     const [loading, setLoading] = useState(true);
     const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
@@ -651,6 +652,9 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[200px]">Position</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[130px]">Is Current Job</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[160px]">Country</th>
+                            {showSalary && (
+                                <th className="text-right font-black text-indigo-600 text-xs uppercase tracking-widest px-5 py-4 w-[150px] bg-indigo-50/30">Annual Salary</th>
+                            )}
                         </tr>
                     </thead>
                     <tbody>
@@ -935,6 +939,20 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy }: Candidat
                                             <span className="text-slate-300 text-xs">—</span>
                                         )}
                                     </td>
+                                    {showSalary && (
+                                        <td className="px-5 py-4 text-right bg-indigo-50/10">
+                                            {(() => {
+                                                const monthly = parseFloat(c.candidate_salary_base || "0");
+                                                const bonus = parseFloat((c.candidate_salary_bonus || "0").toString().replace(/[^0-9.]/g, '')) || 0;
+                                                const annual = (monthly * 12) + (monthly * bonus);
+                                                return annual > 0 ? (
+                                                    <span className="font-black text-indigo-600">฿{(annual / 1000000).toFixed(2)}M</span>
+                                                ) : (
+                                                    <span className="text-[10px] font-bold text-slate-300 italic">No Data</span>
+                                                );
+                                            })()}
+                                        </td>
+                                    )}
                                 </tr>
                             );
                         })}

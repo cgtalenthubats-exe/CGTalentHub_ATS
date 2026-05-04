@@ -1,0 +1,67 @@
+[
+  {
+    "brand": "JW Marriott",
+    "expected": "5 Star",
+    "current": "Empty"
+  },
+  {
+    "brand": "Sheraton",
+    "expected": "4 Star",
+    "current": "Empty"
+  },
+  {
+    "brand": "Park Hyatt",
+    "expected": "5 Star",
+    "current": "Empty"
+  },
+  {
+    "brand": "Grand Hyatt",
+    "expected": "5 Star",
+    "current": "Empty"
+  },
+  {
+    "brand": "Hyatt Regency",
+    "expected": "4 Star",
+    "current": "Empty"
+  },
+  {
+    "brand": "Rocco Forte Hotels",
+    "expected": "5 Star",
+    "current": "Empty"
+  },
+  {
+    "brand": "Amari",
+    "expected": "4 Star",
+    "current": "Empty"
+  },
+  {
+    "brand": "Shangri-La",
+    "expected": "5 Star",
+    "current": "Empty"
+  },
+  {
+    "brand": "Mandarin Oriental",
+    "expected": "5 Star",
+    "current": "Empty"
+  },
+  {
+    "brand": "Jumeirah Hotels & Resorts",
+    "expected": "5 Star",
+    "current": "Empty"
+  },
+  {
+    "brand": "Aman",
+    "expected": "5 Star",
+    "current": "Empty"
+  },
+  {
+    "brand": "Accor",
+    "expected": "3 Star",
+    "current": "Empty"
+  },
+  {
+    "brand": "Dusit International",
+    "expected": "3 Star",
+    "current": "Empty"
+  }
+]

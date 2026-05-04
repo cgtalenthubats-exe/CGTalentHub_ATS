@@ -1,0 +1,2317 @@
+[
+  {
+    "company_name": "The Ritz-Carlton, Dubai International Financial Centre",
+    "matched_brand": "Ritz-Carlton",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Pullman Bali Legian Beach",
+    "matched_brand": "Pullman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Somerset Liang Court, Singapore",
+    "matched_brand": "Somerset",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Varel Singapore, A Tribute Portfolio Hotel",
+    "matched_brand": "Tribute Portfolio",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Grand Hyatt Hong Kong",
+    "matched_brand": "Grand Hyatt",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Westin Grande Sukhumvit Bangkok",
+    "matched_brand": "Westin",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Dusit Thani Plc",
+    "matched_brand": "Dusit Thani",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Anantara Mai Khao Phuket Villas",
+    "matched_brand": "Anantara",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Howard Johnson Plaza Ningbo",
+    "matched_brand": "Howard Johnson",
+    "proposed_rating": "2 Star"
+  },
+  {
+    "company_name": "Waldorf Astoria Costa Rica Punta Cacique",
+    "matched_brand": "Waldorf Astoria",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Four Seasons Hotel Seoul",
+    "matched_brand": "Four Seasons",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Sofitel Bangkok Sukhumvit",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Pullman Bangkok Grande Sukhumvit",
+    "matched_brand": "Pullman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Novotel Singapore On Kitchener",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Wyndham Exchange and Rentals- a division of Wyndham Worldwide",
+    "matched_brand": "Wyndham",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "The Lexington New York City, Autograph Collection Hotels",
+    "matched_brand": "Autograph Collection",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Centara Hotels and Resorts",
+    "matched_brand": "Centara",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Conrad Koh Samui",
+    "matched_brand": "Conrad",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Rosewood Phuket",
+    "matched_brand": "Rosewood",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Ritz-Carlton, Kyoto",
+    "matched_brand": "Ritz-Carlton",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Ritz-Carlton, Bangalore",
+    "matched_brand": "Ritz-Carlton",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Peninsula Chicago",
+    "matched_brand": "The Peninsula",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The St. Regis Singapore",
+    "matched_brand": "St. Regis",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Siari, a Ritz-Carlton Reserve",
+    "matched_brand": "Ritz-Carlton",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Rosewood Abu Dhabi",
+    "matched_brand": "Rosewood",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Fairmont Makati",
+    "matched_brand": "Fairmont",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "DoubleTree by Hilton",
+    "matched_brand": "DoubleTree",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Hotel Okura Co., Ltd.",
+    "matched_brand": "Okura",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Sheraton Hotels & Resorts",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "The Leela Palaces, Hotels and Resorts",
+    "matched_brand": "The Leela",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Okura Europe B.V.",
+    "matched_brand": "Okura",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Signiel Seoul",
+    "matched_brand": "Signiel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "SO Sofitel Bangkok",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Park Plaza Sukhumvit Bangkok",
+    "matched_brand": "Park Plaza",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Mercure & ibis Erawan Thailand - ibis Sukhumvit 4",
+    "matched_brand": "Mercure",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Mercure Samui Chaweng Tana",
+    "matched_brand": "Mercure",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "BOULEVARD HOTEL BANGKOK SUKHUMVIT (Formerly Amari Boulevard Hotel)",
+    "matched_brand": "Amari",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Novotel Mumbai Juhu Beach",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Banyan Tree Hotels & Resorts",
+    "matched_brand": "Banyan Tree",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Sofitel",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Raffles Holdings",
+    "matched_brand": "Raffles",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Wyndham La Vita Phuket",
+    "matched_brand": "Wyndham",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Sure Stay Plus hotel by Best western Sukhumvit2",
+    "matched_brand": "Best Western",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Wyndham Destinations",
+    "matched_brand": "Wyndham",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Anantara Hotels & Resorts",
+    "matched_brand": "Anantara",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Four Seasons Hotels and Resorts",
+    "matched_brand": "Four Seasons",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Alila Hotels",
+    "matched_brand": "Alila",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Fairmont Raffles Hotels International",
+    "matched_brand": "Fairmont",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Fairmont Hotels & Resorts",
+    "matched_brand": "Fairmont",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Mercure & ibis Erawan Thailand",
+    "matched_brand": "Mercure",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Novotel Bali Nusa Dua",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "The Ritz-Carlton, Koh Samui",
+    "matched_brand": "Ritz-Carlton",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Banyan Tree Group",
+    "matched_brand": "Banyan Tree",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Soneva",
+    "matched_brand": "Soneva",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Novotel Suvarnabhumi Airport Hotel, Bangkok",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Wyndham Hotel Group",
+    "matched_brand": "Wyndham",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Wyndham Vacation Ownership",
+    "matched_brand": "Wyndham",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Silavadee Pool Spa Resort",
+    "matched_brand": "Silavadee Pool Spa Resort",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Novotel Hotels",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Okura Nikko Hotel Management Co., Ltd.",
+    "matched_brand": "Okura",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Standard, Hua Hin",
+    "matched_brand": "The Standard",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "The Standard Hotel",
+    "matched_brand": "The Standard",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Dusit Thani Public Company Limited",
+    "matched_brand": "Dusit Thani",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Mercure and Ibis Bangkok Siam",
+    "matched_brand": "Mercure",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Jumeirah Group / Jumeirah Hotels & Resorts",
+    "matched_brand": "Jumeirah Hotels & Resorts",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Four Seasons Hotel and Private Residences Bangkok at Chao Phraya River",
+    "matched_brand": "Four Seasons",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Four Seasons Resort, Koh Samui",
+    "matched_brand": "Four Seasons",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Ritz-Carlton, Berlin",
+    "matched_brand": "Ritz-Carlton",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Sofitel Casablanca Tour Blanche",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Sofitel Essaouira Mogador Golf & Spa",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Novotel Samui Resort Chaweng Beach Kandaburi",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Pullman Jakarta Indonesia",
+    "matched_brand": "Pullman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Park Hyatt Tokyo",
+    "matched_brand": "Park Hyatt",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Rosewood Phnom Penh",
+    "matched_brand": "Rosewood",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "COMO Hotels & resorts",
+    "matched_brand": "OMO",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Sheraton Maldives Full Moon Resort & Spa",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Four Seasons Hotel Cairo at the First Residence",
+    "matched_brand": "Four Seasons",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Karma Group Global",
+    "matched_brand": "Glo",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Courtyard by Marriott",
+    "matched_brand": "Courtyard",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "RAYAVADEE",
+    "matched_brand": "Rayavadee",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Royal Orchid Sheraton Hotel & Towers, Starwood Hotels & Resorts Co., Ltd.",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Marriott Hotels International Limited",
+    "matched_brand": "Marriott Hotels",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "JW Marriott Maldives Resort & Spa",
+    "matched_brand": "JW Marriott",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Alila Hotels - Two Roads Hospitality, Asia",
+    "matched_brand": "Alila",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Sofitel Le Sphinx Cairo",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Wyndham Sea Pearl Resort Phuket",
+    "matched_brand": "Wyndham",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "OYO Thailand",
+    "matched_brand": "OYO",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Pullman Sanya Yalong Bay",
+    "matched_brand": "Pullman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Novotel Rayong Rim Pae Resort",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Novotel London Heathrow Airport T1, T2 & T3",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Caesars Palace Dubai",
+    "matched_brand": "Caesars Palace",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Orient-Express Hotels, Trains & Cruises (Belmond)",
+    "matched_brand": "Belmond",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Travelodge Phuket Town",
+    "matched_brand": "Travelodge",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Sofitel Bucharest",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Langham Hong Kong",
+    "matched_brand": "The Langham",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Fairmont Tazi Palace Tangier",
+    "matched_brand": "Fairmont",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Hilton and DoubleTree by Hilton Sukhumvit Bangkok",
+    "matched_brand": "DoubleTree",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Pullman Beijing West Wanda",
+    "matched_brand": "Pullman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "MAMA SHELTER",
+    "matched_brand": "Mama Shelter",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Hotel Baraquda Pattaya​ -​ MGallery​ and​ Mercure​ Hotel​ Pattaya",
+    "matched_brand": "MGallery",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Pullman Danang Beach Resort",
+    "matched_brand": "Pullman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Novotel Phuket Surin",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Andaman Beach Hotel Phuket - Handwritten Collection",
+    "matched_brand": "Aman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Grand Hyatt Bali",
+    "matched_brand": "Grand Hyatt",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Park Hyatt Guangzhou",
+    "matched_brand": "Park Hyatt",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Andamantra",
+    "matched_brand": "Aman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Sofitel Luang Prabang and 3Nagas by Mgallery",
+    "matched_brand": "MGallery",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Novotel Phuket Karon",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Amari phuket",
+    "matched_brand": "Amari",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Holiday Inn Express Bangkok Siam",
+    "matched_brand": "Holiday Inn Express",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "DusitD2 Baraquda Pattaya",
+    "matched_brand": "dusitD2",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "ANdAZ",
+    "matched_brand": "Andaz",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Grand Hyatt Guangzhou",
+    "matched_brand": "Grand Hyatt",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Holiday Inn Express",
+    "matched_brand": "Holiday Inn Express",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Park Hyatt Kyoto",
+    "matched_brand": "Park Hyatt",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Four Seasons Hotel Bangkok at Chao Phraya River",
+    "matched_brand": "Four Seasons",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Cape & Kantary Hotels",
+    "matched_brand": "Kantary",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Capella Bangkok",
+    "matched_brand": "Cape",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "GLORIA Thalasso & Hotels",
+    "matched_brand": "Glo",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Marriott International Sheraton Chengdu Lido hotel",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Belmond Napasai",
+    "matched_brand": "Belmond",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Roukh Kiri Khao Yai (Centara Boutique Hotel Collection)",
+    "matched_brand": "Centara",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Hyatt Regency Hua Hin",
+    "matched_brand": "Hyatt Regency",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "dusitD2 Hua Hin",
+    "matched_brand": "dusitD2",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Holiday Inn Resort Samui Bophut Beach",
+    "matched_brand": "Holiday Inn",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Sheraton Huzhou Hot Spring Resort",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Fairmont Fujairah Beach Resort",
+    "matched_brand": "Fairmont",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "SHERATON Shanghai Hongkou Hotel",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "ibis Styles London Seven Kings",
+    "matched_brand": "ibis Styles",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "NH Collection Samui Peace Resort",
+    "matched_brand": "NH Collection",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Park Hyatt Bangkok",
+    "matched_brand": "Park Hyatt",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Amari Hua Hin",
+    "matched_brand": "Amari",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Siam@Siam Design Hotels",
+    "matched_brand": "Design Hotels",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Belmond (LVMH Group)",
+    "matched_brand": "Belmond",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Belmond – Peru",
+    "matched_brand": "Belmond",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Peri Hotel Khao Yai (Rebranding from Escape Khao Yai)",
+    "matched_brand": "Cape",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Sheraton Pattaya Resort",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Sheraton Kuwait",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Four Seasons Resort Mauritius at Anahita",
+    "matched_brand": "Four Seasons",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Sheraton New Caledonia Deva Spa & Golf Resort",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Cap Juluca, A Belmond Hotel",
+    "matched_brand": "Belmond",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Cassia Laguna, Phuket",
+    "matched_brand": "Cassia",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "\"Le Jadis Beach Resort & Wellness Mauritius\" (Managed by \"Banyan Tree Hotels & Resorts\")",
+    "matched_brand": "Banyan Tree",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Four Seasons Hotel Kuwait at Burj Alshaya",
+    "matched_brand": "Four Seasons",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Shangri-La Al Husn, Barr Al Jissah",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Dusit Thani Maldives",
+    "matched_brand": "Dusit Thani",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The St. Regis Maldives Vommuli Resort",
+    "matched_brand": "St. Regis",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Novotel Taipei Taoyuan",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Sofitel Plaza Hanoi",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Ramada Plaza by Wyndham Bangkok Sukhumvit 48 & 87",
+    "matched_brand": "Wyndham",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Ritz-Carlton Bahrain",
+    "matched_brand": "Ritz-Carlton",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Sofitel Hyland Shanghai",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Novotel Hua Hin Cha Am Beach Resort and Spa (Destination Group)",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Fairmont Bangkok Sukhumvit",
+    "matched_brand": "Fairmont",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Sofitel China",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Rendezvous Hospitality Group",
+    "matched_brand": "Rendezvous",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "The Westin New Orleans Canal Place",
+    "matched_brand": "Westin",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Pullman Shanghai South",
+    "matched_brand": "Pullman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Ritz-Carlton, St. Thomas",
+    "matched_brand": "Ritz-Carlton",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "DusitD2 and Dusit Princess Chiangmai",
+    "matched_brand": "dusitD2",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Somerset Ekamai Bangkok",
+    "matched_brand": "Somerset",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "The Westin Resort Nusa Dua, Bali",
+    "matched_brand": "Westin",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Novotel Sukhontha Haddyai",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Novotel Sukhumvit 4",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Somerset West Point Hanoi",
+    "matched_brand": "Somerset",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Sofitel Krabi/Novotel Phuket Phokeethra/Ibis Phuket City",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Ramada Resort by Wyndham Khao Lak",
+    "matched_brand": "Wyndham",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Pullman Khon Kaen Raja Orchid",
+    "matched_brand": "Pullman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Westin Bund Center Shanghai",
+    "matched_brand": "Westin",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "DusitD2 Ao Nang Krabi",
+    "matched_brand": "dusitD2",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "The Westin Guangzhou",
+    "matched_brand": "Westin",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Shangri-la's Le Touessrok Resort & Spa, Mauritius",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "SureStay Plus Sukhumvit Hotel by Best Western",
+    "matched_brand": "Best Western",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "DusitD2 (130 keys) & Dusit Princess Chiangmai (198 keys)",
+    "matched_brand": "dusitD2",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Ramada Khao Lak Resort",
+    "matched_brand": "Ramada",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Andamantra Resort and Villa Phuket",
+    "matched_brand": "Aman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Staybridge Suites Bangkok Thonglor and Staybridge Suites Bangkok Sukhumvit 24",
+    "matched_brand": "Glo",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Pullman Kuala Lumpur City Centre Hotel & Residences",
+    "matched_brand": "Pullman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Westin Grand Hotel Munich",
+    "matched_brand": "Westin",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Novotel Centrum Katowice",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Sheraton Maria Isabel Hotel & Towers, Mexico City",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Novotel Vientiane Laos",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Centara Ras Fushi Resort & Spa Maldives",
+    "matched_brand": "Centara",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Novotel HuaHin Cha Am Beach Resort & Spa",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Novotel Chumphon Beach Resort and Golf Hotel",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Ascott Marunouchi Tokyo",
+    "matched_brand": "Ascott",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Novotel Century Harbourview Hong Kong",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Sheraton Imperial Kuala Lumpur Hotel, Malaysia",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Westin Banyan Tree Bangkok",
+    "matched_brand": "Banyan Tree",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Anantara Hotels, Resorts and Spas",
+    "matched_brand": "Anantara",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Staybridge Suite Bangkok Thonglor",
+    "matched_brand": "Glo",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Sheraton Krabi Beach Resort",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Renaissance Koh Samui Resort and Spa",
+    "matched_brand": "Renaissance",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Andaz One Bangkok",
+    "matched_brand": "Andaz",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Pullman Pattaya Hotel G",
+    "matched_brand": "Pullman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Pullman Saigon Centre",
+    "matched_brand": "Pullman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Alila Luang Prabang (Hotel de la Paix Luang Prabang)",
+    "matched_brand": "Alila",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Kuoni Global Travel Services",
+    "matched_brand": "Glo",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Novotel Rotorua Lakeside",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Gloria Hotels & Resorts",
+    "matched_brand": "Glo",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Centara Riverside Hotel Chiang Mai",
+    "matched_brand": "Centara",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "NOVOTEL Living Bangkok Sukhumvit Legacy",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Amari Bangkok",
+    "matched_brand": "Amari",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Renaissance Tianjin Downtown Hotel",
+    "matched_brand": "Renaissance",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Sofitel Royal Bay Resort",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Ibis Dubai Al Barsha",
+    "matched_brand": "ibis",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Sofitel Guangzhou Sunrich",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Ascott Vietnam",
+    "matched_brand": "Ascott",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Kowloon Shangri-la Hotel, Hong Kong",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Soneva Kiri Resort, Spa and Private Residences",
+    "matched_brand": "Soneva",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Amari Vientiane, Laos",
+    "matched_brand": "Amari",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Novotel Yangon Max",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Shangri-La Hotel Chiangmai, Thailand",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Shangri-La's Villingili Resort&Spa",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Sheraton Frankfurt Airport Hotel & Conference Center",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Sofitel Bahrain Zallaq Thalassa Sea & Spa / Sofitel Al Khobar The Corniche  Saudi  Arabia",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Wyndham Garden Naithon, Phuket & Seaside Naithon Hotel",
+    "matched_brand": "Wyndham Garden",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Hyatt Regency Hua Hin & The BARAI",
+    "matched_brand": "Hyatt Regency",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "The Indian Hotels Company(Taj Mahal Palace & Tower)",
+    "matched_brand": "Taj",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Centara Ceysands Resort & Spa",
+    "matched_brand": "Centara",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Sofitel Krabi Phokeethra Golf & Spa Resort",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Princess Hotel",
+    "matched_brand": "The Prince",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "dusitD2 Hotels and Resorts",
+    "matched_brand": "dusitD2",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Landmark Mandarin Oriental",
+    "matched_brand": "Mandarin Oriental",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Sofitel Sydney Wentworth",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "St. Regis Hotels & Resorts",
+    "matched_brand": "St. Regis",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Golden Tulip Shanghai Rainbow",
+    "matched_brand": "Golden Tulip",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Pan Pacific Bangkok",
+    "matched_brand": "Pan Pacific",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Rosewood London",
+    "matched_brand": "Rosewood",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Centara Grand Mirage Beach Resort Pattaya",
+    "matched_brand": "Centara Grand",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Anantara Siam Bangkok Hotel",
+    "matched_brand": "Anantara",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Park Plaza Hotels & Resorts",
+    "matched_brand": "Park Plaza",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Holiday Inn (Kensington Forum)",
+    "matched_brand": "Holiday Inn",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "The Standard Hotels",
+    "matched_brand": "The Standard",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Rosewood Hotels",
+    "matched_brand": "Rosewood",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Novotel Bangkok Silom Road & Novotel Ploenchit,",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Cape Panwa Hotel, Phuket",
+    "matched_brand": "Cape",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Shangri-La Hotels and Resorts",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Ramada Paris Tour Eiffel",
+    "matched_brand": "Ramada",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Sheraton Hua Hin Resort & Spa / Sheraton Hua Hin Pranburi Villas",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Wyndham Royal Lee, Phuket",
+    "matched_brand": "Wyndham",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "B&B Hotels Espana y Portugal",
+    "matched_brand": "B&B Hotels",
+    "proposed_rating": "2 Star"
+  },
+  {
+    "company_name": "B&B Hotels Group",
+    "matched_brand": "B&B Hotels",
+    "proposed_rating": "2 Star"
+  },
+  {
+    "company_name": "Omni Hotels & Resorts",
+    "matched_brand": "Omni Hotels & Resorts",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Capella Hotels and Resorts",
+    "matched_brand": "Cape",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Holiday Inn Club Vacations",
+    "matched_brand": "Holiday Inn",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Six Senses Hotels Resorts Spas",
+    "matched_brand": "Six Senses",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Ritz-Carlton Hotel Company",
+    "matched_brand": "Ritz-Carlton",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Anantara Angkor Resort",
+    "matched_brand": "Anantara",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "AVANI+ Luang Prabang / Mekong Kingdoms",
+    "matched_brand": "Avani",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Ibis Phuket Kata, Ibis Krabi Aonang and Ibis Hua Hin",
+    "matched_brand": "ibis",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Conrad Seoul",
+    "matched_brand": "Conrad",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Fairmont Dubai",
+    "matched_brand": "Fairmont",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Howard Johnson Hot Spring Resort",
+    "matched_brand": "Howard Johnson",
+    "proposed_rating": "2 Star"
+  },
+  {
+    "company_name": "MGallery by Sofitel",
+    "matched_brand": "MGallery",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Howard Johnson by Wyndham",
+    "matched_brand": "Howard Johnson",
+    "proposed_rating": "2 Star"
+  },
+  {
+    "company_name": "Anantara Lawana Koh Samui",
+    "matched_brand": "Anantara",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Park Plaza Bangkok Soi 18",
+    "matched_brand": "Park Plaza",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Four Seasons Hotel, Sydney",
+    "matched_brand": "Four Seasons",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Four Seasons Hotel, Mumbai",
+    "matched_brand": "Four Seasons",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Anantara Riverside Bangkok Resort",
+    "matched_brand": "Anantara",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Sofitel Centara Grand Resort and Villa Hua Hin",
+    "matched_brand": "Centara Grand",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Sheraton Samui Resort",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Grand Mercure Khao Lak Bangsak",
+    "matched_brand": "Grand Mercure",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Angsana Laguna Phuket",
+    "matched_brand": "Angsana",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Park Hyatt Maldives Hadahaa",
+    "matched_brand": "Park Hyatt",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Santiburi Koh Samui",
+    "matched_brand": "Santiburi",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Holiday Inn Bangkok Sukhumvit 22",
+    "matched_brand": "Holiday Inn",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Andaman View Point Co., Ltd.",
+    "matched_brand": "Aman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Shangri-La Rasa Sentosa Resort & Spa",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Caesars Palace Dubai Bluewaters Dubai",
+    "matched_brand": "Caesars Palace",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Fairmont Tokyo",
+    "matched_brand": "Fairmont",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Le Méridien Bangkok",
+    "matched_brand": "Le Méridien",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "THE OSAKA STATION HOTEL, Autograph Collection -大阪ステーションホテル- 日本 大阪府 大阪",
+    "matched_brand": "Autograph Collection",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Park Hyatt Niseko Hanazono",
+    "matched_brand": "Park Hyatt",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Sheraton Grande Tokyo Bay Hotel",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "The St. Regis Osaka",
+    "matched_brand": "St. Regis",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Aloft Hotels Aloft Tokyo Ginza",
+    "matched_brand": "Aloft",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Swissôtel Nankai Osaka",
+    "matched_brand": "Swissôtel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Novotel Manila Araneta Center",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Tribute Portfolio\" \"\"The Chapter Kyoto, a Tribute Portfolio Hotel",
+    "matched_brand": "Tribute Portfolio",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "The Westin Siray Bay Resort & Spa",
+    "matched_brand": "Westin",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Holiday Inn Vana Nava Hua Hin",
+    "matched_brand": "Holiday Inn",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Six Senses Hotels Resorts Spas",
+    "matched_brand": "Six Senses",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Ritz-Carlton Yacht Collection",
+    "matched_brand": "Ritz-Carlton",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "InterContinental & Holiday Inn Vana Nava Hua Hin",
+    "matched_brand": "Holiday Inn",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Island Shangri-la Hotel, Hong Kong",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Wyndham Hua Hin Pranburi Resort & Villas",
+    "matched_brand": "Wyndham",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "PARKROYAL Suites Bangkok",
+    "matched_brand": "PARKROYAL",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Pullman Phuket Panwa Beach Resort",
+    "matched_brand": "Pullman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Ramada Phuket",
+    "matched_brand": "Ramada",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Centara Reserve Samui",
+    "matched_brand": "Centara Reserve",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Hotel Pullman Khao Lak Katiliya Resort and Spa",
+    "matched_brand": "Pullman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Ascott Sathorn Bangkok",
+    "matched_brand": "Ascott",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Andamanda Phuket",
+    "matched_brand": "Aman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Centara pattaya Hotel and Centara nova and spa hotel",
+    "matched_brand": "Centara",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Somerset Grand Fortune Garden, Beijing / Somerset Lake Point, Bangkok",
+    "matched_brand": "Somerset",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Centara Ayutthaya",
+    "matched_brand": "Centara",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Mercure Bangkok Sukhumvit 11",
+    "matched_brand": "Mercure",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Mercure Hotels",
+    "matched_brand": "Mercure",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Amari Pattaya",
+    "matched_brand": "Amari",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Mango House Seychelles, LXR Hotels & Resorts",
+    "matched_brand": "LXR Hotels & Resorts",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Dhaka Sheraton Hotel",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Sheraton Hanoi Hotel,",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Sheraton Penang Hotel",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Evason Phuket & Six Senses Hideaway Yao Noi",
+    "matched_brand": "Six Senses",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Centara Mirage Beach Resort Dubai",
+    "matched_brand": "Centara",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Novotel Muscat Airport",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Andaz London Liverpool Street",
+    "matched_brand": "Andaz",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Aloft Kuala Lumpur Sentral",
+    "matched_brand": "Aloft",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Chainarai Resort by Dusit Thani",
+    "matched_brand": "Dusit Thani",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "SureStay By Best Western Iconic Suvarnabhumi",
+    "matched_brand": "Best Western",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Sofitel Angkor Phokeethra Golf & Spa Resort",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Novotel ibis Styles Bangkok Sukhumvit4",
+    "matched_brand": "ibis Styles",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Sheraton Oman",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Wyndham Worldwide - Ramada Hotels & Resorts - American Hotel Chain",
+    "matched_brand": "Wyndham",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Wyndham Bangkok Queen Convention Centre and Wyndham Garden Sukhumvit 42",
+    "matched_brand": "Wyndham Garden",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Amari Havodda Maldives",
+    "matched_brand": "Amari",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Yunomori Onsen & Spa Pattaya (Pre-Opening Team)",
+    "matched_brand": "OMO",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Anantara Koh Yao Yai",
+    "matched_brand": "Anantara",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "AVANI+ Riverside Bangkok",
+    "matched_brand": "Avani",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Ramada by Wyndham Bangkok Sukhumvit 48 and Ramada by Wyndham Bangkok Sukhumvit 87",
+    "matched_brand": "Wyndham",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Sofitel Dongguan Royal Lagoon and Sofitel Golf Resort",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Wyndham Grand Nai Harn Resort Phuket",
+    "matched_brand": "Wyndham Grand",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Miraval Group, a division of Hyatt Hotels Corporation",
+    "matched_brand": "Miraval",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Waldorf Astoria Hotels & Resorts",
+    "matched_brand": "Waldorf Astoria",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "AccorHotels | Pullman Phuket Arcadia Naithon Beach",
+    "matched_brand": "Pullman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Akyra Thonglor Bangkok",
+    "matched_brand": "Glo",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Aleenta Resort & Spa",
+    "matched_brand": "Aleenta",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Aloft Langkawi Pantai Tengah",
+    "matched_brand": "Aloft",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Amanpuri",
+    "matched_brand": "Aman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Anantara Bangkok Riverside Resort & Spa",
+    "matched_brand": "Anantara",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Anantara Chiang Mai Serviced Suites",
+    "matched_brand": "Anantara",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Anantara Desaru Coast Resort & Villas",
+    "matched_brand": "Anantara",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Anantara Golden Triangle Resort & Spa",
+    "matched_brand": "Anantara",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Anantara Le Chaland (Pre-Opening)",
+    "matched_brand": "Anantara",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Andaz Tokyo - A Concept By Hyatt",
+    "matched_brand": "Andaz",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Ascott Group",
+    "matched_brand": "Ascott",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Ascott International Management Thailand",
+    "matched_brand": "Ascott",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Avani Sukhumvit Bangkok",
+    "matched_brand": "Avani",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Beverly Wilshire, A Four Seasons Hotel",
+    "matched_brand": "Four Seasons",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Capella Kyoto",
+    "matched_brand": "Cape",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Cassia Cottage Resort",
+    "matched_brand": "Cassia",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Conrad Bali",
+    "matched_brand": "Conrad",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Conrad Dubai",
+    "matched_brand": "Conrad",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Conrad Maldives, Rangali Island",
+    "matched_brand": "Conrad",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Conrad Osaka",
+    "matched_brand": "Conrad",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Conrad Tokyo (LinkedIn Account Closed)",
+    "matched_brand": "Conrad",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Fairmont and Raffles Makati",
+    "matched_brand": "Fairmont",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Fairmont Hamilton Princess",
+    "matched_brand": "Fairmont",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Fairmont Hanoi",
+    "matched_brand": "Fairmont",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Fairmont Jaipur",
+    "matched_brand": "Fairmont",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Fairmont La Hacienda Costa del Sol",
+    "matched_brand": "Fairmont",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Fairmont Le Montreux Palace",
+    "matched_brand": "Fairmont",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Fairmont Monte Carlo",
+    "matched_brand": "Fairmont",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Fairmont The Palm, Dubai",
+    "matched_brand": "Fairmont",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Fairmont The Queen Elizabeth",
+    "matched_brand": "Fairmont",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Fairmont Royal Palm Marrakech",
+    "matched_brand": "Fairmont",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Futian Shangri-La, Shenzhen",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Grand Hospitality - Soho and Tribeca Grand Hotels",
+    "matched_brand": "Tribe",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Hilton Al Habtoor City & V Curio Collection by Hilton",
+    "matched_brand": "Curio Collection",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Hilton Garden Inn Bali Airport",
+    "matched_brand": "Hilton Garden Inn",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Hilton Hanoi Opera & Hilton Garden Inn Hanoi",
+    "matched_brand": "Hilton Garden Inn",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Hotel de la Coupole - MGallery",
+    "matched_brand": "MGallery",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Hotel Indigo and Holiday Inn Express Bangkok Phayathai",
+    "matched_brand": "Holiday Inn Express",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Hotel Muse Bangkok by MGallery",
+    "matched_brand": "MGallery",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Hotel Toranomon Hills - The Unbound Collection by Hyatt",
+    "matched_brand": "The Unbound Collection by Hyatt",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Hyatt Centric Kanazawa, Hyatt House Kanazawa",
+    "matched_brand": "Hyatt Centric",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Hyatt Place / The Andaman Beach Hotel Phuket Rebranded from Hyatt",
+    "matched_brand": "Hyatt Place",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "ibis Hong Kong Central & Sheung Wan",
+    "matched_brand": "ibis",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "IHG Holiday Inn Karon & Surin/ Radisson Red, Hua Hin & Kamala/ Socialtel",
+    "matched_brand": "Holiday Inn",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "The Langham, Shanghai, Xintiandi",
+    "matched_brand": "The Langham",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Leela Kempinski",
+    "matched_brand": "The Leela",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Makati Shangri-La, Manila",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Mercure ibis Erawan hotels",
+    "matched_brand": "Mercure",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Mercure Okinawa Naha",
+    "matched_brand": "Mercure",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Mercure Sapporo",
+    "matched_brand": "Mercure",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "MGallery Fairmont Resort Blue Mountains & Mercure Canberra",
+    "matched_brand": "Fairmont",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Movenpick, Novotel & Adagio Jumeirah Village Triangle, Pullman Sharjah & Marjan Island & Resort",
+    "matched_brand": "Pullman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Moxy Hotels",
+    "matched_brand": "Moxy Hotels",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Moxy Osaka Shinumeda",
+    "matched_brand": "Moxy",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Novotel & ibis Sydney Darling Harbour",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Novotel Beijing Peace & Novotel Beijing Xinqiao",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Novotel IMPACT, ACCOR",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Novotel Peace Beijing",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Novotel Sydney Brighton Beach",
+    "matched_brand": "Novotel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Oakwood Asia Pacific Ltd",
+    "matched_brand": "Oakwood",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Oakwood Worldwide",
+    "matched_brand": "Oakwood",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "The Oberoi, Marrakech",
+    "matched_brand": "The Oberoi",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Peninsula Bangkok",
+    "matched_brand": "The Peninsula",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Portman Ritz-Carlton, Shanghai",
+    "matched_brand": "Ritz-Carlton",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Pre-opening DoubleTree by Hilton Ras al Khaimah Corniche Hotel & Residences",
+    "matched_brand": "DoubleTree",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Pudong Shangri-La",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Pullman and Novotel New Delhi Aerocity – Accor",
+    "matched_brand": "Pullman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Pullman Kaifeng Jianye Hotel and Resort",
+    "matched_brand": "Pullman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Pullman Tokyo Tamachi",
+    "matched_brand": "Pullman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Pullmantur",
+    "matched_brand": "Pullman",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Raffles Dubai",
+    "matched_brand": "Raffles",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Raffles Sentosa Singapore",
+    "matched_brand": "Raffles",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Rambagh Palace (A unit of Taj Group of Hotels & Resorts)",
+    "matched_brand": "Taj",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Rayavadee Resort",
+    "matched_brand": "Rayavadee",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Renaissance Amsterdam Schiphol Airport Hotel",
+    "matched_brand": "Renaissance",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Renaissance Bangkok, Ratchaprasong (Total room 333 rooms and 15 meeting rooms)",
+    "matched_brand": "Renaissance",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Renaissance Chicago",
+    "matched_brand": "Renaissance",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Renaissance Pattaya Resort & Spa (Pre-Opening Team)",
+    "matched_brand": "Renaissance",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Rendezvous Hotels New Zealand",
+    "matched_brand": "Rendezvous",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "The Ritz-Carlton, Baku",
+    "matched_brand": "Ritz-Carlton",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Ritz-Carlton, Bangkok",
+    "matched_brand": "Ritz-Carlton",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Ritz-Carlton, Hong Kong",
+    "matched_brand": "Ritz-Carlton",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Ritz-Carlton Maldives, Fari Islands",
+    "matched_brand": "Ritz-Carlton",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Ritz-Carlton, Millenia Singapore",
+    "matched_brand": "Ritz-Carlton",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Ritz-Carlton,  Moscow",
+    "matched_brand": "Ritz-Carlton",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Ritz-Carlton, Osaka",
+    "matched_brand": "Ritz-Carlton",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Ritz-Carlton Singapore",
+    "matched_brand": "Ritz-Carlton",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Rosewood Castiglion del Bosco",
+    "matched_brand": "Rosewood",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Rosewood Hong Kong",
+    "matched_brand": "Rosewood",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Rosewood Le Guanahani St. Barth",
+    "matched_brand": "Rosewood",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "SAii Lagoon Maldives, Curio Collection by Hilton",
+    "matched_brand": "Curio Collection",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "SAii Laguna Phuket, SAii Phi Phi Island Village, Singha Hotels & Resorts (SHR PCL)",
+    "matched_brand": "SAii",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Santiburi Dusit Resort Kho Samui",
+    "matched_brand": "Santiburi",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Shangri-La Bangkok",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Shangri-La Beijing",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Shangri-La Boracay",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Shangri-La Dubai",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Shangri-La Jakarta",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Shangri-La Tianjin",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Shangri-La Yanuca Island, Fiji",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Shangri-La's Barr al Jissah Resort&Spa",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Shangri-La's Fijian Resort & Spa",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Shangri-La's Rasa Sayang Resort&Spa",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Shangri-La�s Sanya Resort & Spa, Hainan",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Sheraton Brisbane Hotel & Towers",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Sheraton Can Tho",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Sheraton Dhaka Hotel",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Sheraton Grand Danang Resort & Convention Center",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Sheraton Petaling Jaya Hotel",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Sheraton Sydney Airport Hotel",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Sheraton Tel Aviv",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Sofitel Gold Coast - Australia",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Sofitel Luxury Hotels Asia Pacific",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Sofitel Mumbai BKC – Accor",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Sofitel Philippine Plaza",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "The Soneva Group",
+    "matched_brand": "Soneva",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Soneva Resorts",
+    "matched_brand": "Soneva",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Southern Sun Hotels",
+    "matched_brand": "Southern Sun",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "The Standard, Maldives",
+    "matched_brand": "The Standard",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Starwood / Marriott Hotels",
+    "matched_brand": "Marriott Hotels",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "The Stones Hotel Legian-Bali, Autograph Collection by Marriott",
+    "matched_brand": "Autograph Collection",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Sule Shangri-la",
+    "matched_brand": "Shangri-La",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Swissôtel Merchant Court",
+    "matched_brand": "Swissôtel",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Taj Mahal Palace & Towers Hotel",
+    "matched_brand": "Taj",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Tivoli Hotels & Resorts",
+    "matched_brand": "Tivoli",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "The Tokyo EDITION, Toranomon",
+    "matched_brand": "EDITION",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Vinpearl Landmark 81, Autograph Collection by Marriott",
+    "matched_brand": "Autograph Collection",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "The Westin Desaru Coast Resort",
+    "matched_brand": "Westin",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Westin Hotels & Resorts - The Westin Calgary, Alberta, Canada",
+    "matched_brand": "Westin",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "The Westin Valencia",
+    "matched_brand": "Westin",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "The Westin Kuala Lumpur",
+    "matched_brand": "Westin",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "The Westin Singapore",
+    "matched_brand": "Westin",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "W Retreat Koh Samui and Sheraton Pattaya",
+    "matched_brand": "Sheraton",
+    "proposed_rating": "4 Star"
+  },
+  {
+    "company_name": "Wyndham Jomtien Pattaya",
+    "matched_brand": "Wyndham",
+    "proposed_rating": "3 Star"
+  },
+  {
+    "company_name": "Sofitel Sanya Leeman Resort",
+    "matched_brand": "Sofitel",
+    "proposed_rating": "5 Star"
+  },
+  {
+    "company_name": "Andaman Wave Master Company",
+    "matched_brand": "Aman",
+    "proposed_rating": "5 Star"
+  }
+]

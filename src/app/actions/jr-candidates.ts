@@ -117,7 +117,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         Promise.all(candidateIdChunks.map(chunk => 
             (supabase
                 .from('Candidate Profile' as any)
-                .select('candidate_id, name, email, mobile_phone, job_function, photo, age, gender, candidate_projects, candidate_status, linkedin')
+                .select('candidate_id, name, email, mobile_phone, job_function, photo, age, gender, candidate_projects, candidate_status, linkedin, gross_salary_base_b_mth, bonus_mth')
                 .in('candidate_id', chunk) as any)
         )),
 
@@ -256,6 +256,8 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
             candidate_gender: profile?.gender || undefined,
             candidate_status: profile?.candidate_status || undefined,
             candidate_linkedin_url: profile?.linkedin || undefined,
+            candidate_salary_base: profile?.gross_salary_base_b_mth || undefined,
+            candidate_salary_bonus: profile?.bonus_mth || undefined,
             history_count: historyMap.get(row.candidate_id) || 0,
         };
     });
@@ -274,87 +276,174 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
 export async function getJRAnalytics(jrId: string): Promise<JRAnalytics> {
     const supabase = adminAuthClient;
 
-    // 0. Fetch Master & Candidates
-    const [{ data: masters }, { data: jrCands }] = await Promise.all([
-        supabase.from('status_master').select('status, stage_order').order('stage_order', { ascending: true }),
-        supabase.from('jr_candidates').select('jr_candidate_id, temp_status').eq('jr_id', jrId).returns<{ jr_candidate_id: string; temp_status: string }[]>()
-    ]);
+    try {
+        // 0. Fetch Master & Candidates
+        const [{ data: masters }, { data: jrCands }] = await Promise.all([
+            supabase.from('status_master').select('status_name, stage_order').order('stage_order', { ascending: true }),
+            supabase.from('jr_candidates').select('jr_candidate_id, temp_status').eq('jr_id', jrId).returns<{ jr_candidate_id: string; temp_status: string }[]>()
+        ]);
 
-    // Use sorted status list from master
-    const allStatuses = (masters as any[])?.map(m => m.status) || [];
-    const statusOrderMap: Record<string, number> = {};
-    (masters as any[])?.forEach(m => statusOrderMap[m.status] = m.stage_order);
+        // Use sorted status list from master
+        const allStatuses = (masters as any[])?.map(m => m.status_name) || [
+            "New Candidate", "Pool Candidate", "Pre-screen", "Interview", "Offer", "Successful Placement", "Rejected", "Withdrawn"
+        ];
+        const statusOrderMap = new Map((masters as any[])?.map(m => [m.status_name, m.stage_order]));
 
-    if (!jrCands || jrCands.length === 0) return { countsByStatus: [], agingByStatus: [] };
+        if (!jrCands || jrCands.length === 0) {
+            // Even if no candidates, return all statuses with 0 count to keep graphs visible
+            return {
+                countsByStatus: allStatuses.map(s => ({ status: s, count: 0 })),
+                agingByStatus: allStatuses.map(s => ({ status: s, avgDays: 0 }))
+            };
+        }
 
-    // 1. Fetch ALL Logs for these candidates to count transactions
-    const jrCandIds = jrCands.map(c => c.jr_candidate_id);
-    const { data: logs } = await supabase
-        .from('status_log')
-        .select('log_id, jr_candidate_id, status, timestamp')
-        .in('jr_candidate_id', jrCandIds)
-        .returns<{ log_id: number; jr_candidate_id: string; status: string; timestamp: string }[]>();
+        // 1. Fetch ALL Logs for these candidates to count transactions
+        const jrCandIds = jrCands.map(c => c.jr_candidate_id);
+        const { data: logs } = await supabase
+            .from('status_log')
+            .select('log_id, jr_candidate_id, status, timestamp')
+            .in('jr_candidate_id', jrCandIds)
+            .returns<{ log_id: number; jr_candidate_id: string; status: string; timestamp: string }[]>();
 
-    // 2. Compute Counts & Aging
-    const countMap: Record<string, number> = {};
-    const agingMap: Record<string, { totalDays: number, count: number }> = {};
+        // 2. Compute Counts & Aging
+        const countMap: Record<string, number> = {};
+        const agingMap: Record<string, { totalDays: number, count: number }> = {};
 
-    // Initialize counts with master order
-    allStatuses.forEach(s => countMap[s] = 0);
-    const now = new Date();
-
-    // Count EVERY log entry as an activity transaction
-    if (logs) {
-        logs.forEach(log => {
-            const status = log.status || "Unknown";
-            if (countMap[status] !== undefined) {
-                countMap[status]++;
-            } else {
-                // If status is not in master, add it to the end
-                countMap[status] = (countMap[status] || 0) + 1;
-            }
+        // Initialize with all statuses to ensure they appear in the graph
+        allStatuses.forEach(s => {
+            countMap[s] = 0;
         });
-    }
+        
+        const now = new Date();
 
-    jrCands.forEach(c => {
-        const status = getLatestStatus(logs || [], c.jr_candidate_id, "Pool Candidate");
-
-        // Aging: Time since the LATEST activity in the current status
+        // Count activity transactions
         if (logs) {
-            const cLogs = logs.filter(l => l.jr_candidate_id === c.jr_candidate_id);
-            cLogs.sort((a, b) => {
-                const dateA = new Date(a.timestamp).getTime();
-                const dateB = new Date(b.timestamp).getTime();
-                if (dateA !== dateB && !isNaN(dateA) && !isNaN(dateB)) return dateB - dateA;
-                return b.log_id - a.log_id;
+            logs.forEach(log => {
+                const status = log.status || "Unknown";
+                if (countMap[status] !== undefined) {
+                    countMap[status]++;
+                } else {
+                    countMap[status] = (countMap[status] || 0) + 1;
+                }
             });
-            const latestLog = cLogs[0];
+        }
 
-            if (latestLog) {
+        // Aging: Time since the LATEST activity in the current status for each candidate
+        jrCands.forEach(c => {
+            const status = getLatestStatus(logs || [], c.jr_candidate_id, "Pool Candidate");
+            
+            const cLogs = (logs || []).filter(l => l.jr_candidate_id === c.jr_candidate_id);
+            if (cLogs.length > 0) {
+                cLogs.sort((a, b) => {
+                    const dateA = new Date(a.timestamp).getTime();
+                    const dateB = new Date(b.timestamp).getTime();
+                    if (dateA !== dateB && !isNaN(dateA) && !isNaN(dateB)) return dateB - dateA;
+                    return b.log_id - a.log_id;
+                });
+                const latestLog = cLogs[0];
                 const days = Math.floor((now.getTime() - new Date(latestLog.timestamp).getTime()) / (1000 * 3600 * 24));
+                
                 if (!agingMap[status]) agingMap[status] = { totalDays: 0, count: 0 };
                 agingMap[status].totalDays += days;
                 agingMap[status].count++;
             }
-        }
-    });
+        });
 
-    // Prepare result sorted by stage_order (master order)
-    const sortedStatuses = Object.keys(countMap).sort((a, b) => {
-        const orderA = statusOrderMap[a] ?? 999;
-        const orderB = statusOrderMap[b] ?? 999;
-        return orderA - orderB;
-    });
+        // Prepare result sorted by stage_order
+        const sortedStatuses = Object.keys(countMap).sort((a, b) => {
+            const orderA = (statusOrderMap.get(a) as number) ?? 999;
+            const orderB = (statusOrderMap.get(b) as number) ?? 999;
+            return orderA - orderB;
+        });
 
-    const countsByStatus = sortedStatuses.map(s => ({ status: s, count: countMap[s] }));
-    const agingByStatus = sortedStatuses
-        .filter(s => agingMap[s]) // Only show aging for statuses that have candidates
-        .map(s => ({
+        const countsByStatus = sortedStatuses.map(s => ({ status: s, count: countMap[s] }));
+        const agingByStatus = sortedStatuses.map(s => ({
             status: s,
-            avgDays: Math.round(agingMap[s].totalDays / agingMap[s].count)
+            avgDays: agingMap[s] ? Math.round(agingMap[s].totalDays / agingMap[s].count) : 0
         }));
 
-    return { countsByStatus, agingByStatus };
+        return { countsByStatus, agingByStatus };
+    } catch (e) {
+        console.error("Error in getJRAnalytics:", e);
+        return { countsByStatus: [], agingByStatus: [] };
+    }
+}
+
+/**
+ * Fetch Salary Benchmark data specifically for candidates within a single JR.
+ * Reuses the EXACT logic from getMarketSalaryStats for consistency.
+ */
+export async function getJRSalaryStats(jrId: string) {
+    const { getMarketSalaryStats } = await import("@/app/actions/dashboard");
+    
+    // 1. Get all candidate IDs in this JR
+    const supabase = adminAuthClient;
+    const { data: jrCands } = await supabase
+        .from('jr_candidates')
+        .select('candidate_id')
+        .eq('jr_id', jrId);
+
+    if (!jrCands || jrCands.length === 0) return [];
+    const candidateIds = jrCands.map(c => c.candidate_id);
+
+    // 2. Use the proven dashboard action with a filter
+    // We'll call the dashboard stats but then filter the results to only include these candidates.
+    // (Or we can modify getMarketSalaryStats to accept a list of IDs, but for now filtering is safest/fastest)
+    const allStats = await getMarketSalaryStats();
+    
+    // 3. Since getMarketSalaryStats aggregates by Company, we need a slightly more precise approach
+    // Let's actually pull the data ourselves using the SAME logic but targeted.
+    
+    try {
+        const { data: profiles } = await (supabase
+            .from('Candidate Profile' as any)
+            .select('candidate_id, name, gross_salary_base_b_mth, bonus_mth')
+            .in('candidate_id', candidateIds) as any);
+
+        const { data: experiences } = await (supabase
+            .from('candidate_experiences' as any)
+            .select('candidate_id, company, position_keyword, is_current_job, start_date')
+            .in('candidate_id', candidateIds) as any);
+
+        const results: any[] = [];
+        profiles?.forEach((p: any) => {
+            const monthly = parseFloat(p.gross_salary_base_b_mth) || 0;
+            const bonus = parseFloat((p.bonus_mth || "0").toString().replace(/[^0-9.]/g, '')) || 0;
+            const annual = (monthly * 12) + (monthly * bonus);
+            if (annual <= 0) return;
+
+            const candExps = (experiences || []).filter((e: any) => e.candidate_id === p.candidate_id);
+            candExps.sort((a, b) => {
+                const aCur = a.is_current_job === 'Current' ? 1 : 0;
+                const bCur = b.is_current_job === 'Current' ? 1 : 0;
+                if (aCur !== bCur) return bCur - aCur;
+                return new Date(b.start_date).getTime() - new Date(a.start_date).getTime();
+            });
+
+            const exp = candExps[0];
+            if (!exp) return;
+
+            results.push({
+                company: exp.company || "Unknown Company",
+                position: exp.position_keyword || "Unknown Position",
+                salary: annual / 1000000
+            });
+        });
+
+        // Group by Company
+        const companyGroup: Record<string, any> = {};
+        results.forEach(r => {
+            if (!companyGroup[r.company]) {
+                companyGroup[r.company] = { company: r.company };
+            }
+            companyGroup[r.company][r.position] = r.salary;
+        });
+
+        return Object.values(companyGroup);
+    } catch (e) {
+        console.error("Error in getJRSalaryStats:", e);
+        return [];
+    }
 }
 
 export async function addCandidatesToJR(

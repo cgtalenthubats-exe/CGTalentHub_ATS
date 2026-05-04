@@ -1,0 +1,32 @@
+[
+  {
+    "brand": "Days Inn",
+    "expected": "3 Star",
+    "current": "2 Star"
+  },
+  {
+    "brand": "Super 8",
+    "expected": "3 Star",
+    "current": "2 Star"
+  },
+  {
+    "brand": "Campanile",
+    "expected": "3 Star",
+    "current": "2 Star"
+  },
+  {
+    "brand": "Kyriad",
+    "expected": "3 Star",
+    "current": "2 Star"
+  },
+  {
+    "brand": "Première Classe",
+    "expected": "3 Star",
+    "current": "2 Star"
+  },
+  {
+    "brand": "Hanting Hotel",
+    "expected": "3 Star",
+    "current": "2 Star"
+  }
+]
