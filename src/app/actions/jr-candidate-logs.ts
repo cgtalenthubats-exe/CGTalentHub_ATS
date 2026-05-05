@@ -53,7 +53,7 @@ export async function getJRCandidateDetails(jrCandidateId: string) {
             .select('*')
             .eq('candidate_id', candidateId)
             .single(),
-        
+
         // Experiences
         (supabase as any)
             .from('candidate_experiences')
@@ -144,9 +144,9 @@ export async function getJRCandidateDetails(jrCandidateId: string) {
 }
 
 export async function addActivityLog(
-    jrCandidateId: string, 
-    status: string, 
-    note: string | null = null, 
+    jrCandidateId: string,
+    status: string,
+    note: string | null = null,
     updatedBy: string = "System",
     customTimestamp?: string
 ) {
@@ -187,7 +187,7 @@ export async function addActivityLog(
     }
 }
 
-export async function updateActivityLog(logId: number, status: string, note: string | null = null, updatedBy?: string) {
+export async function updateActivityLog(logId: number, status: string, note: string | null = null, updatedBy?: string, customTimestamp?: string) {
     const supabase = adminAuthClient;
 
     try {
@@ -198,6 +198,10 @@ export async function updateActivityLog(logId: number, status: string, note: str
 
         if (updatedBy) {
             updates.updated_by = updatedBy;
+        }
+
+        if (customTimestamp) {
+            updates.timestamp = customTimestamp;
         }
 
         const { error } = await (supabase as any)

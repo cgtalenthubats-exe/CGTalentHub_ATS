@@ -59,20 +59,20 @@ export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }
     const handleAdd = () => {
         setEditingLog(null);
         // Reset but keep the last selected or current user if possible
-        setFormData(prev => ({ 
-            ...prev, 
-            status: "Pool Candidate", 
-            note: "", 
-            timestamp: new Date().toISOString().split('T')[0] 
+        setFormData(prev => ({
+            ...prev,
+            status: "Pool Candidate",
+            note: "",
+            timestamp: new Date().toISOString().split('T')[0]
         }));
         setIsDialogOpen(true);
     };
 
     const handleEdit = (log: StatusLog) => {
         setEditingLog(log);
-        setFormData({ 
-            status: log.status, 
-            note: log.note || "", 
+        setFormData({
+            status: log.status,
+            note: log.note || "",
             updatedBy: log.updated_by || "",
             timestamp: log.timestamp
         });
@@ -102,7 +102,7 @@ export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }
         try {
             let res;
             if (editingLog) {
-                res = await updateActivityLog(editingLog.log_id, formData.status, formData.note, formData.updatedBy);
+                res = await updateActivityLog(editingLog.log_id, formData.status, formData.note, formData.updatedBy, formData.timestamp);
             } else {
                 res = await addActivityLog(jrCandidateId, formData.status, formData.note, formData.updatedBy, formData.timestamp);
             }
