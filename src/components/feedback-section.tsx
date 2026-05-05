@@ -170,9 +170,9 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback, isRead
                                     <span className="text-[10px] font-bold text-slate-400">{formatDateForDisplay(f.interview_date)}</span>
                                     <Badge variant="outline" className={cn(
                                         "text-[9px] font-black uppercase tracking-widest",
-                                        ['Strong Recommend', 'Hire', 'Recommend', 'Strongly Recommend'].includes(f.overall_recommendation)
+                                        ['Recommend'].includes(f.overall_recommendation)
                                             ? 'bg-green-50 text-green-700 border-green-100'
-                                            : f.overall_recommendation === 'Hold'
+                                            : ['Keep in View', 'Future Pipeline'].includes(f.overall_recommendation)
                                                 ? 'bg-yellow-50 text-yellow-700 border-yellow-100'
                                                 : 'bg-red-50 text-red-700 border-red-100'
                                     )}>
@@ -227,9 +227,9 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback, isRead
                             </div>
                             <Badge className={cn(
                                 "font-black tracking-widest px-3 py-1",
-                                ['Strong Recommend', 'Hire', 'Recommend', 'Strongly Recommend'].includes(viewingFeedback?.overall_recommendation)
+                                ['Recommend'].includes(viewingFeedback?.overall_recommendation)
                                     ? 'bg-green-50 text-green-700 border-green-100'
-                                    : viewingFeedback?.overall_recommendation === 'Hold'
+                                    : ['Keep in View', 'Future Pipeline'].includes(viewingFeedback?.overall_recommendation)
                                         ? 'bg-yellow-50 text-yellow-700 border-yellow-100'
                                         : 'bg-red-50 text-red-700 border-red-100'
                             )}>

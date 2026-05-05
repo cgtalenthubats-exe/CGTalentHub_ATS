@@ -244,10 +244,11 @@ export function AddFeedbackDialog({
                                     <SelectValue placeholder="Select result" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="Strong Recommend">Strong Recommend</SelectItem>
-                                    <SelectItem value="Hire">Hire</SelectItem>
-                                    <SelectItem value="Hold">Hold</SelectItem>
-                                    <SelectItem value="Reject">Reject</SelectItem>
+                                    <SelectItem value="Recommend">Recommend</SelectItem>
+                                    <SelectItem value="Keep in View">Keep in View</SelectItem>
+                                    <SelectItem value="Future Pipeline">Future Pipeline</SelectItem>
+                                    <SelectItem value="Not fit for the role">Not fit for the role</SelectItem>
+                                    <SelectItem value="Not fit for organization">Not fit for organization</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
