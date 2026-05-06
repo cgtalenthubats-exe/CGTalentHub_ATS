@@ -153,10 +153,12 @@ export function HistoryInsights({ jrId }: HistoryInsightsProps) {
                                                                     <Badge variant="outline" className={cn(
                                                                         "text-[9px] font-black uppercase tracking-widest px-2 shadow-none",
                                                                         ['Recommend'].includes(hist.latest_feedback.overall_recommendation)
-                                                                            ? 'text-emerald-600 border-emerald-100 bg-emerald-50/50' 
-                                                                            : ['Keep in View', 'Future Pipeline'].includes(hist.latest_feedback.overall_recommendation)
-                                                                                ? 'text-amber-600 border-amber-100 bg-amber-50/50'
-                                                                                : 'text-rose-600 border-rose-100 bg-rose-50/50'
+                                            ? 'text-emerald-600 border-emerald-100 bg-emerald-50/50' 
+                                            : ['Keep in View', 'Future Pipeline'].includes(hist.latest_feedback.overall_recommendation)
+                                                ? 'text-amber-600 border-amber-100 bg-amber-50/50'
+                                                : ['Not open'].includes(hist.latest_feedback.overall_recommendation)
+                                                    ? 'text-slate-600 border-slate-200 bg-slate-50/50'
+                                                    : 'text-rose-600 border-rose-100 bg-rose-50/50'
                                                                     )}>
                                                                         {hist.latest_feedback.overall_recommendation}
                                                                     </Badge>

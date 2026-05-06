@@ -174,7 +174,9 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback, isRead
                                             ? 'bg-green-50 text-green-700 border-green-100'
                                             : ['Keep in View', 'Future Pipeline'].includes(f.overall_recommendation)
                                                 ? 'bg-yellow-50 text-yellow-700 border-yellow-100'
-                                                : 'bg-red-50 text-red-700 border-red-100'
+                                                : ['Not open'].includes(f.overall_recommendation)
+                                                    ? 'bg-slate-50 text-slate-700 border-slate-200'
+                                                    : 'bg-red-50 text-red-700 border-red-100'
                                     )}>
                                         {f.overall_recommendation}
                                     </Badge>
@@ -231,7 +233,9 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback, isRead
                                     ? 'bg-green-50 text-green-700 border-green-100'
                                     : ['Keep in View', 'Future Pipeline'].includes(viewingFeedback?.overall_recommendation)
                                         ? 'bg-yellow-50 text-yellow-700 border-yellow-100'
-                                        : 'bg-red-50 text-red-700 border-red-100'
+                                        : ['Not open'].includes(viewingFeedback?.overall_recommendation)
+                                            ? 'bg-slate-50 text-slate-700 border-slate-200'
+                                            : 'bg-red-50 text-red-700 border-red-100'
                             )}>
                                 {viewingFeedback?.overall_recommendation}
                             </Badge>

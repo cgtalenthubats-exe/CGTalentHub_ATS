@@ -247,6 +247,7 @@ export function AddFeedbackDialog({
                                     <SelectItem value="Recommend">Recommend</SelectItem>
                                     <SelectItem value="Keep in View">Keep in View</SelectItem>
                                     <SelectItem value="Future Pipeline">Future Pipeline</SelectItem>
+                                    <SelectItem value="Not open">Not open</SelectItem>
                                     <SelectItem value="Not fit for the role">Not fit for the role</SelectItem>
                                     <SelectItem value="Not fit for organization">Not fit for organization</SelectItem>
                                 </SelectContent>
