@@ -4,6 +4,19 @@ import { adminAuthClient } from "@/lib/supabase/admin";
 
 const N8N_STAGE3_URL = "https://n8n.srv1212906.hstgr.cloud/webhook/demo-stage3";
 
+export async function getLatestJobForJR(jrId: string): Promise<{ jobId: string; status: string; candidateCount: number } | null> {
+    const { data } = await adminAuthClient
+        .from("ai_ranking_jobs")
+        .select("job_id, status, candidate_count")
+        .eq("jr_id", jrId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+    if (!data) return null;
+    return { jobId: data.job_id, status: data.status, candidateCount: data.candidate_count ?? 0 };
+}
+
 export async function triggerStage3Ranking(jrId: string, query: string) {
     // Get all candidate_ids in this JR
     const { data: jrCandidates, error } = await adminAuthClient

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Sparkles, Loader2, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { triggerStage3Ranking, getStage3JobStatus, type Stage3JobData, type Stage3Result } from "@/app/actions/ai-ranking";
+import { triggerStage3Ranking, getStage3JobStatus, getLatestJobForJR, type Stage3JobData, type Stage3Result } from "@/app/actions/ai-ranking";
 
 interface Props {
     jrId: string;
@@ -99,13 +99,33 @@ export function AiSuggestionTab({ jrId, jrTitle }: Props) {
 
     useEffect(() => () => stopPolling(), []);
 
-    // Reset when JR changes
+    // Restore state when JR changes (or on mount)
     useEffect(() => {
         stopPolling();
         setStatus("idle");
         setData(null);
+        setPollingStatus(null);
         setQuery(jrTitle ?? "");
         setErrorMsg(null);
+
+        const restore = async () => {
+            const job = await getLatestJobForJR(jrId);
+            if (!job) return;
+            setCandidateCount(job.candidateCount);
+            if (job.status === "completed") {
+                const result = await getStage3JobStatus(job.jobId, jrId);
+                if (result) { setStatus("completed"); setData(result); }
+            } else if (["ready_to_analyse", "analysing", "pending_summary"].includes(job.status)) {
+                setStatus("processing");
+                setPollingStatus(job.status);
+                startPolling(job.jobId);
+            } else if (job.status === "completed") {
+                // partial results still visible
+                const result = await getStage3JobStatus(job.jobId, jrId);
+                if (result?.results.length) { setData(result); }
+            }
+        };
+        restore();
     }, [jrId, jrTitle]);
 
     const startPolling = (jobId: string) => {
