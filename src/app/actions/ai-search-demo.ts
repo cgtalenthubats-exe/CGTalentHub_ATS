@@ -188,9 +188,11 @@ export async function parseQueryToFilters(query: string): Promise<AiParseResult>
 
     const keywordRows = (keywordsRes.data || []) as { keyword: string; aliases: string | null; group_label: string }[];
     const keywords = keywordRows.map((k) => k.keyword);
-    const keywordsWithAliases = keywordRows.map((k) =>
-        k.aliases ? `${k.keyword} (aliases: ${k.aliases})` : k.keyword
-    );
+    const keywordsWithAliases = keywordRows.map((k) => {
+        if (!k.aliases) return k.keyword;
+        const shortAliases = k.aliases.split(',').slice(0, 4).map(a => a.trim()).join(', ');
+        return `${k.keyword} (aliases: ${shortAliases})`;
+    });
     const industryGroups = [...new Set((industriesRes.data || []).map((i: any) => i.group as string))];
     const industries = (industriesRes.data || []).map((i: any) => i.industry as string);
     const regions = [...new Set((countriesRes.data || []).map((c: any) => c.region as string).filter(Boolean))].sort();
@@ -253,20 +255,24 @@ Rules:
   · "Hospital", "Healthcare", "Pharma" → industry_group = "Others" (no dedicated group)
 - Return ONLY the JSON, no other text`;
 
-    const response = await client.messages.create({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 1500,
-        messages: [{ role: "user", content: query }],
-        system: systemPrompt,
-    });
-
-    const text = response.content[0].type === "text" ? response.content[0].text : "";
+    let text = "";
+    try {
+        const response = await client.messages.create({
+            model: "claude-haiku-4-5-20251001",
+            max_tokens: 1500,
+            messages: [{ role: "user", content: query }],
+            system: systemPrompt,
+        });
+        text = response.content[0].type === "text" ? response.content[0].text : "";
+    } catch (err: any) {
+        console.error("Anthropic API error:", err?.message ?? err);
+        return { filters: {}, suggestions: {} };
+    }
 
     const tryParse = (raw: string): AiParseResult | null => {
         try {
             const parsed = JSON.parse(raw.trim());
             if (parsed.filters && parsed.suggestions) return parsed as AiParseResult;
-            // If AI returned flat filters without wrapper, wrap it
             return { filters: parsed as Partial<DemoFilterState>, suggestions: {} };
         } catch {
             return null;
