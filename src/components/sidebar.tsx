@@ -35,6 +35,7 @@ const menuItems = [
     { name: "AI Power Search", icon: Search, path: "/ai-search" },
     { name: "AI Primary Search", icon: Bot, path: "/assistant" },
     { name: "AI Power Search V2", icon: Sparkles, path: "/ai-search-v2" },
+    { name: "AI Search Demo", icon: Sparkles, path: "/ai-search-demo" },
     { name: "Settings", icon: Settings, path: "/settings" },
     { name: "n8n Integration", icon: Webhook, path: "/admin/n8n" },
     { name: "Company Master", icon: Building2, path: "/admin/companies" },
@@ -75,7 +76,7 @@ export function Sidebar() {
                 </div>
                 {menuItems.map((item) => {
                     const isActive = pathname === item.path ||
-                        (item.path !== '/' && pathname.startsWith(item.path));
+                        (item.path !== '/' && pathname.startsWith(item.path + '/'));
                     const Icon = item.icon;
                     return (
                         <Link

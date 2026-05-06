@@ -27,10 +27,11 @@ import { toast } from "@/lib/notifications";
 import { deleteJobRequisition, getUserProfiles, getRequisition } from "@/app/actions/requisitions";
 import { getJRAnalytics } from "@/app/actions/jr-candidates";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-    Plus, List, Kanban, MessageSquare, Briefcase, Share2, Loader2, 
-    Copy, Trophy, Trash2, Edit, User, Activity, History 
+import {
+    Plus, List, Kanban, MessageSquare, Briefcase, Share2, Loader2,
+    Copy, Trophy, Trash2, Edit, User, Activity, History, Sparkles
 } from "lucide-react";
+import { AiSuggestionTab } from "./ai-suggestion-tab";
 import { useJobRequisitionRealtime } from "@/hooks/use-jr-realtime";
 import {
     AlertDialog,
@@ -523,6 +524,9 @@ export default function JRManagePage() {
                                         <TabsTrigger value="salary" className="h-10 px-6 data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800 data-[state=active]:text-primary">
                                             <Briefcase className="mr-2 h-4 w-4" /> Salary Benchmark
                                         </TabsTrigger>
+                                        <TabsTrigger value="ai-suggestion" className="h-10 px-6 data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800 data-[state=active]:text-primary">
+                                            <Sparkles className="mr-2 h-4 w-4 text-indigo-500" /> AI Suggestion
+                                        </TabsTrigger>
                                     </TabsList>
                                 </div>
 
@@ -673,6 +677,13 @@ export default function JRManagePage() {
                                             </div>
                                         </CardContent>
                                     </Card>
+                                </TabsContent>
+                                <TabsContent value="ai-suggestion" className="mt-0">
+                                    <AiSuggestionTab
+                                        key={`ai-${selectedJR.id}`}
+                                        jrId={selectedJR.id}
+                                        jrTitle={selectedJR.job_title}
+                                    />
                                 </TabsContent>
                             </Tabs>
                         </div>

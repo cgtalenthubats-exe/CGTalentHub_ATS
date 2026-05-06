@@ -691,7 +691,7 @@ export default function CandidateListPage() {
                 onOpenChange={setIsAddDialogOpen}
                 candidateIds={targetCandidateIds}
                 candidateNames={targetCandidateIds.map(id => candidates.find(c => c.candidate_id === id)?.name || id)}
-                onSuccess={() => {
+                onSuccess={(_jrId) => {
                     setSelectedIds([]);
                     setTargetCandidateIds([]);
                 }}

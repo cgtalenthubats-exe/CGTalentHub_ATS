@@ -24,7 +24,7 @@ export function NotificationCenter() {
     const refreshTasks = async () => {
         try {
             const tasks = await getOrgChartVerificationAlerts();
-            setTaskAlerts(tasks.filter((t: any) => t.pending_nodes > 0));
+            setTaskAlerts((tasks ?? []).filter((t: any) => t.pending_nodes > 0));
         } catch (error) {
             console.error("Failed to fetch task alerts for notification center:", error);
         }

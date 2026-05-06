@@ -47,7 +47,7 @@ interface Props {
     candidateIds: string[];
     candidateNames?: string[];
     candidateSources?: string[];
-    onSuccess?: () => void;
+    onSuccess?: (jrId: string) => void;
     isSelectAll?: boolean;
     filters?: any;
     search?: string;
@@ -259,7 +259,7 @@ export function AddCandidateDialog({
                     duration: 6000
                 });
                 onOpenChange(false);
-                onSuccess?.();
+                onSuccess?.(selectedJrId!);
             } else {
                 toast.error(res.error || "Failed to add candidates");
             }
@@ -300,7 +300,7 @@ export function AddCandidateDialog({
                     duration: 6000
                 });
                 onOpenChange(false);
-                onSuccess?.();
+                onSuccess?.(createdJr.id);
             } else {
                 toast.error(res.error || "Failed to add candidates to new JR");
             }

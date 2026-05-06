@@ -7,11 +7,73 @@ import { ChangelogViewer } from "@/components/settings/changelog-viewer";
 import { AppGuidelines } from "@/components/settings/app-guidelines";
 import { StatusMasterSettings } from "@/components/settings/status-master-settings";
 import { AISettings } from "@/components/settings/ai-settings";
-import { Settings, Sliders, Webhook, Users, History, BookOpen, Tag, Sparkles, Beaker } from "lucide-react";
+import { Settings, Sliders, Webhook, Users, History, BookOpen, Tag, Sparkles, Beaker, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Toaster } from "sonner";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { useState } from "react";
+import { fillPositionKeywords } from "@/app/actions/data-quality";
+
+function FillPositionKeywordsCard() {
+    const [loading, setLoading] = useState(false);
+    const [result, setResult] = useState<{ filled: number; remaining_null: number; still_empty: number } | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
+    const handleRun = async () => {
+        setLoading(true);
+        setResult(null);
+        setError(null);
+        try {
+            const r = await fillPositionKeywords();
+            setResult(r);
+        } catch (e: any) {
+            setError(e.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <Card className="border-slate-200">
+            <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                    <Tag className="w-5 h-5 text-indigo-500" />
+                    Fill Position Keywords
+                </CardTitle>
+                <CardDescription>
+                    เติม <code className="text-xs bg-slate-100 px-1 rounded">position_keyword</code> ที่เป็น NULL ใน candidate_experiences
+                    โดยใช้ vocab matching (word boundary) — ที่เหลือส่ง AI ใน n8n เติมต่อ
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                <Button
+                    onClick={handleRun}
+                    disabled={loading}
+                    variant="outline"
+                    className="w-full"
+                >
+                    {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Running...</> : "Run Fill"}
+                </Button>
+                {result && (
+                    <div className="rounded-lg bg-green-50 border border-green-200 px-4 py-3 text-sm space-y-1">
+                        <div className="flex items-center gap-2 font-medium text-green-800">
+                            <CheckCircle2 className="w-4 h-4" /> Done
+                        </div>
+                        <div className="text-green-700">Filled: <strong>{result.filled}</strong> rows</div>
+                        <div className="text-slate-500">Remaining (need AI): <strong>{result.remaining_null}</strong></div>
+                        <div className="text-slate-400 text-xs">No position text: {result.still_empty}</div>
+                    </div>
+                )}
+                {error && (
+                    <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4" /> {error}
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
 
 export default function SettingsPage() {
     return (
@@ -110,6 +172,7 @@ export default function SettingsPage() {
                                 </Link>
                             </CardContent>
                         </Card>
+                        <FillPositionKeywordsCard />
                     </div>
                 </TabsContent>
 
