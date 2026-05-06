@@ -1,8 +1,7 @@
 "use server";
 
-import Anthropic from "@anthropic-ai/sdk";
 import { adminAuthClient } from "@/lib/supabase/admin";
-import { POSITION_LEVELS, HOTEL_RATINGS, type DemoFilterState, type AiParseResult } from "@/app/ai-search-demo/types";
+import { type DemoFilterState, type AiParseResult } from "@/app/ai-search-demo/types";
 
 // helper: convert DemoFilterState to RPC params
 function toRpcParams(f: DemoFilterState) {
@@ -174,115 +173,28 @@ export async function getCohortAnalysis(candidateIds: string[]) {
     return data as import("@/app/ai-search-demo/types").CohortAnalysis;
 }
 
-// Parse natural language query → filters + suggestions using Claude
+const N8N_AI_PARSE_URL = "https://n8n.srv1212906.hstgr.cloud/webhook/ai-parse-filters";
+
+// Parse natural language query → filters + suggestions via n8n webhook
+// n8n handles: code-based alias keyword matching + AI (Claude Haiku) for other filters
 export async function parseQueryToFilters(query: string): Promise<AiParseResult> {
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    // Fetch vocab from DB in parallel
-    const [keywordsRes, industriesRes, countriesRes, jobFunctionsRes] = await Promise.all([
-        adminAuthClient.from("position_keyword_vocab").select("keyword, aliases, group_label").order("group_label").order("keyword"),
-        adminAuthClient.from("industry_group").select("group, industry").order("group").order("industry"),
-        adminAuthClient.from("country").select("country, region").not("country", "is", null).order("country"),
-        adminAuthClient.from("Candidate Profile").select("job_function").not("job_function", "is", null).neq("job_function", "").neq("job_function", "Not found exp").neq("job_function", "Unknown").limit(3000),
-    ]);
-
-    const keywordRows = (keywordsRes.data || []) as { keyword: string; aliases: string | null; group_label: string }[];
-    const keywords = keywordRows.map((k) => k.keyword);
-    const keywordsWithAliases = keywordRows.map((k) => {
-        if (!k.aliases) return k.keyword;
-        const shortAliases = k.aliases.split(',').slice(0, 4).map(a => a.trim()).join(', ');
-        return `${k.keyword} (aliases: ${shortAliases})`;
-    });
-    const industryGroups = [...new Set((industriesRes.data || []).map((i: any) => i.group as string))];
-    const industries = (industriesRes.data || []).map((i: any) => i.industry as string);
-    const regions = [...new Set((countriesRes.data || []).map((c: any) => c.region as string).filter(Boolean))].sort();
-    const countries = (countriesRes.data || []).map((c: any) => c.country as string);
-    const jobFunctions = [...new Set((jobFunctionsRes.data || []).map((r: any) => r.job_function as string))].sort();
-
-    const systemPrompt = `You are a hospitality & recruitment search assistant. Parse a natural language search query into filter criteria AND expansion suggestions.
-
-Return ONLY a valid JSON object in this exact shape (no markdown, no explanation):
-{
-  "filters": {
-    "position_keywords": string[],
-    "position_levels": string[],
-    "industry_group": string | null,
-    "industries": string[],
-    "regions": string[],
-    "countries": string[],
-    "hotel_ratings": string[],
-    "current_only": boolean,
-    "job_functions": string[],
-    "positions": [],
-    "companies": [],
-    "exclude_companies": string[],
-    "exclude_countries": string[],
-    "exclude_keywords": string[]
-  },
-  "suggestions": {
-    "position_keywords": string[],
-    "position_levels": string[],
-    "industries": string[],
-    "regions": string[],
-    "countries": string[],
-    "hotel_ratings": string[],
-    "job_functions": string[]
-  }
-}
-
-FILTERS = values you are HIGHLY confident the user wants from their query.
-SUGGESTIONS = values the user did NOT explicitly mention, but could expand or refine their search (similar roles, nearby regions, adjacent star ratings, etc.). Must NOT overlap with filters. Max 5 items per field.
-EXCLUDE fields = use when user says "exclude", "not", "except", "ยกเว้น", "ไม่เอา" — put those values in exclude_* fields, NOT in the include fields.
-
-Allowed values:
-- position_keywords (use EXACT keyword value, aliases shown for matching user input): ${JSON.stringify(keywordsWithAliases)}
-- position_levels: ${JSON.stringify(POSITION_LEVELS)}
-- industry_group (filters only): one of ${JSON.stringify(industryGroups)} or null
-- industries: ${JSON.stringify(industries)}
-- regions: ${JSON.stringify(regions)}
-- countries: ${JSON.stringify(countries)}
-- hotel_ratings: ${JSON.stringify(HOTEL_RATINGS)}
-- job_functions: ${JSON.stringify(jobFunctions)}
-
-Rules:
-- Use EXACT keyword strings from allowed values only (not aliases)
-- Match user input against aliases to find the correct keyword, then return the keyword
-- Use empty arrays [] for fields not applicable
-- For regions, prefer region over listing individual countries
-- Industry mapping warnings:
-  · "F&B", "Food and Beverage", "Restaurant" → industry_group = "Retail / FMCG / F&B" (NOT Hospitality)
-  · "Luxury hotel", "5-star hotel", "5 star" → use hotel_ratings filter, NOT industry field
-  · "Hospital", "Healthcare", "Pharma" → industry_group = "Others" (no dedicated group)
-- Return ONLY the JSON, no other text`;
-
-    let text = "";
     try {
-        const response = await client.messages.create({
-            model: "claude-haiku-4-5-20251001",
-            max_tokens: 1500,
-            messages: [{ role: "user", content: query }],
-            system: systemPrompt,
+        const response = await fetch(N8N_AI_PARSE_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query }),
         });
-        text = response.content[0].type === "text" ? response.content[0].text : "";
+
+        if (!response.ok) {
+            console.error("n8n AI parse webhook failed:", response.statusText);
+            return { filters: {}, suggestions: {} };
+        }
+
+        const data = await response.json();
+        if (data.filters && data.suggestions) return data as AiParseResult;
+        return { filters: {}, suggestions: {} };
     } catch (err: any) {
-        console.error("Anthropic API error:", err?.message ?? err);
+        console.error("AI parse error:", err?.message ?? err);
         return { filters: {}, suggestions: {} };
     }
-
-    const tryParse = (raw: string): AiParseResult | null => {
-        try {
-            const parsed = JSON.parse(raw.trim());
-            if (parsed.filters && parsed.suggestions) return parsed as AiParseResult;
-            return { filters: parsed as Partial<DemoFilterState>, suggestions: {} };
-        } catch {
-            return null;
-        }
-    };
-
-    const result = tryParse(text) ?? (() => {
-        const match = text.match(/\{[\s\S]*\}/);
-        return match ? tryParse(match[0]) : null;
-    })();
-
-    return result ?? { filters: {}, suggestions: {} };
 }
