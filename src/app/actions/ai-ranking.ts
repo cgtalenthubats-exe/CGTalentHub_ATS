@@ -20,7 +20,7 @@ export async function triggerStage3Ranking(jrId: string, query: string) {
     const response = await fetch(N8N_STAGE3_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job_id: jobId, candidate_ids: candidateIds, query }),
+        body: JSON.stringify({ job_id: jobId, candidate_ids: candidateIds, query, jr_id: jrId }),
     });
 
     if (!response.ok)
@@ -61,17 +61,20 @@ export async function getStage3JobStatus(jobId: string, jrId: string): Promise<S
         .single();
 
     if (!job) return null;
-    if (job.status !== "completed") return { status: job.status, summary: null, results: [], result_count: null };
 
-    // Fetch ranked results
+    // Fetch done candidates progressively — show results as they arrive
     const { data: results } = await adminAuthClient
         .from("ai_ranking_results")
         .select("candidate_id, score, strengths, gaps, tradeoff, rank")
         .eq("job_id", jobId)
-        .order("rank");
+        .eq("status", "done")
+        .order("score", { ascending: false });
 
     const candidateIds = (results ?? []).map((r: any) => r.candidate_id);
-    if (!candidateIds.length) return { status: "completed", summary: job.summary, results: [], result_count: job.result_count };
+
+    if (!candidateIds.length) {
+        return { status: job.status, summary: job.status === "completed" ? job.summary : null, results: [], result_count: job.result_count };
+    }
 
     const [profilesRes, expRes, jrRes] = await Promise.all([
         adminAuthClient
@@ -103,13 +106,13 @@ export async function getStage3JobStatus(jobId: string, jrId: string): Promise<S
         strengths: r.strengths ?? "",
         gaps: r.gaps ?? "",
         tradeoff: r.tradeoff ?? "",
-        rank: r.rank,
+        rank: r.rank ?? null,
         list_type: jrMap.get(r.candidate_id)?.list_type ?? "Longlist",
     }));
 
     return {
-        status: "completed",
-        summary: job.summary,
+        status: job.status,
+        summary: job.status === "completed" ? job.summary : null,
         results: enriched,
         result_count: job.result_count,
     };

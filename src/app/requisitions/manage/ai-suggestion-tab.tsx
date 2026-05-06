@@ -85,6 +85,7 @@ function ResultRow({ r }: { r: Stage3Result }) {
 export function AiSuggestionTab({ jrId, jrTitle }: Props) {
     const [query, setQuery] = useState(jrTitle ?? "");
     const [status, setStatus] = useState<"idle" | "processing" | "completed" | "error">("idle");
+    const [pollingStatus, setPollingStatus] = useState<string | null>(null);
     const [data, setData] = useState<Stage3JobData | null>(null);
     const [candidateCount, setCandidateCount] = useState<number | null>(null);
     const [loading, setLoading] = useState(false);
@@ -112,14 +113,18 @@ export function AiSuggestionTab({ jrId, jrTitle }: Props) {
         pollRef.current = setInterval(async () => {
             try {
                 const result = await getStage3JobStatus(jobId, jrId);
-                if (result?.status === "completed") {
-                    stopPolling();
-                    setStatus("completed");
-                    setData(result);
-                } else if (!result) {
+                if (!result) {
                     stopPolling();
                     setStatus("error");
                     setErrorMsg("ไม่พบข้อมูล job");
+                } else {
+                    setPollingStatus(result.status);
+                    // Show partial results as they arrive
+                    if (result.results.length > 0) setData(result);
+                    if (result.status === "completed") {
+                        stopPolling();
+                        setStatus("completed");
+                    }
                 }
             } catch {
                 stopPolling();
@@ -134,6 +139,7 @@ export function AiSuggestionTab({ jrId, jrTitle }: Props) {
         stopPolling();
         setLoading(true);
         setStatus("processing");
+        setPollingStatus(null);
         setData(null);
         setErrorMsg(null);
         try {
@@ -192,9 +198,12 @@ export function AiSuggestionTab({ jrId, jrTitle }: Props) {
                 <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-8 text-center space-y-3">
                     <Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-400" />
                     <p className="text-sm font-medium text-indigo-700">
-                        AI กำลังประเมิน {candidateCount ? `${candidateCount} candidates` : "candidates"}...
+                        {pollingStatus === "ready_to_analyse" && "รอ AI เริ่มประเมิน..."}
+                        {pollingStatus === "analysing" && `AI กำลังประเมิน ${candidateCount ? `${candidateCount} candidates` : "candidates"}...`}
+                        {pollingStatus === "pending_summary" && "AI กำลังสรุปผลและจัดอันดับ..."}
+                        {!pollingStatus && `AI กำลังประเมิน ${candidateCount ? `${candidateCount} candidates` : "candidates"}...`}
                     </p>
-                    <p className="text-xs text-indigo-400">อาจใช้เวลา 1–3 นาที ขึ้นอยู่กับจำนวน candidates</p>
+                    <p className="text-xs text-indigo-400">ระบบประมวลผลทุก 3 นาที อาจใช้เวลา 5–15 นาที</p>
                 </div>
             )}
 
@@ -205,11 +214,11 @@ export function AiSuggestionTab({ jrId, jrTitle }: Props) {
                 </div>
             )}
 
-            {/* Results */}
-            {status === "completed" && data && (
+            {/* Results — show progressively while processing or after completed */}
+            {data && data.results.length > 0 && (
                 <div className="space-y-3">
-                    {/* Summary banner */}
-                    {data.summary?.final_recommendation && (
+                    {/* Summary banner — only when completed */}
+                    {status === "completed" && data.summary?.final_recommendation && (
                         <div className="bg-gradient-to-br from-indigo-50 to-slate-50 border border-indigo-100 rounded-xl p-4 space-y-2">
                             <p className="text-sm font-bold text-indigo-900 leading-relaxed">
                                 ✦ {data.summary.final_recommendation}
@@ -223,7 +232,10 @@ export function AiSuggestionTab({ jrId, jrTitle }: Props) {
                     {/* Header */}
                     <div className="flex items-center justify-between px-1">
                         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                            Ranked {data.results.length} candidates
+                            {status === "processing"
+                                ? <>Evaluating... <span className="text-indigo-500">{data.results.length} done so far</span></>
+                                : <>Ranked {data.results.length} candidates</>
+                            }
                         </span>
                         <span className="text-xs text-slate-400">คลิกแถวเพื่อดูรายละเอียด</span>
                     </div>
