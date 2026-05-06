@@ -180,13 +180,17 @@ export async function parseQueryToFilters(query: string): Promise<AiParseResult>
 
     // Fetch vocab from DB in parallel
     const [keywordsRes, industriesRes, countriesRes, jobFunctionsRes] = await Promise.all([
-        adminAuthClient.from("position_keyword_vocab").select("keyword, group_label").order("group_label").order("keyword"),
+        adminAuthClient.from("position_keyword_vocab").select("keyword, aliases, group_label").order("group_label").order("keyword"),
         adminAuthClient.from("industry_group").select("group, industry").order("group").order("industry"),
         adminAuthClient.from("country").select("country, region").not("country", "is", null).order("country"),
         adminAuthClient.from("Candidate Profile").select("job_function").not("job_function", "is", null).neq("job_function", "").neq("job_function", "Not found exp").neq("job_function", "Unknown").limit(3000),
     ]);
 
-    const keywords = (keywordsRes.data || []).map((k: any) => k.keyword);
+    const keywordRows = (keywordsRes.data || []) as { keyword: string; aliases: string | null; group_label: string }[];
+    const keywords = keywordRows.map((k) => k.keyword);
+    const keywordsWithAliases = keywordRows.map((k) =>
+        k.aliases ? `${k.keyword} (aliases: ${k.aliases})` : k.keyword
+    );
     const industryGroups = [...new Set((industriesRes.data || []).map((i: any) => i.group as string))];
     const industries = (industriesRes.data || []).map((i: any) => i.industry as string);
     const regions = [...new Set((countriesRes.data || []).map((c: any) => c.region as string).filter(Boolean))].sort();
@@ -229,7 +233,7 @@ SUGGESTIONS = values the user did NOT explicitly mention, but could expand or re
 EXCLUDE fields = use when user says "exclude", "not", "except", "ยกเว้น", "ไม่เอา" — put those values in exclude_* fields, NOT in the include fields.
 
 Allowed values:
-- position_keywords: ${JSON.stringify(keywords)}
+- position_keywords (use EXACT keyword value, aliases shown for matching user input): ${JSON.stringify(keywordsWithAliases)}
 - position_levels: ${JSON.stringify(POSITION_LEVELS)}
 - industry_group (filters only): one of ${JSON.stringify(industryGroups)} or null
 - industries: ${JSON.stringify(industries)}
@@ -239,9 +243,9 @@ Allowed values:
 - job_functions: ${JSON.stringify(jobFunctions)}
 
 Rules:
-- Use EXACT strings from allowed values only
+- Use EXACT keyword strings from allowed values only (not aliases)
+- Match user input against aliases to find the correct keyword, then return the keyword
 - Use empty arrays [] for fields not applicable
-- "GM" → "General Manager / GM", "F&B" → "F&B Manager", "5 star" → "5 Star"
 - For regions, prefer region over listing individual countries
 - Industry mapping warnings:
   · "F&B", "Food and Beverage", "Restaurant" → industry_group = "Retail / FMCG / F&B" (NOT Hospitality)
