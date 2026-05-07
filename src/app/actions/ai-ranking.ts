@@ -53,6 +53,15 @@ export type Stage3Result = {
     tradeoff: string;
     rank: number;
     list_type: string;
+    // 4-Dimension scoring (Top 20 only, null for others)
+    experience_score: number | null;
+    experience_summary: string | null;
+    leadership_score: number | null;
+    leadership_summary: string | null;
+    market_score: number | null;
+    market_summary: string | null;
+    skills_score: number | null;
+    skills_summary: string | null;
 };
 
 export type Stage3JobData = {
@@ -78,7 +87,7 @@ export async function getStage3JobStatus(jobId: string, jrId: string): Promise<S
     // Fetch done candidates progressively — show results as they arrive
     const { data: results } = await adminAuthClient
         .from("ai_ranking_results")
-        .select("candidate_id, score, strengths, gaps, tradeoff, rank")
+        .select("candidate_id, score, strengths, gaps, tradeoff, rank, experience_score, experience_summary, leadership_score, leadership_summary, market_score, market_summary, skills_score, skills_summary")
         .eq("job_id", jobId)
         .eq("status", "done")
         .order("score", { ascending: false });
@@ -121,6 +130,14 @@ export async function getStage3JobStatus(jobId: string, jrId: string): Promise<S
         tradeoff: r.tradeoff ?? "",
         rank: r.rank ?? null,
         list_type: jrMap.get(r.candidate_id)?.list_type ?? "Longlist",
+        experience_score: r.experience_score ?? null,
+        experience_summary: r.experience_summary ?? null,
+        leadership_score: r.leadership_score ?? null,
+        leadership_summary: r.leadership_summary ?? null,
+        market_score: r.market_score ?? null,
+        market_summary: r.market_summary ?? null,
+        skills_score: r.skills_score ?? null,
+        skills_summary: r.skills_summary ?? null,
     }));
 
     return {
@@ -129,4 +146,32 @@ export async function getStage3JobStatus(jobId: string, jrId: string): Promise<S
         results: enriched,
         result_count: job.result_count,
     };
+}
+
+export type JobHistoryItem = {
+    jobId: string;
+    query: string;
+    status: string;
+    candidateCount: number;
+    resultCount: number | null;
+    createdAt: string;
+};
+
+export async function getJobHistoryForJR(jrId: string): Promise<JobHistoryItem[]> {
+    const { data } = await adminAuthClient
+        .from("ai_ranking_jobs")
+        .select("job_id, query, status, candidate_count, result_count, created_at")
+        .eq("jr_id", jrId)
+        .order("created_at", { ascending: false })
+        .limit(10);
+
+    if (!data) return [];
+    return data.map((d: any) => ({
+        jobId: d.job_id,
+        query: d.query,
+        status: d.status,
+        candidateCount: d.candidate_count ?? 0,
+        resultCount: d.result_count ?? null,
+        createdAt: d.created_at,
+    }));
 }
