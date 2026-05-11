@@ -93,7 +93,7 @@ export async function refreshJRCandidates(jrId: string) {
         // 1. Fetch candidates linked to this JR
         const { data: linkedCandidates, error: linkError } = await client
             .from('jr_candidates')
-            .select('candidate_id, candidate:Candidate Profile(first_name, last_name, linkedin_url)')
+            .select('candidate_id, candidate:Candidate Profile(name, linkedin)')
             .eq('jr_id', jrId);
 
         if (linkError) throw linkError;
@@ -105,8 +105,8 @@ export async function refreshJRCandidates(jrId: string) {
         // Format for n8n
         const candidatesPayload = linkedCandidates.map((c: any) => ({
             id: c.candidate_id,
-            name: c.candidate ? `${c.candidate.first_name || ''} ${c.candidate.last_name || ''}`.trim() : "Unknown",
-            linkedin: c.candidate?.linkedin_url || ""
+            name: c.candidate?.name || "Unknown",
+            linkedin: c.candidate?.linkedin || ""
         }));
 
         // 2. Trigger Webhook
