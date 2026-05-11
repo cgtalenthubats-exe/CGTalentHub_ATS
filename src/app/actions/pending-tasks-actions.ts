@@ -90,10 +90,10 @@ export async function refreshJRCandidates(jrId: string) {
     try {
         const client = adminAuthClient as any;
 
-        // 1. Fetch candidates linked to this JR
+        // 1. Fetch candidate_ids linked to this JR
         const { data: linkedCandidates, error: linkError } = await client
             .from('jr_candidates')
-            .select('candidate_id, candidate:Candidate Profile(name, linkedin)')
+            .select('candidate_id')
             .eq('jr_id', jrId);
 
         if (linkError) throw linkError;
@@ -102,12 +102,25 @@ export async function refreshJRCandidates(jrId: string) {
             return { success: false, error: "No candidates found attached to this Job Requisition." };
         }
 
+        const candidateIds = linkedCandidates.map((c: any) => c.candidate_id);
+
+        // 2. Fetch profile data separately (table name with space doesn't support inline join)
+        const { data: profiles } = await client
+            .from('Candidate Profile')
+            .select('candidate_id, name, linkedin')
+            .in('candidate_id', candidateIds);
+
+        const profileMap = new Map<string, any>((profiles || []).map((p: any) => [p.candidate_id, p]));
+
         // Format for n8n
-        const candidatesPayload = linkedCandidates.map((c: any) => ({
-            id: c.candidate_id,
-            name: c.candidate?.name || "Unknown",
-            linkedin: c.candidate?.linkedin || ""
-        }));
+        const candidatesPayload = candidateIds.map((id: string) => {
+            const p = profileMap.get(id);
+            return {
+                id,
+                name: p?.name || "Unknown",
+                linkedin: p?.linkedin || ""
+            };
+        });
 
         // 2. Trigger Webhook
         const refreshRes = await triggerCandidateRefresh(candidatesPayload, "JR Maintenance Board");
