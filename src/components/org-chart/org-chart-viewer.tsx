@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect } from 'react'
 import Tree from 'react-d3-tree'
-import { OrgNode, bulkCreateOrgProfiles, createSingleOrgProfile, clearOrgNode, deleteOrgNode } from '@/app/actions/org-chart-actions'
+import { OrgNode, bulkCreateOrgProfiles, createSingleOrgProfile, clearOrgNode, deleteOrgNode, toggleGroupNode } from '@/app/actions/org-chart-actions'
 import { Badge } from '@/components/ui/badge'
-import { 
-    UserCheck, UserPlus, Focus, ZoomIn, ZoomOut, Plus, 
+import {
+    UserCheck, UserPlus, Focus, ZoomIn, ZoomOut, Plus,
     ExternalLink, Sparkles, Loader2, Trash2, Info, UploadCloud,
     Users, ChevronUp, Download, Image as ImageIcon, FileText,
-    AlertTriangle, X, MoreHorizontal, Target, Search, ArrowLeft
+    AlertTriangle, X, MoreHorizontal, Target, Search, ArrowLeft,
+    Building2, User
 } from 'lucide-react'
 import {
     DropdownMenu,
@@ -179,7 +180,7 @@ const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCrea
                                 <MoreHorizontal size={14} strokeWidth={3} />
                             </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-44">
+                        <DropdownMenuContent align="end" className="w-48">
                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAddSubordinate(nodeDatum.name); }}>
                                 <Plus size={14} className="mr-2" /> Add Subordinate
                             </DropdownMenuItem>
@@ -230,7 +231,7 @@ const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCrea
 }
 
 // Custom Node Component
-const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVerifying, onToggleExpand, expandedSet, onDeleteNode, onAddSubordinate, onReplaceNode, onMoveNode, onFocusTeam, highlightNodeId }: any) => {
+const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVerifying, onToggleExpand, expandedSet, onDeleteNode, onAddSubordinate, onReplaceNode, onMoveNode, onFocusTeam, highlightNodeId, onToggleGroupNode }: any) => {
     // Hide phantom nodes (Standard Grid columns)
     if (nodeDatum.isPhantom && !nodeDatum.isTeamGrid) {
         return <g />
@@ -251,11 +252,91 @@ const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVe
     }
 
     const isTeamGrid = !!nodeDatum.isTeamGrid
+    const isGroupNode = !!nodeDatum.is_group_node
     const isMatch = !!nodeDatum.matched_candidate_id
     const isVerified = nodeDatum.is_verified === 'TRUE'
     const isNotMatch = nodeDatum.is_verified === 'NOT_MATCH'
     const childCount = nodeDatum._childCount || 0
     const hasChildren = childCount > 0
+
+    // Group node — same size as person node (280x160), centered layout
+    if (isGroupNode) {
+        return (
+            <g id={`node-card-${nodeDatum.node_id}`}>
+                <foreignObject width="280" height="160" x="-140" y="-80">
+                    <div className="p-1 flex items-start justify-center">
+                        <div
+                            style={{
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                                width: '100%', height: '138px',
+                                padding: '12px 16px', borderWidth: '2px', borderRadius: '12px', borderStyle: 'solid',
+                                boxSizing: 'border-box', position: 'relative', cursor: hasChildren ? 'pointer' : 'default',
+                                background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)',
+                                borderColor: '#6366f1', boxShadow: '0 1px 3px rgba(99,102,241,0.15)',
+                                fontFamily: 'system-ui, sans-serif'
+                            }}
+                            onClick={hasChildren ? () => onToggleExpand(nodeDatum.node_id) : undefined}
+                        >
+                            {/* Dropdown menu */}
+                            <div style={{ position: 'absolute', top: '-8px', right: '-8px', zIndex: 50 }} onClick={(e) => e.stopPropagation()}>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-7 w-7 bg-white border border-slate-200 shadow-sm rounded-full p-0 flex items-center justify-center hover:bg-slate-50 transition-all hover:scale-110">
+                                            <MoreHorizontal size={14} strokeWidth={3} />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-48">
+                                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAddSubordinate(nodeDatum.name); }}>
+                                            <Plus size={14} className="mr-2" /> Add Subordinate
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onReplaceNode(nodeDatum); }}>
+                                            <UserPlus size={14} className="mr-2" /> Edit Label
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onToggleGroupNode(nodeDatum.node_id, false); }}>
+                                            <User size={14} className="mr-2" /> Switch to Person Node
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem className="text-rose-600" onClick={(e) => { e.stopPropagation(); onDeleteNode({ node_id: nodeDatum.node_id, name: nodeDatum.name }); }}>
+                                            <Trash2 size={14} className="mr-2" /> Remove Node
+                                        </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
+
+                            {/* Center: icon + name + title */}
+                            <div style={{ background: '#6366f1', borderRadius: '10px', padding: '7px', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Building2 size={18} color="white" />
+                            </div>
+                            <div style={{ fontSize: '12px', fontWeight: 700, color: '#3730a3', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '220px' }}>
+                                {nodeDatum.name}
+                            </div>
+                            {nodeDatum.title && (
+                                <div style={{ fontSize: '10px', color: '#6366f1', fontWeight: 500, textAlign: 'center', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '220px' }}>
+                                    {nodeDatum.title}
+                                </div>
+                            )}
+
+                            {/* Bottom row */}
+                            <div style={{ position: 'absolute', bottom: '10px', left: '12px', right: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                    <span style={{ fontSize: '9px', fontWeight: 700, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>GROUP</span>
+                                    {nodeDatum.linkedin && (
+                                        <a href={nodeDatum.linkedin} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={{ color: '#6366f1', display: 'flex', alignItems: 'center' }}>
+                                            <ExternalLink size={11} />
+                                        </a>
+                                    )}
+                                </div>
+                                {hasChildren && (
+                                    <div style={{ background: '#6366f1', borderRadius: '999px', minWidth: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', fontWeight: 700, color: 'white', padding: '0 6px' }}>
+                                        {childCount}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </foreignObject>
+            </g>
+        )
+    }
 
     const status = nodeDatum.match_status || (isMatch ? 'matched' : 'unmapped')
     const current = nodeDatum.current_experience
@@ -374,6 +455,11 @@ const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVe
                                     <DropdownMenuItem onClick={() => onFocusTeam(nodeDatum.node_id)} className="text-indigo-600 focus:text-indigo-600 focus:bg-indigo-50">
                                         <Target size={16} className="mr-2" /> Focus on this Team
                                     </DropdownMenuItem>
+                                    {!isMatch && (
+                                        <DropdownMenuItem onClick={() => onToggleGroupNode(nodeDatum.node_id, true)}>
+                                            <Building2 size={16} className="mr-2" /> Switch to Group Node
+                                        </DropdownMenuItem>
+                                    )}
                                     <DropdownMenuItem className="text-rose-600 focus:text-rose-600 focus:bg-rose-50" onClick={() => onDeleteNode({ node_id: nodeDatum.node_id, name: nodeDatum.name })}>
                                         <Trash2 size={16} className="mr-2" /> Remove Node
                                     </DropdownMenuItem>
@@ -700,6 +786,12 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
             setIsDeletingNodeAction(false);
         }
     };
+
+    const handleToggleGroupNode = async (nodeId: string, isGroupNode: boolean) => {
+        const result = await toggleGroupNode(nodeId, isGroupNode)
+        if (result.success) router.refresh()
+        else toast.error('Failed to toggle node type')
+    }
 
     const handleAddSubordinate = (parentName: string) => {
         setDialogMode('add');
@@ -1486,6 +1578,7 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                             onMoveNode={handleMoveNode}
                             onFocusTeam={handleFocusTeam}
                             highlightNodeId={highlightNodeId}
+                            onToggleGroupNode={handleToggleGroupNode}
                         />
                     )}
                     orientation="vertical"

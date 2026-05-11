@@ -34,7 +34,11 @@ export function OrgChartClientPage({
 }: OrgChartClientPageProps) {
     return (
         <div className="container mx-auto py-2 space-y-4 flex flex-col min-h-screen px-4 md:px-6 mb-10">
-            <OrgChartHeader />
+            <OrgChartHeader
+                currentUploadId={currentUploadId}
+                uploads={uploads}
+                existingNodes={tableData.map((n: any) => ({ name: n.name as string, parent_name: (n.parent_name ?? null) as string | null }))}
+            />
 
             {/* Top Area: Compact Directory Toolbar */}
             <OrgDirectory

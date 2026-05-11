@@ -15,9 +15,9 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
-import { UploadCloud, FileText, Loader2, Plus, CheckCircle2, ChevronRight, RefreshCw } from 'lucide-react'
+import { UploadCloud, FileText, Loader2, Plus, CheckCircle2, RefreshCw, PenLine } from 'lucide-react'
 import { toast } from '@/lib/notifications'
-import { importOrgChart } from '@/app/actions/org-chart-actions'
+import { importOrgChart, createManualOrgChart } from '@/app/actions/org-chart-actions'
 import { searchCompanies } from '@/app/actions/candidate-filters'
 import { CompanySuggestionInput } from './company-suggestion-input'
 import { Textarea } from '@/components/ui/textarea'
@@ -28,22 +28,25 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 
 export function ImportOrgDialog() {
     const [isOpen, setIsOpen] = useState(false)
+    const [mode, setMode] = useState<'pdf' | 'manual'>('pdf')
     const [isUploading, setIsUploading] = useState(false)
     const [isSuccess, setIsSuccess] = useState(false)
     const [formKey, setFormKey] = useState(0)
     const [companyName, setCompanyName] = useState('')
+    const [branchName, setBranchName] = useState('')
     const [notes, setNotes] = useState('')
     const [selectedFile, setSelectedFile] = useState<File | null>(null)
     const [isDragging, setIsDragging] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const router = useRouter()
 
-    // Reset state when dialog closes
     React.useEffect(() => {
         if (!isOpen) {
             setTimeout(() => {
                 setIsSuccess(false)
+                setMode('pdf')
                 setCompanyName('')
+                setBranchName('')
                 setNotes('')
                 setSelectedFile(null)
                 setIsDragging(false)
@@ -94,7 +97,7 @@ export function ImportOrgDialog() {
             const { data: urlData } = supabase.storage.from('org_charts').getPublicUrl(fileName)
             const publicUrl = urlData.publicUrl
 
-            const result = await importOrgChart(uploadId, companyName, fileName, publicUrl, notes)
+            const result = await importOrgChart(uploadId, companyName, fileName, publicUrl, notes, branchName)
 
             if (result.success) {
                 setIsSuccess(true)
@@ -114,9 +117,34 @@ export function ImportOrgDialog() {
         }
     }
 
+    const handleManualSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!companyName.trim()) { toast.error("Please enter a company name"); return; }
+        setIsUploading(true)
+        try {
+            const result = await createManualOrgChart(companyName, notes, branchName)
+            if (result.success) {
+                setIsSuccess(true)
+                setCompanyName('')
+                setBranchName('')
+                setNotes('')
+                setFormKey(prev => prev + 1)
+                router.push(`/org-chart?id=${result.uploadId}`)
+                router.refresh()
+            } else {
+                toast.error(result.error || 'Failed to create org chart')
+            }
+        } catch (err: any) {
+            toast.error("An error occurred: " + err.message)
+        } finally {
+            setIsUploading(false)
+        }
+    }
+
     const resetForNewImport = () => {
         setIsSuccess(false)
         setCompanyName('')
+        setBranchName('')
         setNotes('')
         setSelectedFile(null)
         setFormKey(prev => prev + 1)
@@ -161,101 +189,127 @@ export function ImportOrgDialog() {
                         </div>
                     </div>
                 ) : (
-                    <form onSubmit={handleSubmit}>
+                    <>
                         <DialogHeader>
-                            <DialogTitle>Import New OrgChart</DialogTitle>
+                            <DialogTitle>{mode === 'pdf' ? 'Import New OrgChart' : 'Build Org Manually'}</DialogTitle>
                             <DialogDescription>
-                                Upload a PDF file of the organization structure to generate a new interactive chart.
+                                {mode === 'pdf'
+                                    ? 'Upload a PDF file of the organization structure to generate a new interactive chart.'
+                                    : 'Create a blank org chart and add nodes manually.'}
                             </DialogDescription>
                         </DialogHeader>
-                        
-                        <div key={formKey} className="grid gap-4 py-4">
-                            <div className="grid gap-2">
-                                <Label htmlFor="company">Company Name (Master)</Label>
-                                <CompanySuggestionInput
-                                    value={companyName}
-                                    onChange={setCompanyName}
-                                    disabled={isUploading}
-                                    placeholder="e.g. Asset World Corp"
-                                />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="notes">Notes (Optional)</Label>
-                                <Textarea 
-                                    id="notes" 
-                                    placeholder="Any context or details about this chart..."
-                                    value={notes}
-                                    onChange={(e) => setNotes(e.target.value)}
-                                    disabled={isUploading}
-                                    className="resize-none h-20"
-                                />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="file">OrgChart PDF</Label>
-                                <div
-                                    className={cn(
-                                        "border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all duration-200",
-                                        isDragging ? "border-primary bg-primary/5 scale-[1.02] ring-2 ring-primary/20" : 
-                                        selectedFile ? "border-indigo-400 bg-indigo-50/50" : 
-                                        "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
-                                    )}
-                                    onClick={() => !isUploading && fileInputRef.current?.click()}
-                                    onDragOver={(e) => {e.preventDefault(); if (!isUploading) setIsDragging(true)}}
-                                    onDragLeave={() => setIsDragging(false)}
-                                    onDrop={(e) => {
-                                        e.preventDefault(); 
-                                        setIsDragging(false);
-                                        if (!isUploading && e.dataTransfer.files[0]) processSelectedFile(e.dataTransfer.files[0])
-                                    }}
-                                >
-                                    <input
-                                        type="file"
-                                        className="hidden"
-                                        accept=".pdf"
-                                        ref={fileInputRef}
-                                        onChange={(e) => e.target.files?.[0] && processSelectedFile(e.target.files[0])}
-                                        disabled={isUploading}
-                                    />
-                                    {selectedFile ? (
-                                        <div className="flex flex-col items-center">
-                                            <FileText className="h-10 w-10 text-rose-500 mb-2" />
-                                            <span className="text-xs font-medium text-slate-900 truncate max-w-[200px]">
-                                                {selectedFile.name}
-                                            </span>
-                                            <span className="text-[10px] text-slate-500 mt-1">
-                                                {(selectedFile.size / 1024).toFixed(1)} KB
-                                            </span>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <UploadCloud className="h-10 w-10 text-slate-300 mb-2" />
-                                            <span className="text-sm text-slate-600 font-medium">Click or Drag to upload PDF</span>
-                                            <span className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">Only PDF allowed</span>
-                                        </>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <Button
-                                type="submit"
-                                className={cn(
-                                    "w-full h-11 transition-all duration-300 bg-indigo-600 hover:bg-indigo-700 text-white font-bold",
-                                    isUploading && "bg-slate-400 pointer-events-none opacity-80"
-                                )}
-                                disabled={isUploading}
+
+                        {/* Mode toggle */}
+                        <div className="flex rounded-lg border border-slate-200 overflow-hidden mt-2">
+                            <button
+                                type="button"
+                                onClick={() => setMode('pdf')}
+                                className={cn("flex-1 py-2 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors",
+                                    mode === 'pdf' ? "bg-indigo-600 text-white" : "bg-white text-slate-500 hover:bg-slate-50")}
                             >
-                                {isUploading ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                        UPLOADING & TRIGGERING...
-                                    </>
-                                ) : (
-                                    'UPLOAD & START IMPORT'
-                                )}
-                            </Button>
-                        </DialogFooter>
-                    </form>
+                                <UploadCloud size={13} /> Upload PDF
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setMode('manual')}
+                                className={cn("flex-1 py-2 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors",
+                                    mode === 'manual' ? "bg-indigo-600 text-white" : "bg-white text-slate-500 hover:bg-slate-50")}
+                            >
+                                <PenLine size={13} /> Build Manually
+                            </button>
+                        </div>
+
+                        {mode === 'pdf' ? (
+                            <form onSubmit={handleSubmit}>
+                                <div key={formKey} className="grid gap-4 py-4">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="company">Company Name (Master)</Label>
+                                        <CompanySuggestionInput value={companyName} onChange={setCompanyName} disabled={isUploading} placeholder="e.g. Asset World Corp" />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="branch-pdf">Branch Name <span className="text-slate-400 font-normal">(Optional)</span></Label>
+                                        <input
+                                            id="branch-pdf"
+                                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+                                            placeholder="e.g. Bangkok HQ"
+                                            value={branchName}
+                                            onChange={(e) => setBranchName(e.target.value)}
+                                            disabled={isUploading}
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="notes">Notes (Optional)</Label>
+                                        <Textarea id="notes" placeholder="Any context or details about this chart..." value={notes} onChange={(e) => setNotes(e.target.value)} disabled={isUploading} className="resize-none h-20" />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label>OrgChart PDF</Label>
+                                        <div
+                                            className={cn("border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all duration-200",
+                                                isDragging ? "border-primary bg-primary/5 scale-[1.02] ring-2 ring-primary/20" :
+                                                selectedFile ? "border-indigo-400 bg-indigo-50/50" :
+                                                "border-slate-200 hover:border-slate-300 hover:bg-slate-50")}
+                                            onClick={() => !isUploading && fileInputRef.current?.click()}
+                                            onDragOver={(e) => { e.preventDefault(); if (!isUploading) setIsDragging(true) }}
+                                            onDragLeave={() => setIsDragging(false)}
+                                            onDrop={(e) => { e.preventDefault(); setIsDragging(false); if (!isUploading && e.dataTransfer.files[0]) processSelectedFile(e.dataTransfer.files[0]) }}
+                                        >
+                                            <input type="file" className="hidden" accept=".pdf" ref={fileInputRef} onChange={(e) => e.target.files?.[0] && processSelectedFile(e.target.files[0])} disabled={isUploading} />
+                                            {selectedFile ? (
+                                                <div className="flex flex-col items-center">
+                                                    <FileText className="h-10 w-10 text-rose-500 mb-2" />
+                                                    <span className="text-xs font-medium text-slate-900 truncate max-w-[200px]">{selectedFile.name}</span>
+                                                    <span className="text-[10px] text-slate-500 mt-1">{(selectedFile.size / 1024).toFixed(1)} KB</span>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <UploadCloud className="h-10 w-10 text-slate-300 mb-2" />
+                                                    <span className="text-sm text-slate-600 font-medium">Click or Drag to upload PDF</span>
+                                                    <span className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">Only PDF allowed</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    <Button type="submit" className={cn("w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-bold", isUploading && "opacity-60 pointer-events-none")} disabled={isUploading}>
+                                        {isUploading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />UPLOADING...</> : 'UPLOAD & START IMPORT'}
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        ) : (
+                            <form onSubmit={handleManualSubmit}>
+                                <div key={formKey} className="grid gap-4 py-4">
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="company-manual">Company / Group Name</Label>
+                                        <CompanySuggestionInput value={companyName} onChange={setCompanyName} disabled={isUploading} placeholder="e.g. SALA Hospitality Group" />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="branch-manual">Branch Name <span className="text-slate-400 font-normal">(Optional)</span></Label>
+                                        <input
+                                            id="branch-manual"
+                                            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-50"
+                                            placeholder="e.g. SALA Samui Branch"
+                                            value={branchName}
+                                            onChange={(e) => setBranchName(e.target.value)}
+                                            disabled={isUploading}
+                                        />
+                                    </div>
+                                    <div className="grid gap-2">
+                                        <Label htmlFor="notes-manual">Notes (Optional)</Label>
+                                        <Textarea id="notes-manual" placeholder="Any context about this org chart..." value={notes} onChange={(e) => setNotes(e.target.value)} disabled={isUploading} className="resize-none h-20" />
+                                    </div>
+                                    <p className="text-xs text-slate-500 bg-slate-50 rounded-lg p-3 border border-slate-100">
+                                        A blank org chart will be created. You can then add nodes and clone existing orgs as subtrees.
+                                    </p>
+                                </div>
+                                <DialogFooter>
+                                    <Button type="submit" className={cn("w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white font-bold", isUploading && "opacity-60 pointer-events-none")} disabled={isUploading}>
+                                        {isUploading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />CREATING...</> : 'CREATE BLANK ORG CHART'}
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        )}
+                    </>
                 )}
             </DialogContent>
         </Dialog>

@@ -11,9 +11,10 @@ import { Button } from '@/components/ui/button'
 type Upload = {
     upload_id: string
     company_name: string
+    branch_name?: string | null
     created_at: string
     notes?: string
-    status?: string // 'Processing' | 'Completed' | etc.
+    status?: string
 }
 
 type OrgDirectoryProps = {
@@ -136,21 +137,32 @@ export function OrgDirectory({ uploads, currentId }: OrgDirectoryProps) {
                                     <div className="flex flex-col gap-0.5">
                                         {items?.map(u => {
                                             const dateStr = new Date(u.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: '2-digit' })
+                                            const hasBranch = !!(u.branch_name && u.branch_name !== u.company_name)
                                             return (
                                                 <button
                                                     key={u.upload_id}
                                                     onClick={() => handleCompanyClick(u.upload_id)}
-                                                    title={u.notes || u.company_name}
+                                                    title={`${u.company_name}${u.branch_name ? ` — ${u.branch_name}` : ''}${u.notes ? `\n${u.notes}` : ''}`}
                                                     className={cn(
-                                                        "text-[11px] px-2 py-1 rounded-md text-left transition-all truncate hover:bg-white dark:hover:bg-slate-900 hover:shadow-sm border border-transparent flex items-center justify-between gap-2 max-w-[200px]",
+                                                        "text-[11px] px-2 py-1 rounded-md text-left transition-all hover:bg-white dark:hover:bg-slate-900 hover:shadow-sm border border-transparent flex items-center justify-between gap-2 max-w-[200px]",
                                                         u.upload_id === currentId
                                                             ? "text-indigo-600 font-bold bg-indigo-50/30 dark:bg-indigo-900/20 border-indigo-200 shadow-sm"
                                                             : "text-slate-600 dark:text-slate-400 hover:text-slate-950 dark:hover:text-slate-100"
                                                     )}
                                                 >
-                                                    <span className="truncate flex-1">{u.company_name}</span>
+                                                    <span className="flex flex-col flex-1 min-w-0">
+                                                        <span className="truncate">{u.company_name}</span>
+                                                        {hasBranch && (
+                                                            <span className={cn(
+                                                                "truncate text-[10px] font-bold",
+                                                                u.upload_id === currentId ? "text-indigo-500" : "text-indigo-400"
+                                                            )}>
+                                                                {u.branch_name}
+                                                            </span>
+                                                        )}
+                                                    </span>
                                                     {u.status === 'Processing' ? (
-                                                        <span className="text-[9px] px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 font-bold rounded animate-pulse">
+                                                        <span className="text-[9px] px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 font-bold rounded animate-pulse shrink-0">
                                                             Processing...
                                                         </span>
                                                     ) : (

@@ -21,6 +21,7 @@ export type OrgNode = {
     linkedin?: string | null
     checked?: string | null
     is_verified?: string | null // TRUE, FALSE, NOT_MATCH
+    is_group_node?: boolean
     match_status?: 'matched' | 'mismatch_company' | 'mismatch_position' | 'n8n_processing' | 'unmapped'
     current_experience?: {
         company_id?: string
@@ -41,6 +42,7 @@ export type RawOrgNode = {
     matched_candidate_id: string | null
     linkedin: string | null
     is_verified: string | null // TRUE, FALSE, NOT_MATCH
+    is_group_node?: boolean
     match_status?: 'matched' | 'mismatch_company' | 'mismatch_position' | 'n8n_processing' | 'unmapped'
     current_experience?: {
         company: string
@@ -295,7 +297,8 @@ export async function createOrgNode(uploadId: string, node: Omit<RawOrgNode, 'no
             title: node.title,
             parent_name: node.parent_name,
             matched_candidate_id: node.matched_candidate_id,
-            linkedin: node.linkedin
+            linkedin: node.linkedin,
+            is_group_node: node.is_group_node ?? false
         })
         .select()
         .single()
@@ -717,7 +720,7 @@ export async function createSingleOrgProfile(nodeId: string) {
     }
 }
 
-export async function importOrgChart(uploadId: string, companyName: string, fileName: string, publicUrl: string, notes: string = '') {
+export async function importOrgChart(uploadId: string, companyName: string, fileName: string, publicUrl: string, notes: string = '', branchName: string = '') {
     try {
         console.log(`[ImportOrg] Starting processing for Upload ID: ${uploadId}, Company: ${companyName}`)
 
@@ -789,6 +792,7 @@ export async function importOrgChart(uploadId: string, companyName: string, file
                 company_name: companyName,
                 company_id: companyId,
                 chart_file: publicUrl,
+                branch_name: branchName?.trim() || null,
                 notes: notes || null,
                 status: 'Processing',
                 modify_date: new Date().toISOString()
@@ -1167,6 +1171,135 @@ export async function getBulkCandidateOrgCharts(candidateIds: string[]) {
     return result
 }
 
+export async function createManualOrgChart(companyName: string, notes?: string, branchName?: string) {
+    try {
+        let companyId = null
+
+        const { data: variation } = await supabase
+            .from('company_variation')
+            .select('company_id')
+            .ilike('variation_name', companyName.trim())
+            .maybeSingle()
+
+        if (variation) {
+            companyId = variation.company_id
+        } else {
+            const [{ data: masterMax }, { data: variationMax }] = await Promise.all([
+                supabase.from('company_master').select('company_id').order('company_id', { ascending: false }).limit(1).maybeSingle(),
+                supabase.from('company_variation').select('variation_id').order('variation_id', { ascending: false }).limit(1).maybeSingle()
+            ])
+            const nextMasterId = (Number(masterMax?.company_id) || 0) + 1
+            const nextVariationId = (Number(variationMax?.variation_id) || 0) + 1
+
+            await supabase.from('company_master').insert({ company_id: nextMasterId, company_master: companyName.trim() })
+            await supabase.from('company_variation').insert({ variation_id: nextVariationId, company_id: nextMasterId, variation_name: companyName.trim(), company_master_name: companyName.trim() })
+            companyId = nextMasterId
+        }
+
+        const uploadId = 'manual' + Math.random().toString(16).slice(2, 8)
+        const { error } = await supabase.from('org_chart_uploads').insert({
+            upload_id: uploadId,
+            company_name: companyName.trim(),
+            company_id: companyId,
+            chart_file: '',
+            branch_name: branchName?.trim() || null,
+            notes: notes || null,
+            status: 'Active',
+            modify_date: new Date().toISOString()
+        })
+        if (error) throw error
+
+        revalidatePath('/org-chart')
+        return { success: true, uploadId }
+    } catch (err: any) {
+        console.error('[CreateManualOrg] Error:', err)
+        return { success: false, error: err.message }
+    }
+}
+
+export async function cloneOrgAsSubtree(targetUploadId: string, sourceUploadId: string, parentNodeName: string | null) {
+    try {
+        const [{ data: sourceNodes, error }, { data: sourceUpload }] = await Promise.all([
+            supabase.from('all_org_nodes').select('name, title, parent_name, matched_candidate_id, linkedin').eq('upload_id', sourceUploadId),
+            supabase.from('org_chart_uploads').select('company_name, branch_name').eq('upload_id', sourceUploadId).single()
+        ])
+
+        if (error || !sourceNodes || sourceNodes.length === 0)
+            return { success: false, error: 'Source org has no nodes' }
+
+        // Build header node name from source upload
+        const headerName = sourceUpload?.branch_name
+            ? `${sourceUpload.company_name} — ${sourceUpload.branch_name}`
+            : (sourceUpload?.company_name || 'Cloned Org')
+
+        // Insert header group node first
+        const { error: headerErr } = await supabase.from('all_org_nodes').insert({
+            upload_id: targetUploadId,
+            name: headerName,
+            title: sourceUpload?.branch_name || sourceUpload?.company_name || '',
+            parent_name: parentNodeName,
+            matched_candidate_id: null,
+            linkedin: null,
+            is_verified: 'FALSE',
+            is_group_node: true
+        })
+        if (headerErr) throw headerErr
+
+        // Clone source nodes: root's parent becomes header node
+        const newNodes = sourceNodes.map((n: any) => ({
+            upload_id: targetUploadId,
+            name: n.name,
+            title: n.title,
+            parent_name: (!n.parent_name) ? headerName : n.parent_name,
+            matched_candidate_id: n.matched_candidate_id || null,
+            linkedin: n.linkedin || null,
+            is_verified: 'FALSE',
+            is_group_node: false
+        }))
+
+        const { error: insertError } = await supabase.from('all_org_nodes').insert(newNodes)
+        if (insertError) throw insertError
+
+        revalidatePath('/org-chart')
+        return { success: true, count: newNodes.length + 1 }
+    } catch (err: any) {
+        console.error('[CloneOrgAsSubtree] Error:', err)
+        return { success: false, error: err.message }
+    }
+}
+
+export async function toggleGroupNode(nodeId: string, isGroupNode: boolean) {
+    const { error } = await supabase
+        .from('all_org_nodes')
+        .update({ is_group_node: isGroupNode })
+        .eq('node_id', nodeId)
+
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/org-chart')
+    return { success: true }
+}
+
+export async function bulkAddParsedNodes(
+    uploadId: string,
+    nodes: { name: string; title: string | null; parent_name: string | null; is_group_node?: boolean }[]
+) {
+    if (!uploadId || !nodes.length) return { success: false, error: 'Missing data' }
+    const rows = nodes.map(n => ({
+        upload_id: uploadId,
+        name: n.name,
+        title: n.title,
+        parent_name: n.parent_name,
+        matched_candidate_id: null,
+        linkedin: null,
+        is_verified: 'FALSE',
+        is_group_node: n.is_group_node ?? false
+    }))
+    const { error } = await supabase.from('all_org_nodes').insert(rows)
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/org-chart')
+    return { success: true, count: rows.length }
+}
+
 export async function deleteOrgChart(uploadId: string) {
     if (!uploadId) return { success: false, error: 'Upload ID is required' }
     
@@ -1254,7 +1387,7 @@ export async function getOrgChartNodesBrief(uploadId: string) {
     if (!uploadId) return []
     const { data, error } = await supabase
         .from('all_org_nodes')
-        .select('name, title')
+        .select('node_id, name, title')
         .eq('upload_id', uploadId)
         .order('name', { ascending: true })
         
