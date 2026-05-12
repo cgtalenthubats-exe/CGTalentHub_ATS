@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { ChevronDown, ChevronUp, X, SlidersHorizontal, RotateCcw } from "lucide-react";
+import React, { useState, useMemo, useEffect } from "react";
+import { ChevronDown, ChevronUp, X, SlidersHorizontal, RotateCcw, Check, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -32,6 +32,7 @@ interface CascadingOptions {
 interface FilterPanelProps {
     staticOptions: StaticOptions;
     cascadingOptions: CascadingOptions | null;
+    cascadeLoading?: boolean;
     filters: DemoFilterState;
     onChange: (filters: DemoFilterState) => void;
     onReset: () => void;
@@ -184,9 +185,21 @@ function CheckboxGroup({
 }
 
 // --- Main FilterPanel ---
-export function FilterPanel({ staticOptions, cascadingOptions, filters, onChange, onReset }: FilterPanelProps) {
+export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, filters, onChange, onReset }: FilterPanelProps) {
+    const [localFilters, setLocalFilters] = useState<DemoFilterState>(filters);
+
+    // Sync when external changes arrive (AI parse, reset)
+    useEffect(() => { setLocalFilters(filters); }, [filters]);
+
     const set = <K extends keyof DemoFilterState>(key: K, value: DemoFilterState[K]) =>
-        onChange({ ...filters, [key]: value });
+        setLocalFilters(prev => ({ ...prev, [key]: value }));
+
+    const hasPending = useMemo(
+        () => JSON.stringify(localFilters) !== JSON.stringify(filters),
+        [localFilters, filters]
+    );
+
+    const handleApply = () => onChange(localFilters);
 
     if (!staticOptions) return null;
 
@@ -261,17 +274,17 @@ export function FilterPanel({ staticOptions, cascadingOptions, filters, onChange
     );
 
     const activeCount = [
-        filters.position_keywords.length,
-        filters.position_levels.length,
-        filters.industry_group ? 1 : 0,
-        filters.industries.length,
-        filters.regions.length,
-        filters.countries.length,
-        filters.hotel_ratings.length,
-        filters.current_only ? 1 : 0,
-        filters.job_functions.length,
-        filters.positions.length,
-        filters.companies.length,
+        localFilters.position_keywords.length,
+        localFilters.position_levels.length,
+        localFilters.industry_group ? 1 : 0,
+        localFilters.industries.length,
+        localFilters.regions.length,
+        localFilters.countries.length,
+        localFilters.hotel_ratings.length,
+        localFilters.current_only ? 1 : 0,
+        localFilters.job_functions.length,
+        localFilters.positions.length,
+        localFilters.companies.length,
     ].reduce((a, b) => a + b, 0);
 
     return (
@@ -284,45 +297,58 @@ export function FilterPanel({ staticOptions, cascadingOptions, filters, onChange
                     {activeCount > 0 && (
                         <Badge className="h-4 px-1.5 text-[10px] bg-indigo-600 text-white">{activeCount}</Badge>
                     )}
+                    {cascadeLoading && (
+                        <Loader2 className="h-3 w-3 animate-spin text-slate-400" />
+                    )}
                 </span>
-                {activeCount > 0 && (
-                    <button onClick={onReset} className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-red-500">
-                        <RotateCcw className="h-3 w-3" /> Reset
-                    </button>
-                )}
+                <div className="flex items-center gap-1.5">
+                    {hasPending && (
+                        <button
+                            onClick={handleApply}
+                            className="flex items-center gap-1 text-[10px] font-bold bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition-colors"
+                        >
+                            <Check className="h-3 w-3" /> Apply
+                        </button>
+                    )}
+                    {activeCount > 0 && (
+                        <button onClick={onReset} className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-red-500">
+                            <RotateCcw className="h-3 w-3" /> Reset
+                        </button>
+                    )}
+                </div>
             </div>
 
             <div className="px-3 py-1 divide-y divide-slate-100">
                 {/* Position Keywords */}
-                <Section title="Position Keywords" count={filters.position_keywords.length}>
+                <Section title="Position Keywords" count={localFilters.position_keywords.length}>
                     <TagSelect
                         options={keywordOptions}
-                        selected={filters.position_keywords}
+                        selected={localFilters.position_keywords}
                         onChange={(v) => set("position_keywords", v)}
                         placeholder="Search keywords..."
                     />
                 </Section>
 
                 {/* Position Level */}
-                <Section title="Position Level" count={filters.position_levels.length}>
+                <Section title="Position Level" count={localFilters.position_levels.length}>
                     <CheckboxGroup
                         options={availableLevels}
                         allOptions={POSITION_LEVELS}
-                        selected={filters.position_levels}
+                        selected={localFilters.position_levels}
                         onChange={(v) => set("position_levels", v)}
                     />
                 </Section>
 
                 {/* Industry Group */}
-                <Section title="Industry Group" count={filters.industry_group ? 1 : 0}>
+                <Section title="Industry Group" count={localFilters.industry_group ? 1 : 0}>
                     <div className="space-y-1">
                         {industryGroups.map((g) => (
                             <button
                                 key={g}
-                                onClick={() => set("industry_group", filters.industry_group === g ? null : g)}
+                                onClick={() => set("industry_group", localFilters.industry_group === g ? null : g)}
                                 className={cn(
                                     "w-full text-left text-xs px-2 py-1.5 rounded transition-colors",
-                                    filters.industry_group === g
+                                    localFilters.industry_group === g
                                         ? "bg-indigo-600 text-white"
                                         : "hover:bg-indigo-50 text-slate-600"
                                 )}
@@ -334,41 +360,41 @@ export function FilterPanel({ staticOptions, cascadingOptions, filters, onChange
                 </Section>
 
                 {/* Industry */}
-                <Section title="Industry" count={filters.industries.length}>
+                <Section title="Industry" count={localFilters.industries.length}>
                     <TagSelect
                         options={availableIndustries}
-                        selected={filters.industries}
+                        selected={localFilters.industries}
                         onChange={(v) => set("industries", v)}
                         placeholder="Search industry..."
                     />
                 </Section>
 
                 {/* Region */}
-                <Section title="Region" count={filters.regions.length}>
+                <Section title="Region" count={localFilters.regions.length}>
                     <CheckboxGroup
                         options={availableRegions}
                         allOptions={regions}
-                        selected={filters.regions}
+                        selected={localFilters.regions}
                         onChange={(v) => set("regions", v)}
                     />
                 </Section>
 
                 {/* Country */}
-                <Section title="Country" count={filters.countries.length}>
+                <Section title="Country" count={localFilters.countries.length}>
                     <TagSelect
                         options={availableCountries}
-                        selected={filters.countries}
+                        selected={localFilters.countries}
                         onChange={(v) => set("countries", v)}
                         placeholder="Search country..."
                     />
                 </Section>
 
                 {/* Hotel Rating */}
-                <Section title="Hotel Rating" count={filters.hotel_ratings.length}>
+                <Section title="Hotel Rating" count={localFilters.hotel_ratings.length}>
                     <CheckboxGroup
                         options={availableHotelRatings}
                         allOptions={HOTEL_RATINGS}
-                        selected={filters.hotel_ratings}
+                        selected={localFilters.hotel_ratings}
                         onChange={(v) => set("hotel_ratings", v)}
                     />
                 </Section>
@@ -377,34 +403,34 @@ export function FilterPanel({ staticOptions, cascadingOptions, filters, onChange
                 <div className="py-3 flex items-center justify-between">
                     <span className="text-sm text-slate-700">Current Job Only</span>
                     <button
-                        onClick={() => set("current_only", !filters.current_only)}
+                        onClick={() => set("current_only", !localFilters.current_only)}
                         className={cn(
                             "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-                            filters.current_only ? "bg-indigo-600" : "bg-slate-200"
+                            localFilters.current_only ? "bg-indigo-600" : "bg-slate-200"
                         )}
                     >
                         <span className={cn(
                             "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform",
-                            filters.current_only ? "translate-x-4" : "translate-x-1"
+                            localFilters.current_only ? "translate-x-4" : "translate-x-1"
                         )} />
                     </button>
                 </div>
 
                 {/* Job Function */}
-                <Section title="Job Function" count={filters.job_functions.length}>
+                <Section title="Job Function" count={localFilters.job_functions.length}>
                     <TagSelect
                         options={jobFunctionOptions}
-                        selected={filters.job_functions}
+                        selected={localFilters.job_functions}
                         onChange={(v) => set("job_functions", v)}
                         placeholder="Search function..."
                     />
                 </Section>
 
                 {/* Position (actual) — cascade only */}
-                <Section title="Position (actual)" count={filters.positions.length}>
+                <Section title="Position (actual)" count={localFilters.positions.length}>
                     <TagSelect
                         options={positionOptions}
-                        selected={filters.positions}
+                        selected={localFilters.positions}
                         onChange={(v) => set("positions", v)}
                         placeholder="Search position..."
                         emptyHint="Select keywords or levels first"
@@ -412,10 +438,10 @@ export function FilterPanel({ staticOptions, cascadingOptions, filters, onChange
                 </Section>
 
                 {/* Company — cascade only */}
-                <Section title="Company" count={filters.companies.length}>
+                <Section title="Company" count={localFilters.companies.length}>
                     <TagSelect
                         options={companyOptions}
-                        selected={filters.companies}
+                        selected={localFilters.companies}
                         onChange={(v) => set("companies", v)}
                         placeholder="Search company..."
                         emptyHint="Apply filters first"
@@ -425,14 +451,14 @@ export function FilterPanel({ staticOptions, cascadingOptions, filters, onChange
                 {/* Exclude section */}
                 <Section
                     title="Exclude"
-                    count={filters.exclude_companies.length + filters.exclude_countries.length + filters.exclude_keywords.length}
+                    count={localFilters.exclude_companies.length + localFilters.exclude_countries.length + localFilters.exclude_keywords.length}
                 >
                     <div className="space-y-3">
                         <div>
                             <p className="text-[10px] text-slate-400 mb-1.5 uppercase tracking-wider">Company</p>
                             <TagSelect
-                                options={companyOptions.filter(o => !filters.companies.includes(o))}
-                                selected={filters.exclude_companies}
+                                options={companyOptions.filter(o => !localFilters.companies.includes(o))}
+                                selected={localFilters.exclude_companies}
                                 onChange={(v) => set("exclude_companies", v)}
                                 placeholder="Exclude company..."
                                 emptyHint="Apply filters first"
@@ -442,8 +468,8 @@ export function FilterPanel({ staticOptions, cascadingOptions, filters, onChange
                         <div>
                             <p className="text-[10px] text-slate-400 mb-1.5 uppercase tracking-wider">Country</p>
                             <TagSelect
-                                options={availableCountries.filter(o => !filters.countries.includes(o))}
-                                selected={filters.exclude_countries}
+                                options={availableCountries.filter(o => !localFilters.countries.includes(o))}
+                                selected={localFilters.exclude_countries}
                                 onChange={(v) => set("exclude_countries", v)}
                                 placeholder="Exclude country..."
                                 variant="exclude"
@@ -452,8 +478,8 @@ export function FilterPanel({ staticOptions, cascadingOptions, filters, onChange
                         <div>
                             <p className="text-[10px] text-slate-400 mb-1.5 uppercase tracking-wider">Position Keyword</p>
                             <TagSelect
-                                options={keywordOptions.filter(o => !filters.position_keywords.includes(o))}
-                                selected={filters.exclude_keywords}
+                                options={keywordOptions.filter(o => !localFilters.position_keywords.includes(o))}
+                                selected={localFilters.exclude_keywords}
                                 onChange={(v) => set("exclude_keywords", v)}
                                 placeholder="Exclude keyword..."
                                 variant="exclude"

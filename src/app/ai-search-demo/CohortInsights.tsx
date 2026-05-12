@@ -3,12 +3,13 @@
 import { useEffect, useState, useRef } from "react";
 import { getCohortAnalysis } from "@/app/actions/ai-search-demo";
 import { type CohortAnalysis } from "./types";
-import { ChevronDown, ChevronUp, Users, Lightbulb } from "lucide-react";
+import { ChevronDown, ChevronUp, Lightbulb, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface Props {
     candidateIds: string[];
     totalFound: number;
+    onAddJobFunction?: (fn: string) => void;
 }
 
 function FreqBar({ count, max }: { count: number; max: number }) {
@@ -26,7 +27,7 @@ function FreqBar({ count, max }: { count: number; max: number }) {
     );
 }
 
-export function CohortInsights({ candidateIds, totalFound }: Props) {
+export function CohortInsights({ candidateIds, totalFound, onAddJobFunction }: Props) {
     const [data, setData] = useState<CohortAnalysis | null>(null);
     const [loading, setLoading] = useState(false);
     const [open, setOpen] = useState(true);
@@ -100,8 +101,19 @@ export function CohortInsights({ candidateIds, totalFound }: Props) {
                         ) : (
                             <div className="space-y-1.5">
                                 {data.job_functions.map(f => (
-                                    <div key={f.function}>
-                                        <div className="text-xs text-slate-700 truncate mb-0.5">{f.function}</div>
+                                    <div key={f.function} className="group">
+                                        <div className="flex items-center gap-1 mb-0.5">
+                                            <span className="text-xs text-slate-700 truncate flex-1">{f.function}</span>
+                                            {onAddJobFunction && (
+                                                <button
+                                                    onClick={() => onAddJobFunction(f.function)}
+                                                    className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0 p-0.5 rounded hover:bg-indigo-100 text-indigo-500"
+                                                    title={`Add "${f.function}" to filter`}
+                                                >
+                                                    <Plus className="h-3 w-3" />
+                                                </button>
+                                            )}
+                                        </div>
                                         <FreqBar count={f.count} max={maxFunc} />
                                     </div>
                                 ))}

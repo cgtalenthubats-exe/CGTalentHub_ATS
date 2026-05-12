@@ -224,6 +224,13 @@ export default function AiSearchDemoPage() {
         setSelectedIds([]);
     };
 
+    const handleAddJobFunction = (fn: string) => {
+        setPendingFilters(prev => {
+            if (prev.job_functions.includes(fn)) return prev;
+            return { ...prev, job_functions: [...prev.job_functions, fn] };
+        });
+    };
+
     const handlePageChange = (page: number) => {
         setCurrentPage(page);
         window.scrollTo({ top: 0, behavior: "smooth" });
@@ -282,23 +289,14 @@ export default function AiSearchDemoPage() {
                     <div className="w-64 shrink-0 flex flex-col min-h-0">
                         {/* Scrollable area: filter + suggestions */}
                         <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-2 pr-0.5">
-                            <div className="relative">
-                                <FilterPanel
+                                    <FilterPanel
                                     staticOptions={staticOptions!}
                                     cascadingOptions={cascadingOptions}
+                                    cascadeLoading={cascadeLoading}
                                     filters={pendingFilters}
                                     onChange={setPendingFilters}
                                     onReset={handleReset}
                                 />
-                                {cascadeLoading && (
-                                    <div className="absolute inset-0 bg-white/60 rounded-xl flex items-center justify-center z-20">
-                                        <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 shadow-sm text-xs text-slate-500">
-                                            <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" />
-                                            กำลังอัพเดต options...
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
                             <SuggestedFilters
                                 suggestions={suggestions}
                                 filters={pendingFilters}
@@ -309,13 +307,11 @@ export default function AiSearchDemoPage() {
                         <div className="pt-2 shrink-0">
                             <Button
                                 onClick={handleSearch}
-                                disabled={searchLoading || cascadeLoading || activeFilterCount === 0}
+                                disabled={searchLoading || activeFilterCount === 0}
                                 className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60"
                             >
                                 {searchLoading ? (
                                     <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Searching...</>
-                                ) : cascadeLoading ? (
-                                    <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Updating filters...</>
                                 ) : (
                                     <><Search className="h-4 w-4 mr-2" />Search {activeFilterCount > 0 ? `(${activeFilterCount} filters)` : ""}</>
                                 )}
@@ -336,7 +332,7 @@ export default function AiSearchDemoPage() {
 
                     {/* Cohort Insights */}
                     {hasSearched && allCandidateIds.length > 0 && (
-                        <CohortInsights candidateIds={allCandidateIds} totalFound={summary.total} />
+                        <CohortInsights candidateIds={allCandidateIds} totalFound={summary.total} onAddJobFunction={handleAddJobFunction} />
                     )}
 
                     {/* Select-all-results banner */}
