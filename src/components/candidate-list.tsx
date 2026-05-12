@@ -411,28 +411,28 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
         setStatusDialogOpen(true);
     };
 
-    const confirmStatusChange = async (note: string) => {
-        if (!pendingStatus) return;
+    const confirmStatusChange = async (status: string, note: string, updatedBy: string, timestamp: string) => {
+        if (!status) return;
 
         if (isBatchUpdate) {
             setLoading(true);
-            const { success, error } = await batchUpdateCandidateStatus(selectedIds, pendingStatus, updatedBy, note || null);
+            const { success, error } = await batchUpdateCandidateStatus(selectedIds, status, updatedBy, note || null, timestamp);
             if (success) {
                 const updated = await getJRCandidates(jrId);
                 setCandidates(updated);
                 setSelectedIds([]);
-                toast.success(`Batch updated ${selectedIds.length} candidates to ${pendingStatus}`);
+                toast.success(`Batch updated ${selectedIds.length} candidates to ${status}`);
             } else {
                 toast.error("Batch error: " + error);
             }
             setLoading(false);
         } else if (pendingCandidateId) {
             setStatusUpdating(pendingCandidateId);
-            const { success, error } = await updateCandidateStatus(pendingCandidateId, pendingStatus, updatedBy, note || null);
+            const { success, error } = await updateCandidateStatus(pendingCandidateId, status, updatedBy, note || null, timestamp);
             if (success) {
                 const updated = await getJRCandidates(jrId);
                 setCandidates(updated);
-                toast.success(`Updated status to ${pendingStatus}`);
+                toast.success(`Updated status to ${status}`);
             } else {
                 toast.error("Error: " + error);
             }

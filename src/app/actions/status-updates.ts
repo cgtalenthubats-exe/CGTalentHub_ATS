@@ -19,7 +19,8 @@ export async function updateCandidateStatus(
     jrCandidateId: string,
     newStatus: string,
     updatedBy?: string,
-    note: string | null = null
+    note: string | null = null,
+    customTimestamp?: string
 ) {
     const supabase = adminAuthClient;
     const resolvedUpdatedBy = updatedBy || await getCurrentUserEmail();
@@ -42,9 +43,9 @@ export async function updateCandidateStatus(
             nextLogId = parseInt((maxLogResult as any).log_id) + 1;
         }
 
-        // Date format: M/D/YYYY
+        // Use custom timestamp if provided (assumes YYYY-MM-DD or M/D/YYYY), otherwise M/D/YYYY
         const now = new Date();
-        const timestampStr = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()}`;
+        const timestampStr = customTimestamp || `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()}`;
 
         // 2. Insert new Log
         const { error: logError } = await supabase
@@ -76,7 +77,8 @@ export async function batchUpdateCandidateStatus(
     jrCandidateIds: string[],
     newStatus: string,
     updatedBy?: string,
-    note: string | null = null
+    note: string | null = null,
+    customTimestamp?: string
 ) {
     const supabase = adminAuthClient;
     const resolvedUpdatedBy = updatedBy || await getCurrentUserEmail();
@@ -100,7 +102,7 @@ export async function batchUpdateCandidateStatus(
         }
 
         const now = new Date();
-        const timestampStr = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()}`;
+        const timestampStr = customTimestamp || `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()}`;
 
         // 2. Prepare logs
         const logsInsert = jrCandidateIds.map((id, index) => ({
