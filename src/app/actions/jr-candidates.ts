@@ -112,12 +112,12 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
     const candidateIdChunks = chunkArray(candidateIds, CHUNK_SIZE);
     const jrCandIdChunks = chunkArray(jrCandIds, CHUNK_SIZE);
 
-    const [profilesChunks, experiencesChunks, logsChunks, historyChunks] = await Promise.all([
+    const [profilesChunks, experiencesChunks, logsChunks, historyChunks, countryRegionsRes] = await Promise.all([
         // Query 2: Candidate Profiles
         Promise.all(candidateIdChunks.map(chunk => 
             (supabase
                 .from('Candidate Profile' as any)
-                .select('candidate_id, name, email, mobile_phone, job_function, photo, age, gender, candidate_projects, candidate_status, linkedin, gross_salary_base_b_mth, bonus_mth')
+                .select('candidate_id, name, email, mobile_phone, job_function, photo, age, gender, nationality, candidate_projects, candidate_status, linkedin, gross_salary_base_b_mth, bonus_mth')
                 .in('candidate_id', chunk) as any)
         )),
 
@@ -125,7 +125,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         Promise.all(candidateIdChunks.map(chunk => 
             (supabase as any)
                 .from('candidate_experiences')
-                .select('candidate_id, company, position, is_current_job, start_date, country, note, company_industry')
+                .select('candidate_id, company, company_id, position, is_current_job, start_date, country, note, company_industry')
                 .in('candidate_id', chunk)
         )),
 
@@ -139,13 +139,16 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         )),
 
         // Query 5: Other JR History Count (Surgical Add)
-        Promise.all(candidateIdChunks.map(chunk => 
+        Promise.all(candidateIdChunks.map(chunk =>
             supabase
                 .from('jr_candidates')
                 .select('candidate_id')
                 .neq('jr_id', jrId)
                 .in('candidate_id', chunk)
-        ))
+        )),
+
+        // Query 6: Country → Region mapping (small table, no chunking needed)
+        supabase.from('country' as any).select('country, region')
     ]);
 
     // Flatten results
@@ -153,6 +156,9 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
     const experiences = experiencesChunks.flatMap(res => res.data || []);
     const logs = logsChunks.flatMap(res => res.data || []);
     const historyData = historyChunks.flatMap(res => (res as any).data || []);
+    const countryRegionMap = new Map<string, string>(
+        ((countryRegionsRes as any).data || []).map((r: any) => [r.country, r.region])
+    );
 
     // Build lookup maps
     const historyMap = new Map<string, number>();
@@ -164,6 +170,21 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
     }
 
     const profileMap = new Map((profiles as any)?.map((p: any) => [p.candidate_id, p]));
+
+    // Lookup company_master for all unique company_ids from experiences
+    const allCompanyIds = [...new Set((experiences as any[]).map((e: any) => e.company_id).filter(Boolean))] as string[];
+    let companyMasterMap = new Map<string, { industry: string; rating: string | null }>();
+    if (allCompanyIds.length > 0) {
+        const { data: compMaster } = await (supabase as any)
+            .from('company_master')
+            .select('company_id, industry, rating')
+            .in('company_id', allCompanyIds);
+        if (compMaster) {
+            companyMasterMap = new Map((compMaster as any[]).map((r: any) => [
+                r.company_id, { industry: r.industry || '', rating: r.rating || null }
+            ]));
+        }
+    }
 
     // Build experience map: prefer is_current_job='Current', else most recent by start_date
     const parseExperienceDate = (dateStr: string | null): number => {
@@ -183,7 +204,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         return 0;
     };
 
-    const expMap = new Map<string, { company: string; position: string; label: string; country: string; note: string; company_industry: string; }>();
+    const expMap = new Map<string, { company: string; company_id: string; position: string; label: string; country: string; region: string; note: string; company_industry: string; industry_master: string; hotel_rating: string | null; }>();
     if (experiences && (experiences as any[]).length > 0) {
         // Group by candidate_id
         const groupedExp: Record<string, any[]> = {};
@@ -209,13 +230,18 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
 
             const best = exps[0];
             const isCurrent = (best.is_current_job || '').toString().trim().toLowerCase() === 'current';
+            const masterData = companyMasterMap.get(best.company_id || '');
             expMap.set(cid, {
                 company: best.company || '',
+                company_id: best.company_id || '',
                 position: best.position || '',
                 label: isCurrent ? 'Current' : 'Latest Position',
                 country: best.country || '',
+                region: countryRegionMap.get(best.country || '') || '',
                 note: best.note || '',
-                company_industry: best.company_industry || ''
+                company_industry: best.company_industry || '',
+                industry_master: masterData?.industry || '',
+                hotel_rating: masterData?.rating || null,
             });
         }
     }
@@ -256,6 +282,10 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
             candidate_gender: profile?.gender || undefined,
             candidate_status: profile?.candidate_status || undefined,
             candidate_linkedin_url: profile?.linkedin || undefined,
+            candidate_nationality: profile?.nationality || undefined,
+            candidate_region: exp?.region || undefined,
+            candidate_industry: exp?.industry_master || undefined,
+            candidate_hotel_rating: exp?.hotel_rating || undefined,
             candidate_salary_base: profile?.gross_salary_base_b_mth || undefined,
             candidate_salary_bonus: profile?.bonus_mth || undefined,
             history_count: historyMap.get(row.candidate_id) || 0,

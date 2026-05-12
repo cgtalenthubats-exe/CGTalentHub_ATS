@@ -68,6 +68,189 @@ interface CandidateListProps {
 
 import { ConfirmPlacementDialog } from "@/components/confirm-placement-dialog";
 
+const UNKNOWN = '(Unknown)';
+
+function buildOptions(vals: (string | null | undefined)[]): string[] {
+    const defined = Array.from(new Set(vals.filter(Boolean))).sort() as string[];
+    const hasUnknown = vals.some(v => !v);
+    return hasUnknown ? [...defined, UNKNOWN] : defined;
+}
+
+function matchesMultiFilter(filter: string[], value: string | null | undefined): boolean {
+    if (filter.length === 0) return true;
+    return filter.some(f => f === UNKNOWN ? !value : f === value);
+}
+
+// Standalone multi-select filter with search input + Apply/Clear UX
+function MSFilter({ label, options, selected, setSelected }: {
+    label: string; options: string[]; selected: string[]; setSelected: (v: string[]) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const [pending, setPending] = useState<string[]>([]);
+    const [search, setSearch] = useState('');
+
+    const handleOpenChange = (isOpen: boolean) => {
+        if (isOpen) { setPending([...selected]); setSearch(''); }
+        setOpen(isOpen);
+    };
+
+    const filtered = search
+        ? options.filter(o => o.toLowerCase().includes(search.toLowerCase()))
+        : options;
+
+    const togglePending = (val: string) =>
+        setPending(p => p.includes(val) ? p.filter(x => x !== val) : [...p, val]);
+
+    const apply = () => { setSelected([...pending]); setOpen(false); };
+    const clear = () => { setPending([]); setSelected([]); setOpen(false); };
+
+    return (
+        <Popover open={open} onOpenChange={handleOpenChange}>
+            <PopoverTrigger asChild>
+                <button className={cn(
+                    "h-8 inline-flex items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold shadow-sm whitespace-nowrap transition-all",
+                    selected.length > 0
+                        ? "bg-indigo-50 border-indigo-300 text-indigo-700"
+                        : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                )}>
+                    {selected.length > 0 ? `${label} (${selected.length})` : label}
+                    <ChevronDown className="h-3 w-3 opacity-50" />
+                </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-[240px] p-0 shadow-xl border-slate-100 rounded-xl z-50">
+                <div className="px-3 py-2 border-b border-slate-100">
+                    <div className="mb-1.5 text-[10px] font-black uppercase text-slate-400 tracking-widest">{label}</div>
+                    <input
+                        placeholder="Search..."
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        className="w-full text-xs px-2 py-1.5 border border-slate-200 rounded-md outline-none focus:ring-1 focus:ring-indigo-300 bg-white"
+                    />
+                </div>
+                <ScrollArea className="max-h-[200px]">
+                    <div className="p-2 flex flex-col gap-0.5">
+                        {filtered.length === 0 && (
+                            <div className="text-xs text-slate-400 text-center py-3">No options</div>
+                        )}
+                        {filtered.map((opt, idx) => (
+                            <label key={`${opt}-${idx}`} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-xs font-medium text-slate-700">
+                                <Checkbox
+                                    checked={pending.includes(opt)}
+                                    onCheckedChange={() => togglePending(opt)}
+                                    className="border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600 shrink-0"
+                                />
+                                <span className="leading-snug">{opt}</span>
+                            </label>
+                        ))}
+                    </div>
+                </ScrollArea>
+                <div className="flex gap-2 p-2 border-t border-slate-100">
+                    <button onClick={clear} className="flex-1 text-xs text-red-500 hover:text-red-700 font-semibold py-1.5 border border-red-100 rounded-md hover:bg-red-50">
+                        Clear
+                    </button>
+                    <button onClick={apply} className="flex-1 text-xs bg-indigo-600 text-white rounded-md py-1.5 font-semibold hover:bg-indigo-700">
+                        Apply
+                    </button>
+                </div>
+            </PopoverContent>
+        </Popover>
+    );
+}
+
+// Age range filter with min/max inputs + include-unknown toggle
+function AgeFilter({ ageMin, ageMax, includeUnknown, onChange }: {
+    ageMin: number | null;
+    ageMax: number | null;
+    includeUnknown: boolean;
+    onChange: (min: number | null, max: number | null, includeUnknown: boolean) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const [pendingMin, setPendingMin] = useState('');
+    const [pendingMax, setPendingMax] = useState('');
+    const [pendingInclude, setPendingInclude] = useState(true);
+
+    const handleOpenChange = (isOpen: boolean) => {
+        if (isOpen) {
+            setPendingMin(ageMin !== null ? String(ageMin) : '');
+            setPendingMax(ageMax !== null ? String(ageMax) : '');
+            setPendingInclude(includeUnknown);
+        }
+        setOpen(isOpen);
+    };
+
+    const apply = () => {
+        const min = pendingMin !== '' ? parseInt(pendingMin) : null;
+        const max = pendingMax !== '' ? parseInt(pendingMax) : null;
+        onChange(
+            min !== null && !isNaN(min) ? min : null,
+            max !== null && !isNaN(max) ? max : null,
+            pendingInclude
+        );
+        setOpen(false);
+    };
+
+    const clear = () => { onChange(null, null, true); setOpen(false); };
+
+    const isActive = ageMin !== null || ageMax !== null;
+    const label = isActive
+        ? `Age: ${ageMin ?? ''}–${ageMax ?? ''}`
+        : 'Age';
+
+    return (
+        <Popover open={open} onOpenChange={handleOpenChange}>
+            <PopoverTrigger asChild>
+                <button className={cn(
+                    "h-8 inline-flex items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold shadow-sm whitespace-nowrap transition-all",
+                    isActive
+                        ? "bg-indigo-50 border-indigo-300 text-indigo-700"
+                        : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                )}>
+                    {label}
+                    <ChevronDown className="h-3 w-3 opacity-50" />
+                </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-[220px] p-0 shadow-xl border-slate-100 rounded-xl z-50">
+                <div className="px-3 py-2 border-b border-slate-100">
+                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Age Range</div>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="number" placeholder="Min" value={pendingMin}
+                            onChange={e => setPendingMin(e.target.value)}
+                            className="w-full text-xs px-2 py-1.5 border border-slate-200 rounded-md outline-none focus:ring-1 focus:ring-indigo-300 bg-white"
+                            min={0} max={100}
+                        />
+                        <span className="text-slate-400 text-xs shrink-0">–</span>
+                        <input
+                            type="number" placeholder="Max" value={pendingMax}
+                            onChange={e => setPendingMax(e.target.value)}
+                            className="w-full text-xs px-2 py-1.5 border border-slate-200 rounded-md outline-none focus:ring-1 focus:ring-indigo-300 bg-white"
+                            min={0} max={100}
+                        />
+                    </div>
+                </div>
+                <div className="px-3 py-2.5 border-b border-slate-100">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <Checkbox
+                            checked={pendingInclude}
+                            onCheckedChange={v => setPendingInclude(!!v)}
+                            className="border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600"
+                        />
+                        <span className="text-xs text-slate-600 font-medium">Include unknown age</span>
+                    </label>
+                </div>
+                <div className="flex gap-2 p-2">
+                    <button onClick={clear} className="flex-1 text-xs text-red-500 hover:text-red-700 font-semibold py-1.5 border border-red-100 rounded-md hover:bg-red-50">
+                        Clear
+                    </button>
+                    <button onClick={apply} className="flex-1 text-xs bg-indigo-600 text-white rounded-md py-1.5 font-semibold hover:bg-indigo-700">
+                        Apply
+                    </button>
+                </div>
+            </PopoverContent>
+        </Popover>
+    );
+}
+
 export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary }: CandidateListProps) {
     const [candidates, setCandidates] = useState<JRCandidate[]>([]);
     const [loading, setLoading] = useState(true);
@@ -79,11 +262,18 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
 
     // Per-column multi-select filters
     const [filterStatus, setFilterStatus] = useState<string[]>([]);
-    const [filterSexAge, setFilterSexAge] = useState<string[]>([]);
+    const [filterGender, setFilterGender] = useState<string[]>([]);
     const [filterCompany, setFilterCompany] = useState<string[]>([]);
     const [filterPosition, setFilterPosition] = useState<string[]>([]);
     const [filterIsCurrentJob, setFilterIsCurrentJob] = useState<string[]>([]);
     const [filterCountry, setFilterCountry] = useState<string[]>([]);
+    const [filterRegion, setFilterRegion] = useState<string[]>([]);
+    const [filterNationality, setFilterNationality] = useState<string[]>([]);
+    const [filterIndustry, setFilterIndustry] = useState<string[]>([]);
+    const [filterRating, setFilterRating] = useState<string[]>([]);
+    const [filterAgeMin, setFilterAgeMin] = useState<number | null>(null);
+    const [filterAgeMax, setFilterAgeMax] = useState<number | null>(null);
+    const [filterAgeIncludeUnknown, setFilterAgeIncludeUnknown] = useState(true);
 
     // Status color map from DB
     const [statusColorMap, setStatusColorMap] = useState<Record<string, { font_color: string | null; bg_color: string | null }>>({});
@@ -322,17 +512,21 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     const greyStatuses = ["Not Open", "Not Pass Interview", "Too Senior", "Hold"];
     const redStatuses = ["Rejected", "Not fit"];
 
-    // Unique option sets derived from all candidates
-    const uniqueStatuses = Array.from(new Set(candidates.map(c => c.status).filter(Boolean))).sort() as string[];
-    const uniqueGenders = Array.from(new Set(candidates.map(c => c.candidate_gender).filter(Boolean))).sort() as string[];
-    const uniqueCompanies = Array.from(new Set(candidates.map(c => c.candidate_current_company).filter(Boolean))).sort() as string[];
-    const uniquePositions = Array.from(new Set(candidates.map(c => c.candidate_current_position).filter(Boolean))).sort() as string[];
+    // Unique option sets derived from all candidates (Unknown included if any nulls exist)
+    const uniqueStatuses = buildOptions(candidates.map(c => c.status));
+    const uniqueGenders = buildOptions(candidates.map(c => c.candidate_gender));
+    const uniqueCompanies = buildOptions(candidates.map(c => c.candidate_current_company));
+    const uniquePositions = buildOptions(candidates.map(c => c.candidate_current_position));
     const uniqueCurrentJobs = ['Current', 'Latest Position'];
-    const uniqueCountries = Array.from(new Set(candidates.map(c => {
+    const uniqueCountries = buildOptions(candidates.map(c => {
         if (!c.candidate_country) return null;
         const idx = c.candidate_country.indexOf('(');
         return idx >= 0 ? c.candidate_country.slice(0, idx).trim() : c.candidate_country;
-    }).filter(Boolean))).sort() as string[];
+    }));
+    const uniqueRegions = buildOptions(candidates.map(c => c.candidate_region));
+    const uniqueNationalities = buildOptions(candidates.map(c => c.candidate_nationality));
+    const uniqueIndustries = buildOptions(candidates.map(c => c.candidate_industry));
+    const uniqueRatings = buildOptions(candidates.map(c => c.candidate_hotel_rating));
 
     // Multi-select filter logic (empty array = show all)
     const filteredCandidates = candidates.filter(c => {
@@ -347,16 +541,32 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                 (c.candidate_gender || "").toLowerCase().includes(f) ||
                 (c.status || "").toLowerCase().includes(f) ||
                 (c.candidate_country || "").toLowerCase().includes(f) ||
+                (c.candidate_nationality || "").toLowerCase().includes(f) ||
                 String(c.candidate_age || "").includes(f);
 
-            const matchesStatus = filterStatus.length === 0 || filterStatus.includes(c.status || '');
-            const matchesSexAge = filterSexAge.length === 0 || filterSexAge.includes(c.candidate_gender || '');
-            const matchesCompany = filterCompany.length === 0 || filterCompany.includes(c.candidate_current_company || '');
-            const matchesPosition = filterPosition.length === 0 || filterPosition.includes(c.candidate_current_position || '');
-            const matchesCurrentJob = filterIsCurrentJob.length === 0 || filterIsCurrentJob.includes(c.candidate_is_current_job || '');
-            const matchesCountry = filterCountry.length === 0 || filterCountry.some(fc => (c.candidate_country || '').startsWith(fc));
+            const matchesStatus = matchesMultiFilter(filterStatus, c.status);
+            const matchesGender = matchesMultiFilter(filterGender, c.candidate_gender);
+            const matchesCompany = matchesMultiFilter(filterCompany, c.candidate_current_company);
+            const matchesPosition = matchesMultiFilter(filterPosition, c.candidate_current_position);
+            const matchesCurrentJob = matchesMultiFilter(filterIsCurrentJob, c.candidate_is_current_job);
+            const matchesRegion = matchesMultiFilter(filterRegion, c.candidate_region);
+            const matchesNationality = matchesMultiFilter(filterNationality, c.candidate_nationality);
+            const matchesIndustry = matchesMultiFilter(filterIndustry, c.candidate_industry);
+            const matchesRating = matchesMultiFilter(filterRating, c.candidate_hotel_rating);
+            const matchesCountry = filterCountry.length === 0 || filterCountry.some(fc =>
+                fc === UNKNOWN ? !c.candidate_country : (c.candidate_country || '').startsWith(fc)
+            );
+            const ageFilterActive = filterAgeMin !== null || filterAgeMax !== null;
+            const matchesAge = !ageFilterActive || (() => {
+                const age = parseInt(String(c.candidate_age || ''));
+                const hasAge = !isNaN(age) && age > 0;
+                if (!hasAge) return filterAgeIncludeUnknown;
+                if (filterAgeMin !== null && age < filterAgeMin) return false;
+                if (filterAgeMax !== null && age > filterAgeMax) return false;
+                return true;
+            })();
 
-            return matchesGlobal && matchesStatus && matchesSexAge && matchesCompany && matchesPosition && matchesCurrentJob && matchesCountry;
+            return matchesGlobal && matchesStatus && matchesGender && matchesCompany && matchesPosition && matchesCurrentJob && matchesCountry && matchesRegion && matchesNationality && matchesIndustry && matchesRating && matchesAge;
         } catch { return false; }
     });
 
@@ -394,53 +604,6 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
         return rA - rB;
     });
 
-    // Toggle value in a multi-select array
-    const toggleMulti = (arr: string[], val: string, setArr: (v: string[]) => void) => {
-        setArr(arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]);
-    };
-
-    // Multi-select filter dropdown component
-    const MSFilter = ({ label, options, selected, setSelected }: {
-        label: string; options: string[]; selected: string[]; setSelected: (v: string[]) => void;
-    }) => (
-        <Popover>
-            <PopoverTrigger asChild>
-                <button className={cn(
-                    "h-8 inline-flex items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold shadow-sm whitespace-nowrap transition-all",
-                    selected.length > 0
-                        ? "bg-indigo-50 border-indigo-300 text-indigo-700"
-                        : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
-                )}>
-                    {selected.length > 0 ? `${label} (${selected.length})` : label}
-                    <ChevronDown className="h-3 w-3 opacity-50" />
-                </button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-[220px] p-2 shadow-xl border-slate-100 rounded-xl z-50">
-                <div className="mb-1.5 px-1 text-[10px] font-black uppercase text-slate-400 tracking-widest">{label}</div>
-                <ScrollArea className="max-h-[240px] pr-1">
-                    <div className="flex flex-col gap-0.5">
-                        {options.length === 0 && <div className="text-xs text-slate-400 text-center py-3">No options</div>}
-                        {options.map((opt, idx) => (
-                            <label key={`${opt}-${idx}`} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-xs font-medium text-slate-700">
-                                <Checkbox
-                                    checked={selected.includes(opt)}
-                                    onCheckedChange={() => toggleMulti(selected, opt, setSelected)}
-                                    className="border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600 shrink-0"
-                                />
-                                <span className="leading-snug">{opt}</span>
-                            </label>
-                        ))}
-                    </div>
-                </ScrollArea>
-                {selected.length > 0 && (
-                    <button className="mt-1 w-full text-[11px] text-red-500 hover:text-red-700 py-1 font-semibold border-t border-slate-100"
-                        onClick={() => setSelected([])}>
-                        Clear
-                    </button>
-                )}
-            </PopoverContent>
-        </Popover>
-    );
 
     // Row Style Helper — uses DB colors if configured, else falls back to status groups
     const getRowClass = (status: string, isSelected: boolean) => {
@@ -585,11 +748,19 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                         <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest mr-1">Filters:</span>
 
                         <MSFilter label="Status" options={uniqueStatuses} selected={filterStatus} setSelected={setFilterStatus} />
-                        <MSFilter label="Sex" options={uniqueGenders} selected={filterSexAge} setSelected={setFilterSexAge} />
+                        <MSFilter label="Gender" options={uniqueGenders} selected={filterGender} setSelected={setFilterGender} />
                         <MSFilter label="Company" options={uniqueCompanies} selected={filterCompany} setSelected={setFilterCompany} />
                         <MSFilter label="Position" options={uniquePositions} selected={filterPosition} setSelected={setFilterPosition} />
                         <MSFilter label="Experience Type" options={uniqueCurrentJobs} selected={filterIsCurrentJob} setSelected={setFilterIsCurrentJob} />
                         <MSFilter label="Country" options={uniqueCountries} selected={filterCountry} setSelected={setFilterCountry} />
+                        <MSFilter label="Region" options={uniqueRegions} selected={filterRegion} setSelected={setFilterRegion} />
+                        <MSFilter label="Nationality" options={uniqueNationalities} selected={filterNationality} setSelected={setFilterNationality} />
+                        <MSFilter label="Industry" options={uniqueIndustries} selected={filterIndustry} setSelected={setFilterIndustry} />
+                        <MSFilter label="Hotel Rating" options={uniqueRatings} selected={filterRating} setSelected={setFilterRating} />
+                        <AgeFilter
+                            ageMin={filterAgeMin} ageMax={filterAgeMax} includeUnknown={filterAgeIncludeUnknown}
+                            onChange={(min, max, inc) => { setFilterAgeMin(min); setFilterAgeMax(max); setFilterAgeIncludeUnknown(inc); }}
+                        />
 
                         {/* Global text search */}
                         <div className="relative ml-auto">
@@ -603,12 +774,14 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                         </div>
 
                         {/* Clear all */}
-                        {(filterStatus.length > 0 || filterSexAge.length > 0 || filterCompany.length > 0 || filterPosition.length > 0 || filterIsCurrentJob.length > 0 || filterCountry.length > 0 || filterText) && (
+                        {(filterStatus.length > 0 || filterGender.length > 0 || filterCompany.length > 0 || filterPosition.length > 0 || filterIsCurrentJob.length > 0 || filterCountry.length > 0 || filterRegion.length > 0 || filterNationality.length > 0 || filterIndustry.length > 0 || filterRating.length > 0 || filterAgeMin !== null || filterAgeMax !== null || filterText) && (
                             <Button size="sm" variant="ghost"
                                 className="h-8 px-3 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
                                 onClick={() => {
-                                    setFilterStatus([]); setFilterSexAge([]); setFilterCompany([]);
+                                    setFilterStatus([]); setFilterGender([]); setFilterCompany([]);
                                     setFilterPosition([]); setFilterIsCurrentJob([]); setFilterCountry([]);
+                                    setFilterRegion([]); setFilterNationality([]); setFilterIndustry([]); setFilterRating([]);
+                                    setFilterAgeMin(null); setFilterAgeMax(null); setFilterAgeIncludeUnknown(true);
                                     setFilterText("");
                                 }}>
                                 ✕ Clear All

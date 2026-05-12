@@ -47,6 +47,10 @@ export interface JRCandidate {
     candidate_gender?: string;
     candidate_linkedin_url?: string; // [NEW] Added for Refresh Data payload
     candidate_status?: string; // [NEW] Global status from profile
+    candidate_nationality?: string;
+    candidate_region?: string;
+    candidate_industry?: string;
+    candidate_hotel_rating?: string;
     history_count?: number;
 }
 
