@@ -8,13 +8,16 @@ import type { DemoFilterState, AiParseResult } from "./types";
 type SuggestionMap = AiParseResult["suggestions"];
 
 const LABELS: Record<keyof SuggestionMap, string> = {
-    position_keywords: "Position Keywords",
-    position_levels:   "Position Level",
-    industries:        "Industry",
-    regions:           "Region",
-    countries:         "Country",
-    hotel_ratings:     "Hotel Rating",
-    job_functions:     "Job Function",
+    position_keywords:  "Position Keywords",
+    position_levels:    "Position Level",
+    industries:         "Industry",
+    regions:            "Region",
+    countries:          "Country",
+    hotel_ratings:      "Hotel Rating",
+    job_functions:      "Job Function",
+    exclude_companies:  "Exclude Company",
+    exclude_countries:  "Exclude Country",
+    exclude_keywords:   "Exclude Keyword",
 };
 
 const PREVIEW = 3;

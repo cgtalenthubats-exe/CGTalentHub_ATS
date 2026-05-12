@@ -1,15 +1,13 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
-import { ChevronDown, ChevronUp, X, SlidersHorizontal, RotateCcw, Check, Loader2 } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { ChevronDown, SlidersHorizontal, RotateCcw, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import {
-    DemoFilterState,
-    POSITION_LEVELS,
-    HOTEL_RATINGS,
-} from "./types";
+import { DemoFilterState, POSITION_LEVELS, HOTEL_RATINGS } from "./types";
 
 interface StaticOptions {
     keywords: { keyword: string; group_label: string }[];
@@ -38,455 +36,400 @@ interface FilterPanelProps {
     onReset: () => void;
 }
 
-// --- Collapsible Section ---
-function Section({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
-    const [open, setOpen] = useState(true);
+// --- Section label divider ---
+function SectionLabel({ label }: { label: string }) {
     return (
-        <div className="border-b border-slate-100 last:border-0">
-            <button
-                onClick={() => setOpen(!open)}
-                className="w-full flex items-center justify-between py-2.5 px-1 text-sm font-medium text-slate-700 hover:text-slate-900"
-            >
-                <span className="flex items-center gap-2">
-                    {title}
-                    {count !== undefined && count > 0 && (
-                        <Badge variant="secondary" className="h-4 px-1.5 text-[10px] bg-indigo-100 text-indigo-700">
-                            {count}
-                        </Badge>
-                    )}
-                </span>
-                {open ? <ChevronUp className="h-3.5 w-3.5 text-slate-400" /> : <ChevronDown className="h-3.5 w-3.5 text-slate-400" />}
-            </button>
-            {open && <div className="pb-3 px-1">{children}</div>}
+        <div className="px-3 pt-3 pb-0.5 text-[10px] font-black uppercase text-slate-400 tracking-widest select-none">
+            {label}
         </div>
     );
 }
 
-// --- Tag multi-select with search ---
-function TagSelect({
+// --- Multi-select popover (search + checkboxes + Apply/Clear) ---
+function FilterPopover({
+    label,
     options,
     selected,
     onChange,
     placeholder = "Search...",
-    maxShow = 8,
     emptyHint,
     variant = "include",
 }: {
+    label: string;
     options: string[];
     selected: string[];
-    onChange: (val: string[]) => void;
+    onChange: (v: string[]) => void;
     placeholder?: string;
-    maxShow?: number;
     emptyHint?: string;
     variant?: "include" | "exclude";
 }) {
+    const [open, setOpen] = useState(false);
+    const [pending, setPending] = useState<string[]>([]);
     const [search, setSearch] = useState("");
-    const filtered = useMemo(
-        () => options.filter((o) => o.toLowerCase().includes(search.toLowerCase()) && !selected.includes(o)),
-        [options, search, selected]
-    );
 
-    const toggle = (val: string) => {
-        onChange(selected.includes(val) ? selected.filter((s) => s !== val) : [...selected, val]);
+    const handleOpenChange = (isOpen: boolean) => {
+        if (isOpen) { setPending([...selected]); setSearch(""); }
+        setOpen(isOpen);
     };
 
-    if (options.length === 0 && selected.length === 0 && emptyHint) {
-        return <p className="text-[11px] text-slate-400 italic">{emptyHint}</p>;
-    }
+    const filtered = useMemo(
+        () => search ? options.filter(o => o.toLowerCase().includes(search.toLowerCase())) : options,
+        [options, search]
+    );
+
+    const toggle = (val: string) =>
+        setPending(p => p.includes(val) ? p.filter(x => x !== val) : [...p, val]);
+
+    const apply = () => { onChange([...pending]); setOpen(false); };
+    const clear = () => { onChange([]); setPending([]); setOpen(false); };
+    const count = selected.length;
+    const isExclude = variant === "exclude";
 
     return (
-        <div className="space-y-2">
-            {selected.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                    {selected.map((s) => (
-                        <Badge key={s} variant="secondary" className={cn(
-                            "text-xs pr-1 gap-1",
-                            variant === "exclude"
-                                ? "bg-red-50 text-red-700 border border-red-200 line-through"
-                                : "bg-indigo-50 text-indigo-700 border border-indigo-200"
-                        )}>
-                            <span className="max-w-[120px] truncate">{s}</span>
-                            <button onClick={() => toggle(s)} className="ml-0.5 hover:text-red-500">
-                                <X className="h-2.5 w-2.5" />
-                            </button>
-                        </Badge>
-                    ))}
+        <Popover open={open} onOpenChange={handleOpenChange}>
+            <PopoverTrigger asChild>
+                <button className={cn(
+                    "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors text-left",
+                    count > 0
+                        ? isExclude ? "bg-red-50 text-red-800" : "bg-indigo-50 text-indigo-800"
+                        : "text-slate-600 hover:bg-slate-50"
+                )}>
+                    <span className={cn("font-medium truncate", isExclude && count === 0 && "text-slate-500")}>
+                        {label}
+                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                        {count > 0 && (
+                            <Badge className={cn(
+                                "h-4 px-1.5 text-[10px]",
+                                isExclude ? "bg-red-500 text-white" : "bg-indigo-600 text-white"
+                            )}>{count}</Badge>
+                        )}
+                        <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                    </div>
+                </button>
+            </PopoverTrigger>
+            <PopoverContent side="right" align="start" sideOffset={4} className="w-64 p-0 shadow-xl border border-slate-100 rounded-xl z-50">
+                <div className="px-3 pt-3 pb-2 border-b border-slate-100">
+                    <div className="mb-1.5 text-[10px] font-black uppercase text-slate-400 tracking-widest">{label}</div>
+                    <input
+                        placeholder={placeholder}
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        autoFocus
+                        className="w-full text-xs px-2 py-1.5 border border-slate-200 rounded-md outline-none focus:ring-1 focus:ring-indigo-300 bg-white"
+                    />
                 </div>
-            )}
-            <Input
-                placeholder={placeholder}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="h-7 text-xs"
-            />
-            <div className="max-h-32 overflow-y-auto space-y-0.5">
-                {filtered.slice(0, maxShow).map((o) => (
-                    <button
-                        key={o}
-                        onClick={() => { toggle(o); setSearch(""); }}
-                        className="w-full text-left text-xs px-2 py-1 rounded hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 truncate"
-                    >
-                        {o}
+                <ScrollArea className="max-h-[220px]">
+                    <div className="p-2 flex flex-col gap-0.5">
+                        {options.length === 0 && emptyHint && !search && (
+                            <div className="text-xs text-slate-400 text-center py-3 italic">{emptyHint}</div>
+                        )}
+                        {filtered.length === 0 && search && (
+                            <div className="text-xs text-slate-400 text-center py-3">No results</div>
+                        )}
+                        {filtered.map(opt => (
+                            <label key={opt} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-xs font-medium text-slate-700">
+                                <Checkbox
+                                    checked={pending.includes(opt)}
+                                    onCheckedChange={() => toggle(opt)}
+                                    className="border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600 shrink-0"
+                                />
+                                <span className="leading-snug truncate">{opt}</span>
+                            </label>
+                        ))}
+                    </div>
+                </ScrollArea>
+                <div className="flex gap-2 p-2 border-t border-slate-100">
+                    <button onClick={clear} className="flex-1 text-xs text-red-500 hover:text-red-700 font-semibold py-1.5 border border-red-100 rounded-md hover:bg-red-50 transition-colors">
+                        Clear
                     </button>
-                ))}
-                {filtered.length > maxShow && (
-                    <p className="text-[10px] text-slate-400 px-2 py-1">{filtered.length - maxShow} more...</p>
-                )}
-                {filtered.length === 0 && search && (
-                    <p className="text-[10px] text-slate-400 px-2 py-1">No results</p>
-                )}
-            </div>
-        </div>
+                    <button onClick={apply} className="flex-1 text-xs text-white bg-indigo-600 hover:bg-indigo-700 font-semibold py-1.5 rounded-md transition-colors">
+                        Apply
+                    </button>
+                </div>
+            </PopoverContent>
+        </Popover>
     );
 }
 
-// --- Checkbox group (pill style) ---
-function CheckboxGroup({
-    options,
-    allOptions,
+// --- Industry Group — single-select popover ---
+function IndustryGroupPopover({
+    groups,
     selected,
     onChange,
 }: {
-    options: string[];
-    allOptions: string[];
-    selected: string[];
-    onChange: (val: string[]) => void;
+    groups: string[];
+    selected: string | null;
+    onChange: (v: string | null) => void;
 }) {
-    const safeOptions = options ?? [];
-    const safeSelected = selected ?? [];
-    const toggle = (val: string) =>
-        onChange(safeSelected.includes(val) ? safeSelected.filter((s) => s !== val) : [...safeSelected, val]);
+    const [open, setOpen] = useState(false);
+
+    const select = (g: string) => {
+        onChange(selected === g ? null : g);
+        setOpen(false);
+    };
 
     return (
-        <div className="flex flex-wrap gap-1.5">
-            {allOptions.map((o) => {
-                const available = safeOptions.length === 0 || safeOptions.includes(o);
-                const isSelected = safeSelected.includes(o);
-                return (
-                    <button
-                        key={o}
-                        onClick={() => toggle(o)}
-                        className={cn(
-                            "text-xs px-2.5 py-1 rounded-full border transition-colors",
-                            isSelected
-                                ? "bg-indigo-600 text-white border-indigo-600"
-                                : available
-                                    ? "bg-white text-slate-600 border-slate-200 hover:border-indigo-300"
-                                    : "bg-slate-50 text-slate-300 border-slate-100 cursor-default"
-                        )}
-                        disabled={!available && !isSelected}
-                    >
-                        {o}
-                    </button>
-                );
-            })}
-        </div>
-    );
-}
-
-// --- Main FilterPanel ---
-export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, filters, onChange, onReset }: FilterPanelProps) {
-    const [localFilters, setLocalFilters] = useState<DemoFilterState>(filters);
-
-    // Sync when external changes arrive (AI parse, reset)
-    useEffect(() => { setLocalFilters(filters); }, [filters]);
-
-    const set = <K extends keyof DemoFilterState>(key: K, value: DemoFilterState[K]) =>
-        setLocalFilters(prev => ({ ...prev, [key]: value }));
-
-    const hasPending = useMemo(
-        () => JSON.stringify(localFilters) !== JSON.stringify(filters),
-        [localFilters, filters]
-    );
-
-    const handleApply = () => onChange(localFilters);
-
-    if (!staticOptions) return null;
-
-    const cascade = cascadingOptions;
-
-    // Keywords: cascade when available, else full static list
-    const keywordOptions = useMemo(
-        () => cascade ? (cascade.keywords ?? staticOptions.keywords.map((k) => k.keyword)) : staticOptions.keywords.map((k) => k.keyword),
-        [cascade, staticOptions.keywords]
-    );
-
-    // Levels: use POSITION_LEVELS order, gray out unavailable ones via cascade
-    const availableLevels = useMemo(
-        () => cascade ? (cascade.levels ?? POSITION_LEVELS) : POSITION_LEVELS,
-        [cascade]
-    );
-
-    // Industry group → filter industries (always from static)
-    const industryGroups = useMemo(
-        () => [...new Set(staticOptions.industries.map((i) => i.group))],
-        [staticOptions.industries]
-    );
-    const availableIndustries = useMemo(
-        () => filters.industry_group
-            ? staticOptions.industries.filter((i) => i.group === filters.industry_group).map((i) => i.industry)
-            : staticOptions.industries.map((i) => i.industry),
-        [staticOptions.industries, filters.industry_group]
-    );
-
-    // Regions: always from static
-    const regions = useMemo(
-        () => [...new Set(staticOptions.countries.map((c) => c.region).filter(Boolean))].sort(),
-        [staticOptions.countries]
-    );
-
-    // Countries: cascade when available, filtered by selected regions; else from static
-    const availableCountries = useMemo(() => {
-        if (cascade?.countries) return cascade.countries;
-        const base = filters.regions.length > 0
-            ? staticOptions.countries.filter((c) => filters.regions.includes(c.region))
-            : staticOptions.countries;
-        return base.map((c) => c.country);
-    }, [cascade, staticOptions.countries, filters.regions]);
-
-    // Job functions: cascade when available, else static
-    const jobFunctionOptions = useMemo(
-        () => cascade ? (cascade.job_functions ?? staticOptions.jobFunctions) : staticOptions.jobFunctions,
-        [cascade, staticOptions.jobFunctions]
-    );
-
-    // Hotel ratings available: cascade when available, else all
-    const availableHotelRatings = useMemo(
-        () => cascade ? (cascade.hotel_ratings ?? HOTEL_RATINGS) : HOTEL_RATINGS,
-        [cascade]
-    );
-
-    const availableRegions = useMemo(
-        () => cascade ? (cascade.regions ?? regions) : regions,
-        [cascade, regions]
-    );
-
-    // Positions: cascade only (dynamic, requires at least one filter)
-    const positionOptions = useMemo(
-        () => cascade?.positions ?? [],
-        [cascade]
-    );
-
-    // Companies: cascade only (dynamic)
-    const companyOptions = useMemo(
-        () => cascade?.companies ?? [],
-        [cascade]
-    );
-
-    const activeCount = [
-        localFilters.position_keywords.length,
-        localFilters.position_levels.length,
-        localFilters.industry_group ? 1 : 0,
-        localFilters.industries.length,
-        localFilters.regions.length,
-        localFilters.countries.length,
-        localFilters.hotel_ratings.length,
-        localFilters.current_only ? 1 : 0,
-        localFilters.job_functions.length,
-        localFilters.positions.length,
-        localFilters.companies.length,
-    ].reduce((a, b) => a + b, 0);
-
-    return (
-        <div className="w-60 shrink-0 bg-white border border-slate-200 rounded-xl shadow-sm overflow-y-auto">
-            {/* Header */}
-            <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-100 sticky top-0 bg-white z-10">
-                <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                    <SlidersHorizontal className="h-3.5 w-3.5" />
-                    Filters
-                    {activeCount > 0 && (
-                        <Badge className="h-4 px-1.5 text-[10px] bg-indigo-600 text-white">{activeCount}</Badge>
-                    )}
-                    {cascadeLoading && (
-                        <Loader2 className="h-3 w-3 animate-spin text-slate-400" />
-                    )}
-                </span>
-                <div className="flex items-center gap-1.5">
-                    {hasPending && (
-                        <button
-                            onClick={handleApply}
-                            className="flex items-center gap-1 text-[10px] font-bold bg-indigo-600 text-white px-2 py-1 rounded-md hover:bg-indigo-700 transition-colors"
-                        >
-                            <Check className="h-3 w-3" /> Apply
-                        </button>
-                    )}
-                    {activeCount > 0 && (
-                        <button onClick={onReset} className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-red-500">
-                            <RotateCcw className="h-3 w-3" /> Reset
-                        </button>
-                    )}
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <button className={cn(
+                    "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors text-left",
+                    selected ? "bg-indigo-50 text-indigo-800" : "text-slate-600 hover:bg-slate-50"
+                )}>
+                    <span className="font-medium truncate flex-1">Industry Group</span>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                        {selected && <Badge className="h-4 px-1.5 text-[10px] bg-indigo-600 text-white">1</Badge>}
+                        <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                    </div>
+                </button>
+            </PopoverTrigger>
+            <PopoverContent side="right" align="start" sideOffset={4} className="w-64 p-0 shadow-xl border border-slate-100 rounded-xl z-50">
+                <div className="px-3 pt-3 pb-2 border-b border-slate-100">
+                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Industry Group</div>
+                    {selected && <div className="text-xs text-indigo-700 font-semibold">{selected}</div>}
                 </div>
-            </div>
-
-            <div className="px-3 py-1 divide-y divide-slate-100">
-                {/* Position Keywords */}
-                <Section title="Position Keywords" count={localFilters.position_keywords.length}>
-                    <TagSelect
-                        options={keywordOptions}
-                        selected={localFilters.position_keywords}
-                        onChange={(v) => set("position_keywords", v)}
-                        placeholder="Search keywords..."
-                    />
-                </Section>
-
-                {/* Position Level */}
-                <Section title="Position Level" count={localFilters.position_levels.length}>
-                    <CheckboxGroup
-                        options={availableLevels}
-                        allOptions={POSITION_LEVELS}
-                        selected={localFilters.position_levels}
-                        onChange={(v) => set("position_levels", v)}
-                    />
-                </Section>
-
-                {/* Industry Group */}
-                <Section title="Industry Group" count={localFilters.industry_group ? 1 : 0}>
-                    <div className="space-y-1">
-                        {industryGroups.map((g) => (
+                <ScrollArea className="max-h-[220px]">
+                    <div className="p-2 flex flex-col gap-0.5">
+                        {groups.map(g => (
                             <button
                                 key={g}
-                                onClick={() => set("industry_group", localFilters.industry_group === g ? null : g)}
+                                onClick={() => select(g)}
                                 className={cn(
-                                    "w-full text-left text-xs px-2 py-1.5 rounded transition-colors",
-                                    localFilters.industry_group === g
-                                        ? "bg-indigo-600 text-white"
-                                        : "hover:bg-indigo-50 text-slate-600"
+                                    "w-full text-left text-xs px-2 py-2 rounded-lg transition-colors font-medium",
+                                    selected === g ? "bg-indigo-600 text-white" : "text-slate-700 hover:bg-slate-50"
                                 )}
                             >
                                 {g}
                             </button>
                         ))}
                     </div>
-                </Section>
+                </ScrollArea>
+                {selected && (
+                    <div className="p-2 border-t border-slate-100">
+                        <button
+                            onClick={() => { onChange(null); setOpen(false); }}
+                            className="w-full text-xs text-red-500 hover:text-red-700 font-semibold py-1.5 border border-red-100 rounded-md hover:bg-red-50 transition-colors"
+                        >
+                            Clear
+                        </button>
+                    </div>
+                )}
+            </PopoverContent>
+        </Popover>
+    );
+}
 
-                {/* Industry */}
-                <Section title="Industry" count={localFilters.industries.length}>
-                    <TagSelect
-                        options={availableIndustries}
-                        selected={localFilters.industries}
-                        onChange={(v) => set("industries", v)}
-                        placeholder="Search industry..."
-                    />
-                </Section>
+// --- Main FilterPanel ---
+export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, filters, onChange, onReset }: FilterPanelProps) {
+    if (!staticOptions) return null;
 
-                {/* Region */}
-                <Section title="Region" count={localFilters.regions.length}>
-                    <CheckboxGroup
-                        options={availableRegions}
-                        allOptions={regions}
-                        selected={localFilters.regions}
-                        onChange={(v) => set("regions", v)}
-                    />
-                </Section>
+    const set = <K extends keyof DemoFilterState>(key: K, value: DemoFilterState[K]) =>
+        onChange({ ...filters, [key]: value });
 
-                {/* Country */}
-                <Section title="Country" count={localFilters.countries.length}>
-                    <TagSelect
-                        options={availableCountries}
-                        selected={localFilters.countries}
-                        onChange={(v) => set("countries", v)}
-                        placeholder="Search country..."
-                    />
-                </Section>
+    const cascade = cascadingOptions;
 
-                {/* Hotel Rating */}
-                <Section title="Hotel Rating" count={localFilters.hotel_ratings.length}>
-                    <CheckboxGroup
-                        options={availableHotelRatings}
-                        allOptions={HOTEL_RATINGS}
-                        selected={localFilters.hotel_ratings}
-                        onChange={(v) => set("hotel_ratings", v)}
-                    />
-                </Section>
+    const keywordOptions = useMemo(
+        () => cascade ? (cascade.keywords ?? staticOptions.keywords.map(k => k.keyword)) : staticOptions.keywords.map(k => k.keyword),
+        [cascade, staticOptions.keywords]
+    );
+    const availableLevels = useMemo(
+        () => cascade ? (cascade.levels ?? POSITION_LEVELS) : POSITION_LEVELS,
+        [cascade]
+    );
+    const industryGroups = useMemo(
+        () => [...new Set(staticOptions.industries.map(i => i.group))],
+        [staticOptions.industries]
+    );
+    const availableIndustries = useMemo(
+        () => filters.industry_group
+            ? staticOptions.industries.filter(i => i.group === filters.industry_group).map(i => i.industry)
+            : staticOptions.industries.map(i => i.industry),
+        [staticOptions.industries, filters.industry_group]
+    );
+    const regions = useMemo(
+        () => [...new Set(staticOptions.countries.map(c => c.region).filter(Boolean))].sort(),
+        [staticOptions.countries]
+    );
+    const availableRegions = useMemo(
+        () => cascade ? (cascade.regions ?? regions) : regions,
+        [cascade, regions]
+    );
+    const availableCountries = useMemo(() => {
+        if (cascade?.countries) return cascade.countries;
+        const base = filters.regions.length > 0
+            ? staticOptions.countries.filter(c => filters.regions.includes(c.region))
+            : staticOptions.countries;
+        return base.map(c => c.country);
+    }, [cascade, staticOptions.countries, filters.regions]);
+    const availableHotelRatings = useMemo(
+        () => cascade ? (cascade.hotel_ratings ?? HOTEL_RATINGS) : HOTEL_RATINGS,
+        [cascade]
+    );
+    const jobFunctionOptions = useMemo(
+        () => cascade ? (cascade.job_functions ?? staticOptions.jobFunctions) : staticOptions.jobFunctions,
+        [cascade, staticOptions.jobFunctions]
+    );
+    const positionOptions = useMemo(() => cascade?.positions ?? [], [cascade]);
+    const companyOptions = useMemo(() => cascade?.companies ?? [], [cascade]);
 
-                {/* Current Only */}
-                <div className="py-3 flex items-center justify-between">
-                    <span className="text-sm text-slate-700">Current Job Only</span>
+    const activeCount = [
+        filters.position_keywords.length,
+        filters.position_levels.length,
+        filters.industry_group ? 1 : 0,
+        filters.industries.length,
+        filters.regions.length,
+        filters.countries.length,
+        filters.hotel_ratings.length,
+        filters.current_only ? 1 : 0,
+        filters.job_functions.length,
+        filters.positions.length,
+        filters.companies.length,
+    ].reduce((a, b) => a + b, 0);
+
+    return (
+        <div className="w-60 shrink-0 bg-white border border-slate-200 rounded-xl shadow-sm">
+            {/* Header */}
+            <div className="flex items-center justify-between px-3 py-2.5 border-b border-slate-100">
+                <span className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                    Filters
+                    {activeCount > 0 && (
+                        <Badge className="h-4 px-1.5 text-[10px] bg-indigo-600 text-white">{activeCount}</Badge>
+                    )}
+                    {cascadeLoading && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
+                </span>
+                {activeCount > 0 && (
+                    <button onClick={onReset} className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-red-500 transition-colors">
+                        <RotateCcw className="h-3 w-3" /> Reset
+                    </button>
+                )}
+            </div>
+
+            {/* Filter rows */}
+            <div className="py-1">
+                <SectionLabel label="Position" />
+                <FilterPopover
+                    label="Keywords"
+                    options={keywordOptions}
+                    selected={filters.position_keywords}
+                    onChange={v => set("position_keywords", v)}
+                    placeholder="Search keywords..."
+                />
+                <FilterPopover
+                    label="Level"
+                    options={availableLevels}
+                    selected={filters.position_levels}
+                    onChange={v => set("position_levels", v)}
+                    placeholder="Search level..."
+                />
+
+                <SectionLabel label="Industry" />
+                <IndustryGroupPopover
+                    groups={industryGroups}
+                    selected={filters.industry_group}
+                    onChange={v => set("industry_group", v)}
+                />
+                <FilterPopover
+                    label="Industry"
+                    options={availableIndustries}
+                    selected={filters.industries}
+                    onChange={v => set("industries", v)}
+                    placeholder="Search industry..."
+                />
+
+                <SectionLabel label="Location" />
+                <FilterPopover
+                    label="Region"
+                    options={availableRegions}
+                    selected={filters.regions}
+                    onChange={v => set("regions", v)}
+                    placeholder="Search region..."
+                />
+                <FilterPopover
+                    label="Country"
+                    options={availableCountries}
+                    selected={filters.countries}
+                    onChange={v => set("countries", v)}
+                    placeholder="Search country..."
+                />
+
+                <SectionLabel label="Other" />
+                <FilterPopover
+                    label="Hotel Rating"
+                    options={availableHotelRatings}
+                    selected={filters.hotel_ratings}
+                    onChange={v => set("hotel_ratings", v)}
+                    placeholder="Search rating..."
+                />
+
+                {/* Current Job Only — inline toggle */}
+                <div className="flex items-center justify-between px-3 py-2">
+                    <span className="text-sm font-medium text-slate-600">Current Job Only</span>
                     <button
-                        onClick={() => set("current_only", !localFilters.current_only)}
+                        onClick={() => set("current_only", !filters.current_only)}
                         className={cn(
-                            "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-                            localFilters.current_only ? "bg-indigo-600" : "bg-slate-200"
+                            "relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0",
+                            filters.current_only ? "bg-indigo-600" : "bg-slate-200"
                         )}
                     >
                         <span className={cn(
                             "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform",
-                            localFilters.current_only ? "translate-x-4" : "translate-x-1"
+                            filters.current_only ? "translate-x-4" : "translate-x-1"
                         )} />
                     </button>
                 </div>
 
-                {/* Job Function */}
-                <Section title="Job Function" count={localFilters.job_functions.length}>
-                    <TagSelect
-                        options={jobFunctionOptions}
-                        selected={localFilters.job_functions}
-                        onChange={(v) => set("job_functions", v)}
-                        placeholder="Search function..."
-                    />
-                </Section>
+                <FilterPopover
+                    label="Job Function"
+                    options={jobFunctionOptions}
+                    selected={filters.job_functions}
+                    onChange={v => set("job_functions", v)}
+                    placeholder="Search function..."
+                />
+                <FilterPopover
+                    label="Position (actual)"
+                    options={positionOptions}
+                    selected={filters.positions}
+                    onChange={v => set("positions", v)}
+                    placeholder="Search position..."
+                    emptyHint="Select keywords or levels first"
+                />
+                <FilterPopover
+                    label="Company"
+                    options={companyOptions}
+                    selected={filters.companies}
+                    onChange={v => set("companies", v)}
+                    placeholder="Search company..."
+                    emptyHint="Apply filters first"
+                />
 
-                {/* Position (actual) — cascade only */}
-                <Section title="Position (actual)" count={localFilters.positions.length}>
-                    <TagSelect
-                        options={positionOptions}
-                        selected={localFilters.positions}
-                        onChange={(v) => set("positions", v)}
-                        placeholder="Search position..."
-                        emptyHint="Select keywords or levels first"
-                    />
-                </Section>
-
-                {/* Company — cascade only */}
-                <Section title="Company" count={localFilters.companies.length}>
-                    <TagSelect
-                        options={companyOptions}
-                        selected={localFilters.companies}
-                        onChange={(v) => set("companies", v)}
-                        placeholder="Search company..."
-                        emptyHint="Apply filters first"
-                    />
-                </Section>
-
-                {/* Exclude section */}
-                <Section
-                    title="Exclude"
-                    count={localFilters.exclude_companies.length + localFilters.exclude_countries.length + localFilters.exclude_keywords.length}
-                >
-                    <div className="space-y-3">
-                        <div>
-                            <p className="text-[10px] text-slate-400 mb-1.5 uppercase tracking-wider">Company</p>
-                            <TagSelect
-                                options={companyOptions.filter(o => !localFilters.companies.includes(o))}
-                                selected={localFilters.exclude_companies}
-                                onChange={(v) => set("exclude_companies", v)}
-                                placeholder="Exclude company..."
-                                emptyHint="Apply filters first"
-                                variant="exclude"
-                            />
-                        </div>
-                        <div>
-                            <p className="text-[10px] text-slate-400 mb-1.5 uppercase tracking-wider">Country</p>
-                            <TagSelect
-                                options={availableCountries.filter(o => !localFilters.countries.includes(o))}
-                                selected={localFilters.exclude_countries}
-                                onChange={(v) => set("exclude_countries", v)}
-                                placeholder="Exclude country..."
-                                variant="exclude"
-                            />
-                        </div>
-                        <div>
-                            <p className="text-[10px] text-slate-400 mb-1.5 uppercase tracking-wider">Position Keyword</p>
-                            <TagSelect
-                                options={keywordOptions.filter(o => !localFilters.position_keywords.includes(o))}
-                                selected={localFilters.exclude_keywords}
-                                onChange={(v) => set("exclude_keywords", v)}
-                                placeholder="Exclude keyword..."
-                                variant="exclude"
-                            />
-                        </div>
-                    </div>
-                </Section>
+                <SectionLabel label="Exclude" />
+                <FilterPopover
+                    label="Exclude Company"
+                    options={companyOptions.filter(o => !filters.companies.includes(o))}
+                    selected={filters.exclude_companies}
+                    onChange={v => set("exclude_companies", v)}
+                    placeholder="Exclude company..."
+                    emptyHint="Apply filters first"
+                    variant="exclude"
+                />
+                <FilterPopover
+                    label="Exclude Country"
+                    options={availableCountries.filter(o => !filters.countries.includes(o))}
+                    selected={filters.exclude_countries}
+                    onChange={v => set("exclude_countries", v)}
+                    placeholder="Exclude country..."
+                    variant="exclude"
+                />
+                <FilterPopover
+                    label="Exclude Keyword"
+                    options={keywordOptions.filter(o => !filters.position_keywords.includes(o))}
+                    selected={filters.exclude_keywords}
+                    onChange={v => set("exclude_keywords", v)}
+                    placeholder="Exclude keyword..."
+                    variant="exclude"
+                />
+                <div className="pb-1" />
             </div>
         </div>
     );

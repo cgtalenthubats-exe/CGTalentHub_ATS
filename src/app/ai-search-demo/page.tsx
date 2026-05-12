@@ -134,12 +134,13 @@ export default function AiSearchDemoPage() {
         });
     }, [currentPage, allCandidateIds]);
 
-    const handleSearch = async () => {
+    const handleSearch = async (overrideFilters?: DemoFilterState) => {
+        const filtersToUse = overrideFilters ?? pendingFilters;
         setSearchLoading(true);
         setHasSearched(true);
         setCurrentPage(1);
         try {
-            const result = await searchDemoCandidates(pendingFilters);
+            const result = await searchDemoCandidates(filtersToUse);
             setAllCandidateIds(result.candidateIds);
             setSummary({ total: result.total, current: result.current, past: result.past, companies: result.companies });
             // Fetch page 1
@@ -225,10 +226,13 @@ export default function AiSearchDemoPage() {
     };
 
     const handleAddJobFunction = (fn: string) => {
-        setPendingFilters(prev => {
-            if (prev.job_functions.includes(fn)) return prev;
-            return { ...prev, job_functions: [...prev.job_functions, fn] };
-        });
+        if (pendingFilters.job_functions.includes(fn)) {
+            handleSearch();
+            return;
+        }
+        const newFilters = { ...pendingFilters, job_functions: [...pendingFilters.job_functions, fn] };
+        setPendingFilters(newFilters);
+        handleSearch(newFilters);
     };
 
     const handlePageChange = (page: number) => {
@@ -306,7 +310,7 @@ export default function AiSearchDemoPage() {
                         {/* Search button pinned at bottom */}
                         <div className="pt-2 shrink-0">
                             <Button
-                                onClick={handleSearch}
+                                onClick={() => handleSearch()}
                                 disabled={searchLoading || activeFilterCount === 0}
                                 className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60"
                             >
