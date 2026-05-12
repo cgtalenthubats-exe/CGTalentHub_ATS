@@ -14,6 +14,12 @@ export interface DemoFilterState {
     exclude_companies: string[];
     exclude_countries: string[];
     exclude_keywords: string[];
+    // Profile filters
+    genders: string[];
+    nationalities: string[];
+    age_min: number | null;
+    age_max: number | null;
+    age_include_unknown: boolean;
 }
 
 export const EMPTY_FILTERS: DemoFilterState = {
@@ -31,12 +37,17 @@ export const EMPTY_FILTERS: DemoFilterState = {
     exclude_companies: [],
     exclude_countries: [],
     exclude_keywords: [],
+    genders: [],
+    nationalities: [],
+    age_min: null,
+    age_max: null,
+    age_include_unknown: true,
 };
 
 export const POSITION_LEVELS = ["C-Level", "VP", "Director", "Manager", "Supervisor", "Staff"];
 export const HOTEL_RATINGS = ["3 Star", "4 Star", "5 Star"];
 
-export type AiSuggestions = Partial<Omit<DemoFilterState, "industry_group" | "current_only" | "positions" | "companies">>;
+export type AiSuggestions = Partial<Omit<DemoFilterState, "industry_group" | "current_only" | "positions" | "companies" | "age_min" | "age_max" | "age_include_unknown">>;
 
 export type AiParseResult = {
     filters: Partial<DemoFilterState>;

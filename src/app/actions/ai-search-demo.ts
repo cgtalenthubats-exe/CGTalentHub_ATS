@@ -6,20 +6,25 @@ import { type DemoFilterState, type AiParseResult } from "@/app/ai-search-demo/t
 // helper: convert DemoFilterState to RPC params
 function toRpcParams(f: DemoFilterState) {
     return {
-        p_position_keywords: f.position_keywords,
-        p_position_levels:   f.position_levels,
-        p_positions:         f.positions,
-        p_companies:         f.companies,
-        p_countries:         f.countries,
-        p_regions:           f.regions,
-        p_hotel_ratings:     f.hotel_ratings,
-        p_industry_group:    f.industry_group ?? null,
-        p_industries:        f.industries,
-        p_current_only:      f.current_only,
-        p_job_functions:     f.job_functions,
-        p_exclude_companies: f.exclude_companies,
-        p_exclude_countries: f.exclude_countries,
-        p_exclude_keywords:  f.exclude_keywords,
+        p_position_keywords:  f.position_keywords,
+        p_position_levels:    f.position_levels,
+        p_positions:          f.positions,
+        p_companies:          f.companies,
+        p_countries:          f.countries,
+        p_regions:            f.regions,
+        p_hotel_ratings:      f.hotel_ratings,
+        p_industry_group:     f.industry_group ?? null,
+        p_industries:         f.industries,
+        p_current_only:       f.current_only,
+        p_job_functions:      f.job_functions,
+        p_exclude_companies:  f.exclude_companies,
+        p_exclude_countries:  f.exclude_countries,
+        p_exclude_keywords:   f.exclude_keywords,
+        p_genders:            f.genders,
+        p_nationalities:      f.nationalities,
+        p_age_min:            f.age_min ?? null,
+        p_age_max:            f.age_max ?? null,
+        p_age_include_unknown: f.age_include_unknown,
     };
 }
 
@@ -38,7 +43,11 @@ function hasAnyFilter(f: DemoFilterState) {
         f.job_functions.length > 0 ||
         f.exclude_companies.length > 0 ||
         f.exclude_countries.length > 0 ||
-        f.exclude_keywords.length > 0
+        f.exclude_keywords.length > 0 ||
+        f.genders.length > 0 ||
+        f.nationalities.length > 0 ||
+        f.age_min !== null ||
+        f.age_max !== null
     );
 }
 
@@ -102,6 +111,8 @@ export async function getCascadingFilterOptions(filters: DemoFilterState) {
         hotel_ratings: string[];
         regions:       string[];
         job_functions: string[];
+        genders:       string[];
+        nationalities: string[];
     };
 }
 

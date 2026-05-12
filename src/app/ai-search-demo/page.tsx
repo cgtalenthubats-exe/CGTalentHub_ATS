@@ -241,12 +241,12 @@ export default function AiSearchDemoPage() {
     };
 
     const activeFilterCount = Object.entries(pendingFilters).reduce((acc, [k, v]) => {
-        if (k === "current_only") return acc + (v ? 1 : 0);
+        if (k === "current_only" || k === "age_include_unknown") return acc + (v ? 0 : 0);
         if (k === "industry_group") return acc + (v !== null ? 1 : 0);
-        if (k === "exclude_companies" || k === "exclude_countries" || k === "exclude_keywords")
-            return acc + (Array.isArray(v) ? v.length : 0);
-        return acc + (Array.isArray(v) ? v.length : 0);
-    }, 0);
+        if (k === "age_min" || k === "age_max") return acc; // counted once below
+        if (Array.isArray(v)) return acc + v.length;
+        return acc;
+    }, 0) + ((pendingFilters.age_min !== null || pendingFilters.age_max !== null) ? 1 : 0);
 
     const isLoading = searchLoading || pageLoading;
 

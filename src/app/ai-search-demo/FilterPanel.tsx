@@ -25,6 +25,8 @@ interface CascadingOptions {
     hotel_ratings: string[];
     regions:       string[];
     job_functions: string[];
+    genders:       string[];
+    nationalities: string[];
 }
 
 interface FilterPanelProps {
@@ -219,6 +221,108 @@ function IndustryGroupPopover({
     );
 }
 
+// --- Age range popover ---
+function AgeFilterPopover({
+    ageMin, ageMax, includeUnknown, onChange,
+}: {
+    ageMin: number | null;
+    ageMax: number | null;
+    includeUnknown: boolean;
+    onChange: (min: number | null, max: number | null, incl: boolean) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const [pendingMin, setPendingMin] = useState("");
+    const [pendingMax, setPendingMax] = useState("");
+    const [pendingIncl, setPendingIncl] = useState(true);
+
+    const handleOpenChange = (isOpen: boolean) => {
+        if (isOpen) {
+            setPendingMin(ageMin !== null ? String(ageMin) : "");
+            setPendingMax(ageMax !== null ? String(ageMax) : "");
+            setPendingIncl(includeUnknown);
+        }
+        setOpen(isOpen);
+    };
+
+    const apply = () => {
+        onChange(
+            pendingMin !== "" ? parseInt(pendingMin) : null,
+            pendingMax !== "" ? parseInt(pendingMax) : null,
+            pendingIncl
+        );
+        setOpen(false);
+    };
+
+    const clear = () => {
+        onChange(null, null, true);
+        setOpen(false);
+    };
+
+    const hasFilter = ageMin !== null || ageMax !== null;
+    const label = hasFilter
+        ? `Age: ${ageMin ?? "–"} to ${ageMax ?? "–"}`
+        : "Age Range";
+
+    return (
+        <Popover open={open} onOpenChange={handleOpenChange}>
+            <PopoverTrigger asChild>
+                <button className={cn(
+                    "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors text-left",
+                    hasFilter ? "bg-indigo-50 text-indigo-800" : "text-slate-600 hover:bg-slate-50"
+                )}>
+                    <span className="font-medium truncate">{label}</span>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                        {hasFilter && <Badge className="h-4 px-1.5 text-[10px] bg-indigo-600 text-white">1</Badge>}
+                        <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                    </div>
+                </button>
+            </PopoverTrigger>
+            <PopoverContent side="right" align="start" sideOffset={4} className="w-64 p-0 shadow-xl border border-slate-100 rounded-xl z-50">
+                <div className="px-3 pt-3 pb-2.5 border-b border-slate-100">
+                    <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Age Range</div>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="number"
+                            placeholder="Min"
+                            min={18} max={80}
+                            value={pendingMin}
+                            onChange={e => setPendingMin(e.target.value)}
+                            className="w-full text-xs px-2 py-1.5 border border-slate-200 rounded-md outline-none focus:ring-1 focus:ring-indigo-300 bg-white text-center"
+                        />
+                        <span className="text-slate-400 text-xs shrink-0">–</span>
+                        <input
+                            type="number"
+                            placeholder="Max"
+                            min={18} max={80}
+                            value={pendingMax}
+                            onChange={e => setPendingMax(e.target.value)}
+                            className="w-full text-xs px-2 py-1.5 border border-slate-200 rounded-md outline-none focus:ring-1 focus:ring-indigo-300 bg-white text-center"
+                        />
+                    </div>
+                </div>
+                <div className="px-3 py-2.5 border-b border-slate-100">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                        <Checkbox
+                            checked={pendingIncl}
+                            onCheckedChange={v => setPendingIncl(!!v)}
+                            className="border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600 shrink-0"
+                        />
+                        <span className="text-xs text-slate-600 font-medium">Include unknown age</span>
+                    </label>
+                </div>
+                <div className="flex gap-2 p-2">
+                    <button onClick={clear} className="flex-1 text-xs text-red-500 hover:text-red-700 font-semibold py-1.5 border border-red-100 rounded-md hover:bg-red-50 transition-colors">
+                        Clear
+                    </button>
+                    <button onClick={apply} className="flex-1 text-xs text-white bg-indigo-600 hover:bg-indigo-700 font-semibold py-1.5 rounded-md transition-colors">
+                        Apply
+                    </button>
+                </div>
+            </PopoverContent>
+        </Popover>
+    );
+}
+
 // --- Main FilterPanel ---
 export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, filters, onChange, onReset }: FilterPanelProps) {
     if (!staticOptions) return null;
@@ -271,6 +375,8 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
     );
     const positionOptions = useMemo(() => cascade?.positions ?? [], [cascade]);
     const companyOptions = useMemo(() => cascade?.companies ?? [], [cascade]);
+    const genderOptions = useMemo(() => cascade?.genders ?? [], [cascade]);
+    const nationalityOptions = useMemo(() => cascade?.nationalities ?? [], [cascade]);
 
     const activeCount = [
         filters.position_keywords.length,
@@ -284,6 +390,9 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
         filters.job_functions.length,
         filters.positions.length,
         filters.companies.length,
+        filters.genders.length,
+        filters.nationalities.length,
+        (filters.age_min !== null || filters.age_max !== null) ? 1 : 0,
     ].reduce((a, b) => a + b, 0);
 
     return (
@@ -360,6 +469,28 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
                     selected={filters.hotel_ratings}
                     onChange={v => set("hotel_ratings", v)}
                     placeholder="Search rating..."
+                />
+                <FilterPopover
+                    label="Gender"
+                    options={genderOptions}
+                    selected={filters.genders}
+                    onChange={v => set("genders", v)}
+                    placeholder="Search gender..."
+                    emptyHint="Apply filters first"
+                />
+                <FilterPopover
+                    label="Nationality"
+                    options={nationalityOptions}
+                    selected={filters.nationalities}
+                    onChange={v => set("nationalities", v)}
+                    placeholder="Search nationality..."
+                    emptyHint="Apply filters first"
+                />
+                <AgeFilterPopover
+                    ageMin={filters.age_min}
+                    ageMax={filters.age_max}
+                    includeUnknown={filters.age_include_unknown}
+                    onChange={(min, max, incl) => onChange({ ...filters, age_min: min, age_max: max, age_include_unknown: incl })}
                 />
 
                 {/* Current Job Only — inline toggle */}

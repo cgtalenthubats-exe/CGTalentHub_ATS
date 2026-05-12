@@ -18,6 +18,8 @@ const LABELS: Record<keyof SuggestionMap, string> = {
     exclude_companies:  "Exclude Company",
     exclude_countries:  "Exclude Country",
     exclude_keywords:   "Exclude Keyword",
+    genders:            "Gender",
+    nationalities:      "Nationality",
 };
 
 const PREVIEW = 3;
