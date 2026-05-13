@@ -6,6 +6,7 @@ export interface DemoFilterState {
     regions: string[];
     countries: string[];
     hotel_ratings: string[];
+    hotel_chains: string[];
     current_only: boolean;
     current_and_latest: boolean;
     job_functions: string[];
@@ -15,6 +16,8 @@ export interface DemoFilterState {
     exclude_companies: string[];
     exclude_countries: string[];
     exclude_keywords: string[];
+    // Hotel sub-brand (specific brand within a chain)
+    hotel_sub_brands: string[];
     // Profile filters
     genders: string[];
     nationalities: string[];
@@ -31,6 +34,7 @@ export const EMPTY_FILTERS: DemoFilterState = {
     regions: [],
     countries: [],
     hotel_ratings: [],
+    hotel_chains: [],
     current_only: false,
     current_and_latest: true,
     job_functions: [],
@@ -39,6 +43,7 @@ export const EMPTY_FILTERS: DemoFilterState = {
     exclude_companies: [],
     exclude_countries: [],
     exclude_keywords: [],
+    hotel_sub_brands: [],
     genders: [],
     nationalities: [],
     age_min: null,
@@ -49,7 +54,7 @@ export const EMPTY_FILTERS: DemoFilterState = {
 export const POSITION_LEVELS = ["C-Level", "VP", "Director", "Manager", "Supervisor", "Staff"];
 export const HOTEL_RATINGS = ["3 Star", "4 Star", "5 Star"];
 
-export type AiSuggestions = Partial<Omit<DemoFilterState, "industry_group" | "current_only" | "positions" | "companies" | "age_min" | "age_max" | "age_include_unknown">>;
+export type AiSuggestions = Partial<Omit<DemoFilterState, "industry_group" | "current_only" | "current_and_latest" | "positions" | "companies" | "hotel_chains" | "hotel_sub_brands" | "age_min" | "age_max" | "age_include_unknown">>;
 
 export type AiParseResult = {
     filters: Partial<DemoFilterState>;

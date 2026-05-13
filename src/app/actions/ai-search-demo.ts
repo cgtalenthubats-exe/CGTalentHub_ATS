@@ -13,6 +13,7 @@ function toRpcParams(f: DemoFilterState) {
         p_countries:          f.countries,
         p_regions:            f.regions,
         p_hotel_ratings:      f.hotel_ratings,
+        p_hotel_chains:       f.hotel_chains,
         p_industry_group:     f.industry_group ?? null,
         p_industries:         f.industries,
         p_current_only:       f.current_only,
@@ -20,6 +21,7 @@ function toRpcParams(f: DemoFilterState) {
         p_exclude_companies:  f.exclude_companies,
         p_exclude_countries:  f.exclude_countries,
         p_exclude_keywords:   f.exclude_keywords,
+        p_hotel_sub_brands:   f.hotel_sub_brands,
         p_genders:            f.genders,
         p_nationalities:      f.nationalities,
         p_age_min:            f.age_min ?? null,
@@ -38,6 +40,7 @@ function hasAnyFilter(f: DemoFilterState) {
         f.countries.length > 0 ||
         f.regions.length > 0 ||
         f.hotel_ratings.length > 0 ||
+        f.hotel_chains.length > 0 ||
         f.industry_group !== null ||
         f.industries.length > 0 ||
         f.current_only ||
@@ -45,6 +48,7 @@ function hasAnyFilter(f: DemoFilterState) {
         f.exclude_companies.length > 0 ||
         f.exclude_countries.length > 0 ||
         f.exclude_keywords.length > 0 ||
+        f.hotel_sub_brands.length > 0 ||
         f.genders.length > 0 ||
         f.nationalities.length > 0 ||
         f.age_min !== null ||
@@ -54,7 +58,7 @@ function hasAnyFilter(f: DemoFilterState) {
 
 // Load all static filter options in one call
 export async function getDemoFilterOptions() {
-    const [keywords, industries, countries, jobFunctions] = await Promise.all([
+    const [keywords, industries, countries, jobFunctions, hotelChains, chainCounts] = await Promise.all([
         adminAuthClient
             .from("position_keyword_vocab")
             .select("keyword, group_label")
@@ -71,15 +75,28 @@ export async function getDemoFilterOptions() {
             .not("country", "is", null)
             .order("country"),
         (adminAuthClient as any).rpc("get_distinct_job_functions"),
+        adminAuthClient
+            .from("hotel_chain_master")
+            .select("brand_name")
+            .is("parent_id", null)
+            .order("brand_name"),
+        (adminAuthClient as any).rpc("get_chain_candidate_counts"),
     ]);
 
     const uniqueJobFunctions = (jobFunctions.data || []).map((r: any) => r.job_function as string);
+    const hotelChainNames = (hotelChains.data || []).map((r: any) => r.brand_name as string);
+    const chainCountData = (chainCounts.data || []).map((r: any) => ({
+        chain_name: r.chain_name as string,
+        candidate_count: Number(r.candidate_count),
+    }));
 
     return {
         keywords:     (keywords.data   || []) as { keyword: string; group_label: string }[],
         industries:   (industries.data || []) as { group: string; industry: string }[],
         countries:    (countries.data  || []) as { country: string; region: string }[],
         jobFunctions: uniqueJobFunctions,
+        hotelChains:  hotelChainNames,
+        chainCounts:  chainCountData,
     };
 }
 
@@ -101,6 +118,8 @@ export async function getCascadingFilterOptions(filters: DemoFilterState) {
         companies:     string[];
         countries:     string[];
         hotel_ratings: string[];
+        hotel_chains:  string[];
+        sub_brands:    string[];
         regions:       string[];
         job_functions: string[];
         genders:       string[];
@@ -148,14 +167,32 @@ export async function fetchCandidatePage(candidateIds: string[], page: number, p
             .in("candidate_id", pageIds),
         adminAuthClient
             .from("candidate_experiences")
-            .select("id, candidate_id, position, company, start_date, end_date, country, company_industry, is_current_job")
+            .select("id, candidate_id, position, company, company_id, start_date, end_date, country, company_industry, is_current_job")
             .in("candidate_id", pageIds)
             .order("start_date", { ascending: false }),
     ]);
 
+    const experiences = experiencesResult.data || [];
+
+    // Enrich experiences with hotel chain + rating
+    const companyIds = [...new Set(experiences.map((e: any) => e.company_id).filter(Boolean))] as number[];
+    const chainMap = new Map<number, { chain_name: string | null; effective_rating: string | null }>();
+    if (companyIds.length > 0) {
+        const { data: chainData } = await (adminAuthClient as any).rpc("get_company_chain_info", { p_company_ids: companyIds });
+        (chainData || []).forEach((r: any) => {
+            chainMap.set(r.company_id, { chain_name: r.chain_name, effective_rating: r.effective_rating });
+        });
+    }
+
+    const enrichedExperiences = experiences.map((e: any) => ({
+        ...e,
+        hotel_chain_name: chainMap.get(e.company_id)?.chain_name ?? null,
+        hotel_rating:     chainMap.get(e.company_id)?.effective_rating ?? null,
+    }));
+
     const profiles = profilesResult.data || [];
     const expMap = new Map<string, any[]>();
-    (experiencesResult.data || []).forEach((e: any) => {
+    enrichedExperiences.forEach((e: any) => {
         if (!expMap.has(e.candidate_id)) expMap.set(e.candidate_id, []);
         expMap.get(e.candidate_id)!.push(e);
     });

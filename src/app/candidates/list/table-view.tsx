@@ -29,6 +29,8 @@ export interface Experience {
     country: string;
     company_industry?: string;
     is_current_job?: string;
+    hotel_chain_name?: string | null;
+    hotel_rating?: string | null;
 }
 
 export interface Candidate {
@@ -60,6 +62,7 @@ interface CandidateTableViewProps {
     onToggleSelectAll?: (ids: string[]) => void;
     orgChartData?: Record<string, any[]>;
     orgChartLoading?: boolean;
+    showHotelColumn?: boolean;
 }
 
 function parseMonthYearDate(dateStr: string | null | undefined): number {
@@ -91,18 +94,31 @@ function sortExperiences(exps: Experience[]) {
     });
 }
 
+const STAR_DISPLAY: Record<string, string> = {
+    "3 Star": "★★★",
+    "4 Star": "★★★★",
+    "5 Star": "★★★★★",
+};
+const STAR_COLOR: Record<string, string> = {
+    "3 Star": "bg-yellow-50 text-yellow-700 border-yellow-200",
+    "4 Star": "bg-orange-50 text-orange-700 border-orange-200",
+    "5 Star": "bg-amber-50 text-amber-800 border-amber-300",
+};
+
 const CandidateRow = ({
     candidate,
     isSelected,
     onToggleSelect,
     orgCharts,
-    orgChartsLoading
+    orgChartsLoading,
+    showHotelColumn,
 }: {
     candidate: Candidate;
     isSelected?: boolean;
     onToggleSelect?: (id: string) => void;
     orgCharts?: any[];
     orgChartsLoading?: boolean;
+    showHotelColumn?: boolean;
 }) => {
     const [expanded, setExpanded] = useState(false);
 
@@ -203,12 +219,38 @@ const CandidateRow = ({
                         {!candidate.job_grouping && !candidate.job_function && <span className="text-slate-300">-</span>}
                     </div>
                 </TableCell>
-                <TableCell className="text-xs text-slate-500 font-mono">
-                    {new Date(candidate.created_date).toLocaleDateString('th-TH')}
-                </TableCell>
-                <TableCell className="text-xs text-slate-500 font-mono">
-                    {candidate.modify_date ? new Date(candidate.modify_date).toLocaleDateString('th-TH') : '-'}
-                </TableCell>
+                {showHotelColumn ? (
+                    <TableCell>
+                        {(() => {
+                            const chainName = latestExp?.hotel_chain_name;
+                            const rating = latestExp?.hotel_rating;
+                            if (!chainName && !rating) return <span className="text-slate-300 text-xs">-</span>;
+                            return (
+                                <div className="flex flex-col gap-1">
+                                    {chainName && (
+                                        <Badge variant="outline" className="w-fit text-[10px] h-5 bg-indigo-50 text-indigo-700 border-indigo-200 truncate max-w-[160px]">
+                                            {chainName}
+                                        </Badge>
+                                    )}
+                                    {rating && (
+                                        <Badge variant="outline" className={cn("w-fit text-[10px] h-5 font-semibold", STAR_COLOR[rating] ?? "bg-slate-50 text-slate-600 border-slate-200")}>
+                                            {STAR_DISPLAY[rating] ?? rating}
+                                        </Badge>
+                                    )}
+                                </div>
+                            );
+                        })()}
+                    </TableCell>
+                ) : (
+                    <>
+                        <TableCell className="text-xs text-slate-500 font-mono">
+                            {new Date(candidate.created_date).toLocaleDateString('th-TH')}
+                        </TableCell>
+                        <TableCell className="text-xs text-slate-500 font-mono">
+                            {candidate.modify_date ? new Date(candidate.modify_date).toLocaleDateString('th-TH') : '-'}
+                        </TableCell>
+                    </>
+                )}
             </TableRow>
             {expanded && (
                 <TableRow className="bg-slate-50/50 hover:bg-slate-50/50">
@@ -272,7 +314,8 @@ export function CandidateTableView({
     onToggleSelect,
     onToggleSelectAll,
     orgChartData = {},
-    orgChartLoading = false
+    orgChartLoading = false,
+    showHotelColumn = false,
 }: CandidateTableViewProps) {
     if (loading) {
         return (
@@ -313,8 +356,14 @@ export function CandidateTableView({
                         <TableHead>Status</TableHead>
                         <TableHead>Latest Company</TableHead>
                         <TableHead>Job Group/Function</TableHead>
-                        <TableHead className="w-[100px]">Created</TableHead>
-                        <TableHead className="w-[100px]">Modified</TableHead>
+                        {showHotelColumn ? (
+                            <TableHead className="w-[170px]">Hotel</TableHead>
+                        ) : (
+                            <>
+                                <TableHead className="w-[100px]">Created</TableHead>
+                                <TableHead className="w-[100px]">Modified</TableHead>
+                            </>
+                        )}
                     </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -326,6 +375,7 @@ export function CandidateTableView({
                             onToggleSelect={onToggleSelect}
                             orgCharts={orgChartData[candidate.candidate_id]}
                             orgChartsLoading={orgChartLoading && !orgChartData[candidate.candidate_id]}
+                            showHotelColumn={showHotelColumn}
                         />
                     ))}
                 </TableBody>

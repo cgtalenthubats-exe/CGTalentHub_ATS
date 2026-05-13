@@ -10,7 +10,6 @@ import { UserCircle } from "lucide-react";
 import ThemeToggle from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 import { Toaster } from "sonner";
-import { ChatWidget } from "@/components/chat-widget";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -65,7 +64,6 @@ export default function RootLayout({
             </div>
           </div>
           <Toaster />
-          <ChatWidget />
         </ThemeProvider>
       </body>
     </html>

@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
 import { CandidateTableView } from "@/app/candidates/list/table-view";
 import { FilterPanel } from "./FilterPanel";
+import { ChainRatingPicker } from "./ChainRatingPicker";
 import { SuggestedFilters } from "./SuggestedFilters";
 import { AddCandidateDialog } from "@/components/ai-search/AddCandidateDialog";
 import {
@@ -174,6 +175,8 @@ export default function AiSearchDemoPage() {
                 ...(parsed.regions?.length ? { regions: parsed.regions } : {}),
                 ...(parsed.countries?.length ? { countries: parsed.countries } : {}),
                 ...(parsed.hotel_ratings?.length ? { hotel_ratings: parsed.hotel_ratings } : {}),
+                ...(parsed.hotel_chains?.length ? { hotel_chains: parsed.hotel_chains } : {}),
+                ...(parsed.hotel_sub_brands?.length ? { hotel_sub_brands: parsed.hotel_sub_brands } : {}),
                 ...(parsed.current_only !== undefined ? { current_only: parsed.current_only } : {}),
                 ...(parsed.job_functions?.length ? { job_functions: parsed.job_functions } : {}),
                 ...(parsed.exclude_companies?.length ? { exclude_companies: parsed.exclude_companies } : {}),
@@ -254,7 +257,7 @@ export default function AiSearchDemoPage() {
 
     return (
         <>
-        <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
+        <div className="flex flex-col min-h-full bg-slate-50">
             <div className="px-6 pt-4">
                 <AtsBreadcrumb items={[{ label: "AI Search Demo" }]} />
             </div>
@@ -284,17 +287,29 @@ export default function AiSearchDemoPage() {
                 </div>
             </div>
 
+            {/* Chain & Rating Picker */}
+            {!optionsLoading && staticOptions && (
+                <div className="px-6 pb-2">
+                    <ChainRatingPicker
+                        chainCounts={staticOptions.chainCounts ?? []}
+                        subBrands={cascadingOptions?.sub_brands ?? []}
+                        filters={pendingFilters}
+                        onFiltersChange={setPendingFilters}
+                        onAutoSearch={handleSearch}
+                    />
+                </div>
+            )}
+
             {/* Body */}
-            <div className="flex gap-4 px-6 pb-6 flex-1 min-h-0">
+            <div className="flex gap-4 px-6 pb-6">
                 {/* Filter Panel */}
                 {optionsLoading ? (
                     <div className="w-64 shrink-0 bg-white border border-slate-200 rounded-xl flex items-center justify-center">
                         <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
                     </div>
                 ) : (
-                    <div className="w-64 shrink-0 flex flex-col min-h-0">
-                        {/* Scrollable area: filter + suggestions */}
-                        <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-2 pr-0.5">
+                    <div className="w-64 shrink-0 flex flex-col">
+                        <div className="flex flex-col gap-2 pr-0.5">
                                     <FilterPanel
                                     staticOptions={staticOptions!}
                                     cascadingOptions={cascadingOptions}
@@ -329,7 +344,7 @@ export default function AiSearchDemoPage() {
                 )}
 
                 {/* Right side */}
-                <div className="flex-1 flex flex-col gap-4 min-w-0">
+                <div className="flex-1 flex flex-col gap-4 min-w-0 min-h-0">
                     {/* Summary Cards */}
                     <div className="grid grid-cols-4 gap-3">
                         <SummaryCard label="Total Found" value={searchLoading ? "..." : summary.total} icon={Users} color="bg-indigo-500" />
@@ -372,7 +387,7 @@ export default function AiSearchDemoPage() {
                     })()}
 
                     {/* Candidate Table */}
-                    <div className="flex-1 min-h-0 bg-white border border-slate-200 rounded-xl shadow-sm overflow-y-auto">
+                    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
                         {!hasSearched ? (
                             <div className="h-full flex items-center justify-center text-slate-400 text-sm">
                                 เลือก filter แล้วกด Search เพื่อดูผลลัพธ์
@@ -384,30 +399,23 @@ export default function AiSearchDemoPage() {
                                 selectedIds={selectedIds}
                                 onToggleSelect={handleToggleSelect}
                                 onToggleSelectAll={handleToggleSelectAll}
+                                showHotelColumn={true}
                             />
                         )}
                     </div>
 
                     {/* Pagination + Evaluate */}
                     {hasSearched && summary.total > 0 && (
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <p className="text-xs text-slate-500">
-                                    แสดง {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, summary.total)} จาก {summary.total} candidates
-                                </p>
-                                <PaginationControls
-                                    currentPage={currentPage}
-                                    totalCount={summary.total}
-                                    pageSize={PAGE_SIZE}
-                                    onPageChange={handlePageChange}
-                                />
-                            </div>
-                            <Button
-                                disabled={candidates.length === 0}
-                                className="bg-indigo-600 hover:bg-indigo-700 px-6"
-                            >
-                                ประเมิน Stage 2 & 3
-                            </Button>
+                        <div className="flex items-center gap-3">
+                            <p className="text-xs text-slate-500">
+                                แสดง {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, summary.total)} จาก {summary.total} candidates
+                            </p>
+                            <PaginationControls
+                                currentPage={currentPage}
+                                totalCount={summary.total}
+                                pageSize={PAGE_SIZE}
+                                onPageChange={handlePageChange}
+                            />
                         </div>
                     )}
                 </div>

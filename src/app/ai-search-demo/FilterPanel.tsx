@@ -7,13 +7,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { DemoFilterState, POSITION_LEVELS, HOTEL_RATINGS } from "./types";
+import { DemoFilterState, POSITION_LEVELS } from "./types";
 
 interface StaticOptions {
     keywords: { keyword: string; group_label: string }[];
     industries: { group: string; industry: string }[];
     countries: { country: string; region: string }[];
     jobFunctions: string[];
+    hotelChains: string[];
 }
 
 interface CascadingOptions {
@@ -23,6 +24,8 @@ interface CascadingOptions {
     companies:     string[];
     countries:     string[];
     hotel_ratings: string[];
+    hotel_chains:  string[];
+    sub_brands:    string[];
     regions:       string[];
     job_functions: string[];
     genders:       string[];
@@ -550,10 +553,6 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
             : staticOptions.countries;
         return base.map(c => c.country);
     }, [cascade, staticOptions.countries, filters.regions]);
-    const availableHotelRatings = useMemo(() => {
-        const base = cascade ? (cascade.hotel_ratings ?? HOTEL_RATINGS) : HOTEL_RATINGS;
-        return base.includes("Unknown") ? base : [...base, "Unknown"];
-    }, [cascade]);
     const jobFunctionOptions = useMemo(
         () => cascade ? (cascade.job_functions ?? staticOptions.jobFunctions) : staticOptions.jobFunctions,
         [cascade, staticOptions.jobFunctions]
@@ -569,7 +568,6 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
         filters.industries.length,
         filters.regions.length,
         filters.countries.length,
-        filters.hotel_ratings.length,
         (filters.current_only || filters.current_and_latest) ? 1 : 0,
         filters.job_functions.length,
         filters.positions.length,
@@ -647,13 +645,6 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
                 />
 
                 <SectionLabel label="Other" />
-                <FilterPopover
-                    label="Hotel Rating"
-                    options={availableHotelRatings}
-                    selected={filters.hotel_ratings}
-                    onChange={v => set("hotel_ratings", v)}
-                    placeholder="Search rating..."
-                />
                 <FilterPopover
                     label="Gender"
                     options={genderOptions}
