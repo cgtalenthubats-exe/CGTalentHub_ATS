@@ -37,6 +37,7 @@ interface FilterPanelProps {
     onChange: (filters: DemoFilterState) => void;
     onReset: () => void;
     onSearchPositions: (query: string, filters: DemoFilterState) => Promise<string[]>;
+    onSearchCompanies: (query: string, filters: DemoFilterState) => Promise<string[]>;
 }
 
 // --- Section label divider ---
@@ -324,17 +325,27 @@ function AgeFilterPopover({
     );
 }
 
-// --- Position free-text autocomplete popover ---
-function PositionSearchPopover({
+// --- Generic free-text autocomplete popover (used for Position, Company, Exclude Company) ---
+function LiveSearchPopover({
+    label,
     selected,
     onChange,
     activeFilters,
-    onSearchPositions,
+    onSearch,
+    placeholder,
+    emptyHint,
+    noResultText,
+    variant = "include",
 }: {
+    label: string;
     selected: string[];
     onChange: (v: string[]) => void;
     activeFilters: DemoFilterState;
-    onSearchPositions: (query: string, filters: DemoFilterState) => Promise<string[]>;
+    onSearch: (query: string, filters: DemoFilterState) => Promise<string[]>;
+    placeholder?: string;
+    emptyHint?: string;
+    noResultText?: string;
+    variant?: "include" | "exclude";
 }) {
     const [open, setOpen] = useState(false);
     const [pending, setPending] = useState<string[]>([]);
@@ -342,6 +353,7 @@ function PositionSearchPopover({
     const [suggestions, setSuggestions] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+    const isExclude = variant === "exclude";
 
     const handleOpenChange = (isOpen: boolean) => {
         if (isOpen) { setPending([...selected]); setSearch(""); setSuggestions([]); }
@@ -353,12 +365,12 @@ function PositionSearchPopover({
         if (search.trim().length < 2) { setSuggestions([]); setLoading(false); return; }
         setLoading(true);
         debounceRef.current = setTimeout(async () => {
-            const results = await onSearchPositions(search.trim(), activeFilters);
+            const results = await onSearch(search.trim(), activeFilters);
             setSuggestions(results);
             setLoading(false);
         }, 300);
         return () => clearTimeout(debounceRef.current);
-    }, [search, activeFilters, onSearchPositions]);
+    }, [search, activeFilters, onSearch]);
 
     const toggle = (val: string) =>
         setPending(p => p.includes(val) ? p.filter(x => x !== val) : [...p, val]);
@@ -372,21 +384,28 @@ function PositionSearchPopover({
             <PopoverTrigger asChild>
                 <button className={cn(
                     "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors text-left",
-                    count > 0 ? "bg-indigo-50 text-indigo-800" : "text-slate-600 hover:bg-slate-50"
+                    count > 0
+                        ? isExclude ? "bg-red-50 text-red-800" : "bg-indigo-50 text-indigo-800"
+                        : "text-slate-600 hover:bg-slate-50"
                 )}>
-                    <span className="font-medium truncate">Position (actual)</span>
+                    <span className={cn("font-medium truncate", isExclude && count === 0 && "text-slate-500")}>{label}</span>
                     <div className="flex items-center gap-1.5 shrink-0 ml-1">
-                        {count > 0 && <Badge className="h-4 px-1.5 text-[10px] bg-indigo-600 text-white">{count}</Badge>}
+                        {count > 0 && (
+                            <Badge className={cn(
+                                "h-4 px-1.5 text-[10px]",
+                                isExclude ? "bg-red-500 text-white" : "bg-indigo-600 text-white"
+                            )}>{count}</Badge>
+                        )}
                         <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
                     </div>
                 </button>
             </PopoverTrigger>
             <PopoverContent side="right" align="start" sideOffset={4} className="w-72 p-0 shadow-xl border border-slate-100 rounded-xl z-50">
                 <div className="px-3 pt-3 pb-2 border-b border-slate-100">
-                    <div className="mb-1.5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Position (actual)</div>
+                    <div className="mb-1.5 text-[10px] font-black uppercase text-slate-400 tracking-widest">{label}</div>
                     <div className="relative">
                         <input
-                            placeholder='เช่น "Visual Merch", "F&B Manager"...'
+                            placeholder={placeholder ?? "Search..."}
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                             autoFocus
@@ -398,13 +417,13 @@ function PositionSearchPopover({
                         <p className="text-[10px] text-slate-400 mt-1">พิมพ์อย่างน้อย 2 ตัวอักษร</p>
                     )}
                     {!loading && search.trim().length >= 2 && suggestions.length > 0 && (
-                        <p className="text-[10px] text-slate-400 mt-1">{suggestions.length} positions found</p>
+                        <p className="text-[10px] text-slate-400 mt-1">{suggestions.length} results</p>
                     )}
                 </div>
 
-                {/* Select All row — only when we have suggestions */}
+                {/* Select All row */}
                 {suggestions.length > 0 && (() => {
-                    const allSelected = suggestions.length > 0 && suggestions.every(s => pending.includes(s));
+                    const allSelected = suggestions.every(s => pending.includes(s));
                     const someSelected = !allSelected && suggestions.some(s => pending.includes(s));
                     const toggleAll = () => {
                         if (allSelected) {
@@ -420,9 +439,7 @@ function PositionSearchPopover({
                                     "h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-colors",
                                     allSelected
                                         ? "bg-indigo-600 border-indigo-600"
-                                        : someSelected
-                                            ? "bg-indigo-100 border-indigo-400"
-                                            : "bg-white border-slate-300"
+                                        : someSelected ? "bg-indigo-100 border-indigo-400" : "bg-white border-slate-300"
                                 )}>
                                     {allSelected && <svg viewBox="0 0 10 8" className="h-2.5 w-2.5 text-white fill-current"><path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                                     {someSelected && <div className="h-1.5 w-1.5 bg-indigo-500 rounded-sm" />}
@@ -440,11 +457,24 @@ function PositionSearchPopover({
                     <div className="p-2 flex flex-col gap-0.5">
                         {search.trim().length < 2 && pending.length === 0 && (
                             <div className="text-xs text-slate-400 text-center py-3 italic">
-                                พิมพ์เพื่อค้นหาตำแหน่งจากข้อมูลจริง
+                                {emptyHint ?? "พิมพ์เพื่อค้นหาจากข้อมูลจริง"}
                             </div>
                         )}
+                        {/* Show already-selected items when no search */}
+                        {search.trim().length < 2 && pending.length > 0 && pending.map(s => (
+                            <label key={s} className="flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer text-xs font-medium bg-indigo-50 text-indigo-800">
+                                <Checkbox
+                                    checked={true}
+                                    onCheckedChange={() => toggle(s)}
+                                    className="border-indigo-400 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600 shrink-0"
+                                />
+                                <span className="leading-snug">{s}</span>
+                            </label>
+                        ))}
                         {!loading && search.trim().length >= 2 && suggestions.length === 0 && (
-                            <div className="text-xs text-slate-400 text-center py-3">ไม่พบตำแหน่งที่ตรงกัน</div>
+                            <div className="text-xs text-slate-400 text-center py-3">
+                                {noResultText ?? "ไม่พบผลที่ตรงกัน"}
+                            </div>
                         )}
                         {suggestions.map(s => (
                             <label key={s} className={cn(
@@ -466,7 +496,10 @@ function PositionSearchPopover({
                     <button onClick={clear} className="flex-1 text-xs text-red-500 hover:text-red-700 font-semibold py-1.5 border border-red-100 rounded-md hover:bg-red-50 transition-colors">
                         Clear
                     </button>
-                    <button onClick={apply} className="flex-1 text-xs text-white bg-indigo-600 hover:bg-indigo-700 font-semibold py-1.5 rounded-md transition-colors">
+                    <button onClick={apply} className={cn(
+                        "flex-1 text-xs font-semibold py-1.5 rounded-md transition-colors text-white",
+                        isExclude ? "bg-red-500 hover:bg-red-600" : "bg-indigo-600 hover:bg-indigo-700"
+                    )}>
                         Apply
                     </button>
                 </div>
@@ -476,7 +509,7 @@ function PositionSearchPopover({
 }
 
 // --- Main FilterPanel ---
-export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, filters, onChange, onReset, onSearchPositions }: FilterPanelProps) {
+export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, filters, onChange, onReset, onSearchPositions, onSearchCompanies }: FilterPanelProps) {
     if (!staticOptions) return null;
 
     const set = <K extends keyof DemoFilterState>(key: K, value: DemoFilterState[K]) =>
@@ -517,16 +550,15 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
             : staticOptions.countries;
         return base.map(c => c.country);
     }, [cascade, staticOptions.countries, filters.regions]);
-    const availableHotelRatings = useMemo(
-        () => cascade ? (cascade.hotel_ratings ?? HOTEL_RATINGS) : HOTEL_RATINGS,
-        [cascade]
-    );
+    const availableHotelRatings = useMemo(() => {
+        const base = cascade ? (cascade.hotel_ratings ?? HOTEL_RATINGS) : HOTEL_RATINGS;
+        return base.includes("Unknown") ? base : [...base, "Unknown"];
+    }, [cascade]);
     const jobFunctionOptions = useMemo(
         () => cascade ? (cascade.job_functions ?? staticOptions.jobFunctions) : staticOptions.jobFunctions,
         [cascade, staticOptions.jobFunctions]
     );
     const positionOptions = useMemo(() => cascade?.positions ?? [], [cascade]);
-    const companyOptions = useMemo(() => cascade?.companies ?? [], [cascade]);
     const genderOptions = useMemo(() => cascade?.genders ?? [], [cascade]);
     const nationalityOptions = useMemo(() => cascade?.nationalities ?? [], [cascade]);
 
@@ -538,7 +570,7 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
         filters.regions.length,
         filters.countries.length,
         filters.hotel_ratings.length,
-        filters.current_only ? 1 : 0,
+        (filters.current_only || filters.current_and_latest) ? 1 : 0,
         filters.job_functions.length,
         filters.positions.length,
         filters.companies.length,
@@ -645,21 +677,37 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
                     onChange={(min, max, incl) => onChange({ ...filters, age_min: min, age_max: max, age_include_unknown: incl })}
                 />
 
-                {/* Current Job Only — inline toggle */}
-                <div className="flex items-center justify-between px-3 py-2">
-                    <span className="text-sm font-medium text-slate-600">Current Job Only</span>
-                    <button
-                        onClick={() => set("current_only", !filters.current_only)}
-                        className={cn(
-                            "relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0",
-                            filters.current_only ? "bg-indigo-600" : "bg-slate-200"
-                        )}
-                    >
-                        <span className={cn(
-                            "inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform",
-                            filters.current_only ? "translate-x-4" : "translate-x-1"
-                        )} />
-                    </button>
+                {/* Experience Scope — 3-way selector */}
+                <div className="px-3 py-2 flex flex-col gap-1">
+                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Experience Scope</span>
+                    {([
+                        { label: "All Experiences",      value: "all" },
+                        { label: "Current + Latest",     value: "current_and_latest" },
+                        { label: "Current Only",         value: "current_only" },
+                    ] as const).map(opt => {
+                        const active =
+                            opt.value === "current_only"        ? filters.current_only :
+                            opt.value === "current_and_latest"  ? filters.current_and_latest :
+                            !filters.current_only && !filters.current_and_latest;
+                        return (
+                            <button
+                                key={opt.value}
+                                onClick={() => onChange({
+                                    ...filters,
+                                    current_only:        opt.value === "current_only",
+                                    current_and_latest:  opt.value === "current_and_latest",
+                                })}
+                                className={cn(
+                                    "w-full text-left text-xs px-2.5 py-1.5 rounded-lg font-medium transition-colors",
+                                    active
+                                        ? "bg-indigo-600 text-white"
+                                        : "text-slate-600 hover:bg-slate-50"
+                                )}
+                            >
+                                {opt.label}
+                            </button>
+                        );
+                    })}
                 </div>
 
                 <FilterPopover
@@ -669,29 +717,34 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
                     onChange={v => set("job_functions", v)}
                     placeholder="Search function..."
                 />
-                <PositionSearchPopover
+                <LiveSearchPopover
+                    label="Position (actual)"
                     selected={filters.positions}
                     onChange={v => set("positions", v)}
                     activeFilters={filters}
-                    onSearchPositions={onSearchPositions}
+                    onSearch={onSearchPositions}
+                    placeholder='เช่น "Visual Merch", "F&B Manager"...'
+                    emptyHint="พิมพ์เพื่อค้นหาตำแหน่งจากข้อมูลจริง"
                 />
-                <FilterPopover
+                <LiveSearchPopover
                     label="Company"
-                    options={companyOptions}
                     selected={filters.companies}
                     onChange={v => set("companies", v)}
-                    placeholder="Search company..."
-                    emptyHint="Apply filters first"
+                    activeFilters={filters}
+                    onSearch={onSearchCompanies}
+                    placeholder='เช่น "Marriott", "Minor Hotel"...'
+                    emptyHint="พิมพ์เพื่อค้นหาบริษัทจากข้อมูลจริง"
                 />
 
                 <SectionLabel label="Exclude" />
-                <FilterPopover
+                <LiveSearchPopover
                     label="Exclude Company"
-                    options={companyOptions.filter(o => !filters.companies.includes(o))}
                     selected={filters.exclude_companies}
                     onChange={v => set("exclude_companies", v)}
-                    placeholder="Exclude company..."
-                    emptyHint="Apply filters first"
+                    activeFilters={filters}
+                    onSearch={onSearchCompanies}
+                    placeholder='เช่น "Marriott"...'
+                    emptyHint="พิมพ์ชื่อบริษัทที่ต้องการ exclude"
                     variant="exclude"
                 />
                 <FilterPopover

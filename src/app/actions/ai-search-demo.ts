@@ -25,6 +25,7 @@ function toRpcParams(f: DemoFilterState) {
         p_age_min:            f.age_min ?? null,
         p_age_max:            f.age_max ?? null,
         p_age_include_unknown: f.age_include_unknown,
+        p_current_and_latest:  f.current_and_latest,
     };
 }
 
@@ -69,19 +70,10 @@ export async function getDemoFilterOptions() {
             .select("country, region")
             .not("country", "is", null)
             .order("country"),
-        adminAuthClient
-            .from("Candidate Profile")
-            .select("job_function")
-            .not("job_function", "is", null)
-            .neq("job_function", "")
-            .neq("job_function", "Not found exp")
-            .neq("job_function", "Unknown")
-            .limit(3000),
+        (adminAuthClient as any).rpc("get_distinct_job_functions"),
     ]);
 
-    const uniqueJobFunctions = [
-        ...new Set((jobFunctions.data || []).map((r: any) => r.job_function as string)),
-    ].sort();
+    const uniqueJobFunctions = (jobFunctions.data || []).map((r: any) => r.job_function as string);
 
     return {
         keywords:     (keywords.data   || []) as { keyword: string; group_label: string }[],
@@ -171,13 +163,11 @@ export async function fetchCandidatePage(candidateIds: string[], page: number, p
     return profiles.map((p: any) => ({ ...p, experiences: expMap.get(p.candidate_id) || [] }));
 }
 
-// Position autocomplete — free-text search across all candidate_experiences.position
-// When other filters are active, scopes to matching candidates
+// Position autocomplete — DISTINCT positions via RPC (up to 200), optionally scoped to matching candidates
 export async function searchPositionSuggestions(query: string, filters?: DemoFilterState): Promise<string[]> {
     const q = query?.trim() ?? "";
     if (q.length < 2) return [];
 
-    // Scope to candidates matching active filters (exclude positions filter to avoid circular)
     const scopedFilters = filters ? { ...filters, positions: [] } : null;
     const useScope = scopedFilters && hasAnyFilter(scopedFilters);
 
@@ -185,27 +175,32 @@ export async function searchPositionSuggestions(query: string, filters?: DemoFil
         const { data: ids } = await (adminAuthClient as any).rpc("search_candidate_ids", toRpcParams(scopedFilters!));
         if (!ids || (ids as any[]).length === 0) return [];
         const candidateIds = (ids as { candidate_id: string }[]).map(r => r.candidate_id);
-
-        const { data } = await adminAuthClient
-            .from("candidate_experiences")
-            .select("position")
-            .in("candidate_id", candidateIds)
-            .ilike("position", `%${q}%`)
-            .not("position", "is", null)
-            .limit(80);
-
-        return [...new Set((data || []).map((r: any) => r.position as string))].sort();
+        const { data } = await (adminAuthClient as any).rpc("suggest_positions", { p_query: q, p_candidate_ids: candidateIds });
+        return (data || []).map((r: any) => r.pos as string);
     }
 
-    // Global search — no filter scope
-    const { data } = await adminAuthClient
-        .from("candidate_experiences")
-        .select("position")
-        .ilike("position", `%${q}%`)
-        .not("position", "is", null)
-        .limit(80);
+    const { data } = await (adminAuthClient as any).rpc("suggest_positions", { p_query: q });
+    return (data || []).map((r: any) => r.pos as string);
+}
 
-    return [...new Set((data || []).map((r: any) => r.position as string))].sort();
+// Company autocomplete — DISTINCT companies via RPC (up to 200), optionally scoped to matching candidates
+export async function searchCompanySuggestions(query: string, filters?: DemoFilterState): Promise<string[]> {
+    const q = query?.trim() ?? "";
+    if (q.length < 2) return [];
+
+    const scopedFilters = filters ? { ...filters, companies: [], exclude_companies: [] } : null;
+    const useScope = scopedFilters && hasAnyFilter(scopedFilters);
+
+    if (useScope) {
+        const { data: ids } = await (adminAuthClient as any).rpc("search_candidate_ids", toRpcParams(scopedFilters!));
+        if (!ids || (ids as any[]).length === 0) return [];
+        const candidateIds = (ids as { candidate_id: string }[]).map(r => r.candidate_id);
+        const { data } = await (adminAuthClient as any).rpc("suggest_companies", { p_query: q, p_candidate_ids: candidateIds });
+        return (data || []).map((r: any) => r.co as string);
+    }
+
+    const { data } = await (adminAuthClient as any).rpc("suggest_companies", { p_query: q });
+    return (data || []).map((r: any) => r.co as string);
 }
 
 // Cohort analysis — aggregate skills/job_functions/languages for a set of candidate_ids

@@ -132,24 +132,14 @@ export function CohortInsights({ candidateIds, totalFound, onAddJobFunction }: P
                         ) : !skills.length ? (
                             <p className="text-xs text-slate-400">ไม่มีข้อมูล</p>
                         ) : (
-                            <>
-                                <div className="space-y-1.5">
-                                    {shownSkills.map(s => (
-                                        <div key={s.skill}>
-                                            <div className="text-xs text-slate-700 truncate mb-0.5">{s.skill}</div>
-                                            <FreqBar count={s.count} max={maxSkill} />
-                                        </div>
-                                    ))}
-                                </div>
-                                {skills.length > PREVIEW && (
-                                    <button
-                                        onClick={() => setSkillsExpanded(e => !e)}
-                                        className="mt-1.5 text-[10px] text-indigo-500 hover:text-indigo-700 font-semibold underline underline-offset-2"
-                                    >
-                                        {skillsExpanded ? "Show less" : `+${skills.length - PREVIEW} more`}
-                                    </button>
-                                )}
-                            </>
+                            <div className="max-h-[280px] overflow-y-auto pr-1 space-y-1.5">
+                                {skills.map(s => (
+                                    <div key={s.skill}>
+                                        <div className="text-xs text-slate-700 truncate mb-0.5">{s.skill}</div>
+                                        <FreqBar count={s.count} max={maxSkill} />
+                                    </div>
+                                ))}
+                            </div>
                         )}
                     </div>
 
@@ -164,46 +154,36 @@ export function CohortInsights({ candidateIds, totalFound, onAddJobFunction }: P
                         ) : !funcs.length ? (
                             <p className="text-xs text-slate-400">ไม่มีข้อมูล</p>
                         ) : (
-                            <>
-                                <div className="space-y-1.5">
-                                    {shownFuncs.map(f => (
-                                        <div key={f.function} className="group">
-                                            <div className="flex items-center gap-1 mb-0.5">
-                                                <span className={cn(
-                                                    "text-xs truncate flex-1 transition-colors",
-                                                    addedFn === f.function ? "text-emerald-600 font-semibold" : "text-slate-700"
-                                                )}>{f.function}</span>
-                                                {onAddJobFunction && (
-                                                    <button
-                                                        onClick={() => handleAddJobFunction(f.function)}
-                                                        className={cn(
-                                                            "shrink-0 p-0.5 rounded transition-all",
-                                                            addedFn === f.function
-                                                                ? "opacity-100 bg-emerald-100 text-emerald-600"
-                                                                : "opacity-0 group-hover:opacity-100 hover:bg-indigo-100 text-indigo-500"
-                                                        )}
-                                                        title={`Add "${f.function}" to filter`}
-                                                    >
-                                                        {addedFn === f.function
-                                                            ? <Check className="h-3 w-3" />
-                                                            : <Plus className="h-3 w-3" />
-                                                        }
-                                                    </button>
-                                                )}
-                                            </div>
-                                            <FreqBar count={f.count} max={maxFunc} />
+                            <div className="max-h-[280px] overflow-y-auto pr-1 space-y-1.5">
+                                {funcs.map(f => (
+                                    <div key={f.function} className="group">
+                                        <div className="flex items-center gap-1 mb-0.5">
+                                            <span className={cn(
+                                                "text-xs truncate flex-1 transition-colors",
+                                                addedFn === f.function ? "text-emerald-600 font-semibold" : "text-slate-700"
+                                            )}>{f.function}</span>
+                                            {onAddJobFunction && (
+                                                <button
+                                                    onClick={() => handleAddJobFunction(f.function)}
+                                                    className={cn(
+                                                        "shrink-0 p-0.5 rounded transition-all",
+                                                        addedFn === f.function
+                                                            ? "opacity-100 bg-emerald-100 text-emerald-600"
+                                                            : "opacity-0 group-hover:opacity-100 hover:bg-indigo-100 text-indigo-500"
+                                                    )}
+                                                    title={`Add "${f.function}" to filter`}
+                                                >
+                                                    {addedFn === f.function
+                                                        ? <Check className="h-3 w-3" />
+                                                        : <Plus className="h-3 w-3" />
+                                                    }
+                                                </button>
+                                            )}
                                         </div>
-                                    ))}
-                                </div>
-                                {funcs.length > PREVIEW && (
-                                    <button
-                                        onClick={() => setFuncsExpanded(e => !e)}
-                                        className="mt-1.5 text-[10px] text-indigo-500 hover:text-indigo-700 font-semibold underline underline-offset-2"
-                                    >
-                                        {funcsExpanded ? "Show less" : `+${funcs.length - PREVIEW} more`}
-                                    </button>
-                                )}
-                            </>
+                                        <FreqBar count={f.count} max={maxFunc} />
+                                    </div>
+                                ))}
+                            </div>
                         )}
                     </div>
 

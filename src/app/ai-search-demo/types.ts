@@ -7,6 +7,7 @@ export interface DemoFilterState {
     countries: string[];
     hotel_ratings: string[];
     current_only: boolean;
+    current_and_latest: boolean;
     job_functions: string[];
     positions: string[];
     companies: string[];
@@ -31,6 +32,7 @@ export const EMPTY_FILTERS: DemoFilterState = {
     countries: [],
     hotel_ratings: [],
     current_only: false,
+    current_and_latest: true,
     job_functions: [],
     positions: [],
     companies: [],
