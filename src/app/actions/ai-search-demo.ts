@@ -123,7 +123,7 @@ export async function searchDemoCandidates(filters: DemoFilterState) {
     const params = toRpcParams(filters);
 
     const [idsResult, summaryResult] = await Promise.all([
-        (adminAuthClient as any).rpc("search_candidate_ids", params),
+        (adminAuthClient as any).rpc("search_candidate_ids", params).limit(50000),
         (adminAuthClient as any).rpc("get_search_summary", params),
     ]);
 
