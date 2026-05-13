@@ -8,7 +8,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { DemoFilterState, POSITION_LEVELS, HOTEL_RATINGS } from "./types";
-import { searchPositionSuggestions } from "@/app/actions/ai-search-demo";
 
 interface StaticOptions {
     keywords: { keyword: string; group_label: string }[];
@@ -37,6 +36,7 @@ interface FilterPanelProps {
     filters: DemoFilterState;
     onChange: (filters: DemoFilterState) => void;
     onReset: () => void;
+    onSearchPositions: (query: string, filters: DemoFilterState) => Promise<string[]>;
 }
 
 // --- Section label divider ---
@@ -329,10 +329,12 @@ function PositionSearchPopover({
     selected,
     onChange,
     activeFilters,
+    onSearchPositions,
 }: {
     selected: string[];
     onChange: (v: string[]) => void;
     activeFilters: DemoFilterState;
+    onSearchPositions: (query: string, filters: DemoFilterState) => Promise<string[]>;
 }) {
     const [open, setOpen] = useState(false);
     const [pending, setPending] = useState<string[]>([]);
@@ -351,12 +353,12 @@ function PositionSearchPopover({
         if (search.trim().length < 2) { setSuggestions([]); setLoading(false); return; }
         setLoading(true);
         debounceRef.current = setTimeout(async () => {
-            const results = await searchPositionSuggestions(search.trim(), activeFilters);
+            const results = await onSearchPositions(search.trim(), activeFilters);
             setSuggestions(results);
             setLoading(false);
         }, 300);
         return () => clearTimeout(debounceRef.current);
-    }, [search, activeFilters]);
+    }, [search, activeFilters, onSearchPositions]);
 
     const toggle = (val: string) =>
         setPending(p => p.includes(val) ? p.filter(x => x !== val) : [...p, val]);
@@ -395,23 +397,46 @@ function PositionSearchPopover({
                     {search.trim().length > 0 && search.trim().length < 2 && (
                         <p className="text-[10px] text-slate-400 mt-1">พิมพ์อย่างน้อย 2 ตัวอักษร</p>
                     )}
+                    {!loading && search.trim().length >= 2 && suggestions.length > 0 && (
+                        <p className="text-[10px] text-slate-400 mt-1">{suggestions.length} positions found</p>
+                    )}
                 </div>
 
-                {/* Pending selected tags */}
-                {pending.length > 0 && (
-                    <div className="px-3 py-2 border-b border-slate-100 flex flex-wrap gap-1">
-                        {pending.map(p => (
-                            <span key={p} className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 rounded px-1.5 py-0.5 flex items-center gap-1 max-w-full">
-                                <span className="truncate max-w-[200px]">{p}</span>
-                                <button onClick={() => toggle(p)} className="shrink-0 hover:text-red-500">
-                                    <X className="h-2.5 w-2.5" />
-                                </button>
-                            </span>
-                        ))}
-                    </div>
-                )}
+                {/* Select All row — only when we have suggestions */}
+                {suggestions.length > 0 && (() => {
+                    const allSelected = suggestions.length > 0 && suggestions.every(s => pending.includes(s));
+                    const someSelected = !allSelected && suggestions.some(s => pending.includes(s));
+                    const toggleAll = () => {
+                        if (allSelected) {
+                            setPending(prev => prev.filter(p => !suggestions.includes(p)));
+                        } else {
+                            setPending(prev => [...new Set([...prev, ...suggestions])]);
+                        }
+                    };
+                    return (
+                        <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
+                            <label className="flex items-center gap-2 cursor-pointer select-none" onClick={toggleAll}>
+                                <div className={cn(
+                                    "h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-colors",
+                                    allSelected
+                                        ? "bg-indigo-600 border-indigo-600"
+                                        : someSelected
+                                            ? "bg-indigo-100 border-indigo-400"
+                                            : "bg-white border-slate-300"
+                                )}>
+                                    {allSelected && <svg viewBox="0 0 10 8" className="h-2.5 w-2.5 text-white fill-current"><path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                    {someSelected && <div className="h-1.5 w-1.5 bg-indigo-500 rounded-sm" />}
+                                </div>
+                                <span className="text-xs font-semibold text-slate-600">Select All</span>
+                            </label>
+                            {pending.length > 0 && (
+                                <span className="text-[10px] text-indigo-600 font-semibold">{pending.length} selected</span>
+                            )}
+                        </div>
+                    );
+                })()}
 
-                <ScrollArea className="max-h-[200px]">
+                <ScrollArea className="max-h-[220px]">
                     <div className="p-2 flex flex-col gap-0.5">
                         {search.trim().length < 2 && pending.length === 0 && (
                             <div className="text-xs text-slate-400 text-center py-3 italic">
@@ -421,10 +446,13 @@ function PositionSearchPopover({
                         {!loading && search.trim().length >= 2 && suggestions.length === 0 && (
                             <div className="text-xs text-slate-400 text-center py-3">ไม่พบตำแหน่งที่ตรงกัน</div>
                         )}
-                        {suggestions.filter(s => !pending.includes(s)).map(s => (
-                            <label key={s} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-xs font-medium text-slate-700">
+                        {suggestions.map(s => (
+                            <label key={s} className={cn(
+                                "flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer text-xs font-medium",
+                                pending.includes(s) ? "bg-indigo-50 text-indigo-800" : "text-slate-700 hover:bg-slate-50"
+                            )}>
                                 <Checkbox
-                                    checked={false}
+                                    checked={pending.includes(s)}
                                     onCheckedChange={() => toggle(s)}
                                     className="border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600 shrink-0"
                                 />
@@ -448,7 +476,7 @@ function PositionSearchPopover({
 }
 
 // --- Main FilterPanel ---
-export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, filters, onChange, onReset }: FilterPanelProps) {
+export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, filters, onChange, onReset, onSearchPositions }: FilterPanelProps) {
     if (!staticOptions) return null;
 
     const set = <K extends keyof DemoFilterState>(key: K, value: DemoFilterState[K]) =>
@@ -645,6 +673,7 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
                     selected={filters.positions}
                     onChange={v => set("positions", v)}
                     activeFilters={filters}
+                    onSearchPositions={onSearchPositions}
                 />
                 <FilterPopover
                     label="Company"

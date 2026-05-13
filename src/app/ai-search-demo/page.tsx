@@ -16,6 +16,7 @@ import {
     searchDemoCandidates,
     fetchCandidatePage,
     parseQueryToFilters,
+    searchPositionSuggestions,
 } from "@/app/actions/ai-search-demo";
 import { EMPTY_FILTERS, type DemoFilterState, type AiParseResult } from "./types";
 import { CohortInsights } from "./CohortInsights";
@@ -300,6 +301,7 @@ export default function AiSearchDemoPage() {
                                     filters={pendingFilters}
                                     onChange={setPendingFilters}
                                     onReset={handleReset}
+                                    onSearchPositions={(q, f) => searchPositionSuggestions(q, f)}
                                 />
                             <SuggestedFilters
                                 suggestions={suggestions}
