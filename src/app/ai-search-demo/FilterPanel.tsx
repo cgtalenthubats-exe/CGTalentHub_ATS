@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
-import { ChevronDown, SlidersHorizontal, RotateCcw, Loader2 } from "lucide-react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
+import { ChevronDown, SlidersHorizontal, RotateCcw, Loader2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { DemoFilterState, POSITION_LEVELS, HOTEL_RATINGS } from "./types";
+import { searchPositionSuggestions } from "@/app/actions/ai-search-demo";
 
 interface StaticOptions {
     keywords: { keyword: string; group_label: string }[];
@@ -323,6 +324,129 @@ function AgeFilterPopover({
     );
 }
 
+// --- Position free-text autocomplete popover ---
+function PositionSearchPopover({
+    selected,
+    onChange,
+    activeFilters,
+}: {
+    selected: string[];
+    onChange: (v: string[]) => void;
+    activeFilters: DemoFilterState;
+}) {
+    const [open, setOpen] = useState(false);
+    const [pending, setPending] = useState<string[]>([]);
+    const [search, setSearch] = useState("");
+    const [suggestions, setSuggestions] = useState<string[]>([]);
+    const [loading, setLoading] = useState(false);
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+    const handleOpenChange = (isOpen: boolean) => {
+        if (isOpen) { setPending([...selected]); setSearch(""); setSuggestions([]); }
+        setOpen(isOpen);
+    };
+
+    useEffect(() => {
+        clearTimeout(debounceRef.current);
+        if (search.trim().length < 2) { setSuggestions([]); setLoading(false); return; }
+        setLoading(true);
+        debounceRef.current = setTimeout(async () => {
+            const results = await searchPositionSuggestions(search.trim(), activeFilters);
+            setSuggestions(results);
+            setLoading(false);
+        }, 300);
+        return () => clearTimeout(debounceRef.current);
+    }, [search, activeFilters]);
+
+    const toggle = (val: string) =>
+        setPending(p => p.includes(val) ? p.filter(x => x !== val) : [...p, val]);
+
+    const apply = () => { onChange([...pending]); setOpen(false); };
+    const clear = () => { onChange([]); setPending([]); setOpen(false); };
+    const count = selected.length;
+
+    return (
+        <Popover open={open} onOpenChange={handleOpenChange}>
+            <PopoverTrigger asChild>
+                <button className={cn(
+                    "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors text-left",
+                    count > 0 ? "bg-indigo-50 text-indigo-800" : "text-slate-600 hover:bg-slate-50"
+                )}>
+                    <span className="font-medium truncate">Position (actual)</span>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                        {count > 0 && <Badge className="h-4 px-1.5 text-[10px] bg-indigo-600 text-white">{count}</Badge>}
+                        <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                    </div>
+                </button>
+            </PopoverTrigger>
+            <PopoverContent side="right" align="start" sideOffset={4} className="w-72 p-0 shadow-xl border border-slate-100 rounded-xl z-50">
+                <div className="px-3 pt-3 pb-2 border-b border-slate-100">
+                    <div className="mb-1.5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Position (actual)</div>
+                    <div className="relative">
+                        <input
+                            placeholder='เช่น "Visual Merch", "F&B Manager"...'
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            autoFocus
+                            className="w-full text-xs px-2 py-1.5 pr-6 border border-slate-200 rounded-md outline-none focus:ring-1 focus:ring-indigo-300 bg-white"
+                        />
+                        {loading && <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-slate-400" />}
+                    </div>
+                    {search.trim().length > 0 && search.trim().length < 2 && (
+                        <p className="text-[10px] text-slate-400 mt-1">พิมพ์อย่างน้อย 2 ตัวอักษร</p>
+                    )}
+                </div>
+
+                {/* Pending selected tags */}
+                {pending.length > 0 && (
+                    <div className="px-3 py-2 border-b border-slate-100 flex flex-wrap gap-1">
+                        {pending.map(p => (
+                            <span key={p} className="text-xs bg-indigo-50 text-indigo-700 border border-indigo-200 rounded px-1.5 py-0.5 flex items-center gap-1 max-w-full">
+                                <span className="truncate max-w-[200px]">{p}</span>
+                                <button onClick={() => toggle(p)} className="shrink-0 hover:text-red-500">
+                                    <X className="h-2.5 w-2.5" />
+                                </button>
+                            </span>
+                        ))}
+                    </div>
+                )}
+
+                <ScrollArea className="max-h-[200px]">
+                    <div className="p-2 flex flex-col gap-0.5">
+                        {search.trim().length < 2 && pending.length === 0 && (
+                            <div className="text-xs text-slate-400 text-center py-3 italic">
+                                พิมพ์เพื่อค้นหาตำแหน่งจากข้อมูลจริง
+                            </div>
+                        )}
+                        {!loading && search.trim().length >= 2 && suggestions.length === 0 && (
+                            <div className="text-xs text-slate-400 text-center py-3">ไม่พบตำแหน่งที่ตรงกัน</div>
+                        )}
+                        {suggestions.filter(s => !pending.includes(s)).map(s => (
+                            <label key={s} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-xs font-medium text-slate-700">
+                                <Checkbox
+                                    checked={false}
+                                    onCheckedChange={() => toggle(s)}
+                                    className="border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600 shrink-0"
+                                />
+                                <span className="leading-snug">{s}</span>
+                            </label>
+                        ))}
+                    </div>
+                </ScrollArea>
+
+                <div className="flex gap-2 p-2 border-t border-slate-100">
+                    <button onClick={clear} className="flex-1 text-xs text-red-500 hover:text-red-700 font-semibold py-1.5 border border-red-100 rounded-md hover:bg-red-50 transition-colors">
+                        Clear
+                    </button>
+                    <button onClick={apply} className="flex-1 text-xs text-white bg-indigo-600 hover:bg-indigo-700 font-semibold py-1.5 rounded-md transition-colors">
+                        Apply
+                    </button>
+                </div>
+            </PopoverContent>
+        </Popover>
+    );
+}
+
 // --- Main FilterPanel ---
 export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, filters, onChange, onReset }: FilterPanelProps) {
     if (!staticOptions) return null;
@@ -517,13 +641,10 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
                     onChange={v => set("job_functions", v)}
                     placeholder="Search function..."
                 />
-                <FilterPopover
-                    label="Position (actual)"
-                    options={positionOptions}
+                <PositionSearchPopover
                     selected={filters.positions}
                     onChange={v => set("positions", v)}
-                    placeholder="Search position..."
-                    emptyHint="Select keywords or levels first"
+                    activeFilters={filters}
                 />
                 <FilterPopover
                     label="Company"
