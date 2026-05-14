@@ -12,7 +12,8 @@ interface ChainCount {
 
 interface ChainRatingPickerProps {
     chainCounts: ChainCount[];
-    subBrands: string[];
+    allSubBrands: string[];
+    subBrands: string[];           // cascaded (filtered to selected chain/rating)
     filters: DemoFilterState;
     onFiltersChange: (f: DemoFilterState) => void;
     onAutoSearch: (f: DemoFilterState) => void;
@@ -21,12 +22,15 @@ interface ChainRatingPickerProps {
 const RATINGS = ["3 Star", "4 Star", "5 Star"];
 const RATING_LABEL: Record<string, string> = { "3 Star": "★★★", "4 Star": "★★★★", "5 Star": "★★★★★" };
 const VISIBLE_CHAINS = 16;
+const VISIBLE_SUB_BRANDS = 20;
 
-export function ChainRatingPicker({ chainCounts, subBrands, filters, onFiltersChange, onAutoSearch }: ChainRatingPickerProps) {
+export function ChainRatingPicker({ chainCounts, allSubBrands, subBrands, filters, onFiltersChange, onAutoSearch }: ChainRatingPickerProps) {
     const [chainSearch, setChainSearch] = useState("");
     const [showAllChains, setShowAllChains] = useState(false);
-    const [showSubBrands, setShowSubBrands] = useState(true);
+    const [subBrandSearch, setSubBrandSearch] = useState("");
+    const [showAllSubBrands, setShowAllSubBrands] = useState(false);
 
+    // Chain list
     const filteredChains = useMemo(() => {
         if (!chainSearch.trim()) return chainCounts;
         const q = chainSearch.toLowerCase();
@@ -37,7 +41,23 @@ export function ChainRatingPicker({ chainCounts, subBrands, filters, onFiltersCh
         ? filteredChains
         : filteredChains.slice(0, VISIBLE_CHAINS);
 
-    const hasMore = !chainSearch.trim() && chainCounts.length > VISIBLE_CHAINS;
+    const hasMoreChains = !chainSearch.trim() && chainCounts.length > VISIBLE_CHAINS;
+
+    // Sub-brand list: use cascaded list when chain/rating is active, otherwise show all
+    const hasChainOrRatingFilter = filters.hotel_chains.length > 0 || filters.hotel_ratings.length > 0;
+    const activeSubBrands = hasChainOrRatingFilter && subBrands.length > 0 ? subBrands : allSubBrands;
+
+    const filteredSubBrands = useMemo(() => {
+        if (!subBrandSearch.trim()) return activeSubBrands;
+        const q = subBrandSearch.toLowerCase();
+        return activeSubBrands.filter(b => b.toLowerCase().includes(q));
+    }, [activeSubBrands, subBrandSearch]);
+
+    const visibleSubBrands = showAllSubBrands || subBrandSearch.trim()
+        ? filteredSubBrands
+        : filteredSubBrands.slice(0, VISIBLE_SUB_BRANDS);
+
+    const hasMoreSubBrands = !subBrandSearch.trim() && filteredSubBrands.length > VISIBLE_SUB_BRANDS;
 
     const toggleChain = (chain: string) => {
         const next = filters.hotel_chains.includes(chain)
@@ -73,7 +93,6 @@ export function ChainRatingPicker({ chainCounts, subBrands, filters, onFiltersCh
     };
 
     const hasAnyHotelFilter = filters.hotel_chains.length > 0 || filters.hotel_ratings.length > 0 || filters.hotel_sub_brands.length > 0;
-    const showSubBrandSection = subBrands.length > 0 && (filters.hotel_chains.length > 0 || filters.hotel_ratings.length > 0);
 
     return (
         <div className="bg-white border border-slate-200 rounded-xl shadow-sm px-4 py-3 flex flex-col gap-2.5">
@@ -122,7 +141,7 @@ export function ChainRatingPicker({ chainCounts, subBrands, filters, onFiltersCh
                             </button>
                         );
                     })}
-                    {hasMore && (
+                    {hasMoreChains && (
                         <button
                             onClick={() => setShowAllChains(v => !v)}
                             className="flex items-center gap-0.5 px-2.5 py-1 rounded-full text-xs font-medium text-slate-500 border border-dashed border-slate-300 hover:border-slate-400 transition-colors"
@@ -161,42 +180,62 @@ export function ChainRatingPicker({ chainCounts, subBrands, filters, onFiltersCh
                 </div>
             </div>
 
-            {/* Sub-brand picker */}
-            {showSubBrandSection && (
+            {/* Sub-brand picker — always visible */}
+            {allSubBrands.length > 0 && (
                 <div className="border-t border-slate-100 pt-2 flex flex-col gap-1.5">
-                    <button
-                        onClick={() => setShowSubBrands(v => !v)}
-                        className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors w-fit"
-                    >
-                        {showSubBrands ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                        Sub-brands ({subBrands.length})
+                    <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Sub-brands
+                            {hasChainOrRatingFilter
+                                ? ` (${activeSubBrands.length} in selected chain/rating)`
+                                : ` (${allSubBrands.length} total)`}
+                        </span>
                         {filters.hotel_sub_brands.length > 0 && (
-                            <span className="ml-1 px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[9px] font-bold">
+                            <span className="px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-full text-[9px] font-bold">
                                 {filters.hotel_sub_brands.length} selected
                             </span>
                         )}
-                    </button>
-                    {showSubBrands && (
-                        <div className="flex flex-wrap gap-1.5">
-                            {subBrands.map(brand => {
-                                const selected = filters.hotel_sub_brands.includes(brand);
-                                return (
-                                    <button
-                                        key={brand}
-                                        onClick={() => toggleSubBrand(brand)}
-                                        className={cn(
-                                            "px-2.5 py-1 rounded-full text-xs font-medium border transition-all",
-                                            selected
-                                                ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
-                                                : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-700"
-                                        )}
-                                    >
-                                        {brand}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    )}
+                    </div>
+                    <div className="relative">
+                        <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400 pointer-events-none" />
+                        <input
+                            value={subBrandSearch}
+                            onChange={e => setSubBrandSearch(e.target.value)}
+                            placeholder="Search sub-brands..."
+                            className="w-full text-xs pl-6 pr-3 py-1.5 border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-indigo-300 bg-slate-50"
+                        />
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                        {visibleSubBrands.map(brand => {
+                            const selected = filters.hotel_sub_brands.includes(brand);
+                            return (
+                                <button
+                                    key={brand}
+                                    onClick={() => toggleSubBrand(brand)}
+                                    className={cn(
+                                        "px-2.5 py-1 rounded-full text-xs font-medium border transition-all",
+                                        selected
+                                            ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                                            : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300 hover:text-indigo-700"
+                                    )}
+                                >
+                                    {brand}
+                                </button>
+                            );
+                        })}
+                        {hasMoreSubBrands && (
+                            <button
+                                onClick={() => setShowAllSubBrands(v => !v)}
+                                className="flex items-center gap-0.5 px-2.5 py-1 rounded-full text-xs font-medium text-slate-500 border border-dashed border-slate-300 hover:border-slate-400 transition-colors"
+                            >
+                                {showAllSubBrands ? (
+                                    <><ChevronUp className="h-3 w-3" /> Show less</>
+                                ) : (
+                                    <><ChevronDown className="h-3 w-3" /> +{filteredSubBrands.length - VISIBLE_SUB_BRANDS} more</>
+                                )}
+                            </button>
+                        )}
+                    </div>
                 </div>
             )}
         </div>

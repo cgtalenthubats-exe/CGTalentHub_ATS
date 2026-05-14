@@ -58,7 +58,7 @@ function hasAnyFilter(f: DemoFilterState) {
 
 // Load all static filter options in one call
 export async function getDemoFilterOptions() {
-    const [keywords, industries, countries, jobFunctions, hotelChains, chainCounts] = await Promise.all([
+    const [keywords, industries, countries, jobFunctions, hotelChains, chainCounts, subBrandsResult] = await Promise.all([
         adminAuthClient
             .from("position_keyword_vocab")
             .select("keyword, group_label")
@@ -81,6 +81,11 @@ export async function getDemoFilterOptions() {
             .is("parent_id", null)
             .order("brand_name"),
         (adminAuthClient as any).rpc("get_chain_candidate_counts"),
+        adminAuthClient
+            .from("hotel_chain_master")
+            .select("brand_name")
+            .not("parent_id", "is", null)
+            .order("brand_name"),
     ]);
 
     const uniqueJobFunctions = (jobFunctions.data || []).map((r: any) => r.job_function as string);
@@ -89,6 +94,7 @@ export async function getDemoFilterOptions() {
         chain_name: r.chain_name as string,
         candidate_count: Number(r.candidate_count),
     }));
+    const allSubBrands = (subBrandsResult.data || []).map((r: any) => r.brand_name as string);
 
     return {
         keywords:     (keywords.data   || []) as { keyword: string; group_label: string }[],
@@ -97,6 +103,7 @@ export async function getDemoFilterOptions() {
         jobFunctions: uniqueJobFunctions,
         hotelChains:  hotelChainNames,
         chainCounts:  chainCountData,
+        allSubBrands,
     };
 }
 
@@ -203,7 +210,7 @@ export async function fetchCandidatePage(candidateIds: string[], page: number, p
 // Position autocomplete — DISTINCT positions via RPC (up to 200), optionally scoped to matching candidates
 export async function searchPositionSuggestions(query: string, filters?: DemoFilterState): Promise<string[]> {
     const q = query?.trim() ?? "";
-    if (q.length < 2) return [];
+    if (q.length === 1) return [];
 
     const scopedFilters = filters ? { ...filters, positions: [] } : null;
     const useScope = scopedFilters && hasAnyFilter(scopedFilters);
@@ -223,7 +230,7 @@ export async function searchPositionSuggestions(query: string, filters?: DemoFil
 // Company autocomplete — DISTINCT companies via RPC (up to 200), optionally scoped to matching candidates
 export async function searchCompanySuggestions(query: string, filters?: DemoFilterState): Promise<string[]> {
     const q = query?.trim() ?? "";
-    if (q.length < 2) return [];
+    if (q.length === 1) return [];
 
     const scopedFilters = filters ? { ...filters, companies: [], exclude_companies: [] } : null;
     const useScope = scopedFilters && hasAnyFilter(scopedFilters);

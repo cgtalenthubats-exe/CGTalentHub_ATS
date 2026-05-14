@@ -359,13 +359,24 @@ function LiveSearchPopover({
     const isExclude = variant === "exclude";
 
     const handleOpenChange = (isOpen: boolean) => {
-        if (isOpen) { setPending([...selected]); setSearch(""); setSuggestions([]); }
+        if (isOpen) {
+            setPending([...selected]);
+            setSearch("");
+            setSuggestions([]);
+            setLoading(true);
+            onSearch("", activeFilters).then(results => {
+                setSuggestions(results);
+                setLoading(false);
+            });
+        }
         setOpen(isOpen);
     };
 
     useEffect(() => {
+        if (!open) return;
         clearTimeout(debounceRef.current);
-        if (search.trim().length < 2) { setSuggestions([]); setLoading(false); return; }
+        if (search.trim().length === 0) return; // handled by handleOpenChange
+        if (search.trim().length < 2) { setLoading(false); return; }
         setLoading(true);
         debounceRef.current = setTimeout(async () => {
             const results = await onSearch(search.trim(), activeFilters);
@@ -373,7 +384,7 @@ function LiveSearchPopover({
             setLoading(false);
         }, 300);
         return () => clearTimeout(debounceRef.current);
-    }, [search, activeFilters, onSearch]);
+    }, [search, activeFilters, onSearch, open]);
 
     const toggle = (val: string) =>
         setPending(p => p.includes(val) ? p.filter(x => x !== val) : [...p, val]);
@@ -416,10 +427,10 @@ function LiveSearchPopover({
                         />
                         {loading && <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-slate-400" />}
                     </div>
-                    {search.trim().length > 0 && search.trim().length < 2 && (
+                    {search.trim().length === 1 && (
                         <p className="text-[10px] text-slate-400 mt-1">พิมพ์อย่างน้อย 2 ตัวอักษร</p>
                     )}
-                    {!loading && search.trim().length >= 2 && suggestions.length > 0 && (
+                    {!loading && suggestions.length > 0 && search.trim().length !== 1 && (
                         <p className="text-[10px] text-slate-400 mt-1">{suggestions.length} results</p>
                     )}
                 </div>
@@ -458,9 +469,10 @@ function LiveSearchPopover({
 
                 <ScrollArea className="max-h-[220px]">
                     <div className="p-2 flex flex-col gap-0.5">
-                        {search.trim().length < 2 && pending.length === 0 && (
-                            <div className="text-xs text-slate-400 text-center py-3 italic">
-                                {emptyHint ?? "พิมพ์เพื่อค้นหาจากข้อมูลจริง"}
+                        {loading && search.trim().length === 0 && pending.length === 0 && (
+                            <div className="flex items-center justify-center gap-2 py-4 text-xs text-slate-400">
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                กำลังโหลด...
                             </div>
                         )}
                         {/* Show already-selected items when no search */}

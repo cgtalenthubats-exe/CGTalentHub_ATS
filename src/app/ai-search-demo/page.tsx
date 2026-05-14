@@ -292,6 +292,7 @@ export default function AiSearchDemoPage() {
                 <div className="px-6 pb-2">
                     <ChainRatingPicker
                         chainCounts={staticOptions.chainCounts ?? []}
+                        allSubBrands={staticOptions.allSubBrands ?? []}
                         subBrands={cascadingOptions?.sub_brands ?? []}
                         filters={pendingFilters}
                         onFiltersChange={setPendingFilters}
