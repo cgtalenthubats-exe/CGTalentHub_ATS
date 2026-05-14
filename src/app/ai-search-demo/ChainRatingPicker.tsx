@@ -12,8 +12,7 @@ interface ChainCount {
 
 interface ChainRatingPickerProps {
     chainCounts: ChainCount[];
-    allSubBrands: string[];
-    subBrands: string[];           // cascaded (filtered to selected chain/rating)
+    subBrandsByChain: Record<string, string[]>;  // chain name → sub-brand names[]
     filters: DemoFilterState;
     onFiltersChange: (f: DemoFilterState) => void;
     onAutoSearch: (f: DemoFilterState) => void;
@@ -24,11 +23,17 @@ const RATING_LABEL: Record<string, string> = { "3 Star": "★★★", "4 Star": 
 const VISIBLE_CHAINS = 16;
 const VISIBLE_SUB_BRANDS = 20;
 
-export function ChainRatingPicker({ chainCounts, allSubBrands, subBrands, filters, onFiltersChange, onAutoSearch }: ChainRatingPickerProps) {
+export function ChainRatingPicker({ chainCounts, subBrandsByChain, filters, onFiltersChange, onAutoSearch }: ChainRatingPickerProps) {
     const [chainSearch, setChainSearch] = useState("");
     const [showAllChains, setShowAllChains] = useState(false);
     const [subBrandSearch, setSubBrandSearch] = useState("");
     const [showAllSubBrands, setShowAllSubBrands] = useState(false);
+
+    // All sub-brands flat list (for "no filter" state)
+    const allSubBrands = useMemo(
+        () => [...new Set(Object.values(subBrandsByChain).flat())].sort(),
+        [subBrandsByChain]
+    );
 
     // Chain list
     const filteredChains = useMemo(() => {
@@ -43,9 +48,13 @@ export function ChainRatingPicker({ chainCounts, allSubBrands, subBrands, filter
 
     const hasMoreChains = !chainSearch.trim() && chainCounts.length > VISIBLE_CHAINS;
 
-    // Sub-brand list: use cascaded list when chain/rating is active, otherwise show all
+    // Sub-brand list: filter client-side by selected chains instantly
     const hasChainOrRatingFilter = filters.hotel_chains.length > 0 || filters.hotel_ratings.length > 0;
-    const activeSubBrands = hasChainOrRatingFilter && subBrands.length > 0 ? subBrands : allSubBrands;
+    const activeSubBrands = useMemo(() => {
+        if (filters.hotel_chains.length === 0) return allSubBrands;
+        const filtered = filters.hotel_chains.flatMap(c => subBrandsByChain[c] ?? []);
+        return [...new Set(filtered)].sort();
+    }, [filters.hotel_chains, allSubBrands, subBrandsByChain]);
 
     const filteredSubBrands = useMemo(() => {
         if (!subBrandSearch.trim()) return activeSubBrands;
@@ -181,13 +190,13 @@ export function ChainRatingPicker({ chainCounts, allSubBrands, subBrands, filter
             </div>
 
             {/* Sub-brand picker — always visible */}
-            {allSubBrands.length > 0 && (
+            {Object.keys(subBrandsByChain).length > 0 && (
                 <div className="border-t border-slate-100 pt-2 flex flex-col gap-1.5">
                     <div className="flex items-center justify-between">
                         <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                             Sub-brands
-                            {hasChainOrRatingFilter
-                                ? ` (${activeSubBrands.length} in selected chain/rating)`
+                            {filters.hotel_chains.length > 0
+                                ? ` (${activeSubBrands.length} in selected chain)`
                                 : ` (${allSubBrands.length} total)`}
                         </span>
                         {filters.hotel_sub_brands.length > 0 && (

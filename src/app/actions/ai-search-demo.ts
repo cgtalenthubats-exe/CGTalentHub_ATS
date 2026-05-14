@@ -77,13 +77,13 @@ export async function getDemoFilterOptions() {
         (adminAuthClient as any).rpc("get_distinct_job_functions"),
         adminAuthClient
             .from("hotel_chain_master")
-            .select("brand_name")
+            .select("brand_id, brand_name")
             .is("parent_id", null)
             .order("brand_name"),
         (adminAuthClient as any).rpc("get_chain_candidate_counts"),
         adminAuthClient
             .from("hotel_chain_master")
-            .select("brand_name")
+            .select("brand_name, parent_id")
             .not("parent_id", "is", null)
             .order("brand_name"),
     ]);
@@ -94,16 +94,28 @@ export async function getDemoFilterOptions() {
         chain_name: r.chain_name as string,
         candidate_count: Number(r.candidate_count),
     }));
-    const allSubBrands = (subBrandsResult.data || []).map((r: any) => r.brand_name as string);
+
+    // Build id→name map for parent chains, then chain→sub-brands mapping
+    // Use String() to normalize id type (Supabase can return bigint as string)
+    const parentIdToName = new Map<string, string>(
+        (hotelChains.data || []).map((r: any) => [String(r.brand_id), r.brand_name as string])
+    );
+    const subBrandsByChain: Record<string, string[]> = {};
+    (subBrandsResult.data || []).forEach((r: any) => {
+        const chainName = parentIdToName.get(String(r.parent_id));
+        if (!chainName) return;
+        if (!subBrandsByChain[chainName]) subBrandsByChain[chainName] = [];
+        subBrandsByChain[chainName].push(r.brand_name as string);
+    });
 
     return {
-        keywords:     (keywords.data   || []) as { keyword: string; group_label: string }[],
-        industries:   (industries.data || []) as { group: string; industry: string }[],
-        countries:    (countries.data  || []) as { country: string; region: string }[],
-        jobFunctions: uniqueJobFunctions,
-        hotelChains:  hotelChainNames,
-        chainCounts:  chainCountData,
-        allSubBrands,
+        keywords:        (keywords.data   || []) as { keyword: string; group_label: string }[],
+        industries:      (industries.data || []) as { group: string; industry: string }[],
+        countries:       (countries.data  || []) as { country: string; region: string }[],
+        jobFunctions:    uniqueJobFunctions,
+        hotelChains:     hotelChainNames,
+        chainCounts:     chainCountData,
+        subBrandsByChain,
     };
 }
 
@@ -149,12 +161,13 @@ export async function searchDemoCandidates(filters: DemoFilterState) {
         return { candidateIds: [], total: 0, current: 0, past: 0, companies: 0 };
 
     const candidateIds = (idsResult.data as { candidate_id: string }[]).map((r) => r.candidate_id);
-    const stats = summaryResult.data as { total: number; current: number; companies: number } | null;
+    const stats = summaryResult.data as { total: number; current: number; companies: number; countries: number } | null;
     const total     = stats?.total     ?? candidateIds.length;
     const current   = stats?.current   ?? 0;
     const companies = stats?.companies ?? 0;
+    const countries = stats?.countries ?? 0;
 
-    return { candidateIds, total, current, past: total - current, companies };
+    return { candidateIds, total, current, past: total - current, companies, countries };
 }
 
 // Fetch profiles + experiences for a specific page of candidate_ids

@@ -33,7 +33,7 @@ export async function triggerStage3Ranking(jrId: string, query: string) {
     const response = await fetch(N8N_STAGE3_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job_id: jobId, candidate_ids: candidateIds, query, jr_id: jrId }),
+        body: JSON.stringify({ job_id: jobId, candidate_ids: candidateIds, candidate_count: candidateIds.length, query, jr_id: jrId }),
     });
 
     if (!response.ok)

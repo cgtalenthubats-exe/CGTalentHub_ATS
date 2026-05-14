@@ -63,6 +63,7 @@ interface CandidateTableViewProps {
     orgChartData?: Record<string, any[]>;
     orgChartLoading?: boolean;
     showHotelColumn?: boolean;
+    showStatusColumn?: boolean;
 }
 
 function parseMonthYearDate(dateStr: string | null | undefined): number {
@@ -112,6 +113,7 @@ const CandidateRow = ({
     orgCharts,
     orgChartsLoading,
     showHotelColumn,
+    showStatusColumn = true,
 }: {
     candidate: Candidate;
     isSelected?: boolean;
@@ -119,6 +121,7 @@ const CandidateRow = ({
     orgCharts?: any[];
     orgChartsLoading?: boolean;
     showHotelColumn?: boolean;
+    showStatusColumn?: boolean;
 }) => {
     const [expanded, setExpanded] = useState(false);
 
@@ -181,17 +184,19 @@ const CandidateRow = ({
                         </div>
                     </div>
                 </TableCell>
-                <TableCell>
-                    {candidate.candidate_status ? (
-                        <Badge variant="secondary" className={cn(
-                            "text-[10px] font-bold uppercase tracking-wider border",
-                            candidate.candidate_status === 'Active' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                                "bg-slate-100 text-slate-600 border-slate-200"
-                        )}>
-                            {candidate.candidate_status}
-                        </Badge>
-                    ) : <span className="text-slate-400">-</span>}
-                </TableCell>
+                {showStatusColumn && (
+                    <TableCell>
+                        {candidate.candidate_status ? (
+                            <Badge variant="secondary" className={cn(
+                                "text-[10px] font-bold uppercase tracking-wider border",
+                                candidate.candidate_status === 'Active' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                                    "bg-slate-100 text-slate-600 border-slate-200"
+                            )}>
+                                {candidate.candidate_status}
+                            </Badge>
+                        ) : <span className="text-slate-400">-</span>}
+                    </TableCell>
+                )}
                 <TableCell className="max-w-[200px]">
                     {latestExp ? (
                         <div className="flex flex-col">
@@ -316,6 +321,7 @@ export function CandidateTableView({
     orgChartData = {},
     orgChartLoading = false,
     showHotelColumn = false,
+    showStatusColumn = true,
 }: CandidateTableViewProps) {
     if (loading) {
         return (
@@ -353,7 +359,7 @@ export function CandidateTableView({
                         </TableHead>
                         <TableHead className="w-[50px]"></TableHead>
                         <TableHead>Candidate</TableHead>
-                        <TableHead>Status</TableHead>
+                        {showStatusColumn && <TableHead>Status</TableHead>}
                         <TableHead>Latest Company</TableHead>
                         <TableHead>Job Group/Function</TableHead>
                         {showHotelColumn ? (
@@ -376,6 +382,7 @@ export function CandidateTableView({
                             orgCharts={orgChartData[candidate.candidate_id]}
                             orgChartsLoading={orgChartLoading && !orgChartData[candidate.candidate_id]}
                             showHotelColumn={showHotelColumn}
+                            showStatusColumn={showStatusColumn}
                         />
                     ))}
                 </TableBody>

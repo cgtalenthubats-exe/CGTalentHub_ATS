@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Users, Building2, Briefcase, TrendingUp, Loader2, Plus, X } from "lucide-react";
+import { Search, Users, Building2, Briefcase, TrendingUp, Loader2, Plus, X, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
@@ -92,7 +92,7 @@ export default function AiSearchDemoPage() {
 
     // Search result state
     const [allCandidateIds, setAllCandidateIds] = useState<string[]>([]);
-    const [summary, setSummary] = useState({ total: 0, current: 0, past: 0, companies: 0 });
+    const [summary, setSummary] = useState({ total: 0, current: 0, past: 0, companies: 0, countries: 0 });
     const [candidates, setCandidates] = useState<any[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
 
@@ -145,7 +145,7 @@ export default function AiSearchDemoPage() {
         try {
             const result = await searchDemoCandidates(filtersToUse);
             setAllCandidateIds(result.candidateIds);
-            setSummary({ total: result.total, current: result.current, past: result.past, companies: result.companies });
+            setSummary({ total: result.total, current: result.current, past: result.past, companies: result.companies, countries: result.countries });
             // Fetch page 1
             const page1 = await fetchCandidatePage(result.candidateIds, 1, PAGE_SIZE);
             setCandidates(page1);
@@ -153,7 +153,7 @@ export default function AiSearchDemoPage() {
             console.error("search error:", err);
             setAllCandidateIds([]);
             setCandidates([]);
-            setSummary({ total: 0, current: 0, past: 0, companies: 0 });
+            setSummary({ total: 0, current: 0, past: 0, companies: 0, countries: 0 });
         } finally {
             setSearchLoading(false);
         }
@@ -292,8 +292,7 @@ export default function AiSearchDemoPage() {
                 <div className="px-6 pb-2">
                     <ChainRatingPicker
                         chainCounts={staticOptions.chainCounts ?? []}
-                        allSubBrands={staticOptions.allSubBrands ?? []}
-                        subBrands={cascadingOptions?.sub_brands ?? []}
+                        subBrandsByChain={staticOptions.subBrandsByChain ?? {}}
                         filters={pendingFilters}
                         onFiltersChange={setPendingFilters}
                         onAutoSearch={handleSearch}
@@ -347,11 +346,12 @@ export default function AiSearchDemoPage() {
                 {/* Right side */}
                 <div className="flex-1 flex flex-col gap-4 min-w-0 min-h-0">
                     {/* Summary Cards */}
-                    <div className="grid grid-cols-4 gap-3">
+                    <div className="grid grid-cols-5 gap-3">
                         <SummaryCard label="Total Found" value={searchLoading ? "..." : summary.total} icon={Users} color="bg-indigo-500" />
                         <SummaryCard label="Currently in Role" value={searchLoading ? "..." : summary.current} icon={TrendingUp} color="bg-emerald-500" />
                         <SummaryCard label="Past Role" value={searchLoading ? "..." : summary.past} icon={Briefcase} color="bg-sky-500" />
                         <SummaryCard label="Companies" value={searchLoading ? "..." : summary.companies} icon={Building2} color="bg-violet-500" />
+                        <SummaryCard label="Countries" value={searchLoading ? "..." : summary.countries} icon={Globe} color="bg-teal-500" />
                     </div>
 
                     {/* Cohort Insights */}
@@ -401,6 +401,7 @@ export default function AiSearchDemoPage() {
                                 onToggleSelect={handleToggleSelect}
                                 onToggleSelectAll={handleToggleSelectAll}
                                 showHotelColumn={true}
+                                showStatusColumn={false}
                             />
                         )}
                     </div>
