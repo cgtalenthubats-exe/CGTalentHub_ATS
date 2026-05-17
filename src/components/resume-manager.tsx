@@ -2,6 +2,7 @@
 
 import React, { useState, useRef } from "react";
 import { Download, UploadCloud, MoreVertical, FileText, Trash2, RefreshCw, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
     DropdownMenu,
@@ -22,7 +23,33 @@ interface ResumeManagerProps {
 export function ResumeManager({ candidateId, resumeUrl, onUpdate }: ResumeManagerProps) {
     const router = useRouter();
     const [isUploading, setIsUploading] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const dragCounter = useRef(0);
+
+    const handleDragEnter = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter.current++;
+        setIsDragging(true);
+    };
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounter.current--;
+        if (dragCounter.current === 0) setIsDragging(false);
+    };
+    const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragging(false);
+        dragCounter.current = 0;
+        const file = e.dataTransfer.files?.[0];
+        if (!file) return;
+        if (file.type !== 'application/pdf') { toast.error("PDF files only"); return; }
+        uploadResume(file);
+    };
 
     const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -108,24 +135,26 @@ export function ResumeManager({ candidateId, resumeUrl, onUpdate }: ResumeManage
         );
     }
 
-    // Case 1: No Resume -> Upload Button
+    // Case 1: No Resume -> Drop Zone
     if (!resumeUrl) {
         return (
             <>
-                <input
-                    type="file"
-                    accept=".pdf,.doc,.docx"
-                    className="hidden"
-                    ref={fileInputRef}
-                    onChange={handleFileSelect}
-                />
-                <Button
-                    variant="outline"
-                    className="gap-2 border-dashed border-indigo-300 text-indigo-600 hover:bg-indigo-50 shadow-sm"
+                <input type="file" accept=".pdf" className="hidden" ref={fileInputRef} onChange={handleFileSelect} />
+                <div
+                    className={cn(
+                        "flex flex-col items-center justify-center gap-1.5 p-4 border-2 border-dashed rounded-lg cursor-pointer transition-all",
+                        isDragging ? "border-indigo-500 bg-indigo-50 scale-[1.02]" : "border-indigo-200 hover:border-indigo-300 hover:bg-indigo-50/50"
+                    )}
+                    onDragEnter={handleDragEnter}
+                    onDragLeave={handleDragLeave}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
                     onClick={triggerUpload}
                 >
-                    <UploadCloud className="h-4 w-4" /> Upload Resume
-                </Button>
+                    <UploadCloud className={cn("h-5 w-5", isDragging ? "text-indigo-600 animate-bounce" : "text-indigo-400")} />
+                    <span className="text-xs font-semibold text-indigo-600">{isDragging ? "Drop to upload" : "Drag & drop or click"}</span>
+                    <span className="text-[10px] text-slate-400">PDF only</span>
+                </div>
             </>
         );
     }
@@ -135,7 +164,7 @@ export function ResumeManager({ candidateId, resumeUrl, onUpdate }: ResumeManage
         <div className="flex items-center gap-1">
             <input
                 type="file"
-                accept=".pdf,.doc,.docx"
+                accept=".pdf"
                 className="hidden"
                 ref={fileInputRef}
                 onChange={handleFileSelect}

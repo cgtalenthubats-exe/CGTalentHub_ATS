@@ -53,6 +53,9 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
     const [resumeFile, setResumeFile] = useState<File | null>(null);
     const [currentResumeUrl, setCurrentResumeUrl] = useState<string>("");
     const [isUploadingResume, setIsUploadingResume] = useState(false);
+    const [isDraggingResume, setIsDraggingResume] = useState(false);
+    const dragCounterResume = useRef(0);
+    const resumeInputRef = useRef<HTMLInputElement>(null);
 
     // Form State (Data)
     const [formData, setFormData] = useState({
@@ -262,6 +265,17 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
         }
     };
 
+    const handleResumeDragEnter = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); dragCounterResume.current++; setIsDraggingResume(true); };
+    const handleResumeDragLeave = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); dragCounterResume.current--; if (dragCounterResume.current === 0) setIsDraggingResume(false); };
+    const handleResumeDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
+    const handleResumeDrop = (e: React.DragEvent) => {
+        e.preventDefault(); e.stopPropagation(); setIsDraggingResume(false); dragCounterResume.current = 0;
+        const file = e.dataTransfer.files?.[0];
+        if (!file) return;
+        if (file.type !== 'application/pdf') { alert("PDF files only"); return; }
+        setResumeFile(file);
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -451,12 +465,29 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                                 )}
 
                                 {(!currentResumeUrl || resumeFile) && (
-                                    <div className="relative">
-                                        <Input type="file" accept=".pdf" onChange={handleResumeSelect} className="h-8 text-xs cursor-pointer file:text-indigo-600 file:font-semibold" />
-                                        {resumeFile && (
-                                            <p className="text-[10px] text-emerald-600 mt-1 font-medium flex items-center gap-1">
+                                    <div>
+                                        <input type="file" accept=".pdf" ref={resumeInputRef} onChange={handleResumeSelect} className="hidden" />
+                                        {resumeFile ? (
+                                            <p className="text-[10px] text-emerald-600 font-medium flex items-center gap-1">
                                                 <Check className="w-2.5 h-2.5" /> {resumeFile.name}
+                                                <button type="button" onClick={() => setResumeFile(null)} className="ml-1 text-red-400 hover:text-red-600"><X className="w-2.5 h-2.5" /></button>
                                             </p>
+                                        ) : (
+                                            <div
+                                                className={cn(
+                                                    "flex flex-col items-center justify-center gap-1 p-3 border-2 border-dashed rounded-lg cursor-pointer transition-all",
+                                                    isDraggingResume ? "border-indigo-500 bg-indigo-50 scale-[1.02]" : "border-indigo-200 hover:border-indigo-300 hover:bg-indigo-50/50"
+                                                )}
+                                                onDragEnter={handleResumeDragEnter}
+                                                onDragLeave={handleResumeDragLeave}
+                                                onDragOver={handleResumeDragOver}
+                                                onDrop={handleResumeDrop}
+                                                onClick={() => resumeInputRef.current?.click()}
+                                            >
+                                                <UploadCloud className={cn("h-4 w-4", isDraggingResume ? "text-indigo-600 animate-bounce" : "text-indigo-400")} />
+                                                <span className="text-[11px] font-semibold text-indigo-600">{isDraggingResume ? "Drop to upload" : "Drag & drop or click"}</span>
+                                                <span className="text-[9px] text-slate-400">PDF only</span>
+                                            </div>
                                         )}
                                     </div>
                                 )}

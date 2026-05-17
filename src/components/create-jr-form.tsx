@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/lib/notifications";
 import { Input } from "@/components/ui/input";
@@ -12,7 +12,7 @@ import {
     Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Check, ChevronsUpDown, Plus, Loader2, Upload, FileText, X } from "lucide-react";
+import { Check, ChevronsUpDown, Plus, Loader2, Upload, UploadCloud, FileText, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@supabase/supabase-js";
 
@@ -120,6 +120,28 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData, sel
     const [uploadingFile, setUploadingFile] = useState(false);
     const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
     const [isFileUpdated, setIsFileUpdated] = useState(false);
+    const [isDraggingFile, setIsDraggingFile] = useState(false);
+    const dragCounter = useRef(0);
+    const jrFileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleFileDragEnter = (e: React.DragEvent) => {
+        e.preventDefault(); e.stopPropagation();
+        dragCounter.current++; setIsDraggingFile(true);
+    };
+    const handleFileDragLeave = (e: React.DragEvent) => {
+        e.preventDefault(); e.stopPropagation();
+        dragCounter.current--;
+        if (dragCounter.current === 0) setIsDraggingFile(false);
+    };
+    const handleFileDragOver = (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); };
+    const handleFileDrop = async (e: React.DragEvent) => {
+        e.preventDefault(); e.stopPropagation();
+        setIsDraggingFile(false); dragCounter.current = 0;
+        const file = e.dataTransfer.files?.[0];
+        if (!file) return;
+        if (file.type !== 'application/pdf') { toast.error("PDF files only"); return; }
+        await handleFileUpload({ target: { files: [file] } } as any);
+    };
 
     // Load Distinct Values on Mount
     useEffect(() => {
@@ -377,31 +399,35 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData, sel
                                 </Button>
                             </div>
                         ) : (
-                            <div className="relative">
-                                <Input
+                            <div
+                                className={cn(
+                                    "flex flex-col items-center justify-center gap-1.5 p-4 border-2 border-dashed rounded-lg cursor-pointer transition-all",
+                                    uploadingFile ? "opacity-50 cursor-not-allowed bg-slate-50 border-slate-200" :
+                                    isDraggingFile ? "border-indigo-500 bg-indigo-50 scale-[1.02]" : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                                )}
+                                onDragEnter={!uploadingFile ? handleFileDragEnter : undefined}
+                                onDragLeave={!uploadingFile ? handleFileDragLeave : undefined}
+                                onDragOver={!uploadingFile ? handleFileDragOver : undefined}
+                                onDrop={!uploadingFile ? handleFileDrop : undefined}
+                                onClick={!uploadingFile ? () => jrFileInputRef.current?.click() : undefined}
+                            >
+                                <input
                                     type="file"
                                     accept=".pdf"
                                     className="hidden"
-                                    id="jr-file-upload"
+                                    ref={jrFileInputRef}
                                     onChange={handleFileUpload}
                                     disabled={uploadingFile}
                                 />
-                                <Label
-                                    htmlFor="jr-file-upload"
-                                    className={cn(
-                                        "flex items-center justify-center gap-2 w-full h-10 px-3 border-2 border-dashed rounded-md cursor-pointer transition-colors",
-                                        uploadingFile ? "opacity-50 cursor-not-allowed bg-slate-50" : "hover:bg-slate-50 border-slate-200 hover:border-slate-300"
-                                    )}
-                                >
-                                    {uploadingFile ? (
-                                        <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
-                                    ) : (
-                                        <>
-                                            <Upload className="w-4 h-4 text-slate-400" />
-                                            <span className="text-sm text-slate-500">Upload PDF</span>
-                                        </>
-                                    )}
-                                </Label>
+                                {uploadingFile ? (
+                                    <Loader2 className="w-5 h-5 animate-spin text-slate-400" />
+                                ) : (
+                                    <>
+                                        <UploadCloud className={cn("h-5 w-5", isDraggingFile ? "text-indigo-600 animate-bounce" : "text-slate-400")} />
+                                        <span className="text-xs font-semibold text-slate-600">{isDraggingFile ? "Drop to upload" : "Drag & drop or click"}</span>
+                                        <span className="text-[10px] text-slate-400">PDF only</span>
+                                    </>
+                                )}
                             </div>
                         )}
                         <p className="text-[10px] text-slate-400">Supporting only PDF format for n8n processing.</p>

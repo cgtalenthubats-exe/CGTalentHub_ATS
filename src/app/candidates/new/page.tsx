@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { 
     ArrowLeft, Save, UserPlus, Briefcase, Mail, Phone, Globe, Check, 
@@ -66,6 +66,7 @@ function CandidateForm() {
     const [aiRawText, setAiRawText] = useState("");
     const [duplicateCandidate, setDuplicateCandidate] = useState<any>(null);
     const [isDraggingPhoto, setIsDraggingPhoto] = useState(false);
+    const dragCounterPhoto = useRef(0);
     const [manualSyncUrl, setManualSyncUrl] = useState<string | null>(null);
 
     // Master Data
@@ -318,19 +319,24 @@ function CandidateForm() {
         }
     };
 
-    const handlePhotoDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
+    const handlePhotoDragOver = (e: React.DragEvent) => { e.preventDefault(); };
+
+    const handlePhotoDragEnter = (e: React.DragEvent) => {
+        e.preventDefault(); e.stopPropagation();
+        dragCounterPhoto.current++;
         setIsDraggingPhoto(true);
     };
 
     const handlePhotoDragLeave = (e: React.DragEvent) => {
-        e.preventDefault();
-        setIsDraggingPhoto(false);
+        e.preventDefault(); e.stopPropagation();
+        dragCounterPhoto.current--;
+        if (dragCounterPhoto.current === 0) setIsDraggingPhoto(false);
     };
 
     const handlePhotoDrop = (e: React.DragEvent) => {
         e.preventDefault();
         setIsDraggingPhoto(false);
+        dragCounterPhoto.current = 0;
         if (e.dataTransfer.files && e.dataTransfer.files[0]) {
             const file = e.dataTransfer.files[0];
             if (file.type.startsWith('image/')) {
@@ -554,6 +560,7 @@ function CandidateForm() {
                                             ? "border-indigo-500 bg-indigo-50/50 scale-[1.02] shadow-indigo-100 shadow-xl" 
                                             : "border-dashed border-slate-200 bg-slate-50/50 shadow-sm hover:border-slate-300 hover:bg-slate-100/50"
                                     )}
+                                    onDragEnter={handlePhotoDragEnter}
                                     onDragOver={handlePhotoDragOver}
                                     onDragLeave={handlePhotoDragLeave}
                                     onDrop={handlePhotoDrop}

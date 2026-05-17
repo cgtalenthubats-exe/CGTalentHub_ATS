@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Plus, Download, FileText, Trash2, Pencil, RefreshCw } from "lucide-react";
+import { ChevronLeft, Plus, Download, FileText, Trash2, Pencil, RefreshCw, UploadCloud } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useRouter } from "next/navigation";
 import { triggerCandidateRefresh } from "@/app/actions/n8n-actions";
 import {
@@ -56,6 +57,10 @@ export function AddPrescreenDialog({ candidateId }: { candidateId: string }) {
     const [open, setOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
     const router = useRouter();
+    const [isDraggingAdd, setIsDraggingAdd] = useState(false);
+    const [addFileName, setAddFileName] = useState<string | null>(null);
+    const dragCounterAdd = useRef(0);
+    const addFileInputRef = useRef<HTMLInputElement>(null);
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -131,10 +136,44 @@ export function AddPrescreenDialog({ candidateId }: { candidateId: string }) {
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="file">Attachment (PDF)</Label>
-                        <div className="flex items-center gap-2">
-                            <Input id="file" name="file" type="file" accept=".pdf" className="cursor-pointer" />
-                        </div>
+                        <Label>Attachment (PDF)</Label>
+                        <input
+                            ref={addFileInputRef}
+                            name="file"
+                            type="file"
+                            accept=".pdf"
+                            className="hidden"
+                            onChange={(e) => setAddFileName(e.target.files?.[0]?.name || null)}
+                        />
+                        {addFileName ? (
+                            <p className="text-xs text-emerald-600 font-medium flex items-center gap-1">
+                                <FileText className="h-3 w-3" /> {addFileName}
+                                <button type="button" onClick={() => { setAddFileName(null); if (addFileInputRef.current) addFileInputRef.current.value = ""; }} className="ml-1 text-red-400 hover:text-red-600 text-xs">✕</button>
+                            </p>
+                        ) : (
+                            <div
+                                className={cn(
+                                    "flex flex-col items-center justify-center gap-1 p-3 border-2 border-dashed rounded-lg cursor-pointer transition-all",
+                                    isDraggingAdd ? "border-indigo-500 bg-indigo-50 scale-[1.02]" : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                                )}
+                                onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); dragCounterAdd.current++; setIsDraggingAdd(true); }}
+                                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); dragCounterAdd.current--; if (dragCounterAdd.current === 0) setIsDraggingAdd(false); }}
+                                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                onDrop={(e) => {
+                                    e.preventDefault(); e.stopPropagation(); setIsDraggingAdd(false); dragCounterAdd.current = 0;
+                                    const file = e.dataTransfer.files?.[0];
+                                    if (!file) return;
+                                    if (file.type !== 'application/pdf') { toast.error("PDF files only"); return; }
+                                    const dt = new DataTransfer(); dt.items.add(file);
+                                    if (addFileInputRef.current) { addFileInputRef.current.files = dt.files; setAddFileName(file.name); }
+                                }}
+                                onClick={() => addFileInputRef.current?.click()}
+                            >
+                                <UploadCloud className={cn("h-4 w-4", isDraggingAdd ? "text-indigo-600 animate-bounce" : "text-slate-400")} />
+                                <span className="text-[11px] font-semibold text-slate-600">{isDraggingAdd ? "Drop to upload" : "Drag & drop or click"}</span>
+                                <span className="text-[9px] text-slate-400">PDF only</span>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex justify-end gap-2 mt-4">
@@ -153,6 +192,10 @@ export function EditPrescreenDialog({ candidateId, log }: { candidateId: string,
     const [open, setOpen] = useState(false);
     const [isPending, startTransition] = useTransition();
     const router = useRouter();
+    const [isDraggingEdit, setIsDraggingEdit] = useState(false);
+    const [editFileName, setEditFileName] = useState<string | null>(null);
+    const dragCounterEdit = useRef(0);
+    const editFileInputRef = useRef<HTMLInputElement>(null);
 
     const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -231,15 +274,51 @@ export function EditPrescreenDialog({ candidateId, log }: { candidateId: string,
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="file">Attachment (PDF)</Label>
-                        <div className="flex flex-col gap-2">
-                            <Input id="file" name="file" type="file" accept=".pdf" className="cursor-pointer" />
-                            {log.feedback_file && (
-                                <p className="text-[10px] text-muted-foreground truncate">
-                                    Current: {log.feedback_file.split('/').pop()}
-                                </p>
-                            )}
-                        </div>
+                        <Label>Attachment (PDF)</Label>
+                        <input
+                            ref={editFileInputRef}
+                            name="file"
+                            type="file"
+                            accept=".pdf"
+                            className="hidden"
+                            onChange={(e) => setEditFileName(e.target.files?.[0]?.name || null)}
+                        />
+                        {editFileName ? (
+                            <p className="text-xs text-emerald-600 font-medium flex items-center gap-1">
+                                <FileText className="h-3 w-3" /> {editFileName}
+                                <button type="button" onClick={() => { setEditFileName(null); if (editFileInputRef.current) editFileInputRef.current.value = ""; }} className="ml-1 text-red-400 hover:text-red-600 text-xs">✕</button>
+                            </p>
+                        ) : (
+                            <>
+                                <div
+                                    className={cn(
+                                        "flex flex-col items-center justify-center gap-1 p-3 border-2 border-dashed rounded-lg cursor-pointer transition-all",
+                                        isDraggingEdit ? "border-indigo-500 bg-indigo-50 scale-[1.02]" : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                                    )}
+                                    onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); dragCounterEdit.current++; setIsDraggingEdit(true); }}
+                                    onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); dragCounterEdit.current--; if (dragCounterEdit.current === 0) setIsDraggingEdit(false); }}
+                                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                                    onDrop={(e) => {
+                                        e.preventDefault(); e.stopPropagation(); setIsDraggingEdit(false); dragCounterEdit.current = 0;
+                                        const file = e.dataTransfer.files?.[0];
+                                        if (!file) return;
+                                        if (file.type !== 'application/pdf') { toast.error("PDF files only"); return; }
+                                        const dt = new DataTransfer(); dt.items.add(file);
+                                        if (editFileInputRef.current) { editFileInputRef.current.files = dt.files; setEditFileName(file.name); }
+                                    }}
+                                    onClick={() => editFileInputRef.current?.click()}
+                                >
+                                    <UploadCloud className={cn("h-4 w-4", isDraggingEdit ? "text-indigo-600 animate-bounce" : "text-slate-400")} />
+                                    <span className="text-[11px] font-semibold text-slate-600">{isDraggingEdit ? "Drop to upload" : "Drag & drop or click"}</span>
+                                    <span className="text-[9px] text-slate-400">PDF only</span>
+                                </div>
+                                {log.feedback_file && (
+                                    <p className="text-[10px] text-muted-foreground truncate">
+                                        Current: {log.feedback_file.split('/').pop()}
+                                    </p>
+                                )}
+                            </>
+                        )}
                     </div>
 
                     <div className="flex justify-end gap-2 mt-4">
