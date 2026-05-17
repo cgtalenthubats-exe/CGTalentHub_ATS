@@ -1,7 +1,10 @@
 "use server";
 
+import Anthropic from "@anthropic-ai/sdk";
 import { adminAuthClient } from "@/lib/supabase/admin";
-import { type DemoFilterState, type AiParseResult } from "@/app/ai-search-demo/types";
+import { type DemoFilterState, type AiParseResult, type AiSuggestions } from "@/app/ai-search-demo/types";
+
+const anthropic = new Anthropic();
 
 // helper: convert DemoFilterState to RPC params
 function toRpcParams(f: DemoFilterState) {
@@ -273,28 +276,129 @@ export async function getCohortAnalysis(candidateIds: string[]) {
     return data as import("@/app/ai-search-demo/types").CohortAnalysis;
 }
 
-const N8N_AI_PARSE_URL = "https://n8n.srv1212906.hstgr.cloud/webhook/ai-parse-filters";
-
-// Parse natural language query → filters + suggestions via n8n webhook
-// n8n handles: code-based alias keyword matching + AI (Claude Haiku) for other filters
+// Parse natural language query → filters + suggestions directly via Anthropic SDK
+// Replicates n8n "AI Parse Filters" workflow: keyword alias match → Claude Haiku → normalize
 export async function parseQueryToFilters(query: string): Promise<AiParseResult> {
     try {
-        const response = await fetch(N8N_AI_PARSE_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ query }),
-        });
+        const [vocabRes, countriesRes, industriesRes, jobFnsRes] = await Promise.all([
+            adminAuthClient.from("position_keyword_vocab").select("keyword, aliases"),
+            adminAuthClient.from("country").select("country, region").not("country", "is", null),
+            adminAuthClient.from("industry_group").select("group, industry"),
+            (adminAuthClient as any).rpc("get_distinct_job_functions"),
+        ]);
 
-        if (!response.ok) {
-            console.error("n8n AI parse webhook failed:", response.statusText);
-            return { filters: {}, suggestions: {} };
+        const keywordVocab = (vocabRes.data ?? []) as { keyword: string; aliases: string }[];
+        const countriesData = (countriesRes.data ?? []) as { country: string; region: string }[];
+        const industriesData = (industriesRes.data ?? []) as { group: string; industry: string }[];
+        const jobFunctions = ((jobFnsRes.data ?? []) as any[]).map((r) => r.job_function as string);
+
+        const allCountries = countriesData.map((c) => c.country);
+        const allRegions = [...new Set(countriesData.map((c) => c.region).filter(Boolean))];
+        const allIndustryGroups = [...new Set(industriesData.map((d) => d.group))];
+        const allIndustries = industriesData.map((d) => d.industry);
+        const allKeywords = keywordVocab.map((k) => k.keyword);
+
+        // Step 1: substring-match keywords + aliases (same logic as n8n "Match Keywords" node)
+        const q = query.toLowerCase();
+        const matched_keywords: string[] = [];
+        for (const kw of keywordVocab) {
+            const aliasList = kw.aliases
+                ? kw.aliases.split(",").map((a) => a.trim().toLowerCase())
+                : [];
+            const terms = [kw.keyword.toLowerCase(), ...aliasList];
+            if (terms.some((t) => q.includes(t))) matched_keywords.push(kw.keyword);
         }
 
-        const data = await response.json();
-        if (data.filters && data.suggestions) return data as AiParseResult;
-        return { filters: {}, suggestions: {} };
+        // Step 2: build system prompt with all allowed values as context
+        const systemPrompt = `You are a search filter extractor for a hospitality talent database.
+
+Extract structured filters from the user's natural language query and return ONLY a JSON object.
+
+## Output format (return this exact structure)
+{
+  "filters": { ...values EXPLICITLY stated in the query },
+  "suggestions": { ...additional values you recommend to broaden results }
+}
+
+## Filter fields and allowed values
+
+position_levels (string[]): ${JSON.stringify(["C-Level", "VP", "Director", "Manager", "Supervisor", "Staff"])}
+
+countries (string[]): ${JSON.stringify(allCountries)}
+
+regions (string[]): ${JSON.stringify(allRegions)}
+
+hotel_ratings (string[]): ["3 Star", "4 Star", "5 Star"]
+
+industry_group (string | null): ${JSON.stringify(allIndustryGroups)}
+
+industries (string[]): ${JSON.stringify(allIndustries)}
+
+job_functions (string[]): ${JSON.stringify(jobFunctions)}
+
+genders (string[]): ["Male", "Female"]
+
+current_only (boolean): true if user mentions "current", "currently working at", "now at"
+
+exclude_companies (string[]): company names to exclude (user says "not at X" or "exclude X")
+exclude_countries (string[]): country names to exclude
+exclude_keywords (string[]): keyword labels to exclude (from: ${JSON.stringify(allKeywords)})
+
+## Rules
+- Only use values from the allowed lists above. Never invent values.
+- "filters" = what the user explicitly said. "suggestions" = related values worth trying.
+- Do NOT include position_keywords in your output — handled separately.
+- Return empty objects {} if nothing applies.
+- Return ONLY the JSON object, no explanation.`;
+
+        // Step 3: call Claude Haiku directly
+        const message = await anthropic.messages.create({
+            model: "claude-haiku-4-5-20251001",
+            max_tokens: 1500,
+            system: systemPrompt,
+            messages: [{ role: "user", content: query }],
+        });
+
+        const text = message.content[0]?.type === "text" ? message.content[0].text : "";
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) return { filters: {}, suggestions: {} };
+
+        const parsed = JSON.parse(jsonMatch[0]) as { filters?: any; suggestions?: any };
+
+        // Step 4: normalize — ensure arrays are arrays, strings are strings
+        const filters = normalizeFilterShape(parsed.filters ?? {});
+        const suggestions = normalizeFilterShape(parsed.suggestions ?? {}) as AiSuggestions;
+
+        // Merge alias-matched keywords into filters
+        if (matched_keywords.length > 0) {
+            const existing = Array.isArray(filters.position_keywords) ? filters.position_keywords : [];
+            filters.position_keywords = [...new Set([...existing, ...matched_keywords])];
+        }
+
+        return { filters, suggestions };
     } catch (err: any) {
         console.error("AI parse error:", err?.message ?? err);
         return { filters: {}, suggestions: {} };
     }
+}
+
+function normalizeFilterShape(raw: Record<string, any>): Partial<DemoFilterState> {
+    const ensureArr = (v: any): string[] =>
+        Array.isArray(v) ? v.filter((x) => typeof x === "string") : [];
+    return {
+        ...(raw.position_keywords !== undefined && { position_keywords: ensureArr(raw.position_keywords) }),
+        ...(raw.position_levels !== undefined && { position_levels: ensureArr(raw.position_levels) }),
+        ...(raw.countries !== undefined && { countries: ensureArr(raw.countries) }),
+        ...(raw.regions !== undefined && { regions: ensureArr(raw.regions) }),
+        ...(raw.hotel_ratings !== undefined && { hotel_ratings: ensureArr(raw.hotel_ratings) }),
+        ...(raw.industries !== undefined && { industries: ensureArr(raw.industries) }),
+        ...(raw.job_functions !== undefined && { job_functions: ensureArr(raw.job_functions) }),
+        ...(raw.genders !== undefined && { genders: ensureArr(raw.genders) }),
+        ...(raw.nationalities !== undefined && { nationalities: ensureArr(raw.nationalities) }),
+        ...(raw.exclude_companies !== undefined && { exclude_companies: ensureArr(raw.exclude_companies) }),
+        ...(raw.exclude_countries !== undefined && { exclude_countries: ensureArr(raw.exclude_countries) }),
+        ...(raw.exclude_keywords !== undefined && { exclude_keywords: ensureArr(raw.exclude_keywords) }),
+        ...(raw.industry_group !== undefined && typeof raw.industry_group === "string" && { industry_group: raw.industry_group }),
+        ...(raw.current_only === true && { current_only: true }),
+    };
 }

@@ -145,7 +145,7 @@ export default function AiSearchDemoPage() {
         try {
             const result = await searchDemoCandidates(filtersToUse);
             setAllCandidateIds(result.candidateIds);
-            setSummary({ total: result.total, current: result.current, past: result.past, companies: result.companies, countries: result.countries });
+            setSummary({ total: result.total, current: result.current, past: result.past, companies: result.companies, countries: result.countries ?? 0 });
             // Fetch page 1
             const page1 = await fetchCandidatePage(result.candidateIds, 1, PAGE_SIZE);
             setCandidates(page1);
@@ -222,7 +222,7 @@ export default function AiSearchDemoPage() {
         setPendingFilters(EMPTY_FILTERS);
         setAllCandidateIds([]);
         setCandidates([]);
-        setSummary({ total: 0, current: 0, past: 0, companies: 0 });
+        setSummary({ total: 0, current: 0, past: 0, companies: 0, countries: 0 });
         setCascadingOptions(null);
         setSuggestions({});
         setHasSearched(false);
