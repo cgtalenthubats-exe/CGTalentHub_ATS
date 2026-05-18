@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Search, Building2, Filter, Layers, Briefcase, Plus, MoreHorizontal, ArrowLeft, Loader2, Globe, X } from "lucide-react";
+import { Search, Building2, Filter, Layers, Briefcase, Plus, MoreHorizontal, ArrowLeft, Loader2, Globe, X, Hotel } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import HierarchySidebar from "./HierarchySidebar";
 import CompanyDataTable from "./CompanyDataTable";
+import HotelChainMappingTab from "./HotelChainMappingTab";
 import { getCompaniesPaginated, globalCompanySearch } from "@/app/actions/company-mgmt";
 import { toast } from "@/lib/notifications"; // Assuming sonner is available
 
@@ -18,6 +19,9 @@ interface CompanyStats {
 }
 
 export default function CompanyManagementClient({ initialStats }: { initialStats: CompanyStats }) {
+    // Tab state
+    const [activeTab, setActiveTab] = useState<"companies" | "hotel_mapping">("companies");
+
     // Selection state
     const [selectedGroup, setSelectedGroup] = useState<string>("Retail / FMCG / F&B");
     const [selectedIndustry, setSelectedIndustry] = useState<string>("All");
@@ -84,11 +88,45 @@ export default function CompanyManagementClient({ initialStats }: { initialStats
     };
 
     return (
-        <div className="flex gap-6 h-full min-h-[700px]">
+        <div className="flex flex-col gap-4 min-h-[700px]">
+            {/* Tab Bar */}
+            <div className="flex gap-1 border-b pb-0">
+                <button
+                    onClick={() => setActiveTab("companies")}
+                    className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                        activeTab === "companies"
+                            ? "border-indigo-600 text-indigo-600"
+                            : "border-transparent text-slate-500 hover:text-slate-700"
+                    }`}
+                >
+                    <Building2 className="h-4 w-4" />
+                    Company Master
+                </button>
+                <button
+                    onClick={() => setActiveTab("hotel_mapping")}
+                    className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                        activeTab === "hotel_mapping"
+                            ? "border-indigo-600 text-indigo-600"
+                            : "border-transparent text-slate-500 hover:text-slate-700"
+                    }`}
+                >
+                    <Hotel className="h-4 w-4" />
+                    Hotel Chain Mapping
+                </button>
+            </div>
+
+            {/* Hotel Chain Mapping Tab */}
+            {activeTab === "hotel_mapping" && (
+                <HotelChainMappingTab />
+            )}
+
+            {/* Company Master Tab */}
+            {activeTab === "companies" && (
+        <div className="flex gap-6 flex-1 min-h-0">
             {/* Left: Sidebar Navigation */}
             <div className="w-[320px] shrink-0 flex flex-col gap-4">
-                <HierarchySidebar 
-                    stats={initialStats} 
+                <HierarchySidebar
+                    stats={initialStats}
                     selectedGroup={selectedGroup}
                     setSelectedGroup={(g) => { setSelectedGroup(g); setSelectedIndustry("All"); setCurrentPage(0); }}
                     selectedIndustry={selectedIndustry}
@@ -187,6 +225,8 @@ export default function CompanyManagementClient({ initialStats }: { initialStats
                     </div>
                 </Card>
             </div>
+        </div>
+            )}
         </div>
     );
 }

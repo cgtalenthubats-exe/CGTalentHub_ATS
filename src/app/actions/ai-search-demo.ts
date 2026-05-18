@@ -24,8 +24,9 @@ function toRpcParams(f: DemoFilterState) {
         p_exclude_companies:  f.exclude_companies,
         p_exclude_countries:  f.exclude_countries,
         p_exclude_keywords:   f.exclude_keywords,
-        p_hotel_sub_brands:   f.hotel_sub_brands,
-        p_genders:            f.genders,
+        p_hotel_sub_brands:    f.hotel_sub_brands,
+        p_based_in_countries:  f.based_in_countries,
+        p_genders:             f.genders,
         p_nationalities:      f.nationalities,
         p_age_min:            f.age_min ?? null,
         p_age_max:            f.age_max ?? null,
@@ -52,6 +53,7 @@ function hasAnyFilter(f: DemoFilterState) {
         f.exclude_countries.length > 0 ||
         f.exclude_keywords.length > 0 ||
         f.hotel_sub_brands.length > 0 ||
+        f.based_in_countries.length > 0 ||
         f.genders.length > 0 ||
         f.nationalities.length > 0 ||
         f.age_min !== null ||
@@ -147,6 +149,40 @@ export async function getCascadingFilterOptions(filters: DemoFilterState) {
         genders:       string[];
         nationalities: string[];
     };
+}
+
+// Filtered chain counts — updates when any non-chain filter changes
+export async function getFilteredChainCounts(filters: DemoFilterState) {
+    const params = toRpcParams(filters);
+    // Pass all params except hotel_chains / hotel_sub_brands (self-exclusion)
+    const { data, error } = await (adminAuthClient as any).rpc("get_chain_counts_filtered", {
+        p_position_keywords:   params.p_position_keywords,
+        p_position_levels:     params.p_position_levels,
+        p_positions:           params.p_positions,
+        p_companies:           params.p_companies,
+        p_countries:           params.p_countries,
+        p_regions:             params.p_regions,
+        p_hotel_ratings:       params.p_hotel_ratings,
+        p_industry_group:      params.p_industry_group,
+        p_industries:          params.p_industries,
+        p_current_only:        params.p_current_only,
+        p_job_functions:       params.p_job_functions,
+        p_exclude_companies:   params.p_exclude_companies,
+        p_exclude_countries:   params.p_exclude_countries,
+        p_exclude_keywords:    params.p_exclude_keywords,
+        p_genders:             params.p_genders,
+        p_nationalities:       params.p_nationalities,
+        p_age_min:             params.p_age_min,
+        p_age_max:             params.p_age_max,
+        p_age_include_unknown: params.p_age_include_unknown,
+        p_current_and_latest:  params.p_current_and_latest,
+        p_based_in_countries:  params.p_based_in_countries,
+    });
+    if (error || !data) return null;
+    return (data as any[]).map(r => ({
+        chain_name: r.chain_name as string,
+        candidate_count: Number(r.candidate_count),
+    }));
 }
 
 // Search — returns all candidate_ids + summary stats (no profile fetch)

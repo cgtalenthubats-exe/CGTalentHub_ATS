@@ -203,3 +203,134 @@ export async function globalCompanySearch(term: string) {
 
     return Object.values(resultsMap);
 }
+
+// ─── Hotel Chain Mapping ─────────────────────────────────────────────────────
+
+export interface HotelChainQueueItem {
+    company_id: number;
+    company_master: string;
+    rating: string | null;
+    chain_mapping_status: string | null;
+    candidate_count: number;
+    total_count: number;
+}
+
+export interface HotelChainPickerItem {
+    brand_id: number;
+    brand_name: string;
+    parent_id: number | null;
+    rating: string | null;
+    parent_name: string | null;
+}
+
+export async function getHotelChainMappingQueue(params: {
+    filter: 'all' | 'with_candidates' | 'pending';
+    showIndependent: boolean;
+    page: number;
+    pageSize: number;
+}) {
+    const supabase = adminAuthClient;
+    const { data, error } = await (supabase.rpc as any)('get_hotel_chain_mapping_queue', {
+        p_filter: params.filter,
+        p_show_independent: params.showIndependent,
+        p_page: params.page,
+        p_page_size: params.pageSize,
+    });
+    if (error) {
+        console.error('getHotelChainMappingQueue error:', error);
+        return { data: [], total: 0 };
+    }
+    const rows = (data as HotelChainQueueItem[]) ?? [];
+    const total = rows[0]?.total_count ?? 0;
+    return { data: rows, total: Number(total) };
+}
+
+export async function getHotelChainsForPicker(): Promise<HotelChainPickerItem[]> {
+    const supabase = adminAuthClient;
+    const { data, error } = await (supabase.rpc as any)('get_hotel_chains_for_picker');
+    if (error) {
+        console.error('getHotelChainsForPicker error:', error);
+        return [];
+    }
+    return (data as HotelChainPickerItem[]) ?? [];
+}
+
+export async function assignCompanyToChain(companyId: number, chainId: number) {
+    const supabase = adminAuthClient;
+    const { error } = await (supabase.from('company_master') as any)
+        .update({ hotel_chain_id: chainId, chain_mapping_status: 'mapped' })
+        .eq('company_id', companyId);
+    if (error) return { success: false, error: (error as any).message };
+    return { success: true };
+}
+
+export async function markCompanyIndependent(companyId: number) {
+    const supabase = adminAuthClient;
+    const { error } = await (supabase.from('company_master') as any)
+        .update({ chain_mapping_status: 'independent' })
+        .eq('company_id', companyId);
+    if (error) return { success: false, error: (error as any).message };
+    return { success: true };
+}
+
+export async function updateCompanyRatingOnly(companyId: number, rating: string) {
+    const supabase = adminAuthClient;
+    const { error } = await (supabase.from('company_master') as any)
+        .update({ rating })
+        .eq('company_id', companyId);
+    if (error) return { success: false, error: (error as any).message };
+    return { success: true };
+}
+
+export async function addHotelChainEntry(params: {
+    brand_name: string;
+    parent_id: number | null;
+    rating: string | null;
+}) {
+    const supabase = adminAuthClient;
+    const { data, error } = await (supabase.from('hotel_chain_master') as any)
+        .insert({
+            brand_name: params.brand_name,
+            parent_id: params.parent_id,
+            rating: params.rating ?? null,
+        })
+        .select('brand_id, brand_name, parent_id, rating')
+        .single();
+    if (error) return { success: false, error: error.message, brand: null };
+    return { success: true, brand: data };
+}
+
+export async function updateSubBrandRating(brandId: number, rating: string | null) {
+    const supabase = adminAuthClient;
+    const { error } = await (supabase.from('hotel_chain_master') as any)
+        .update({ rating })
+        .eq('brand_id', brandId);
+    if (error) return { success: false, error: (error as any).message };
+    return { success: true };
+}
+
+export interface HotelChainStats {
+    total_chains: number;
+    sub_brand_5star: number;
+    sub_brand_4star: number;
+    sub_brand_3star: number;
+    sub_brand_unrated: number;
+    unmapped_companies: number;
+}
+
+export async function getHotelChainStats(): Promise<HotelChainStats> {
+    const supabase = adminAuthClient;
+    const { data, error } = await (supabase.rpc as any)('get_hotel_chain_stats');
+    if (error || !data?.[0]) {
+        return { total_chains: 0, sub_brand_5star: 0, sub_brand_4star: 0, sub_brand_3star: 0, sub_brand_unrated: 0, unmapped_companies: 0 };
+    }
+    const row = data[0];
+    return {
+        total_chains: Number(row.total_chains),
+        sub_brand_5star: Number(row.sub_brand_5star),
+        sub_brand_4star: Number(row.sub_brand_4star),
+        sub_brand_3star: Number(row.sub_brand_3star),
+        sub_brand_unrated: Number(row.sub_brand_unrated),
+        unmapped_companies: Number(row.unmapped_companies),
+    };
+}

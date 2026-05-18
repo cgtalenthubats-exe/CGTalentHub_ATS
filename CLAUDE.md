@@ -152,3 +152,12 @@ Logic: `cardinality(array) = 0` = ไม่ filter field นั้น, LEFT JOIN
 - **AI Model**: Claude Haiku 4.5 สำหรับ AI Search parsing (fast + cheap)
 - **n8n**: ใช้สำหรับ Stage 2–3.5 pipeline (webhook-based)
 - **Dev server**: `npm run dev` → localhost:3000
+
+---
+
+## Sub-system References
+
+ไฟล์เหล่านี้คือ **งานที่ยังทำไม่เสร็จและต้อง follow up ต่อ** — อ่านก่อนทุกครั้งที่จะพัฒนาส่วนที่เกี่ยวข้อง เพื่อไม่สร้างซ้ำและทำต่อได้ถูกจุด
+
+@docs/hotel_chain_system.md
+@docs/country_location_system.md

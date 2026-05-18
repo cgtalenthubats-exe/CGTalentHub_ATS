@@ -14,6 +14,7 @@ import { AddCandidateDialog } from "@/components/ai-search/AddCandidateDialog";
 import {
     getDemoFilterOptions,
     getCascadingFilterOptions,
+    getFilteredChainCounts,
     searchDemoCandidates,
     fetchCandidatePage,
     parseQueryToFilters,
@@ -89,6 +90,7 @@ export default function AiSearchDemoPage() {
     const [staticOptions, setStaticOptions] = useState<any>(null);
     const [cascadingOptions, setCascadingOptions] = useState<any>(null);
     const [cascadeLoading, setCascadeLoading] = useState(false);
+    const [dynamicChainCounts, setDynamicChainCounts] = useState<{ chain_name: string; candidate_count: number }[] | null>(null);
 
     // Search result state
     const [allCandidateIds, setAllCandidateIds] = useState<string[]>([]);
@@ -115,13 +117,17 @@ export default function AiSearchDemoPage() {
         });
     }, []);
 
-    // Cascading options — debounced 500ms
+    // Cascading options + dynamic chain counts — debounced 500ms
     useEffect(() => {
         clearTimeout(cascadeRef.current);
         setCascadeLoading(true);
         cascadeRef.current = setTimeout(() => {
-            void getCascadingFilterOptions(pendingFilters).then((data) => {
-                setCascadingOptions(data);
+            void Promise.all([
+                getCascadingFilterOptions(pendingFilters),
+                getFilteredChainCounts(pendingFilters),
+            ]).then(([cascadeData, chainData]) => {
+                setCascadingOptions(cascadeData);
+                if (chainData) setDynamicChainCounts(chainData);
                 setCascadeLoading(false);
             });
         }, 500);
@@ -291,7 +297,7 @@ export default function AiSearchDemoPage() {
             {!optionsLoading && staticOptions && (
                 <div className="px-6 pb-2">
                     <ChainRatingPicker
-                        chainCounts={staticOptions.chainCounts ?? []}
+                        chainCounts={dynamicChainCounts ?? staticOptions.chainCounts ?? []}
                         subBrandsByChain={staticOptions.subBrandsByChain ?? {}}
                         filters={pendingFilters}
                         onFiltersChange={setPendingFilters}
