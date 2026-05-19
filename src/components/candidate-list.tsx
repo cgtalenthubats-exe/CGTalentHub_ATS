@@ -23,8 +23,7 @@ import {
     UserCircle2,
     Briefcase,
     History,
-    RefreshCw,
-    Linkedin
+    RefreshCw
 } from "lucide-react";
 import { getStatusMaster } from "@/app/actions/status-master";
 import {
@@ -67,6 +66,7 @@ interface CandidateListProps {
 }
 
 import { ConfirmPlacementDialog } from "@/components/confirm-placement-dialog";
+import { CandidateLinkedinButton } from "@/components/candidate-linkedin-button";
 
 const UNKNOWN = '(Unknown)';
 
@@ -1016,15 +1016,11 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                         </button>
                                     </td>
                                     <td className="px-4 py-4">
-                                        {c.candidate_linkedin_url ? (
-                                            <a href={c.candidate_linkedin_url} target="_blank" rel="noopener noreferrer" className="inline-block">
-                                                <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-all" title="View LinkedIn Profile">
-                                                    <Linkedin className="h-4 w-4" />
-                                                </Button>
-                                            </a>
-                                        ) : (
-                                            <span className="text-slate-200">—</span>
-                                        )}
+                                        <CandidateLinkedinButton
+                                            checked={c.candidate_checked}
+                                            linkedin={c.candidate_linkedin_url}
+                                            candidateId={c.candidate_id}
+                                        />
                                     </td>
                                     <td className="px-4 py-4">
                                         <div className="flex flex-col">

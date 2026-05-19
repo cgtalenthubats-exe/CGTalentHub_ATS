@@ -23,9 +23,18 @@ interface CandidateLinkedinButtonProps {
     style?: React.CSSProperties;
 }
 
+const normalizeUrl = (url: string | undefined): string | undefined => {
+    if (!url) return undefined;
+    const trimmed = url.trim();
+    if (!trimmed) return undefined;
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    return `https://${trimmed}`;
+};
+
 export function CandidateLinkedinButton({ checked, linkedin, candidateId, className, style }: CandidateLinkedinButtonProps) {
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
+    const safeUrl = normalizeUrl(linkedin);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [newType, setNewType] = useState("LinkedIN profile");
     const [newUrl, setNewUrl] = useState("");
@@ -77,7 +86,7 @@ export function CandidateLinkedinButton({ checked, linkedin, candidateId, classN
     // 1. LinkedIn Profile
     if (normChecked === 'linkedin profile') {
         return (
-            <a href={linkedin} target="_blank" rel="noopener noreferrer"
+            <a href={safeUrl} target="_blank" rel="noopener noreferrer"
                 className={cn("h-7 w-7 rounded-md bg-[#0a66c2]/10 text-[#0a66c2] hover:bg-[#0a66c2]/20 transition-colors shadow-sm inline-flex items-center justify-center shrink-0", className)}
                 style={{ ...style, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(10, 102, 194, 0.1)', color: '#0a66c2', borderRadius: '6px' }}
                 title="LinkedIn Profile"
@@ -101,7 +110,7 @@ export function CandidateLinkedinButton({ checked, linkedin, candidateId, classN
                         <Globe className="h-4 w-4 text-muted-foreground" /> Individual Link Reference
                     </p>
                     <div className="whitespace-pre-wrap bg-secondary/10 p-3 rounded-md border text-xs leading-relaxed max-h-[200px] overflow-y-auto">
-                        {renderLinks(linkedin || "")}
+                        {renderLinks(safeUrl || linkedin || "")}
                     </div>
                 </PopoverContent>
             </Popover>

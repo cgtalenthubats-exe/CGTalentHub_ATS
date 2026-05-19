@@ -45,8 +45,9 @@ export interface JRCandidate {
     candidate_image_url?: string; // photo
     candidate_age?: number;
     candidate_gender?: string;
-    candidate_linkedin_url?: string; // [NEW] Added for Refresh Data payload
-    candidate_status?: string; // [NEW] Global status from profile
+    candidate_linkedin_url?: string;
+    candidate_checked?: string;
+    candidate_status?: string;
     candidate_nationality?: string;
     candidate_region?: string;
     candidate_industry?: string;

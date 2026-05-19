@@ -117,7 +117,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         Promise.all(candidateIdChunks.map(chunk => 
             (supabase
                 .from('Candidate Profile' as any)
-                .select('candidate_id, name, email, mobile_phone, job_function, photo, age, gender, nationality, candidate_projects, candidate_status, linkedin, gross_salary_base_b_mth, bonus_mth')
+                .select('candidate_id, name, email, mobile_phone, job_function, photo, age, gender, nationality, candidate_projects, candidate_status, linkedin, checked, gross_salary_base_b_mth, bonus_mth')
                 .in('candidate_id', chunk) as any)
         )),
 
@@ -282,6 +282,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
             candidate_gender: profile?.gender || undefined,
             candidate_status: profile?.candidate_status || undefined,
             candidate_linkedin_url: profile?.linkedin || undefined,
+            candidate_checked: profile?.checked || undefined,
             candidate_nationality: profile?.nationality || undefined,
             candidate_region: exp?.region || undefined,
             candidate_industry: exp?.industry_master || undefined,
