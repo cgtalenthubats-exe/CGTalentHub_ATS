@@ -146,7 +146,9 @@ export async function POST(req: NextRequest) {
                     linkedin_url: body.linkedin || null,
                     skills_list: body.skills || null,
                     education_summary: body.education || null,
-                    languages: body.languages || null
+                    languages: body.languages || null,
+                    country: body.country_from_li || null,
+                    full_address: body.full_address || null,
                 }
             ]);
 

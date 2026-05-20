@@ -50,6 +50,69 @@ interface ExperienceData {
     is_current: boolean;
 }
 
+function SearchInput({
+    value,
+    onChange,
+    onSelect,
+    placeholder,
+    search,
+    className,
+}: {
+    value: string;
+    onChange: (val: string) => void;
+    onSelect: (val: string) => void;
+    placeholder?: string;
+    search: (q: string) => Promise<string[]>;
+    className?: string;
+}) {
+    const [results, setResults] = useState<string[]>([]);
+    const [open, setOpen] = useState(false);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        onChange(val);
+        clearTimeout(timerRef.current);
+        if (val.length >= 2) {
+            timerRef.current = setTimeout(async () => {
+                const res = await search(val);
+                setResults(res);
+                setOpen(res.length > 0);
+            }, 300);
+        } else {
+            setResults([]);
+            setOpen(false);
+        }
+    };
+
+    return (
+        <div className="relative">
+            <Input
+                value={value}
+                onChange={handleChange}
+                onBlur={() => setTimeout(() => setOpen(false), 150)}
+                placeholder={placeholder}
+                className={className}
+            />
+            {open && (
+                <ul className="absolute z-50 top-full left-0 right-0 mt-0.5 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto text-sm">
+                    {results.map(r => (
+                        <li key={r}>
+                            <button
+                                type="button"
+                                className="w-full text-left px-3 py-1.5 hover:bg-slate-50 truncate"
+                                onMouseDown={() => { onSelect(r); setOpen(false); }}
+                            >
+                                {r}
+                            </button>
+                        </li>
+                    ))}
+                </ul>
+            )}
+        </div>
+    );
+}
+
 export default function NewCandidatePage() {
     return (
         <Suspense fallback={<div className="flex items-center justify-center min-h-screen"><Loader2 className="animate-spin text-slate-400" /></div>}>
@@ -73,8 +136,6 @@ function CandidateForm() {
     const [nationalities, setNationalities] = useState<string[]>([]);
     const [openNat, setOpenNat] = useState(false);
     const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
-    const [companies, setCompanies] = useState<any[]>([]);
-    const [positions, setPositions] = useState<string[]>([]);
     const [countries, setCountries] = useState<string[]>([]);
     const [industryGroups, setIndustryGroups] = useState<any[]>([]);
 
@@ -88,6 +149,8 @@ function CandidateForm() {
         nationality: "",
         gender: "",
         linkedin: "",
+        country_from_li: "",
+        full_address: "",
         age_input_type: "dob",
         date_of_birth: "",
         year_of_bachelor_education: "",
@@ -114,6 +177,32 @@ function CandidateForm() {
     // Form State (Experiences)
     const [experiences, setExperiences] = useState<ExperienceData[]>([]);
 
+    // On-demand search functions (no preload)
+    const searchCompanies = async (q: string): Promise<string[]> => {
+        const { data } = await supabase
+            .from('company_master')
+            .select('company_master')
+            .ilike('company_master', `%${q}%`)
+            .order('company_master')
+            .limit(25);
+        if (!data) return [];
+        const seen = new Set<string>();
+        return (data as any[]).map(d => d.company_master).filter((n: string) => n && !seen.has(n) && seen.add(n));
+    };
+
+    const searchPositions = async (q: string): Promise<string[]> => {
+        const { data } = await supabase
+            .from('candidate_experiences')
+            .select('position')
+            .ilike('position', `%${q}%`)
+            .not('position', 'is', null)
+            .limit(50);
+        if (!data) return [];
+        const seen = new Set<string>();
+        const unique = (data as any[]).map(d => d.position).filter((p: string) => p && !seen.has(p) && seen.add(p));
+        return unique.sort().slice(0, 25);
+    };
+
     const uniqueIndustries = Array.from(new Set(industryGroups.map(i => i.industry)));
     const uniqueGroups = Array.from(new Set(industryGroups.map(i => i.group)));
 
@@ -134,27 +223,7 @@ function CandidateForm() {
                 }
             }
 
-            // 3. Companies
-            const { data: compData } = await supabase.from('company_master').select('company_master, industry, group').order('company_master');
-            if (compData) {
-                const uniqueMap = new Map();
-                (compData as any).forEach((c: any) => {
-                    const name = c.company_master;
-                    if (name && !uniqueMap.has(name)) {
-                        uniqueMap.set(name, { company_name: name, industry: c.industry, group: c.group });
-                    }
-                });
-                setCompanies(Array.from(uniqueMap.values()));
-            }
-
-            // 4. Positions (from existing experiences)
-            const { data: posData } = await supabase.from('candidate_experiences').select('position').not('position', 'is', null).limit(1000);
-            if (posData) {
-                const unique = Array.from(new Set((posData as any).map((p: any) => p.position).filter(Boolean)));
-                setPositions(unique.sort() as string[]);
-            }
-
-            // 5. Countries
+            // 3. Countries
             const { data: cData } = await supabase.from('country').select('country').order('country');
             if (cData) setCountries((cData as any).map((c: any) => c.country).filter(Boolean));
 
@@ -652,8 +721,36 @@ function CandidateForm() {
                                         </select>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="age" className="font-bold text-slate-700">Age</Label>
-                                        <Input id="age" value={formData.age} readOnly className="h-11 bg-slate-50 border-slate-200 font-mono font-black text-indigo-600 rounded-xl" />
+                                        <Label className="font-bold text-slate-700">Age</Label>
+                                        <div className="flex rounded-xl border border-slate-200 overflow-hidden mb-2">
+                                            {(["dob", "bachelor", "manual"] as const).map((type) => (
+                                                <button
+                                                    key={type}
+                                                    type="button"
+                                                    onClick={() => setFormData(prev => ({ ...prev, age_input_type: type }))}
+                                                    className={cn(
+                                                        "flex-1 text-[10px] font-bold py-1.5 transition-all",
+                                                        formData.age_input_type === type
+                                                            ? "bg-indigo-600 text-white"
+                                                            : "bg-white text-slate-400 hover:bg-slate-50"
+                                                    )}
+                                                >
+                                                    {type === "dob" ? "DOB" : type === "bachelor" ? "Bach." : "Manual"}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        {formData.age_input_type === "dob" && (
+                                            <Input id="date_of_birth" placeholder="DD/MM/YYYY" value={formData.date_of_birth} onChange={handleFormChange} className="h-9 font-mono rounded-xl" />
+                                        )}
+                                        {formData.age_input_type === "bachelor" && (
+                                            <Input id="year_of_bachelor_education" placeholder="YYYY" value={formData.year_of_bachelor_education} onChange={handleFormChange} className="h-9 font-mono rounded-xl" />
+                                        )}
+                                        {formData.age_input_type === "manual" && (
+                                            <Input id="age" placeholder="e.g. 35" value={formData.age} onChange={handleFormChange} className="h-9 font-mono rounded-xl" />
+                                        )}
+                                        {formData.age_input_type !== "manual" && formData.age && (
+                                            <p className="text-sm font-black text-indigo-600 font-mono mt-1">{formData.age} yrs</p>
+                                        )}
                                     </div>
                                 </div>
 
@@ -688,6 +785,26 @@ function CandidateForm() {
                                          </div>
                                      </div>
                                      <Input id="linkedin" placeholder="https://linkedin.com/in/..." value={formData.linkedin} onChange={handleFormChange} className="h-11 border-indigo-200 focus:ring-indigo-500 rounded-xl" />
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
+                                    <div className="space-y-2">
+                                        <Label className="font-bold text-slate-700 flex items-center gap-2">
+                                            <Globe className="w-3.5 h-3.5 text-slate-400" /> Country (from LI)
+                                        </Label>
+                                        <select
+                                            className="h-11 w-full rounded-xl border border-slate-300 bg-white px-3 font-medium transition-all focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500"
+                                            value={formData.country_from_li}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, country_from_li: e.target.value }))}
+                                        >
+                                            <option value="">Select country...</option>
+                                            {countries.map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="full_address" className="font-bold text-slate-700">Full Address (from LI)</Label>
+                                        <Input id="full_address" placeholder="Bangkok, Bangkok City, Thailand" value={formData.full_address} onChange={handleFormChange} className="h-11 rounded-xl" />
+                                    </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-slate-100">
@@ -755,19 +872,36 @@ function CandidateForm() {
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div className="space-y-1.5">
                                                 <Label className="text-xs font-bold uppercase text-slate-400">Position</Label>
-                                                <Input 
-                                                    value={exp.position} 
-                                                    onChange={(e) => updateExperience(exp.tempId, 'position', e.target.value)}
-                                                    placeholder="Role Title"
+                                                <SearchInput
+                                                    value={exp.position}
+                                                    onChange={(val) => updateExperience(exp.tempId, 'position', val)}
+                                                    onSelect={(val) => updateExperience(exp.tempId, 'position', val)}
+                                                    placeholder="Role Title (type to search...)"
+                                                    search={searchPositions}
                                                     className="h-9 font-semibold"
                                                 />
                                             </div>
                                             <div className="space-y-1.5">
                                                 <Label className="text-xs font-bold uppercase text-slate-400">Company</Label>
-                                                <Input 
-                                                    value={exp.company} 
-                                                    onChange={(e) => updateExperience(exp.tempId, 'company', e.target.value)}
-                                                    placeholder="Enterprise Name"
+                                                <SearchInput
+                                                    value={exp.company}
+                                                    onChange={(val) => updateExperience(exp.tempId, 'company', val)}
+                                                    onSelect={(val) => {
+                                                        updateExperience(exp.tempId, 'company', val);
+                                                        supabase.from('company_master')
+                                                            .select('industry, group')
+                                                            .ilike('company_master', val)
+                                                            .limit(1)
+                                                            .maybeSingle()
+                                                            .then(({ data }) => {
+                                                                if (data) {
+                                                                    updateExperience(exp.tempId, 'company_industry', (data as any).industry || '');
+                                                                    updateExperience(exp.tempId, 'company_group', (data as any).group || '');
+                                                                }
+                                                            });
+                                                    }}
+                                                    placeholder="Enterprise Name (type to search...)"
+                                                    search={searchCompanies}
                                                     className="h-9 font-semibold"
                                                 />
                                             </div>
@@ -775,11 +909,14 @@ function CandidateForm() {
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                              <div className="space-y-1.5">
                                                 <Label className="text-xs font-bold uppercase text-slate-400">Work Location</Label>
-                                                <Input 
-                                                    value={exp.work_location} 
+                                                <select
+                                                    value={exp.work_location}
                                                     onChange={(e) => updateExperience(exp.tempId, 'work_location', e.target.value)}
-                                                    className="h-8 bg-slate-50/50"
-                                                />
+                                                    className="h-8 w-full rounded-lg border border-slate-200 bg-slate-50/50 px-2 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400"
+                                                >
+                                                    <option value=""></option>
+                                                    {countries.map(c => <option key={c} value={c}>{c}</option>)}
+                                                </select>
                                             </div>
                                             <div className="space-y-1.5">
                                                 <Label className="text-xs font-bold uppercase text-slate-400">Start Date</Label>
