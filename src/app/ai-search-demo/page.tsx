@@ -252,9 +252,10 @@ export default function AiSearchDemoPage() {
     };
 
     const activeFilterCount = Object.entries(pendingFilters).reduce((acc, [k, v]) => {
-        if (k === "current_only" || k === "age_include_unknown") return acc + (v ? 0 : 0);
+        if (k === "current_only" || k === "age_include_unknown") return acc;
         if (k === "industry_group") return acc + (v !== null ? 1 : 0);
         if (k === "age_min" || k === "age_max") return acc; // counted once below
+        if (k === "position_search") return acc + (v as string[]).length;
         if (Array.isArray(v)) return acc + v.length;
         return acc;
     }, 0) + ((pendingFilters.age_min !== null || pendingFilters.age_max !== null) ? 1 : 0);

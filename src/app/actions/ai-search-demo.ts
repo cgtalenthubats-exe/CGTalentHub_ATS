@@ -25,13 +25,13 @@ function toRpcParams(f: DemoFilterState) {
         p_exclude_countries:  f.exclude_countries,
         p_exclude_keywords:   f.exclude_keywords,
         p_hotel_sub_brands:    f.hotel_sub_brands,
-        p_based_in_countries:  f.based_in_countries,
         p_genders:             f.genders,
         p_nationalities:      f.nationalities,
         p_age_min:            f.age_min ?? null,
         p_age_max:            f.age_max ?? null,
         p_age_include_unknown: f.age_include_unknown,
         p_current_and_latest:  f.current_and_latest,
+        p_position_search:     f.position_search,
     };
 }
 
@@ -53,11 +53,11 @@ function hasAnyFilter(f: DemoFilterState) {
         f.exclude_countries.length > 0 ||
         f.exclude_keywords.length > 0 ||
         f.hotel_sub_brands.length > 0 ||
-        f.based_in_countries.length > 0 ||
         f.genders.length > 0 ||
         f.nationalities.length > 0 ||
         f.age_min !== null ||
-        f.age_max !== null
+        f.age_max !== null ||
+        f.position_search.length > 0
     );
 }
 
@@ -176,7 +176,6 @@ export async function getFilteredChainCounts(filters: DemoFilterState) {
         p_age_max:             params.p_age_max,
         p_age_include_unknown: params.p_age_include_unknown,
         p_current_and_latest:  params.p_current_and_latest,
-        p_based_in_countries:  params.p_based_in_countries,
     });
     if (error || !data) return null;
     return (data as any[]).map(r => ({
@@ -264,7 +263,7 @@ export async function searchPositionSuggestions(query: string, filters?: DemoFil
     const q = query?.trim() ?? "";
     if (q.length === 1) return [];
 
-    const scopedFilters = filters ? { ...filters, positions: [] } : null;
+    const scopedFilters = filters ? { ...filters, positions: [], position_search: [] } : null;
     const useScope = scopedFilters && hasAnyFilter(scopedFilters);
 
     if (useScope) {

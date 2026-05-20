@@ -117,11 +117,16 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                         <div>
                             <div className="flex items-center gap-3">
                                 <h1 className="text-3xl font-bold tracking-tight text-foreground">{candidate.name}</h1>
-                                {candidate.candidate_status && (
-                                    <Badge variant="outline" className="text-emerald-600 border-emerald-500/30 bg-emerald-50/50 uppercase tracking-widest text-[10px]">
-                                        {candidate.candidate_status}
+                                {candidate.candidate_status?.map((s: string) => (
+                                    <Badge key={s} variant="outline" className={cn(
+                                        "uppercase tracking-widest text-[10px]",
+                                        s === 'Blacklist' ? "text-rose-600 border-rose-300 bg-rose-50/50" :
+                                        s === 'Over-aged' ? "text-orange-600 border-orange-300 bg-orange-50/50" :
+                                        "text-emerald-600 border-emerald-500/30 bg-emerald-50/50"
+                                    )}>
+                                        {s}
                                     </Badge>
-                                )}
+                                ))}
                             </div>
                             <div className="flex items-center gap-2 mt-2">
                                 <span className="text-xl font-mono font-bold text-muted-foreground/40 tracking-tight">#{candidate.candidate_id}</span>
@@ -185,7 +190,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
             </div>
 
             {/* --- BLACKLIST ALERT --- */}
-            {candidate.candidate_status === "Blacklist" && candidate.blacklist_note && (
+            {candidate.candidate_status?.includes("Blacklist") && candidate.blacklist_note && (
                 <div className="bg-rose-50 border-2 border-rose-200 rounded-xl p-6 flex flex-col md:flex-row gap-5 items-center shadow-sm animate-in zoom-in duration-500">
                     <div className="p-4 bg-rose-500 text-white rounded-full shadow-lg shadow-rose-200">
                         <AlertCircle className="h-8 w-8 stroke-[3px]" />

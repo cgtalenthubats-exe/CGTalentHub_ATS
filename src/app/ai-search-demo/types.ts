@@ -18,14 +18,14 @@ export interface DemoFilterState {
     exclude_keywords: string[];
     // Hotel sub-brand (specific brand within a chain)
     hotel_sub_brands: string[];
-    // Current location (from candidate_profile_enhance.country)
-    based_in_countries: string[];
     // Profile filters
     genders: string[];
     nationalities: string[];
     age_min: number | null;
     age_max: number | null;
     age_include_unknown: boolean;
+    // Position search terms — each term does ilike on position_keyword + position (replaces Keywords dropdown + Position actual)
+    position_search: string[];
 }
 
 export const EMPTY_FILTERS: DemoFilterState = {
@@ -46,18 +46,18 @@ export const EMPTY_FILTERS: DemoFilterState = {
     exclude_countries: [],
     exclude_keywords: [],
     hotel_sub_brands: [],
-    based_in_countries: [],
     genders: [],
     nationalities: [],
     age_min: null,
     age_max: null,
     age_include_unknown: true,
+    position_search: [],
 };
 
 export const POSITION_LEVELS = ["C-Level", "VP", "Director", "Manager", "Supervisor", "Staff"];
 export const HOTEL_RATINGS = ["3 Star", "4 Star", "5 Star"];
 
-export type AiSuggestions = Partial<Omit<DemoFilterState, "industry_group" | "current_only" | "current_and_latest" | "positions" | "companies" | "hotel_chains" | "hotel_sub_brands" | "age_min" | "age_max" | "age_include_unknown">>;
+export type AiSuggestions = Partial<Omit<DemoFilterState, "industry_group" | "current_only" | "current_and_latest" | "positions" | "companies" | "hotel_chains" | "hotel_sub_brands" | "age_min" | "age_max" | "age_include_unknown" | "position_search">>;
 
 export type AiParseResult = {
     filters: Partial<DemoFilterState>;

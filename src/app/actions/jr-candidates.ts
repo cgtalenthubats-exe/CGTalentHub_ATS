@@ -278,9 +278,9 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
             candidate_is_current_job: exp ? exp.label : undefined,
             candidate_country: countryDisplay || undefined,
             candidate_image_url: profile?.photo || undefined,
-            candidate_age: profile?.age || undefined,
+            candidate_age: profile?.age ?? undefined,
             candidate_gender: profile?.gender || undefined,
-            candidate_status: profile?.candidate_status || undefined,
+            candidate_status: (profile?.candidate_status as string[] | null | undefined) || undefined,
             candidate_linkedin_url: profile?.linkedin || undefined,
             candidate_checked: profile?.checked || undefined,
             candidate_nationality: profile?.nationality || undefined,
@@ -523,7 +523,7 @@ export async function addCandidatesToJR(
             .from('Candidate Profile' as any)
             .select('candidate_id, name, candidate_status')
             .in('candidate_id', candidateIds)
-            .eq('candidate_status', 'Blacklist') as any);
+            .contains('candidate_status', ['Blacklist']) as any);
         
         const blacklistedIds = new Set((blacklistCheck as any[])?.map(b => b.candidate_id) || []);
         if (blacklistedIds.size > 0) {
@@ -615,7 +615,7 @@ export async function bulkAddCandidatesToJR(
             .from('Candidate Profile' as any)
             .select('candidate_id, candidate_status')
             .in('candidate_id', candidateIdsToCheck)
-            .eq('candidate_status', 'Blacklist') as any);
+            .contains('candidate_status', ['Blacklist']) as any);
 
         if (blError) throw blError;
 

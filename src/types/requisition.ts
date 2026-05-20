@@ -47,7 +47,7 @@ export interface JRCandidate {
     candidate_gender?: string;
     candidate_linkedin_url?: string;
     candidate_checked?: string;
-    candidate_status?: string;
+    candidate_status?: string[] | null;
     candidate_nationality?: string;
     candidate_region?: string;
     candidate_industry?: string;

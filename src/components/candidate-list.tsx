@@ -1033,15 +1033,19 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                         </div>
                                     </td>
                                     <td className="px-4 py-4">
-                                        {c.candidate_status ? (
-                                            <Badge variant="secondary" className={cn(
-                                                "text-[10px] font-black uppercase tracking-wider border whitespace-nowrap px-2.5 py-1 rounded-lg shadow-sm",
-                                                c.candidate_status === 'Active' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                                                c.candidate_status === 'Blacklist' ? "bg-rose-50 text-rose-600 border-rose-100" :
-                                                "bg-slate-50 text-slate-500 border-slate-200"
-                                            )}>
-                                                {c.candidate_status}
-                                            </Badge>
+                                        {c.candidate_status && c.candidate_status.length > 0 ? (
+                                            <div className="flex flex-wrap gap-1">
+                                                {c.candidate_status.map((s: string) => (
+                                                    <Badge key={s} variant="secondary" className={cn(
+                                                        "text-[10px] font-black uppercase tracking-wider border whitespace-nowrap px-2.5 py-1 rounded-lg shadow-sm",
+                                                        s === 'Blacklist' ? "bg-rose-50 text-rose-600 border-rose-100" :
+                                                        s === 'Over-aged' ? "bg-orange-50 text-orange-600 border-orange-100" :
+                                                        "bg-slate-50 text-slate-500 border-slate-200"
+                                                    )}>
+                                                        {s}
+                                                    </Badge>
+                                                ))}
+                                            </div>
                                         ) : (
                                             <span className="text-slate-300 text-xs">—</span>
                                         )}

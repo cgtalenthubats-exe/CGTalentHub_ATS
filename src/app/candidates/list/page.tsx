@@ -62,9 +62,9 @@ interface Candidate {
     email: string;
     mobile_phone: string;
     nationality: string;
-    age: number;
+    age: number | null;
     gender?: string;
-    candidate_status?: string;
+    candidate_status?: string[] | null;
     job_grouping?: string;
     job_function?: string;
     photo?: string;

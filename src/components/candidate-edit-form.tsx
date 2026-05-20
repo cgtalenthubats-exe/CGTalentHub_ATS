@@ -60,7 +60,7 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
     // Form State (Data)
     const [formData, setFormData] = useState({
         name: "",
-        candidate_status: "",
+        candidate_status: [] as string[],
         email: "",
         alt_email: "",
         phone: "",
@@ -108,7 +108,7 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                 // Map Data to Form
                 setFormData({
                     name: data.name || "",
-                    candidate_status: data.candidate_status || "",
+                    candidate_status: data.candidate_status ?? [],
                     email: data.email || "",
                     alt_email: data.enhancement?.alt_email || "",
                     phone: data.mobile_phone || "",
@@ -328,6 +328,7 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                 education: formData.education,
                 skills: formData.skills,
                 languages: formData.languages,
+                blacklist_note: formData.blacklist_note || null,
                 // Compensation & Benefits fields
                 gross_salary_base_b_mth: parseNumberFromCommas(formData.gross_salary_base_b_mth) || null,
                 car_allowance_b_mth: parseNumberFromCommas(formData.car_allowance_b_mth) || null,
@@ -396,7 +397,7 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                     <div className="flex items-center gap-4 p-4 border rounded-xl bg-slate-50/50">
                         <StatusSelect
                             value={formData.candidate_status}
-                            onChange={(v) => setFormData(prev => ({ ...prev, candidate_status: v }))}
+                            onChange={(v: string[]) => setFormData(prev => ({ ...prev, candidate_status: v }))}
                             className="bg-white border-slate-200"
                         />
                     </div>
@@ -604,16 +605,15 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                                 </div>
                             </div>
 
-                            {formData.candidate_status === "Blacklist" && (
+                            {formData.candidate_status?.includes("Blacklist") && (
                                 <div className="p-3 bg-rose-50 rounded-lg border border-rose-100 space-y-1.5">
-                                    <Label htmlFor="blacklist_note" className="text-[11px] text-rose-700 font-bold">Blacklist Reason *</Label>
+                                    <Label htmlFor="blacklist_note" className="text-[11px] text-rose-700 font-bold">Blacklist Reason</Label>
                                     <textarea
                                         id="blacklist_note"
-                                        placeholder="Reason..."
+                                        placeholder="Reason (optional)..."
                                         className="min-h-[60px] w-full rounded-md border border-rose-200 bg-white px-2 py-1.5 text-xs focus:ring-1 focus:ring-rose-500 outline-none"
                                         value={formData.blacklist_note}
                                         onChange={handleChange}
-                                        required
                                     />
                                 </div>
                             )}

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
-import { ChevronDown, SlidersHorizontal, RotateCcw, Loader2, X } from "lucide-react";
+import { ChevronDown, SlidersHorizontal, RotateCcw, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -523,6 +523,7 @@ function LiveSearchPopover({
     );
 }
 
+
 // --- Main FilterPanel ---
 export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, filters, onChange, onReset, onSearchPositions, onSearchCompanies }: FilterPanelProps) {
     if (!staticOptions) return null;
@@ -569,11 +570,11 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
         () => cascade ? (cascade.job_functions ?? staticOptions.jobFunctions) : staticOptions.jobFunctions,
         [cascade, staticOptions.jobFunctions]
     );
-    const positionOptions = useMemo(() => cascade?.positions ?? [], [cascade]);
     const genderOptions = useMemo(() => cascade?.genders ?? [], [cascade]);
     const nationalityOptions = useMemo(() => cascade?.nationalities ?? [], [cascade]);
 
     const activeCount = [
+        filters.position_search.length,
         filters.position_keywords.length,
         filters.position_levels.length,
         filters.industry_group ? 1 : 0,
@@ -582,7 +583,6 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
         filters.countries.length,
         (filters.current_only || filters.current_and_latest) ? 1 : 0,
         filters.job_functions.length,
-        filters.positions.length,
         filters.companies.length,
         filters.genders.length,
         filters.nationalities.length,
@@ -611,12 +611,14 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
             {/* Filter rows */}
             <div className="py-1">
                 <SectionLabel label="Position" />
-                <FilterPopover
-                    label="Keywords"
-                    options={keywordOptions}
-                    selected={filters.position_keywords}
-                    onChange={v => set("position_keywords", v)}
-                    placeholder="Search keywords..."
+                <LiveSearchPopover
+                    label="Position"
+                    selected={filters.position_search}
+                    onChange={v => set("position_search", v)}
+                    activeFilters={filters}
+                    onSearch={onSearchPositions}
+                    placeholder='e.g. "General Manager", "cluster"...'
+                    emptyHint="พิมพ์เพื่อค้นหา — ผลลัพธ์ match ทั้ง keyword และตำแหน่งจริง"
                 />
                 <FilterPopover
                     label="Level"
@@ -654,14 +656,6 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
                     selected={filters.countries}
                     onChange={v => set("countries", v)}
                     placeholder="Search country..."
-                />
-                <FilterPopover
-                    label="Based in"
-                    options={availableCountries}
-                    selected={filters.based_in_countries}
-                    onChange={v => set("based_in_countries", v)}
-                    placeholder="Search country..."
-                    emptyHint="Current location from profile"
                 />
 
                 <SectionLabel label="Other" />
@@ -727,15 +721,6 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
                     selected={filters.job_functions}
                     onChange={v => set("job_functions", v)}
                     placeholder="Search function..."
-                />
-                <LiveSearchPopover
-                    label="Position (actual)"
-                    selected={filters.positions}
-                    onChange={v => set("positions", v)}
-                    activeFilters={filters}
-                    onSearch={onSearchPositions}
-                    placeholder='เช่น "Visual Merch", "F&B Manager"...'
-                    emptyHint="พิมพ์เพื่อค้นหาตำแหน่งจากข้อมูลจริง"
                 />
                 <LiveSearchPopover
                     label="Company"

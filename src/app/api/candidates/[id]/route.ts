@@ -215,7 +215,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         // Fetch current profile to have existing DOB/Bachelor year for age recalculation
         const { data: existingProfile, error: fetchError } = await adminAuthClient
             .from('Candidate Profile')
-            .select('date_of_birth, year_of_bachelor_education')
+            .select('date_of_birth, year_of_bachelor_education, candidate_status')
             .eq('candidate_id', candidateId)
             .single();
             
@@ -224,7 +224,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
             // We continue, but age recalculation might be incomplete if fields are missing in body
         }
         
-        const profileData = existingProfile || {};
+        const profileData = (existingProfile || {}) as { date_of_birth?: string; year_of_bachelor_education?: string; candidate_status?: string[] | null };
         const { candidate_status, resume_url, name, email, mobile_phone, linkedin, ...otherFields } = body;
 
         // Construct update object for 'Candidate Profile'
@@ -293,7 +293,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         updateData.date_of_birth = finalDob;
         updateData.year_of_bachelor_education = finalGradYear;
         updateData.age = finalAge;
-        
+
+        // Auto-add Over-aged when age >= 57
+        if (finalAge !== null && finalAge >= 57) {
+            const existingStatuses: string[] = (profileData.candidate_status as string[] | null) ?? [];
+            const incomingStatuses: string[] = Array.isArray(candidate_status) ? candidate_status : existingStatuses;
+            if (!incomingStatuses.includes('Over-aged')) {
+                updateData.candidate_status = [...incomingStatuses, 'Over-aged'];
+            }
+        }
+
         if (body.checked !== undefined) updateData.checked = body.checked || null;
 
         // Compensation & Benefits fields

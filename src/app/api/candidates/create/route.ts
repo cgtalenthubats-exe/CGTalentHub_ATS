@@ -49,6 +49,9 @@ export async function POST(req: NextRequest) {
             finalGradYear = null;
         }
 
+        // Auto-set Over-aged if age >= 57
+        const initialStatus: string[] = finalAge !== null && finalAge >= 57 ? ['Over-aged'] : [];
+
         // Get current user for audit trail (Fallback)
         const supabaseServer = await createServerClient();
         const { data: { user } } = await supabaseServer.auth.getUser();
@@ -111,6 +114,7 @@ export async function POST(req: NextRequest) {
                     year_of_bachelor_education: finalGradYear,
                     age: finalAge,
                     checked: getCheckedStatus(body.linkedin),
+                    candidate_status: initialStatus.length > 0 ? initialStatus : null,
                     action_needed: 'Wait_for_vector', // AI System Flag
                     // Compensation & Benefits (all optional)
                     gross_salary_base_b_mth: body.gross_salary_base_b_mth || null,

@@ -115,14 +115,16 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
                                         <Badge variant="outline" className="text-[10px] font-black uppercase tracking-widest bg-indigo-50 text-indigo-700 border-indigo-100 py-0.5 font-mono">
                                             Candidate ID: {meta?.candidate_id}
                                         </Badge>
-                                        {candidate?.candidate_status && (
-                                            <Badge className={cn(
+                                        {candidate?.candidate_status?.map((s: string) => (
+                                            <Badge key={s} className={cn(
                                                 "text-[10px] font-black uppercase tracking-widest py-0.5",
-                                                candidate.candidate_status === 'Blacklist' ? 'bg-rose-100 text-rose-700 border-rose-200' : 'bg-emerald-100 text-emerald-700 border-emerald-200'
+                                                s === 'Blacklist' ? 'bg-rose-100 text-rose-700 border-rose-200' :
+                                                s === 'Over-aged' ? 'bg-orange-100 text-orange-700 border-orange-200' :
+                                                'bg-emerald-100 text-emerald-700 border-emerald-200'
                                             )}>
-                                                {candidate.candidate_status}
+                                                {s}
                                             </Badge>
-                                        )}
+                                        ))}
                                         {meta?.history_count > 0 && (
                                             <Badge 
                                                 variant="outline" 

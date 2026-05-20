@@ -39,9 +39,9 @@ export interface Candidate {
     email: string;
     mobile_phone: string;
     nationality: string;
-    age: number;
+    age: number | null;
     gender?: string;
-    candidate_status?: string;
+    candidate_status?: string[] | null;
     job_grouping?: string;
     job_function?: string;
     photo?: string;
@@ -186,14 +186,19 @@ const CandidateRow = ({
                 </TableCell>
                 {showStatusColumn && (
                     <TableCell>
-                        {candidate.candidate_status ? (
-                            <Badge variant="secondary" className={cn(
-                                "text-[10px] font-bold uppercase tracking-wider border",
-                                candidate.candidate_status === 'Active' ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                                    "bg-slate-100 text-slate-600 border-slate-200"
-                            )}>
-                                {candidate.candidate_status}
-                            </Badge>
+                        {candidate.candidate_status && candidate.candidate_status.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                                {candidate.candidate_status.map((s: string) => (
+                                    <Badge key={s} variant="secondary" className={cn(
+                                        "text-[10px] font-bold uppercase tracking-wider border",
+                                        s === 'Blacklist' ? "bg-rose-50 text-rose-600 border-rose-100" :
+                                        s === 'Over-aged' ? "bg-orange-50 text-orange-600 border-orange-100" :
+                                        "bg-slate-100 text-slate-600 border-slate-200"
+                                    )}>
+                                        {s}
+                                    </Badge>
+                                ))}
+                            </div>
                         ) : <span className="text-slate-400">-</span>}
                     </TableCell>
                 )}

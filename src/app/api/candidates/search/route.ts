@@ -77,7 +77,7 @@ export async function POST(req: Request) {
 
         // --- 4. APPLY REMAINING ATTRIBUTE FILTERS ---
         if (filters?.gender?.length) profileQuery = profileQuery.in('gender', filters.gender);
-        if (filters?.status?.length) profileQuery = profileQuery.in('candidate_status', filters.status);
+        if (filters?.status?.length) profileQuery = profileQuery.overlaps('candidate_status', filters.status);
         if (filters?.jobGrouping?.length) profileQuery = profileQuery.in('job_grouping', filters.jobGrouping);
         if (filters?.jobFunction?.length) profileQuery = profileQuery.in('job_function', filters.jobFunction);
         if (filters?.ageMin) profileQuery = profileQuery.gte('age', filters.ageMin);
