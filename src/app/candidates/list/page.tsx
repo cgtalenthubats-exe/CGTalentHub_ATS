@@ -967,11 +967,11 @@ function CandidateRichCard({
 
                 {/* Action Buttons (Top Right) */}
                 <div className="absolute top-4 right-4 flex items-center gap-2">
-                    {candidate.candidate_status && (
-                        <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-none shadow-sm uppercase tracking-wider text-[10px]">
-                            {candidate.candidate_status}
+                    {candidate.candidate_status?.map((s, i) => (
+                        <Badge key={i} className="bg-emerald-500 hover:bg-emerald-600 text-white border-none shadow-sm uppercase tracking-wider text-[10px]">
+                            {s}
                         </Badge>
-                    )}
+                    ))}
                 </div>
 
                 <CandidateAvatar

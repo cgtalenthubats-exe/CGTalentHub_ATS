@@ -30,7 +30,7 @@ interface LogTableRowProps {
     log: UploadLog;
     isSelected: boolean;
     onSelectChange: (checked: boolean) => void;
-    onStatusChange: (newStatus: string) => Promise<boolean>;
+    onStatusChange: (newStatus: string) => Promise<boolean | undefined>;
     viewMode: 'csv' | 'resume';
 }
 
@@ -42,7 +42,8 @@ export const LogTableRow = React.memo(({
     viewMode 
 }: LogTableRowProps) => {
     
-    const handleStatusChange = async (val: string) => {
+    const handleStatusChange = async (vals: string[]) => {
+        const val = vals[0] || "";
         const success = await onStatusChange(val);
         if (success) {
             toast.success("Status updated");
@@ -116,7 +117,7 @@ export const LogTableRow = React.memo(({
 
             <TableCell>
                 <StatusSelect
-                    value={log.candidate_status || ""}
+                    value={log.candidate_status ? [log.candidate_status] : null}
                     onChange={handleStatusChange}
                     className="w-[180px] h-8 text-xs bg-white border-slate-200"
                     placeholder="Select Status"
