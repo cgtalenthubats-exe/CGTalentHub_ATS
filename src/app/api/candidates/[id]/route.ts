@@ -243,7 +243,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         }
 
         if (body.blacklist_note !== undefined) {
-            const note = String(body.blacklist_note).trim();
+            const raw = body.blacklist_note;
+            const note = (raw === null || raw === undefined) ? '' : String(raw).trim();
             updateData.blacklist_note = note === '' ? null : note;
         }
 

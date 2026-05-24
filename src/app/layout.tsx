@@ -63,7 +63,7 @@ export default function RootLayout({
               </main>
             </div>
           </div>
-          <Toaster />
+          <Toaster duration={5000} richColors />
         </ThemeProvider>
       </body>
     </html>

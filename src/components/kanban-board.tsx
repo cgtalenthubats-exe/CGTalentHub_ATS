@@ -269,10 +269,16 @@ export function KanbanBoard({ jrId, jobTitle, bu, subBu, updatedBy }: KanbanBoar
                     }}
                 />
             )}
-            <JRCandidateSheet 
+            <JRCandidateSheet
                 jrCandidateId={sheetCandidateId}
                 open={isSheetOpen}
-                onOpenChange={setIsSheetOpen}
+                onOpenChange={async (open) => {
+                    setIsSheetOpen(open);
+                    if (!open) {
+                        const updated = await getJRCandidates(jrId);
+                        setCandidates(updated);
+                    }
+                }}
             />
         </div>
     );

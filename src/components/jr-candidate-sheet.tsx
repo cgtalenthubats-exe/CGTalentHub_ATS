@@ -304,7 +304,7 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
                                                     </div>
                                                 </>
                                             )}
-                                            {candidate?.blacklist_note && (
+                                            {candidate?.blacklist_note && candidate.blacklist_note !== 'null' && (
                                                 <div className="flex items-center gap-4 bg-rose-50 px-4 py-2 rounded-xl ring-1 ring-rose-100">
                                                     <div className="p-1.5 bg-rose-500 rounded-lg text-white shadow-sm"><AlertCircle className="h-4 w-4" /></div>
                                                     <div className="flex flex-col">

@@ -1174,9 +1174,13 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
             <JRCandidateSheet
                 jrCandidateId={sheetCandidateId}
                 open={isSheetOpen}
-                onOpenChange={(open) => {
+                onOpenChange={async (open) => {
                     setIsSheetOpen(open);
-                    if (!open) setSheetCandidateId(null);
+                    if (!open) {
+                        setSheetCandidateId(null);
+                        const updated = await getJRCandidates(jrId);
+                        setCandidates(updated);
+                    }
                 }}
             />
         </Card>
