@@ -1413,6 +1413,21 @@ export async function verifyOrgNode(nodeId: string, status: 'TRUE' | 'NOT_MATCH'
     return { success: true };
 }
 
+export async function updateOrgUploadMeta(uploadId: string, fields: { company_name?: string; notes?: string; branch_name?: string }) {
+    const { error } = await supabase
+        .from('org_chart_uploads')
+        .update(fields)
+        .eq('upload_id', uploadId)
+
+    if (error) {
+        console.error('[UpdateOrgMeta] Error:', error)
+        return { success: false, error: error.message }
+    }
+
+    revalidatePath('/org-chart')
+    return { success: true }
+}
+
 export async function unlinkOrgNode(nodeId: string, uploadId: string) {
     const { error } = await supabase
         .from('all_org_nodes')

@@ -7,6 +7,7 @@ import { OrgDirectory } from '@/components/org-chart/org-directory'
 import { OrgNodeTable } from '@/components/org-chart/org-node-table'
 import { OrgChartClientWrapper } from '@/components/org-chart/org-chart-client-wrapper'
 import { UnmappedCandidates } from '@/components/org-chart/unmapped-candidates'
+import { EditOrgMetaDialog } from '@/components/org-chart/edit-org-meta-dialog'
 
 type OrgChartClientPageProps = {
     uploads: any[]
@@ -78,23 +79,32 @@ export function OrgChartClientPage({
                             </TabsTrigger>
                         </TabsList>
 
-                        {currentUploadId && (
-                            <div className="flex flex-col items-end gap-0">
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                        Current Org:
-                                    </span>
-                                    <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
-                                        {uploads.find((u: any) => u.upload_id === currentUploadId)?.company_name}
-                                    </span>
+                        {currentUploadId && (() => {
+                            const currentUpload = uploads.find((u: any) => u.upload_id === currentUploadId)
+                            return (
+                                <div className="flex flex-col items-end gap-0">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                            Current Org:
+                                        </span>
+                                        <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                                            {currentUpload?.company_name}
+                                        </span>
+                                        <EditOrgMetaDialog
+                                            uploadId={currentUploadId}
+                                            companyName={currentUpload?.company_name ?? ''}
+                                            notes={currentUpload?.notes}
+                                            branchName={currentUpload?.branch_name}
+                                        />
+                                    </div>
+                                    {modifyDate && (
+                                        <span className="text-[9px] text-slate-400 font-medium">
+                                            Uploaded: {new Date(modifyDate).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                        </span>
+                                    )}
                                 </div>
-                                {modifyDate && (
-                                    <span className="text-[9px] text-slate-400 font-medium">
-                                        Uploaded: {new Date(modifyDate).toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                                    </span>
-                                )}
-                            </div>
-                        )}
+                            )
+                        })()}
                     </div>
 
                     <TabsContent value="chart" className="flex-1 flex flex-col h-full border rounded-xl overflow-hidden mt-0 shadow-sm relative">
