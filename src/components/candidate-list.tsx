@@ -34,6 +34,7 @@ import {
     copyCandidatesToJR
 } from "@/app/actions/status-updates";
 import { triggerCandidateRefresh } from "@/app/actions/n8n-actions";
+import { getStatuses, addStatus } from "@/app/actions/candidate-filters";
 import { toast } from "@/lib/notifications";
 import { getJobRequisitions } from "@/app/actions/requisitions";
 import { cn } from "@/lib/utils";
@@ -1032,29 +1033,28 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                             </span>
                                         </div>
                                     </td>
+                                    {/* Remark (candidate_status) — inline toggle */}
                                     <td className="px-4 py-4">
-                                        {c.candidate_status && c.candidate_status.length > 0 ? (
-                                            <div className="flex flex-wrap gap-1">
-                                                {c.candidate_status.map((s: string) => (
-                                                    <Badge key={s} variant="secondary" className={cn(
-                                                        "text-[10px] font-black uppercase tracking-wider border whitespace-nowrap px-2.5 py-1 rounded-lg shadow-sm",
-                                                        s === 'Blacklist' ? "bg-rose-50 text-rose-600 border-rose-100" :
-                                                        s === 'Over-aged' ? "bg-orange-50 text-orange-600 border-orange-100" :
-                                                        "bg-slate-50 text-slate-500 border-slate-200"
-                                                    )}>
-                                                        {s}
-                                                    </Badge>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <span className="text-slate-300 text-xs">—</span>
-                                        )}
+                                        <RemarkCell
+                                            candidateId={c.candidate_id}
+                                            statuses={c.candidate_status || []}
+                                            onSaved={async () => {
+                                                const updated = await getJRCandidates(jrId);
+                                                setCandidates(updated);
+                                            }}
+                                        />
                                     </td>
+                                    {/* Sex/Age — inline edit */}
                                     <td className="px-4 py-4">
-                                        <div className="inline-flex items-center gap-2 font-black text-sm text-slate-700 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100 whitespace-nowrap">
-                                            {safeRender(c.candidate_gender)}
-                                            {c.candidate_age ? `, ${c.candidate_age}` : ""}
-                                        </div>
+                                        <SexAgeCell
+                                            candidateId={c.candidate_id}
+                                            gender={c.candidate_gender || ''}
+                                            age={c.candidate_age ?? null}
+                                            onSaved={async () => {
+                                                const updated = await getJRCandidates(jrId);
+                                                setCandidates(updated);
+                                            }}
+                                        />
                                     </td>
                                     {/* Company column */}
                                     <td className="px-4 py-4">
@@ -1195,6 +1195,169 @@ const safeRender = (val: any) => {
     if (val === null || val === undefined) return "-";
     if (typeof val === 'object') return "-"; // Block objects
     return String(val);
+}
+
+function remarkBadgeClass(s: string) {
+    const l = s.toLowerCase();
+    if (l === 'blacklist') return "bg-rose-50 text-rose-600 border-rose-100";
+    if (l === 'over-aged') return "bg-orange-50 text-orange-600 border-orange-100";
+    if (l === "don't touch") return "bg-red-50 text-red-600 border-red-100";
+    if (l === 'ex-central') return "bg-emerald-50 text-emerald-600 border-emerald-100";
+    if (l === 'internal candidate') return "bg-indigo-50 text-indigo-600 border-indigo-100";
+    if (l === 'active') return "bg-green-50 text-green-600 border-green-100";
+    return "bg-slate-50 text-slate-500 border-slate-200";
+}
+
+function RemarkCell({ candidateId, statuses, onSaved }: {
+    candidateId: string;
+    statuses: string[];
+    onSaved: () => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const [current, setCurrent] = useState<string[]>(statuses);
+    const [options, setOptions] = useState<string[]>([]);
+    const [saving, setSaving] = useState(false);
+    const [newTag, setNewTag] = useState('');
+    const [addingNew, setAddingNew] = useState(false);
+
+    useEffect(() => {
+        if (open && options.length === 0) {
+            getStatuses().then(data => setOptions((data as any[]).map((d: any) => d.status)));
+        }
+    }, [open]);
+
+    const toggle = async (s: string) => {
+        const next = current.includes(s) ? current.filter(x => x !== s) : [...current, s];
+        setCurrent(next);
+        setSaving(true);
+        await fetch(`/api/candidates/${candidateId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ candidate_status: next }),
+        });
+        setSaving(false);
+        onSaved();
+    };
+
+    const handleAddNew = async () => {
+        const tag = newTag.trim();
+        if (!tag) return;
+        setAddingNew(true);
+        await addStatus(tag);
+        setOptions(prev => [...prev, tag].sort());
+        setNewTag('');
+        setAddingNew(false);
+        await toggle(tag);
+    };
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <button className="min-w-[80px] text-left">
+                    {current.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                            {current.map(s => (
+                                <Badge key={s} variant="secondary" className={cn(
+                                    "text-[10px] font-black uppercase tracking-wider border whitespace-nowrap px-2 py-0.5 rounded-lg",
+                                    remarkBadgeClass(s)
+                                )}>{s}</Badge>
+                            ))}
+                        </div>
+                    ) : (
+                        <span className="text-slate-300 text-xs hover:text-slate-400 transition-colors">— click to set —</span>
+                    )}
+                </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-52 p-2 rounded-xl shadow-xl border-slate-100" align="start">
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 px-2 pb-2">Remark Tags</p>
+                {options.length === 0 ? (
+                    <p className="text-xs text-slate-400 text-center py-2">Loading...</p>
+                ) : options.map(s => (
+                    <button
+                        key={s}
+                        onClick={() => toggle(s)}
+                        disabled={saving}
+                        className={cn(
+                            "w-full text-left text-xs font-bold px-3 py-2 rounded-lg transition-all flex items-center justify-between",
+                            current.includes(s) ? "bg-indigo-50 text-indigo-700" : "hover:bg-slate-50 text-slate-600"
+                        )}
+                    >
+                        {s}
+                        {current.includes(s) && <span className="text-indigo-400 text-base leading-none">✓</span>}
+                    </button>
+                ))}
+                <div className="border-t border-slate-100 mt-2 pt-2 flex gap-1">
+                    <input
+                        value={newTag}
+                        onChange={e => setNewTag(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleAddNew(); }}
+                        placeholder="Add new tag..."
+                        className="flex-1 h-7 text-[11px] font-bold px-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                    />
+                    <Button size="sm" className="h-7 px-2 text-[11px]" disabled={addingNew || !newTag.trim()} onClick={handleAddNew}>
+                        {addingNew ? <Loader2 className="h-3 w-3 animate-spin" /> : '+'}
+                    </Button>
+                </div>
+            </PopoverContent>
+        </Popover>
+    );
+}
+
+const GENDER_OPTIONS = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
+
+function SexAgeCell({ candidateId, gender, age, onSaved }: {
+    candidateId: string;
+    gender: string;
+    age: number | null;
+    onSaved: () => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const [g, setG] = useState(gender);
+    const [a, setA] = useState(String(age ?? ''));
+    const [saving, setSaving] = useState(false);
+
+    const save = async () => {
+        setSaving(true);
+        await fetch(`/api/candidates/${candidateId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gender: g || null, age: parseInt(a) || null }),
+        });
+        setSaving(false);
+        setOpen(false);
+        onSaved();
+    };
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <button className="inline-flex items-center gap-2 font-black text-sm text-slate-700 bg-slate-50 hover:bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-100 hover:border-slate-200 whitespace-nowrap transition-all">
+                    {gender || '—'}{age ? `, ${age}` : ''}
+                </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-52 p-3 rounded-xl shadow-xl border-slate-100 space-y-3" align="start">
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Sex / Age</p>
+                <select
+                    value={g}
+                    onChange={e => setG(e.target.value)}
+                    className="w-full h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                >
+                    <option value="">— Gender —</option>
+                    {GENDER_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                </select>
+                <input
+                    type="number"
+                    value={a}
+                    onChange={e => setA(e.target.value)}
+                    placeholder="Age"
+                    className="w-full h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                />
+                <Button size="sm" className="w-full h-8 text-xs font-black" disabled={saving} onClick={save}>
+                    {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Save'}
+                </Button>
+            </PopoverContent>
+        </Popover>
+    );
 }
 
 function getRowStatusClass(status: string) {

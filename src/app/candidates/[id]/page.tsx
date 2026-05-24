@@ -16,6 +16,7 @@ import { cn, formatNumberWithCommas } from "@/lib/utils";
 
 import { BackButton, EditButton, AddPrescreenDialog, EditPrescreenDialog, DeleteCandidateDialog, DeletePrescreenButton, RefreshProfileButton } from "@/components/candidate-client-actions";
 import { AddExperienceDialog, DeleteExperienceButton, SetCurrentExperienceButton, EditExperienceDialog } from "@/components/experience-dialog";
+import { bulkDeleteExperiences } from "@/app/actions/candidate";
 import { formatMonthYear, parseAnyDate } from "@/lib/date-utils";
 import { JobStatusDetailDialog } from "@/components/job-status-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -35,6 +36,8 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
     const [selectedJrCandidateId, setSelectedJrCandidateId] = React.useState<string | null>(null);
     const [isSheetOpen, setIsSheetOpen] = React.useState(false);
     const [openJrDialog, setOpenJrDialog] = React.useState(false);
+    const [selectedExpIds, setSelectedExpIds] = React.useState<string[]>([]);
+    const [isDeletingBulk, setIsDeletingBulk] = React.useState(false);
 
     React.useEffect(() => {
         const fetchCandidate = async () => {
@@ -360,29 +363,62 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                             <CardTitle className="text-lg font-bold flex items-center gap-2 text-slate-800">
                                 <span className="p-2 rounded-lg bg-blue-100 text-blue-600"><Briefcase className="h-5 w-5" /></span> Work Experience
                             </CardTitle>
-                            <AddExperienceDialog candidateId={candidate.candidate_id} />
+                            <div className="flex items-center gap-2">
+                                {selectedExpIds.length > 0 && (
+                                    <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        className="h-8 px-3 text-[11px] font-black gap-1.5"
+                                        disabled={isDeletingBulk}
+                                        onClick={async () => {
+                                            if (!confirm(`Delete ${selectedExpIds.length} experience${selectedExpIds.length > 1 ? 's' : ''}? This cannot be undone.`)) return;
+                                            setIsDeletingBulk(true);
+                                            const res = await fetch(`/api/candidates/${candidate.candidate_id}`);
+                                            await bulkDeleteExperiences(selectedExpIds, candidate.candidate_id);
+                                            setSelectedExpIds([]);
+                                            setIsDeletingBulk(false);
+                                            const data = await (await fetch(`/api/candidates/${candidate.candidate_id}`)).json();
+                                            setCandidate(data.data);
+                                        }}
+                                    >
+                                        {isDeletingBulk ? <span className="animate-spin">⏳</span> : null}
+                                        Delete {selectedExpIds.length} selected
+                                    </Button>
+                                )}
+                                <AddExperienceDialog candidateId={candidate.candidate_id} />
+                            </div>
                         </CardHeader>
                         <CardContent className="relative pl-8 border-l-2 border-border/40 ml-8 space-y-10 py-8 pr-6">
                             {candidate.experiences
                                 ?.sort((a: any, b: any) => {
-                                    // 1. Current first: end_date = 'Present' OR is_current_job = 'Current'
                                     const aCurrent = (a.end_date?.toLowerCase() === 'present') || a.is_current_job === 'Current';
                                     const bCurrent = (b.end_date?.toLowerCase() === 'present') || b.is_current_job === 'Current';
                                     if (aCurrent && !bCurrent) return -1;
                                     if (!aCurrent && bCurrent) return 1;
-
-                                    // 2. start_date descending (newest first), handle M-YYYY format
                                     const parseMMYYYY = (d: string) => { const p = (d||'').split('-'); return p.length === 2 ? parseInt(p[1])*100+parseInt(p[0]) : (new Date(d).getTime()||0); };
                                     return parseMMYYYY(b.start_date) - parseMMYYYY(a.start_date);
                                 })
                                 .map((exp: any, i: number) => {
                                     const isCurrent = (exp.end_date?.toLowerCase() === 'present') || exp.is_current_job === 'Current';
+                                    const isSelected = selectedExpIds.includes(exp.id);
                                     return (
-                                        <div key={i} className="relative group">
-                                            {/* Timeline Dot — filled blue if Current, grey otherwise */}
-                                            <div className={`absolute -left-[2.6rem] top-1.5 h-4 w-4 rounded-full border-2 border-background shadow-sm ${isCurrent ? 'bg-primary ring-4 ring-primary/10' : 'bg-muted-foreground/30'
-                                                }`} />
-
+                                        <div key={i} className={cn("relative group", isSelected && "opacity-70")}>
+                                            <div className={`absolute -left-[2.6rem] top-1.5 h-4 w-4 rounded-full border-2 border-background shadow-sm ${isCurrent ? 'bg-primary ring-4 ring-primary/10' : 'bg-muted-foreground/30'}`} />
+                                            {/* Checkbox */}
+                                            <div className={cn(
+                                                "absolute -left-[3.8rem] top-1 transition-opacity",
+                                                selectedExpIds.length > 0 ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                                            )}>
+                                                <Checkbox
+                                                    checked={isSelected}
+                                                    onCheckedChange={(checked) => {
+                                                        setSelectedExpIds(prev =>
+                                                            checked ? [...prev, exp.id] : prev.filter(id => id !== exp.id)
+                                                        );
+                                                    }}
+                                                    className="h-4 w-4 border-slate-300"
+                                                />
+                                            </div>
                                             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1">
                                                 <div className="flex-1 space-y-1">
                                                     <div className="flex items-center gap-2">
@@ -396,7 +432,6 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                                                     <div className="text-primary font-semibold text-base">{exp.company}</div>
                                                     <div className="text-xs text-muted-foreground flex items-center gap-2 mt-1 font-medium">
                                                         <MapPin className="h-3 w-3" /> {exp.country || "No Location"}
-                                                        {/* Visual separator */}
                                                         <span className="text-border">|</span>
                                                         {exp.company_industry && <span className="px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground text-[10px] border border-border">{exp.company_industry}</span>}
                                                     </div>

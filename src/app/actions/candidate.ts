@@ -194,6 +194,21 @@ export async function deleteExperience(experienceId: string, candidateId: string
     return { success: true };
 }
 
+export async function bulkDeleteExperiences(experienceIds: string[], candidateId: string) {
+    const client = adminAuthClient as any;
+    const { error } = await client
+        .from("candidate_experiences")
+        .delete()
+        .in("id", experienceIds);
+
+    if (error) {
+        return { error: error.message };
+    }
+
+    revalidatePath(`/candidates/${candidateId}`);
+    return { success: true };
+}
+
 // Set (or toggle off) the 'Current' job for a candidate.
 // Simplified: Just set the selected experience as 'Current'.
 export async function setCurrentExperience(experienceId: string, candidateId: string) {

@@ -3,17 +3,17 @@ import Link from "next/link";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { 
-    MessageSquare, Loader2, Mail, Phone, MapPin, 
-    Globe, Briefcase, GraduationCap, DollarSign, 
+import {
+    MessageSquare, Loader2, Mail, Phone, MapPin,
+    Globe, Briefcase, GraduationCap, DollarSign,
     FileText, Calendar, ExternalLink, Download,
-    UserCog, Edit3, AlertCircle
+    UserCog, Edit3, AlertCircle, Trash2, CheckSquare
 } from "lucide-react";
-import { 
-    AddExperienceDialog, 
-    EditExperienceDialog, 
-    DeleteExperienceButton, 
-    SetCurrentExperienceButton 
+import {
+    AddExperienceDialog,
+    EditExperienceDialog,
+    DeleteExperienceButton,
+    SetCurrentExperienceButton
 } from "@/components/experience-dialog";
 import { CandidateEditSheet } from "./candidate-edit-sheet";
 import { getJRCandidateDetails } from "@/app/actions/jr-candidate-logs";
@@ -21,11 +21,13 @@ import { FeedbackSection } from "@/components/feedback-section";
 import { CandidateActivityLog } from "@/components/candidate-activity-log";
 import { CandidateAvatar } from "@/components/candidate-avatar";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn, formatNumberWithCommas } from "@/lib/utils";
 import { formatMonthYear } from "@/lib/date-utils";
 import { HistoryTimeline } from "@/components/history/HistoryTimeline";
 import { History as HistoryIcon } from "lucide-react";
+import { bulkDeleteExperiences } from "@/app/actions/candidate";
 
 interface JRCandidateSheetProps {
     jrCandidateId: string | null;
@@ -38,6 +40,8 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState("recruitment");
     const [isEditOpen, setIsEditOpen] = useState(false);
+    const [selectedExpIds, setSelectedExpIds] = useState<string[]>([]);
+    const [isDeletingBulk, setIsDeletingBulk] = useState(false);
 
     const fetchData = useCallback(async (id: string, isSilent = false) => {
         if (!isSilent) setLoading(true);
@@ -61,6 +65,17 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
 
     const handleRefresh = () => {
         if (jrCandidateId) fetchData(jrCandidateId, true);
+    };
+
+    const patchCandidate = async (fields: Record<string, any>) => {
+        const candidateId = data?.meta?.candidate_id;
+        if (!candidateId) return;
+        await fetch(`/api/candidates/${candidateId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(fields),
+        });
+        handleRefresh();
     };
 
     const meta = data?.meta;
@@ -253,6 +268,9 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
 
                             {activeTab === "profile" && (
                                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                        {/* Quick Edit Bar */}
+                                        <QuickEditBar candidate={candidate} onSave={patchCandidate} />
+
                                         {/* Contact Intel Ribbon */}
                                         <div className="bg-white rounded-2xl p-6 shadow-sm ring-1 ring-slate-100 flex flex-wrap gap-8 items-center justify-between">
                                             <div className="flex items-center gap-4">
@@ -335,10 +353,31 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
                                                     <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
                                                         Work Experience
                                                     </h3>
-                                                    <AddExperienceDialog 
-                                                        candidateId={meta?.candidate_id} 
-                                                        onSuccess={handleRefresh}
-                                                    />
+                                                    <div className="flex items-center gap-2">
+                                                        {selectedExpIds.length > 0 && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="destructive"
+                                                                className="h-7 px-3 text-[11px] font-black gap-1.5"
+                                                                disabled={isDeletingBulk}
+                                                                onClick={async () => {
+                                                                    if (!confirm(`Delete ${selectedExpIds.length} experience${selectedExpIds.length > 1 ? 's' : ''}? This cannot be undone.`)) return;
+                                                                    setIsDeletingBulk(true);
+                                                                    await bulkDeleteExperiences(selectedExpIds, meta?.candidate_id);
+                                                                    setSelectedExpIds([]);
+                                                                    setIsDeletingBulk(false);
+                                                                    handleRefresh();
+                                                                }}
+                                                            >
+                                                                {isDeletingBulk ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+                                                                Delete {selectedExpIds.length} selected
+                                                            </Button>
+                                                        )}
+                                                        <AddExperienceDialog
+                                                            candidateId={meta?.candidate_id}
+                                                            onSuccess={handleRefresh}
+                                                        />
+                                                    </div>
                                                 </div>
                                                 <div className="relative border-l-2 border-slate-100 ml-4 pl-8 space-y-10 py-4">
                                                     {experiences.length > 0 ? [...experiences]
@@ -347,7 +386,6 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
                                                             const bCurrent = (b.end_date?.toLowerCase() === 'present') || b.is_current_job === 'Current';
                                                             if (aCurrent && !bCurrent) return -1;
                                                             if (!aCurrent && bCurrent) return 1;
-                                                            
                                                             const parseYearMonth = (d: string) => {
                                                                 if (!d) return 0;
                                                                 const p = d.split('-');
@@ -357,24 +395,40 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
                                                         })
                                                         .map((exp: any, i: number) => {
                                                         const isCurrent = exp.is_current_job === 'Current' || (exp.end_date?.toLowerCase() === 'present');
+                                                        const isSelected = selectedExpIds.includes(exp.id);
                                                         return (
-                                                            <div key={i} className="relative group">
+                                                            <div key={i} className={cn("relative group", isSelected && "opacity-70")}>
                                                                 <div className={cn(
                                                                     "absolute -left-[2.6rem] top-1.5 h-4 w-4 rounded-full border-4 border-white shadow-md ring-2 ring-slate-100",
                                                                     isCurrent ? "bg-indigo-600 scale-125 ring-indigo-50" : "bg-slate-300"
                                                                 )} />
+                                                                {/* Checkbox — visible on hover or when any selected */}
+                                                                <div className={cn(
+                                                                    "absolute -left-[3.8rem] top-1 transition-opacity",
+                                                                    selectedExpIds.length > 0 ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                                                                )}>
+                                                                    <Checkbox
+                                                                        checked={isSelected}
+                                                                        onCheckedChange={(checked) => {
+                                                                            setSelectedExpIds(prev =>
+                                                                                checked ? [...prev, exp.id] : prev.filter(id => id !== exp.id)
+                                                                            );
+                                                                        }}
+                                                                        className="h-4 w-4 border-slate-300"
+                                                                    />
+                                                                </div>
                                                                 <div className="space-y-1">
                                                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                                                         <div className="flex items-center gap-3">
                                                                             <h4 className="text-base font-black text-slate-900 tracking-tight">{exp.position}</h4>
                                                                             <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-                                                                                <EditExperienceDialog 
-                                                                                    experience={exp} 
+                                                                                <EditExperienceDialog
+                                                                                    experience={exp}
                                                                                     candidateId={meta?.candidate_id}
                                                                                     onSuccess={handleRefresh}
                                                                                 />
-                                                                                <DeleteExperienceButton 
-                                                                                    id={exp.id} 
+                                                                                <DeleteExperienceButton
+                                                                                    id={exp.id}
                                                                                     candidateId={meta?.candidate_id}
                                                                                     onSuccess={handleRefresh}
                                                                                 />
@@ -389,9 +443,9 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
                                                                     </div>
                                                                     <div className="flex items-center gap-4">
                                                                         <p className="text-sm font-black text-indigo-600 tracking-tight uppercase">{exp.company}</p>
-                                                                        <SetCurrentExperienceButton 
-                                                                            experienceId={exp.id} 
-                                                                            candidateId={meta?.candidate_id} 
+                                                                        <SetCurrentExperienceButton
+                                                                            experienceId={exp.id}
+                                                                            candidateId={meta?.candidate_id}
                                                                             isCurrent={isCurrent}
                                                                             onSuccess={handleRefresh}
                                                                         />
@@ -554,12 +608,125 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
                     )}
                 </div>
             </SheetContent>
-            <CandidateEditSheet 
-                candidateId={meta?.candidate_id} 
-                open={isEditOpen} 
-                onOpenChange={setIsEditOpen} 
+            <CandidateEditSheet
+                candidateId={meta?.candidate_id}
+                open={isEditOpen}
+                onOpenChange={setIsEditOpen}
                 onSuccess={handleRefresh}
             />
         </Sheet>
+    );
+}
+
+const STATUS_OPTIONS = ['Blacklist', 'Over-aged', "Don't touch", 'Ex-Central', 'VIP'];
+const GENDER_OPTIONS = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
+
+function QuickEditBar({ candidate, onSave }: { candidate: any; onSave: (fields: Record<string, any>) => Promise<void> }) {
+    const [linkedin, setLinkedin] = useState(candidate?.linkedin || '');
+    const [age, setAge] = useState(String(candidate?.age || ''));
+    const [gender, setGender] = useState(candidate?.gender || '');
+    const [statuses, setStatuses] = useState<string[]>(candidate?.candidate_status || []);
+    const [saving, setSaving] = useState<string | null>(null);
+
+    useEffect(() => {
+        setLinkedin(candidate?.linkedin || '');
+        setAge(String(candidate?.age || ''));
+        setGender(candidate?.gender || '');
+        setStatuses(candidate?.candidate_status || []);
+    }, [candidate]);
+
+    const save = async (field: string, value: any) => {
+        setSaving(field);
+        await onSave({ [field]: value });
+        setSaving(null);
+    };
+
+    const toggleStatus = async (s: string) => {
+        const next = statuses.includes(s) ? statuses.filter(x => x !== s) : [...statuses, s];
+        setStatuses(next);
+        await save('candidate_status', next);
+    };
+
+    return (
+        <div className="bg-gradient-to-r from-indigo-50/60 to-slate-50/60 rounded-2xl p-5 ring-1 ring-indigo-100/60 space-y-4">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400 flex items-center gap-2">
+                <Edit3 className="h-3 w-3" /> Quick Edit
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* LinkedIn */}
+                <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">LinkedIn URL</label>
+                    <div className="flex gap-2">
+                        <input
+                            value={linkedin}
+                            onChange={e => setLinkedin(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') save('linkedin', linkedin); }}
+                            placeholder="linkedin.com/in/..."
+                            className="flex-1 h-8 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                        />
+                        <Button size="sm" variant="outline" className="h-8 px-3 text-xs font-black"
+                            disabled={saving === 'linkedin'}
+                            onClick={() => save('linkedin', linkedin)}>
+                            {saving === 'linkedin' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Save'}
+                        </Button>
+                    </div>
+                </div>
+                {/* Gender */}
+                <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Gender</label>
+                    <select
+                        value={gender}
+                        onChange={e => { setGender(e.target.value); save('gender', e.target.value); }}
+                        className="w-full h-8 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                    >
+                        <option value="">— Select —</option>
+                        {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
+                    </select>
+                </div>
+                {/* Age */}
+                <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Age (manual override)</label>
+                    <div className="flex gap-2">
+                        <input
+                            type="number"
+                            value={age}
+                            onChange={e => setAge(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') save('age', parseInt(age) || null); }}
+                            placeholder="e.g. 45"
+                            className="flex-1 h-8 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                        />
+                        <Button size="sm" variant="outline" className="h-8 px-3 text-xs font-black"
+                            disabled={saving === 'age'}
+                            onClick={() => save('age', parseInt(age) || null)}>
+                            {saving === 'age' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Save'}
+                        </Button>
+                    </div>
+                </div>
+                {/* Remark / candidate_status */}
+                <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Remark (Status Tags)</label>
+                    <div className="flex flex-wrap gap-1.5">
+                        {STATUS_OPTIONS.map(s => (
+                            <button
+                                key={s}
+                                onClick={() => toggleStatus(s)}
+                                disabled={saving === 'candidate_status'}
+                                className={cn(
+                                    "text-[10px] font-black px-2.5 py-1 rounded-lg border transition-all",
+                                    statuses.includes(s)
+                                        ? s === 'Blacklist' ? 'bg-rose-500 text-white border-rose-500'
+                                        : s === 'Over-aged' ? 'bg-orange-400 text-white border-orange-400'
+                                        : 'bg-indigo-500 text-white border-indigo-500'
+                                        : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                                )}
+                            >
+                                {s}
+                            </button>
+                        ))}
+                        {saving === 'candidate_status' && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />}
+                    </div>
+                </div>
+            </div>
+        </div>
     );
 }
