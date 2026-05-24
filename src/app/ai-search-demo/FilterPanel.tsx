@@ -32,6 +32,8 @@ interface CascadingOptions {
     nationalities: string[];
 }
 
+type PositionSuggestion = { label: string; type: 'keyword' | 'position' }
+
 interface FilterPanelProps {
     staticOptions: StaticOptions;
     cascadingOptions: CascadingOptions | null;
@@ -39,7 +41,7 @@ interface FilterPanelProps {
     filters: DemoFilterState;
     onChange: (filters: DemoFilterState) => void;
     onReset: () => void;
-    onSearchPositions: (query: string, filters: DemoFilterState) => Promise<string[]>;
+    onSearchPositions: (query: string, filters: DemoFilterState) => Promise<PositionSuggestion[]>;
     onSearchCompanies: (query: string, filters: DemoFilterState) => Promise<string[]>;
 }
 
@@ -524,6 +526,159 @@ function LiveSearchPopover({
 }
 
 
+// --- Position search popover: vocab keywords (→ position_keywords) + raw positions (→ position_search) ---
+function PositionSearchPopover({
+    filters,
+    onChange,
+    onSearch,
+}: {
+    filters: DemoFilterState;
+    onChange: (f: DemoFilterState) => void;
+    onSearch: (query: string, filters: DemoFilterState) => Promise<PositionSuggestion[]>;
+}) {
+    const [open, setOpen] = useState(false);
+    const [search, setSearch] = useState("");
+    const [suggestions, setSuggestions] = useState<PositionSuggestion[]>([]);
+    const [loading, setLoading] = useState(false);
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+    // combined selected: keyword tags + position_search tags
+    const selectedKeywords = filters.position_keywords;
+    const selectedPositions = filters.position_search;
+    const allSelected = [
+        ...selectedKeywords.map(l => ({ label: l, type: 'keyword' as const })),
+        ...selectedPositions.map(l => ({ label: l, type: 'position' as const })),
+    ];
+
+    // pending mirrors allSelected while popover is open
+    const [pending, setPending] = useState<PositionSuggestion[]>([]);
+
+    const handleOpenChange = (isOpen: boolean) => {
+        if (isOpen) {
+            setPending([...allSelected]);
+            setSearch("");
+            setSuggestions([]);
+            setLoading(true);
+            onSearch("", filters).then(r => { setSuggestions(r); setLoading(false); });
+        }
+        setOpen(isOpen);
+    };
+
+    useEffect(() => {
+        if (!open) return;
+        clearTimeout(debounceRef.current);
+        if (search.trim().length === 0) return;
+        if (search.trim().length < 2) { setLoading(false); return; }
+        setLoading(true);
+        debounceRef.current = setTimeout(async () => {
+            const r = await onSearch(search.trim(), filters);
+            setSuggestions(r);
+            setLoading(false);
+        }, 300);
+        return () => clearTimeout(debounceRef.current);
+    }, [search, filters, onSearch, open]);
+
+    const isSelected = (s: PositionSuggestion) => pending.some(p => p.label === s.label && p.type === s.type);
+    const toggle = (s: PositionSuggestion) =>
+        setPending(p => isSelected(s) ? p.filter(x => !(x.label === s.label && x.type === s.type)) : [...p, s]);
+
+    const apply = () => {
+        onChange({
+            ...filters,
+            position_keywords: pending.filter(p => p.type === 'keyword').map(p => p.label),
+            position_search: pending.filter(p => p.type === 'position').map(p => p.label),
+        });
+        setOpen(false);
+    };
+    const clear = () => {
+        onChange({ ...filters, position_keywords: [], position_search: [] });
+        setPending([]);
+        setOpen(false);
+    };
+
+    const count = allSelected.length;
+
+    return (
+        <Popover open={open} onOpenChange={handleOpenChange}>
+            <PopoverTrigger asChild>
+                <button className={cn(
+                    "w-full flex items-center justify-between px-3 py-2 text-sm rounded-lg transition-colors text-left",
+                    count > 0 ? "bg-indigo-50 text-indigo-800" : "text-slate-600 hover:bg-slate-50"
+                )}>
+                    <span className="font-medium truncate">Position</span>
+                    <div className="flex items-center gap-1.5 shrink-0 ml-1">
+                        {count > 0 && <Badge className="h-4 px-1.5 text-[10px] bg-indigo-600 text-white">{count}</Badge>}
+                        <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+                    </div>
+                </button>
+            </PopoverTrigger>
+            <PopoverContent side="right" align="start" sideOffset={4} className="w-72 p-0 shadow-xl border border-slate-100 rounded-xl z-50">
+                <div className="px-3 pt-3 pb-2 border-b border-slate-100">
+                    <div className="mb-1.5 text-[10px] font-black uppercase text-slate-400 tracking-widest">Position</div>
+                    <div className="relative">
+                        <input
+                            placeholder='e.g. "GM", "General Manager"...'
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            autoFocus
+                            className="w-full text-xs px-2 py-1.5 pr-6 border border-slate-200 rounded-md outline-none focus:ring-1 focus:ring-indigo-300 bg-white"
+                        />
+                        {loading && <Loader2 className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-slate-400" />}
+                    </div>
+                    {search.trim().length === 1 && <p className="text-[10px] text-slate-400 mt-1">พิมพ์อย่างน้อย 2 ตัวอักษร</p>}
+                </div>
+                <ScrollArea className="max-h-[220px]">
+                    <div className="p-2 flex flex-col gap-0.5">
+                        {/* Selected items when no search */}
+                        {search.trim().length < 2 && pending.length > 0 && pending.map(s => (
+                            <label key={`${s.type}:${s.label}`} className="flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer text-xs font-medium bg-indigo-50 text-indigo-800">
+                                <Checkbox checked onCheckedChange={() => toggle(s)} className="border-indigo-400 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600 shrink-0" />
+                                <span className="leading-snug flex-1">{s.label}</span>
+                                {s.type === 'keyword' && <span className="text-[9px] bg-indigo-200 text-indigo-700 px-1 py-0.5 rounded font-bold shrink-0">KW</span>}
+                            </label>
+                        ))}
+                        {suggestions.length > 0 && search.trim().length >= 2 && (() => {
+                            const allSel = suggestions.every(s => isSelected(s));
+                            const someSel = !allSel && suggestions.some(s => isSelected(s));
+                            return (
+                                <div className="px-1 py-1 border-b border-slate-100 flex items-center justify-between mb-1">
+                                    <label className="flex items-center gap-2 cursor-pointer select-none" onClick={() => {
+                                        if (allSel) setPending(p => p.filter(x => !suggestions.some(s => s.label === x.label && s.type === x.type)));
+                                        else setPending(p => [...p, ...suggestions.filter(s => !isSelected(s))]);
+                                    }}>
+                                        <div className={cn("h-4 w-4 rounded border flex items-center justify-center shrink-0 transition-colors", allSel ? "bg-indigo-600 border-indigo-600" : someSel ? "bg-indigo-100 border-indigo-400" : "bg-white border-slate-300")}>
+                                            {allSel && <svg viewBox="0 0 10 8" className="h-2.5 w-2.5 text-white fill-current"><path d="M1 4l3 3 5-6" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                                            {someSel && <div className="h-1.5 w-1.5 bg-indigo-500 rounded-sm" />}
+                                        </div>
+                                        <span className="text-xs font-semibold text-slate-600">Select All</span>
+                                    </label>
+                                </div>
+                            );
+                        })()}
+                        {!loading && search.trim().length >= 2 && suggestions.length === 0 && (
+                            <div className="text-xs text-slate-400 text-center py-3">ไม่พบผลที่ตรงกัน</div>
+                        )}
+                        {suggestions.map(s => (
+                            <label key={`${s.type}:${s.label}`} className={cn(
+                                "flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer text-xs font-medium",
+                                isSelected(s) ? "bg-indigo-50 text-indigo-800" : "text-slate-700 hover:bg-slate-50"
+                            )}>
+                                <Checkbox checked={isSelected(s)} onCheckedChange={() => toggle(s)} className="border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600 shrink-0" />
+                                <span className="leading-snug flex-1">{s.label}</span>
+                                {s.type === 'keyword' && <span className="text-[9px] bg-indigo-100 text-indigo-600 px-1 py-0.5 rounded font-bold shrink-0">KW</span>}
+                            </label>
+                        ))}
+                    </div>
+                </ScrollArea>
+                <div className="flex gap-2 p-2 border-t border-slate-100">
+                    <button onClick={clear} className="flex-1 text-xs text-red-500 hover:text-red-700 font-semibold py-1.5 border border-red-100 rounded-md hover:bg-red-50 transition-colors">Clear</button>
+                    <button onClick={apply} className="flex-1 text-xs font-semibold py-1.5 rounded-md transition-colors text-white bg-indigo-600 hover:bg-indigo-700">Apply</button>
+                </div>
+            </PopoverContent>
+        </Popover>
+    );
+}
+
 // --- Main FilterPanel ---
 export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, filters, onChange, onReset, onSearchPositions, onSearchCompanies }: FilterPanelProps) {
     if (!staticOptions) return null;
@@ -611,14 +766,10 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
             {/* Filter rows */}
             <div className="py-1">
                 <SectionLabel label="Position" />
-                <LiveSearchPopover
-                    label="Position"
-                    selected={filters.position_search}
-                    onChange={v => set("position_search", v)}
-                    activeFilters={filters}
+                <PositionSearchPopover
+                    filters={filters}
+                    onChange={onChange}
                     onSearch={onSearchPositions}
-                    placeholder='e.g. "General Manager", "cluster"...'
-                    emptyHint="พิมพ์เพื่อค้นหา — ผลลัพธ์ match ทั้ง keyword และตำแหน่งจริง"
                 />
                 <FilterPopover
                     label="Level"

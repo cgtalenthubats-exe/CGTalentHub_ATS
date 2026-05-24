@@ -202,17 +202,20 @@ const CandidateRow = ({
                         ) : <span className="text-slate-400">-</span>}
                     </TableCell>
                 )}
-                <TableCell className="max-w-[200px]">
-                    {latestExp ? (
-                        <div className="flex flex-col">
-                            <span className="font-medium text-sm text-slate-700 truncate" title={latestExp.company}>{latestExp.company}</span>
-                            <span className="text-xs text-slate-500 truncate" title={latestExp.position}>{latestExp.position}</span>
-                            <span className="text-[10px] text-slate-400 flex items-center mt-0.5">
-                                <MapPin className="w-3 h-3 mr-0.5" />
-                                {latestExp.country}
-                            </span>
-                        </div>
-                    ) : <span className="text-slate-400 italic text-xs">No experience</span>}
+                <TableCell className="max-w-[180px]">
+                    {latestExp?.position
+                        ? <span className="text-sm text-slate-700 truncate block" title={latestExp.position}>{latestExp.position}</span>
+                        : <span className="text-slate-300 text-xs">-</span>}
+                </TableCell>
+                <TableCell className="max-w-[160px]">
+                    {latestExp?.company
+                        ? <span className="font-medium text-sm text-slate-700 truncate block" title={latestExp.company}>{latestExp.company}</span>
+                        : <span className="text-slate-300 text-xs">-</span>}
+                </TableCell>
+                <TableCell className="max-w-[120px]">
+                    {latestExp?.country
+                        ? <span className="text-xs text-slate-500 flex items-center gap-0.5"><MapPin className="w-3 h-3 shrink-0" />{latestExp.country}</span>
+                        : <span className="text-slate-300 text-xs">-</span>}
                 </TableCell>
                 <TableCell>
                     <div className="flex flex-col gap-1.5">
@@ -365,7 +368,9 @@ export function CandidateTableView({
                         <TableHead className="w-[50px]"></TableHead>
                         <TableHead>Candidate</TableHead>
                         {showStatusColumn && <TableHead>Status</TableHead>}
-                        <TableHead>Latest Company</TableHead>
+                        <TableHead>Position</TableHead>
+                        <TableHead>Company</TableHead>
+                        <TableHead>Country</TableHead>
                         <TableHead>Job Group/Function</TableHead>
                         {showHotelColumn ? (
                             <TableHead className="w-[170px]">Hotel</TableHead>

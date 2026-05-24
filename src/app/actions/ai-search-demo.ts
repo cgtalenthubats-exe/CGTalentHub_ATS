@@ -258,24 +258,46 @@ export async function fetchCandidatePage(candidateIds: string[], page: number, p
     return profiles.map((p: any) => ({ ...p, experiences: expMap.get(p.candidate_id) || [] }));
 }
 
-// Position autocomplete — DISTINCT positions via RPC (up to 200), optionally scoped to matching candidates
-export async function searchPositionSuggestions(query: string, filters?: DemoFilterState): Promise<string[]> {
+export type PositionSuggestion = { label: string; type: 'keyword' | 'position' }
+
+// Position autocomplete — returns vocab keywords (alias-matched) + raw positions, optionally scoped
+export async function searchPositionSuggestions(query: string, filters?: DemoFilterState): Promise<PositionSuggestion[]> {
     const q = query?.trim() ?? "";
     if (q.length === 1) return [];
 
-    const scopedFilters = filters ? { ...filters, positions: [], position_search: [] } : null;
-    const useScope = scopedFilters && hasAnyFilter(scopedFilters);
-
-    if (useScope) {
-        const { data: ids } = await (adminAuthClient as any).rpc("search_candidate_ids", toRpcParams(scopedFilters!));
-        if (!ids || (ids as any[]).length === 0) return [];
-        const candidateIds = (ids as { candidate_id: string }[]).map(r => r.candidate_id);
-        const { data } = await (adminAuthClient as any).rpc("suggest_positions", { p_query: q, p_candidate_ids: candidateIds });
-        return (data || []).map((r: any) => r.pos as string);
+    // Always fetch vocab keyword matches (alias-aware) — not scope-limited
+    const vocabResults: PositionSuggestion[] = [];
+    if (q.length >= 2) {
+        const { data: vocabData } = await adminAuthClient
+            .from("position_keyword_vocab")
+            .select("keyword, aliases")
+            .or(`keyword.ilike.%${q}%,aliases.ilike.%${q}%`)
+            .limit(10);
+        for (const row of (vocabData || []) as { keyword: string; aliases: string }[]) {
+            vocabResults.push({ label: row.keyword, type: 'keyword' });
+        }
     }
 
-    const { data } = await (adminAuthClient as any).rpc("suggest_positions", { p_query: q });
-    return (data || []).map((r: any) => r.pos as string);
+    const scopedFilters = filters ? { ...filters, positions: [], position_search: [], position_keywords: [] } : null;
+    const useScope = scopedFilters && hasAnyFilter(scopedFilters);
+
+    let rawPositions: PositionSuggestion[] = [];
+    if (useScope) {
+        const { data: ids } = await (adminAuthClient as any).rpc("search_candidate_ids", toRpcParams(scopedFilters!));
+        if (ids && (ids as any[]).length > 0) {
+            const candidateIds = (ids as { candidate_id: string }[]).map(r => r.candidate_id);
+            const { data } = await (adminAuthClient as any).rpc("suggest_positions", { p_query: q, p_candidate_ids: candidateIds });
+            rawPositions = (data || []).map((r: any) => ({ label: r.pos as string, type: 'position' as const }));
+        }
+    } else if (q.length >= 2) {
+        const { data } = await (adminAuthClient as any).rpc("suggest_positions", { p_query: q });
+        rawPositions = (data || []).map((r: any) => ({ label: r.pos as string, type: 'position' as const }));
+    }
+
+    // Vocab keywords first, then raw positions (dedupe labels)
+    const seen = new Set(vocabResults.map(r => r.label.toLowerCase()));
+    const deduped = rawPositions.filter(r => !seen.has(r.label.toLowerCase()));
+    return [...vocabResults, ...deduped];
 }
 
 // Company autocomplete — DISTINCT companies via RPC (up to 200), optionally scoped to matching candidates

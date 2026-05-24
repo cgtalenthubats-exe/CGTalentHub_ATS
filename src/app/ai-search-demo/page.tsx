@@ -24,9 +24,70 @@ import {
 import { EMPTY_FILTERS, type DemoFilterState, type AiParseResult } from "./types";
 import { CohortInsights } from "./CohortInsights";
 
+// --- Sub-filter dropdown (client-side, same style as JR manage MSFilter) ---
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ChevronDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+function SubMSFilter({ label, options, selected, setSelected }: {
+    label: string; options: string[]; selected: string[]; setSelected: (v: string[]) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const [pending, setPending] = useState<string[]>([]);
+    const [search, setSearch] = useState('');
+
+    const handleOpenChange = (isOpen: boolean) => {
+        if (isOpen) { setPending([...selected]); setSearch(''); }
+        setOpen(isOpen);
+    };
+    const filtered = search ? options.filter(o => o.toLowerCase().includes(search.toLowerCase())) : options;
+    const toggle = (val: string) => setPending(p => p.includes(val) ? p.filter(x => x !== val) : [...p, val]);
+    const apply = () => { setSelected([...pending]); setOpen(false); };
+    const clear = () => { setPending([]); setSelected([]); setOpen(false); };
+
+    return (
+        <Popover open={open} onOpenChange={handleOpenChange}>
+            <PopoverTrigger asChild>
+                <button className={cn(
+                    "h-8 inline-flex items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold shadow-sm whitespace-nowrap transition-all",
+                    selected.length > 0 ? "bg-indigo-50 border-indigo-300 text-indigo-700" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                )}>
+                    {selected.length > 0 ? `${label} (${selected.length})` : label}
+                    <ChevronDown className="h-3 w-3 opacity-50" />
+                </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-[240px] p-0 shadow-xl border-slate-100 rounded-xl z-50">
+                <div className="px-3 py-2 border-b border-slate-100">
+                    <div className="mb-1.5 text-[10px] font-black uppercase text-slate-400 tracking-widest">{label}</div>
+                    <input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)}
+                        className="w-full text-xs px-2 py-1.5 border border-slate-200 rounded-md outline-none focus:ring-1 focus:ring-indigo-300 bg-white" />
+                </div>
+                <ScrollArea className="max-h-[200px]">
+                    <div className="p-2 flex flex-col gap-0.5">
+                        {filtered.length === 0 && <div className="text-xs text-slate-400 text-center py-3">No options</div>}
+                        {filtered.map(opt => (
+                            <label key={opt} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-xs font-medium text-slate-700">
+                                <Checkbox checked={pending.includes(opt)} onCheckedChange={() => toggle(opt)}
+                                    className="border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600 shrink-0" />
+                                <span className="leading-snug">{opt}</span>
+                            </label>
+                        ))}
+                    </div>
+                </ScrollArea>
+                <div className="flex gap-2 p-2 border-t border-slate-100">
+                    <button onClick={clear} className="flex-1 text-xs text-red-500 hover:text-red-700 font-semibold py-1.5 border border-red-100 rounded-md hover:bg-red-50">Clear</button>
+                    <button onClick={apply} className="flex-1 text-xs bg-indigo-600 text-white rounded-md py-1.5 font-semibold hover:bg-indigo-700">Apply</button>
+                </div>
+            </PopoverContent>
+        </Popover>
+    );
+}
+
 // --- Summary Card ---
-function SummaryCard({ label, value, icon: Icon, color }: {
-    label: string; value: number | string; icon: React.ElementType; color: string;
+function SummaryCard({ label, value, filteredValue, icon: Icon, color }: {
+    label: string; value: number | string; filteredValue?: number | null; icon: React.ElementType; color: string;
 }) {
     return (
         <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-lg px-4 py-3 shadow-sm">
@@ -34,7 +95,16 @@ function SummaryCard({ label, value, icon: Icon, color }: {
                 <Icon className="h-4 w-4 text-white" />
             </div>
             <div>
-                <p className="text-xl font-bold text-slate-800">{value}</p>
+                <div className="flex items-baseline gap-1.5">
+                    {filteredValue != null ? (
+                        <>
+                            <p className="text-xl font-bold text-slate-800">{filteredValue}</p>
+                            <p className="text-xs text-slate-400 font-medium">/ {value}</p>
+                        </>
+                    ) : (
+                        <p className="text-xl font-bold text-slate-800">{value}</p>
+                    )}
+                </div>
                 <p className="text-xs text-slate-500">{label}</p>
             </div>
         </div>
@@ -96,6 +166,8 @@ export default function AiSearchDemoPage() {
     const [allCandidateIds, setAllCandidateIds] = useState<string[]>([]);
     const [summary, setSummary] = useState({ total: 0, current: 0, past: 0, companies: 0, countries: 0 });
     const [candidates, setCandidates] = useState<any[]>([]);
+    const [allCandidatesData, setAllCandidatesData] = useState<any[]>([]); // full dataset for sub-filtering
+    const [allDataLoading, setAllDataLoading] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
 
     const [searchLoading, setSearchLoading] = useState(false);
@@ -108,6 +180,82 @@ export default function AiSearchDemoPage() {
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const cascadeRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+    // Secondary filter (client-side, within loaded result set) — MSFilter style
+    const [subSearch, setSubSearch] = useState("");
+    const [subPosition, setSubPosition] = useState<string[]>([]);
+    const [subCompany, setSubCompany] = useState<string[]>([]);
+    const [subCountry, setSubCountry] = useState<string[]>([]);
+    const [subNationality, setSubNationality] = useState<string[]>([]);
+    const [subGender, setSubGender] = useState<string[]>([]);
+    const [subHotelRating, setSubHotelRating] = useState<string[]>([]);
+
+    const hasSubFilter = !!(subSearch || subPosition.length || subCompany.length || subCountry.length || subNationality.length || subGender.length || subHotelRating.length);
+    const clearSubFilters = () => { setSubSearch(""); setSubPosition([]); setSubCompany([]); setSubCountry([]); setSubNationality([]); setSubGender([]); setSubHotelRating([]); };
+
+    // When sub-filter is activated, load all candidate data (not just current page)
+    const prevHasSubFilter = React.useRef(false);
+    useEffect(() => {
+        if (hasSubFilter && !prevHasSubFilter.current && allCandidateIds.length > 0 && allCandidatesData.length === 0) {
+            setAllDataLoading(true);
+            void fetchCandidatePage(allCandidateIds, 1, allCandidateIds.length).then(data => {
+                setAllCandidatesData(data);
+                setAllDataLoading(false);
+            });
+        }
+        prevHasSubFilter.current = hasSubFilter;
+    }, [hasSubFilter, allCandidateIds, allCandidatesData.length]);
+
+    // Source of truth: allCandidatesData when sub-filter active, else current page candidates
+    const sourceData = hasSubFilter && allCandidatesData.length > 0 ? allCandidatesData : candidates;
+
+    // Derive distinct option lists from full dataset (allCandidatesData if available, else current page)
+    const subOptions = React.useMemo(() => {
+        const uniq = (arr: (string|null|undefined)[]) =>
+            Array.from(new Set(arr.filter(Boolean))).sort() as string[];
+        const latestExpOf = (c: any) => c.experiences?.find((e: any) => e.is_current_job === 'Current') ?? c.experiences?.[0];
+        const src = allCandidatesData.length > 0 ? allCandidatesData : candidates;
+        return {
+            positions:    uniq(src.map(c => latestExpOf(c)?.position)),
+            companies:    uniq(src.map(c => latestExpOf(c)?.company)),
+            countries:    uniq(src.map(c => latestExpOf(c)?.country)),
+            nationalities: uniq(src.map(c => c.nationality)),
+            genders:      uniq(src.map(c => c.gender)),
+            hotelRatings: uniq(src.map(c => latestExpOf(c)?.hotel_rating)),
+        };
+    }, [allCandidatesData, candidates]);
+
+    const applySubFilter = (data: any[]) => {
+        if (!hasSubFilter) return data;
+        return data.filter(c => {
+            const latestExp = c.experiences?.find((e: any) => e.is_current_job === 'Current') ?? c.experiences?.[0];
+            if (subSearch) {
+                const q = subSearch.toLowerCase();
+                if (!c.name?.toLowerCase().includes(q) &&
+                    !latestExp?.position?.toLowerCase().includes(q) &&
+                    !latestExp?.company?.toLowerCase().includes(q)) return false;
+            }
+            if (subPosition.length && !subPosition.includes(latestExp?.position)) return false;
+            if (subCompany.length && !subCompany.includes(latestExp?.company)) return false;
+            if (subCountry.length && !subCountry.includes(latestExp?.country)) return false;
+            if (subNationality.length && !subNationality.includes(c.nationality)) return false;
+            if (subGender.length && !subGender.includes(c.gender)) return false;
+            if (subHotelRating.length && !subHotelRating.includes(latestExp?.hotel_rating)) return false;
+            return true;
+        });
+    };
+
+    // When sub-filter active: filter all data then paginate client-side
+    const allFiltered = React.useMemo(() => applySubFilter(sourceData),
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [sourceData, subSearch, subPosition, subCompany, subCountry, subNationality, subGender, subHotelRating]);
+
+    const subPage = hasSubFilter ? currentPage : null;
+    const filteredCandidates = React.useMemo(() => {
+        if (!hasSubFilter) return candidates;
+        const start = (currentPage - 1) * PAGE_SIZE;
+        return allFiltered.slice(start, start + PAGE_SIZE);
+    }, [hasSubFilter, candidates, allFiltered, currentPage]);
 
     // Load static options once
     useEffect(() => {
@@ -151,6 +299,8 @@ export default function AiSearchDemoPage() {
         try {
             const result = await searchDemoCandidates(filtersToUse);
             setAllCandidateIds(result.candidateIds);
+            setAllCandidatesData([]); // reset full dataset on new search
+            clearSubFilters();
             setSummary({ total: result.total, current: result.current, past: result.past, companies: result.companies, countries: result.countries ?? 0 });
             // Fetch page 1
             const page1 = await fetchCandidatePage(result.candidateIds, 1, PAGE_SIZE);
@@ -191,7 +341,7 @@ export default function AiSearchDemoPage() {
             }));
             setSuggestions(sugg ?? {});
         } catch (err) {
-            setAiError("AI ไม่สามารถแปลง query ได้ ลองพิมพ์ใหม่อีกครั้ง");
+            setAiError("AI could not parse the query. Please try again.");
             console.error("AI parse error:", err);
         } finally {
             setAiLoading(false);
@@ -274,7 +424,7 @@ export default function AiSearchDemoPage() {
                 <div className={`bg-white border rounded-xl shadow-sm p-3 flex gap-3 items-end transition-colors ${aiError ? "border-red-300" : "border-slate-200"}`}>
                     <div className="flex-1">
                         <Textarea
-                            placeholder='เช่น "Find GM of 4-5 star hotel in Thailand" — AI จะ set filter ให้อัตโนมัติ'
+                            placeholder='e.g. "Find GM of 4-5 star hotel in Thailand" — AI will set filters automatically'
                             value={query}
                             onChange={(e) => { setQuery(e.target.value); setAiError(null); }}
                             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAiSearch(); } }}
@@ -354,7 +504,7 @@ export default function AiSearchDemoPage() {
                 <div className="flex-1 flex flex-col gap-4 min-w-0 min-h-0">
                     {/* Summary Cards */}
                     <div className="grid grid-cols-5 gap-3">
-                        <SummaryCard label="Total Found" value={searchLoading ? "..." : summary.total} icon={Users} color="bg-indigo-500" />
+                        <SummaryCard label="Total Found" value={searchLoading ? "..." : summary.total} filteredValue={hasSubFilter && !allDataLoading ? allFiltered.length : null} icon={Users} color="bg-indigo-500" />
                         <SummaryCard label="Currently in Role" value={searchLoading ? "..." : summary.current} icon={TrendingUp} color="bg-emerald-500" />
                         <SummaryCard label="Past Role" value={searchLoading ? "..." : summary.past} icon={Briefcase} color="bg-sky-500" />
                         <SummaryCard label="Companies" value={searchLoading ? "..." : summary.companies} icon={Building2} color="bg-violet-500" />
@@ -375,8 +525,8 @@ export default function AiSearchDemoPage() {
                         return (
                             <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-2 text-sm text-indigo-800 flex items-center justify-between">
                                 {allResultsSelected
-                                    ? <span>เลือกทั้งหมด <strong>{allCandidateIds.length}</strong> candidates แล้ว</span>
-                                    : <span>เลือก <strong>{pageIds.length}</strong> คนในหน้านี้แล้ว</span>
+                                    ? <span>All <strong>{allCandidateIds.length}</strong> candidates selected</span>
+                                    : <span><strong>{pageIds.length}</strong> candidates on this page selected</span>
                                 }
                                 <button
                                     onClick={() => allResultsSelected
@@ -386,23 +536,55 @@ export default function AiSearchDemoPage() {
                                     className="ml-4 font-semibold text-indigo-600 hover:text-indigo-800 underline underline-offset-2"
                                 >
                                     {allResultsSelected
-                                        ? "ยกเลิกทั้งหมด"
-                                        : `เลือกทั้งหมด ${allCandidateIds.length} คน`
+                                        ? "Deselect all"
+                                        : `Select all ${allCandidateIds.length} candidates`
                                     }
                                 </button>
                             </div>
                         );
                     })()}
 
+                    {/* Secondary filter bar — client-side, same MSFilter style as JR manage */}
+                    {hasSearched && candidates.length > 0 && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest mr-1">Filters:</span>
+                            <div className="relative">
+                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400" />
+                                <input
+                                    value={subSearch}
+                                    onChange={e => setSubSearch(e.target.value)}
+                                    placeholder="Search all fields..."
+                                    className="h-8 pl-6 pr-2.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-indigo-300 w-40 shadow-sm bg-white"
+                                />
+                            </div>
+                            <SubMSFilter label="Position"     options={subOptions.positions}    selected={subPosition}    setSelected={setSubPosition} />
+                            <SubMSFilter label="Company"      options={subOptions.companies}    selected={subCompany}     setSelected={setSubCompany} />
+                            <SubMSFilter label="Country"      options={subOptions.countries}    selected={subCountry}     setSelected={setSubCountry} />
+                            <SubMSFilter label="Nationality"  options={subOptions.nationalities} selected={subNationality} setSelected={setSubNationality} />
+                            <SubMSFilter label="Gender"       options={subOptions.genders}      selected={subGender}      setSelected={setSubGender} />
+                            <SubMSFilter label="Hotel Rating" options={subOptions.hotelRatings} selected={subHotelRating} setSelected={setSubHotelRating} />
+                            {hasSubFilter && (
+                                <>
+                                    <button onClick={clearSubFilters} className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-500 transition-colors">
+                                        <X className="h-3 w-3" /> Reset
+                                    </button>
+                                    <span className="text-xs text-slate-400 ml-1">
+                                        {filteredCandidates.length} / {candidates.length}
+                                    </span>
+                                </>
+                            )}
+                        </div>
+                    )}
+
                     {/* Candidate Table */}
                     <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
                         {!hasSearched ? (
                             <div className="h-full flex items-center justify-center text-slate-400 text-sm">
-                                เลือก filter แล้วกด Search เพื่อดูผลลัพธ์
+                                Select filters and press Search to see results
                             </div>
                         ) : (
                             <CandidateTableView
-                                candidates={candidates}
+                                candidates={filteredCandidates}
                                 loading={isLoading}
                                 selectedIds={selectedIds}
                                 onToggleSelect={handleToggleSelect}
@@ -416,12 +598,19 @@ export default function AiSearchDemoPage() {
                     {/* Pagination + Evaluate */}
                     {hasSearched && summary.total > 0 && (
                         <div className="flex items-center gap-3">
-                            <p className="text-xs text-slate-500">
-                                แสดง {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, summary.total)} จาก {summary.total} candidates
-                            </p>
+                            {allDataLoading ? (
+                                <p className="text-xs text-slate-400 flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Loading all results...</p>
+                            ) : (
+                                <p className="text-xs text-slate-500">
+                                    {hasSubFilter
+                                        ? `Showing ${Math.min((currentPage - 1) * PAGE_SIZE + 1, allFiltered.length)}–${Math.min(currentPage * PAGE_SIZE, allFiltered.length)} of ${allFiltered.length} filtered (${summary.total} total)`
+                                        : `Showing ${((currentPage - 1) * PAGE_SIZE) + 1}–${Math.min(currentPage * PAGE_SIZE, summary.total)} of ${summary.total} candidates`
+                                    }
+                                </p>
+                            )}
                             <PaginationControls
                                 currentPage={currentPage}
-                                totalCount={summary.total}
+                                totalCount={hasSubFilter ? allFiltered.length : summary.total}
                                 pageSize={PAGE_SIZE}
                                 onPageChange={handlePageChange}
                             />
