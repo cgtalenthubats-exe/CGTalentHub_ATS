@@ -23,6 +23,7 @@ import {
 } from "@/app/actions/ai-search-demo";
 import { EMPTY_FILTERS, type DemoFilterState, type AiParseResult } from "./types";
 import { CohortInsights } from "./CohortInsights";
+import { Stage3Panel } from "./Stage3Panel";
 
 // --- Sub-filter dropdown (client-side, same style as JR manage MSFilter) ---
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -518,26 +519,29 @@ export default function AiSearchDemoPage() {
 
                     {/* Select-all-results banner */}
                     {(() => {
-                        const pageIds = candidates.map(c => c.candidate_id);
-                        const allPageSelected = pageIds.length > 0 && pageIds.every(id => selectedIds.includes(id));
-                        const allResultsSelected = selectedIds.length === allCandidateIds.length && allCandidateIds.length > 0;
-                        if (!allPageSelected || allCandidateIds.length <= PAGE_SIZE) return null;
+                        const pageIds = filteredCandidates.map((c: any) => c.candidate_id);
+                        const effectiveIds = hasSubFilter && allFiltered.length > 0
+                            ? allFiltered.map((c: any) => c.candidate_id)
+                            : allCandidateIds;
+                        const allPageSelected = pageIds.length > 0 && pageIds.every((id: string) => selectedIds.includes(id));
+                        const allResultsSelected = effectiveIds.length > 0 && effectiveIds.every((id: string) => selectedIds.includes(id));
+                        if (!allPageSelected || effectiveIds.length <= PAGE_SIZE) return null;
                         return (
                             <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-2 text-sm text-indigo-800 flex items-center justify-between">
                                 {allResultsSelected
-                                    ? <span>All <strong>{allCandidateIds.length}</strong> candidates selected</span>
+                                    ? <span>All <strong>{effectiveIds.length}</strong> candidates selected</span>
                                     : <span><strong>{pageIds.length}</strong> candidates on this page selected</span>
                                 }
                                 <button
                                     onClick={() => allResultsSelected
                                         ? setSelectedIds([])
-                                        : setSelectedIds([...allCandidateIds])
+                                        : setSelectedIds([...effectiveIds])
                                     }
                                     className="ml-4 font-semibold text-indigo-600 hover:text-indigo-800 underline underline-offset-2"
                                 >
                                     {allResultsSelected
                                         ? "Deselect all"
-                                        : `Select all ${allCandidateIds.length} candidates`
+                                        : `Select all ${effectiveIds.length} candidates`
                                     }
                                 </button>
                             </div>
@@ -595,7 +599,7 @@ export default function AiSearchDemoPage() {
                         )}
                     </div>
 
-                    {/* Pagination + Evaluate */}
+                    {/* Pagination */}
                     {hasSearched && summary.total > 0 && (
                         <div className="flex items-center gap-3">
                             {allDataLoading ? (
@@ -615,6 +619,14 @@ export default function AiSearchDemoPage() {
                                 onPageChange={handlePageChange}
                             />
                         </div>
+                    )}
+
+                    {/* Stage 3 AI Ranking */}
+                    {hasSearched && allCandidateIds.length > 0 && (
+                        <Stage3Panel
+                            candidateIds={hasSubFilter && allFiltered.length > 0 ? allFiltered.map((c: any) => c.candidate_id) : allCandidateIds}
+                            initialQuery={query}
+                        />
                     )}
                 </div>
             </div>

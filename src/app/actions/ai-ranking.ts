@@ -14,7 +14,24 @@ export async function getLatestJobForJR(jrId: string): Promise<{ jobId: string; 
         .single();
 
     if (!data) return null;
-    return { jobId: data.job_id, status: data.status, candidateCount: data.candidate_count ?? 0 };
+    const d = data as any;
+    return { jobId: d.job_id, status: d.status, candidateCount: d.candidate_count ?? 0 };
+}
+
+export async function triggerStage3RankingDirect(candidateIds: string[], query: string) {
+    if (!candidateIds.length) throw new Error("ไม่มี candidates ที่จะประเมิน");
+    const jobId = crypto.randomUUID();
+
+    const response = await fetch(N8N_STAGE3_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ job_id: jobId, candidate_ids: candidateIds, candidate_count: candidateIds.length, query, jr_id: null }),
+    });
+
+    if (!response.ok)
+        throw new Error(`n8n webhook failed: ${response.statusText}`);
+
+    return { jobId, candidateCount: candidateIds.length };
 }
 
 export async function triggerStage3Ranking(jrId: string, query: string) {
@@ -75,7 +92,7 @@ export type Stage3JobData = {
     result_count: number | null;
 };
 
-export async function getStage3JobStatus(jobId: string, jrId: string): Promise<Stage3JobData | null> {
+export async function getStage3JobStatus(jobId: string, jrId?: string | null): Promise<Stage3JobData | null> {
     const { data: job } = await adminAuthClient
         .from("ai_ranking_jobs")
         .select("status, summary, result_count")
@@ -83,6 +100,7 @@ export async function getStage3JobStatus(jobId: string, jrId: string): Promise<S
         .single();
 
     if (!job) return null;
+    const jobData = job as any;
 
     // Fetch done candidates progressively — show results as they arrive
     const { data: results } = await adminAuthClient
@@ -95,10 +113,10 @@ export async function getStage3JobStatus(jobId: string, jrId: string): Promise<S
     const candidateIds = (results ?? []).map((r: any) => r.candidate_id);
 
     if (!candidateIds.length) {
-        return { status: job.status, summary: job.status === "completed" ? job.summary : null, results: [], result_count: job.result_count };
+        return { status: jobData.status, summary: jobData.status === "completed" ? jobData.summary : null, results: [], result_count: jobData.result_count };
     }
 
-    const [profilesRes, expRes, jrRes] = await Promise.all([
+    const [profilesRes, expRes] = await Promise.all([
         adminAuthClient
             .from("Candidate Profile")
             .select("candidate_id, name")
@@ -108,16 +126,20 @@ export async function getStage3JobStatus(jobId: string, jrId: string): Promise<S
             .select("candidate_id, position, company")
             .in("candidate_id", candidateIds)
             .eq("is_current_job", "Current"),
-        adminAuthClient
+    ]);
+
+    const profileMap = new Map((profilesRes.data ?? []).map((p: any) => [p.candidate_id, p as any]));
+    const expMap = new Map((expRes.data ?? []).map((e: any) => [e.candidate_id, e as any]));
+
+    let jrMap = new Map<string, any>();
+    if (jrId) {
+        const jrRes = await adminAuthClient
             .from("jr_candidates")
             .select("candidate_id, list_type")
             .eq("jr_id", jrId)
-            .in("candidate_id", candidateIds),
-    ]);
-
-    const profileMap = new Map((profilesRes.data ?? []).map((p: any) => [p.candidate_id, p]));
-    const expMap = new Map((expRes.data ?? []).map((e: any) => [e.candidate_id, e]));
-    const jrMap = new Map((jrRes.data ?? []).map((j: any) => [j.candidate_id, j]));
+            .in("candidate_id", candidateIds);
+        jrMap = new Map((jrRes.data ?? []).map((j: any) => [j.candidate_id, j]));
+    }
 
     const enriched: Stage3Result[] = (results ?? []).map((r: any) => ({
         candidate_id: r.candidate_id,
@@ -129,7 +151,7 @@ export async function getStage3JobStatus(jobId: string, jrId: string): Promise<S
         gaps: r.gaps ?? "",
         tradeoff: r.tradeoff ?? "",
         rank: r.rank ?? null,
-        list_type: jrMap.get(r.candidate_id)?.list_type ?? "Longlist",
+        list_type: jrId ? (jrMap.get(r.candidate_id)?.list_type ?? "Longlist") : "Search Result",
         experience_score: r.experience_score ?? null,
         experience_summary: r.experience_summary ?? null,
         leadership_score: r.leadership_score ?? null,
@@ -141,10 +163,10 @@ export async function getStage3JobStatus(jobId: string, jrId: string): Promise<S
     }));
 
     return {
-        status: job.status,
-        summary: job.status === "completed" ? job.summary : null,
+        status: jobData.status,
+        summary: jobData.status === "completed" ? jobData.summary : null,
         results: enriched,
-        result_count: job.result_count,
+        result_count: jobData.result_count,
     };
 }
 
