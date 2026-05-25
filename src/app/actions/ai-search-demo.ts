@@ -32,6 +32,7 @@ function toRpcParams(f: DemoFilterState) {
         p_age_include_unknown: f.age_include_unknown,
         p_current_and_latest:  f.current_and_latest,
         p_position_search:     f.position_search,
+        p_internal_only:       f.internal_only,
     };
 }
 
@@ -57,7 +58,8 @@ function hasAnyFilter(f: DemoFilterState) {
         f.nationalities.length > 0 ||
         f.age_min !== null ||
         f.age_max !== null ||
-        f.position_search.length > 0
+        f.position_search.length > 0 ||
+        f.internal_only
     );
 }
 
@@ -176,6 +178,7 @@ export async function getFilteredChainCounts(filters: DemoFilterState) {
         p_age_max:             params.p_age_max,
         p_age_include_unknown: params.p_age_include_unknown,
         p_current_and_latest:  params.p_current_and_latest,
+        p_internal_only:       params.p_internal_only,
     });
     if (error || !data) return null;
     return (data as any[]).map(r => ({

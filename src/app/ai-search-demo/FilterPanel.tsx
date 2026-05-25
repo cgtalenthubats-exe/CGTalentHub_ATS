@@ -742,6 +742,7 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
         filters.genders.length,
         filters.nationalities.length,
         (filters.age_min !== null || filters.age_max !== null) ? 1 : 0,
+        filters.internal_only ? 1 : 0,
     ].reduce((a, b) => a + b, 0);
 
     return (
@@ -864,6 +865,27 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
                             </button>
                         );
                     })}
+                </div>
+
+                {/* Internal Candidate toggle */}
+                <div className="px-3 py-2">
+                    <button
+                        onClick={() => onChange({ ...filters, internal_only: !filters.internal_only })}
+                        className={cn(
+                            "w-full flex items-center justify-between text-xs px-2.5 py-1.5 rounded-lg font-medium transition-colors border",
+                            filters.internal_only
+                                ? "bg-amber-50 border-amber-300 text-amber-700"
+                                : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                        )}
+                    >
+                        <span>Internal Candidate Only</span>
+                        <span className={cn(
+                            "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0",
+                            filters.internal_only ? "bg-amber-500 border-amber-500" : "border-slate-300"
+                        )}>
+                            {filters.internal_only && <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 10"><path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                        </span>
+                    </button>
                 </div>
 
                 <FilterPopover

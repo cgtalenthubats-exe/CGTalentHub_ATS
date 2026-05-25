@@ -32,7 +32,7 @@ const menuItems = [
     { name: "Candidates", icon: Users, path: "/candidates" },
     { name: "Job Requisitions", icon: Briefcase, path: "/requisitions" },
     { name: "Org Chart", icon: Network, path: "/org-chart" },
-    { name: "AI Search Demo", icon: Sparkles, path: "/ai-search-demo" },
+    { name: "AI Search", icon: Sparkles, path: "/ai-search-demo" },
     { name: "Settings", icon: Settings, path: "/settings" },
     { name: "n8n Integration", icon: Webhook, path: "/admin/n8n" },
     { name: "Company Master", icon: Building2, path: "/admin/companies" },

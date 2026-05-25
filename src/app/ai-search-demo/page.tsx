@@ -508,7 +508,12 @@ export default function AiSearchDemoPage() {
                                     cascadingOptions={cascadingOptions}
                                     cascadeLoading={cascadeLoading}
                                     filters={pendingFilters}
-                                    onChange={setPendingFilters}
+                                    onChange={(newFilters) => {
+                                        setPendingFilters(newFilters);
+                                        if (newFilters.internal_only !== pendingFilters.internal_only) {
+                                            handleSearch(newFilters);
+                                        }
+                                    }}
                                     onReset={handleReset}
                                     onSearchPositions={(q, f) => searchPositionSuggestions(q, f)}
                                     onSearchCompanies={(q, f) => searchCompanySuggestions(q, f)}

@@ -18,6 +18,8 @@ export interface DemoFilterState {
     exclude_keywords: string[];
     // Hotel sub-brand (specific brand within a chain)
     hotel_sub_brands: string[];
+    // Candidate status
+    internal_only: boolean;
     // Profile filters
     genders: string[];
     nationalities: string[];
@@ -46,6 +48,7 @@ export const EMPTY_FILTERS: DemoFilterState = {
     exclude_countries: [],
     exclude_keywords: [],
     hotel_sub_brands: [],
+    internal_only: false,
     genders: [],
     nationalities: [],
     age_min: null,
