@@ -16,6 +16,7 @@ import {
     Tags,
     Filter,
     Check,
+    CheckSquare,
     LayoutList,
     Table as TableIcon,
     RefreshCw
@@ -322,6 +323,82 @@ export default function CandidateListPage() {
         setIsAddDialogOpen(true);
     };
 
+    const fmtDate = (d: string | null | undefined) => {
+        if (!d) return "";
+        const lower = d.toLowerCase();
+        if (lower === "present") return "Present";
+        const parts = d.split("-");
+        if (parts.length === 2 && parts[1].length === 4) return `${parts[1]}-${parts[0].padStart(2, "0")}`;
+        return d;
+    };
+
+    const handleExport = () => {
+        const idsToExport = selectAllMode
+            ? candidates.map(c => c.candidate_id)
+            : selectedIds;
+
+        if (!idsToExport.length) {
+            toast.error("กรุณาเลือก candidates ก่อน Export");
+            return;
+        }
+
+        const rows = idsToExport
+            .map(id => candidates.find(c => c.candidate_id === id))
+            .filter(Boolean) as Candidate[];
+
+        const currentExp = (c: Candidate) =>
+            c.experiences?.find(e => e.is_current_job === "Current") ?? c.experiences?.[0];
+
+        const escape = (v: any) => {
+            const s = v == null ? "" : String(v).replace(/"/g, '""');
+            return `"${s}"`;
+        };
+
+        const downloadCsv = (filename: string, lines: string[]) => {
+            const blob = new Blob(["﻿" + lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        };
+
+        const dateStr = new Date().toISOString().slice(0, 10);
+
+        // File 1: Candidate summary
+        const candHeaders = ["Candidate ID", "Name", "Email", "Phone", "LinkedIn", "Status", "Nationality", "Age", "Gender", "Current Position", "Current Company", "Current Country"];
+        const candLines = [
+            candHeaders.map(escape).join(","),
+            ...rows.map(c => {
+                const exp = currentExp(c);
+                return [
+                    c.candidate_id, c.name, c.email, c.mobile_phone, c.linkedin ?? "",
+                    (c.candidate_status ?? []).join("; "),
+                    c.nationality, c.age ?? "", c.gender ?? "",
+                    exp?.position ?? "", exp?.company ?? "", exp?.country ?? "",
+                ].map(escape).join(",");
+            }),
+        ];
+        downloadCsv(`candidates_${dateStr}.csv`, candLines);
+
+        // File 2: Experiences
+        const expHeaders = ["Candidate ID", "Name", "Position", "Company", "Country", "Industry", "Start Date", "End Date", "Is Current"];
+        const expLines = [
+            expHeaders.map(escape).join(","),
+            ...rows.flatMap(c =>
+                (c.experiences ?? []).map(e => [
+                    c.candidate_id, c.name,
+                    e.position, e.company, e.country ?? "", e.company_industry ?? "",
+                    fmtDate(e.start_date), fmtDate(e.end_date), e.is_current_job ?? "",
+                ].map(escape).join(","))
+            ),
+        ];
+        setTimeout(() => downloadCsv(`experiences_${dateStr}.csv`, expLines), 300);
+
+        toast.success(`Export ${rows.length} candidates สำเร็จ (2 ไฟล์)`);
+    };
+
     const handleRefreshData = async (ids: string[]) => {
         const selectedCandidates = ids.map(id => {
             const c = candidates.find(cand => cand.candidate_id === id);
@@ -390,8 +467,27 @@ export default function CandidateListPage() {
                                 <span className="h-1.5 w-1.5 rounded-full bg-primary absolute top-1 right-1" />
                             )}
                         </Button>
-                        <Button variant="outline" size="sm" className="h-9 gap-2">
-                            <Download className="h-4 w-4" /> <span className="hidden sm:inline">Export</span>
+                        {totalCount > 0 && (
+                            <Button
+                                variant="outline" size="sm" className="h-9 gap-2"
+                                onClick={() => {
+                                    if (selectAllMode || selectedIds.length === totalCount) {
+                                        setSelectAllMode(false);
+                                        setSelectedIds([]);
+                                    } else {
+                                        setSelectAllMode(true);
+                                        setSelectedIds(candidates.map(c => c.candidate_id));
+                                    }
+                                }}
+                            >
+                                {selectAllMode || selectedIds.length === totalCount
+                                    ? <><X className="h-4 w-4" /><span className="hidden sm:inline">Clear ({selectAllMode ? totalCount : selectedIds.length})</span></>
+                                    : <><CheckSquare className="h-4 w-4" /><span className="hidden sm:inline">Select All ({totalCount})</span></>
+                                }
+                            </Button>
+                        )}
+                        <Button variant="outline" size="sm" className="h-9 gap-2" onClick={handleExport} disabled={selectedIds.length === 0 && !selectAllMode}>
+                            <Download className="h-4 w-4" /> <span className="hidden sm:inline">Export{selectedIds.length > 0 ? ` (${selectAllMode ? totalCount : selectedIds.length})` : ""}</span>
                         </Button>
                         <div className="flex items-center border rounded-md bg-secondary/20 p-0.5 ml-1 h-9">
                             <Button
