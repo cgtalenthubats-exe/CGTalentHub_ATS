@@ -56,10 +56,15 @@ export async function GET() {
             genders: getUnique(profileData, 'gender'),
 
             // Status Master (Master Table + Existing in Candidates)
+            // candidate_status is a string[] field — must flatMap to extract individual values
             statuses: Array.from(new Set([
                 ...uniqueMasterStatuses,
-                ...getUnique(profileData, 'candidate_status')
-            ])).sort(),
+                ...(profileData ?? []).flatMap(item => {
+                    const s = item.candidate_status;
+                    if (Array.isArray(s)) return s.filter(Boolean);
+                    return s ? [s] : [];
+                }),
+            ])).filter(Boolean).sort(),
 
             // Mapping removed as it was too heavy
             // mapping: ...
