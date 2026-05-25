@@ -65,6 +65,24 @@ function SubMSFilter({ label, options, selected, setSelected }: {
                     <input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)}
                         className="w-full text-xs px-2 py-1.5 border border-slate-200 rounded-md outline-none focus:ring-1 focus:ring-indigo-300 bg-white" />
                 </div>
+                {filtered.length > 0 && (() => {
+                    const allSel = filtered.every(o => pending.includes(o));
+                    return (
+                        <div className="px-2 py-1.5 border-b border-slate-100">
+                            <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-50 cursor-pointer select-none" onClick={() => {
+                                if (allSel) setPending(p => p.filter(x => !filtered.includes(x)));
+                                else setPending(p => [...new Set([...p, ...filtered])]);
+                            }}>
+                                <Checkbox checked={allSel} onCheckedChange={() => {
+                                    if (allSel) setPending(p => p.filter(x => !filtered.includes(x)));
+                                    else setPending(p => [...new Set([...p, ...filtered])]);
+                                }}
+                                    className="border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600 shrink-0" />
+                                <span className="text-xs font-semibold text-slate-600">Select All</span>
+                            </label>
+                        </div>
+                    );
+                })()}
                 <ScrollArea className="max-h-[200px]">
                     <div className="p-2 flex flex-col gap-0.5">
                         {filtered.length === 0 && <div className="text-xs text-slate-400 text-center py-3">No options</div>}
@@ -191,57 +209,66 @@ export default function AiSearchDemoPage() {
     const [subGender, setSubGender] = useState<string[]>([]);
     const [subHotelRating, setSubHotelRating] = useState<string[]>([]);
 
+    const [subScope, setSubScope] = useState<'latest' | 'current' | 'all'>('latest');
+
     const hasSubFilter = !!(subSearch || subPosition.length || subCompany.length || subCountry.length || subNationality.length || subGender.length || subHotelRating.length);
     const clearSubFilters = () => { setSubSearch(""); setSubPosition([]); setSubCompany([]); setSubCountry([]); setSubNationality([]); setSubGender([]); setSubHotelRating([]); };
-
-    // When sub-filter is activated, load all candidate data (not just current page)
-    const prevHasSubFilter = React.useRef(false);
-    useEffect(() => {
-        if (hasSubFilter && !prevHasSubFilter.current && allCandidateIds.length > 0 && allCandidatesData.length === 0) {
-            setAllDataLoading(true);
-            void fetchCandidatePage(allCandidateIds, 1, allCandidateIds.length).then(data => {
-                setAllCandidatesData(data);
-                setAllDataLoading(false);
-            });
-        }
-        prevHasSubFilter.current = hasSubFilter;
-    }, [hasSubFilter, allCandidateIds, allCandidatesData.length]);
 
     // Source of truth: allCandidatesData when sub-filter active, else current page candidates
     const sourceData = hasSubFilter && allCandidatesData.length > 0 ? allCandidatesData : candidates;
 
-    // Derive distinct option lists from full dataset (allCandidatesData if available, else current page)
+    // Helper: get experiences to match based on scope
+    const getScopedExps = (c: any) => {
+        const exps: any[] = c.experiences ?? [];
+        if (subScope === 'current') return exps.filter((e: any) => e.is_current_job === 'Current');
+        if (subScope === 'latest') {
+            const cur = exps.find((e: any) => e.is_current_job === 'Current');
+            return cur ? [cur] : exps.slice(0, 1);
+        }
+        return exps; // 'all'
+    };
+
+    // Derive distinct option lists from full dataset
     const subOptions = React.useMemo(() => {
         const uniq = (arr: (string|null|undefined)[]) =>
             Array.from(new Set(arr.filter(Boolean))).sort() as string[];
-        const latestExpOf = (c: any) => c.experiences?.find((e: any) => e.is_current_job === 'Current') ?? c.experiences?.[0];
         const src = allCandidatesData.length > 0 ? allCandidatesData : candidates;
+        const allExpsOf = (c: any) => {
+            const exps: any[] = c.experiences ?? [];
+            if (subScope === 'current') return exps.filter((e: any) => e.is_current_job === 'Current');
+            if (subScope === 'latest') {
+                const cur = exps.find((e: any) => e.is_current_job === 'Current');
+                return cur ? [cur] : exps.slice(0, 1);
+            }
+            return exps;
+        };
         return {
-            positions:    uniq(src.map(c => latestExpOf(c)?.position)),
-            companies:    uniq(src.map(c => latestExpOf(c)?.company)),
-            countries:    uniq(src.map(c => latestExpOf(c)?.country)),
+            positions:    uniq(src.flatMap(c => allExpsOf(c).map((e: any) => e.position))),
+            companies:    uniq(src.flatMap(c => allExpsOf(c).map((e: any) => e.company))),
+            countries:    uniq(src.flatMap(c => allExpsOf(c).map((e: any) => e.country))),
             nationalities: uniq(src.map(c => c.nationality)),
             genders:      uniq(src.map(c => c.gender)),
-            hotelRatings: uniq(src.map(c => latestExpOf(c)?.hotel_rating)),
+            hotelRatings: uniq(src.flatMap(c => allExpsOf(c).map((e: any) => e.hotel_rating))),
         };
-    }, [allCandidatesData, candidates]);
+    }, [allCandidatesData, candidates, subScope]);
 
     const applySubFilter = (data: any[]) => {
         if (!hasSubFilter) return data;
         return data.filter(c => {
-            const latestExp = c.experiences?.find((e: any) => e.is_current_job === 'Current') ?? c.experiences?.[0];
+            const scopedExps = getScopedExps(c);
             if (subSearch) {
                 const q = subSearch.toLowerCase();
-                if (!c.name?.toLowerCase().includes(q) &&
-                    !latestExp?.position?.toLowerCase().includes(q) &&
-                    !latestExp?.company?.toLowerCase().includes(q)) return false;
+                const nameMatch = c.name?.toLowerCase().includes(q);
+                const expMatch = scopedExps.some((e: any) =>
+                    e.position?.toLowerCase().includes(q) || e.company?.toLowerCase().includes(q));
+                if (!nameMatch && !expMatch) return false;
             }
-            if (subPosition.length && !subPosition.includes(latestExp?.position)) return false;
-            if (subCompany.length && !subCompany.includes(latestExp?.company)) return false;
-            if (subCountry.length && !subCountry.includes(latestExp?.country)) return false;
+            if (subPosition.length && !scopedExps.some((e: any) => subPosition.includes(e.position))) return false;
+            if (subCompany.length && !scopedExps.some((e: any) => subCompany.includes(e.company))) return false;
+            if (subCountry.length && !scopedExps.some((e: any) => subCountry.includes(e.country))) return false;
             if (subNationality.length && !subNationality.includes(c.nationality)) return false;
             if (subGender.length && !subGender.includes(c.gender)) return false;
-            if (subHotelRating.length && !subHotelRating.includes(latestExp?.hotel_rating)) return false;
+            if (subHotelRating.length && !scopedExps.some((e: any) => subHotelRating.includes(e.hotel_rating))) return false;
             return true;
         });
     };
@@ -306,6 +333,14 @@ export default function AiSearchDemoPage() {
             // Fetch page 1
             const page1 = await fetchCandidatePage(result.candidateIds, 1, PAGE_SIZE);
             setCandidates(page1);
+            // Fetch all data in background so sub-filter options are always complete
+            if (result.candidateIds.length > 0) {
+                setAllDataLoading(true);
+                void fetchCandidatePage(result.candidateIds, 1, result.candidateIds.length).then(all => {
+                    setAllCandidatesData(all);
+                    setAllDataLoading(false);
+                });
+            }
         } catch (err) {
             console.error("search error:", err);
             setAllCandidateIds([]);
@@ -552,6 +587,21 @@ export default function AiSearchDemoPage() {
                     {hasSearched && candidates.length > 0 && (
                         <div className="flex items-center gap-2 flex-wrap">
                             <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest mr-1">Filters:</span>
+                            {/* Experience scope toggle */}
+                            <div className="flex items-center h-8 bg-slate-100 rounded-lg p-0.5 gap-0.5 shrink-0">
+                                {([
+                                    { key: 'latest',  label: 'Current+Latest' },
+                                    { key: 'current', label: 'Current Only' },
+                                    { key: 'all',     label: 'All Exp.' },
+                                ] as const).map(({ key, label }) => (
+                                    <button key={key} onClick={() => setSubScope(key)}
+                                        className={cn("h-7 px-2.5 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap",
+                                            subScope === key ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                                        )}>
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
                             <div className="relative">
                                 <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400" />
                                 <input

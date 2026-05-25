@@ -337,17 +337,21 @@ export async function getCohortAnalysis(candidateIds: string[]) {
 // Replicates n8n "AI Parse Filters" workflow: keyword alias match → Claude Haiku → normalize
 export async function parseQueryToFilters(query: string): Promise<AiParseResult> {
     try {
-        const [vocabRes, countriesRes, industriesRes, jobFnsRes] = await Promise.all([
+        const [vocabRes, countriesRes, industriesRes, jobFnsRes, chainsRes, subBrandsRes] = await Promise.all([
             adminAuthClient.from("position_keyword_vocab").select("keyword, aliases"),
             adminAuthClient.from("country").select("country, region").not("country", "is", null),
             adminAuthClient.from("industry_group").select("group, industry"),
             (adminAuthClient as any).rpc("get_distinct_job_functions"),
+            adminAuthClient.from("hotel_chain_master").select("brand_name, rating").is("parent_id", null),
+            adminAuthClient.from("hotel_chain_master").select("brand_name, parent_id").not("parent_id", "is", null),
         ]);
 
         const keywordVocab = (vocabRes.data ?? []) as { keyword: string; aliases: string }[];
         const countriesData = (countriesRes.data ?? []) as { country: string; region: string }[];
         const industriesData = (industriesRes.data ?? []) as { group: string; industry: string }[];
         const jobFunctions = ((jobFnsRes.data ?? []) as any[]).map((r) => r.job_function as string);
+        const allChains = ((chainsRes.data ?? []) as { brand_name: string; rating: string | null }[]).map(c => c.brand_name);
+        const allSubBrands = ((subBrandsRes.data ?? []) as { brand_name: string }[]).map(c => c.brand_name);
 
         const allCountries = countriesData.map((c) => c.country);
         const allRegions = [...new Set(countriesData.map((c) => c.region).filter(Boolean))];
@@ -386,6 +390,12 @@ countries (string[]): ${JSON.stringify(allCountries)}
 regions (string[]): ${JSON.stringify(allRegions)}
 
 hotel_ratings (string[]): ["3 Star", "4 Star", "5 Star"]
+
+hotel_chains (string[]): ${JSON.stringify(allChains)}
+Use hotel_chains when user mentions a hotel group/brand by name (e.g. "Marriott", "IHG", "Accor", "Hilton"). Match to the closest name in the list above.
+
+hotel_sub_brands (string[]): ${JSON.stringify(allSubBrands)}
+Use hotel_sub_brands when user mentions a specific sub-brand (e.g. "InterContinental", "JW Marriott", "Sheraton"). Match to the closest name in the list above.
 
 industry_group (string | null): ${JSON.stringify(allIndustryGroups)}
 
@@ -448,6 +458,8 @@ function normalizeFilterShape(raw: Record<string, any>): Partial<DemoFilterState
         ...(raw.countries !== undefined && { countries: ensureArr(raw.countries) }),
         ...(raw.regions !== undefined && { regions: ensureArr(raw.regions) }),
         ...(raw.hotel_ratings !== undefined && { hotel_ratings: ensureArr(raw.hotel_ratings) }),
+        ...(raw.hotel_chains !== undefined && { hotel_chains: ensureArr(raw.hotel_chains) }),
+        ...(raw.hotel_sub_brands !== undefined && { hotel_sub_brands: ensureArr(raw.hotel_sub_brands) }),
         ...(raw.industries !== undefined && { industries: ensureArr(raw.industries) }),
         ...(raw.job_functions !== undefined && { job_functions: ensureArr(raw.job_functions) }),
         ...(raw.genders !== undefined && { genders: ensureArr(raw.genders) }),
