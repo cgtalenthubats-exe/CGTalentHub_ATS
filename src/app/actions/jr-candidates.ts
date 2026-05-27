@@ -580,8 +580,16 @@ export async function bulkAddCandidatesToJR(
     jrId: string,
     candidates: { id: string, name: string, source?: string }[],
     listType: string = 'Longlist',
-    addedByOverride?: string
-): Promise<{ success: boolean; added: number; duplicates: string[]; blacklisted: string[]; error?: string }> {
+    addedByOverride?: string,
+    forceIncludeBlacklisted: boolean = false
+): Promise<{
+    success: boolean;
+    added: number;
+    duplicates: string[];
+    blacklisted: { id: string; name: string; statuses: string[] }[];
+    needsBlacklistConfirm?: boolean;
+    error?: string;
+}> {
     const supabase = adminAuthClient;
 
     try {
@@ -592,7 +600,7 @@ export async function bulkAddCandidatesToJR(
 
         // 1. Process Onboarding for External Candidates
         const processedCandidates: { id: string, name: string }[] = [];
-        
+
         for (const cand of candidates) {
             if (cand.source === 'external_db') {
                 const onboardResult = await onboardExternalCandidate(cand.id, addedBy);
@@ -600,7 +608,6 @@ export async function bulkAddCandidatesToJR(
                     processedCandidates.push({ id: onboardResult.candidateId, name: cand.name });
                 } else {
                     console.error(`Failed to onboard ${cand.name} (${cand.id}):`, onboardResult.error);
-                    // Skip if onboarding fails? Or throw? For now, we'll skip and continue with others.
                 }
             } else {
                 processedCandidates.push({ id: cand.id, name: cand.name });
@@ -619,20 +626,29 @@ export async function bulkAddCandidatesToJR(
 
         if (blError) throw blError;
 
-        const blacklistedIds = new Set(blacklistData?.map((b: any) => b.candidate_id));
-        const blacklistedNames: string[] = [];
+        const blacklistedMap = new Map<string, string[]>(
+            (blacklistData ?? []).map((b: any) => [b.candidate_id, b.candidate_status ?? []])
+        );
 
-        // Filter out blacklisted
+        const blacklistedDetails: { id: string; name: string; statuses: string[] }[] = [];
         const candidatesSafe = processedCandidates.filter(c => {
-            if (blacklistedIds.has(c.id)) {
-                blacklistedNames.push(c.name);
+            if (blacklistedMap.has(c.id)) {
+                blacklistedDetails.push({ id: c.id, name: c.name, statuses: blacklistedMap.get(c.id)! });
                 return false;
             }
             return true;
         });
 
-        if (candidatesSafe.length === 0) {
-            return { success: true, added: 0, duplicates: [], blacklisted: blacklistedNames };
+        // If blacklisted found and not forced → return for confirmation
+        if (blacklistedDetails.length > 0 && !forceIncludeBlacklisted) {
+            return { success: false, added: 0, duplicates: [], blacklisted: blacklistedDetails, needsBlacklistConfirm: true };
+        }
+
+        // If forced, include blacklisted in the add list
+        const candidatesToAdd = forceIncludeBlacklisted ? processedCandidates : candidatesSafe;
+
+        if (candidatesToAdd.length === 0) {
+            return { success: true, added: 0, duplicates: [], blacklisted: blacklistedDetails };
         }
 
         // 1. Fetch existing candidates in this JR to filter duplicates
@@ -647,7 +663,7 @@ export async function bulkAddCandidatesToJR(
         const toAdd = [];
         const duplicates = [];
 
-        for (const c of candidatesSafe) {
+        for (const c of candidatesToAdd) {
             if (existingIds.has(c.id)) {
                 duplicates.push(c.name);
             } else {
@@ -656,7 +672,7 @@ export async function bulkAddCandidatesToJR(
         }
 
         if (toAdd.length === 0) {
-            return { success: true, added: 0, duplicates, blacklisted: blacklistedNames };
+            return { success: true, added: 0, duplicates, blacklisted: blacklistedDetails };
         }
 
         // 2. Reuse efficient logic from addCandidatesToJR (but we need to inline it or call it safely)
@@ -724,7 +740,7 @@ export async function bulkAddCandidatesToJR(
         const { error: logError } = await supabase.from('status_log').insert(statusLogsInsert as any);
         if (logError) throw logError;
 
-        return { success: true, added: toAdd.length, duplicates, blacklisted: blacklistedNames };
+        return { success: true, added: toAdd.length, duplicates, blacklisted: blacklistedDetails };
 
     } catch (e: any) {
         console.error("Bulk Add Error:", e);

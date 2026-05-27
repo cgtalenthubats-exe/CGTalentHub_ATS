@@ -20,7 +20,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Search, Loader2, Briefcase, ChevronRight, CheckCircle2, Building2, Upload, FileText, X } from "lucide-react";
+import { Plus, Search, Loader2, Briefcase, ChevronRight, CheckCircle2, Building2, Upload, FileText, X, AlertTriangle } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { createJobRequisition } from "@/app/actions/requisitions";
 import { bulkAddCandidatesToJR, bulkAddByFilterToJR } from "@/app/actions/jr-candidates";
@@ -33,11 +33,18 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Check, ChevronsUpDown } from "lucide-react";
 
+interface BlacklistedCandidate {
+    id: string;
+    name: string;
+    statuses: string[];
+}
+
 interface BulkAddResponse {
     success: boolean;
     added?: number;
     duplicates?: string[];
-    blacklisted?: string[];
+    blacklisted?: BlacklistedCandidate[];
+    needsBlacklistConfirm?: boolean;
     error?: string;
 }
 
@@ -71,6 +78,8 @@ export function AddCandidateDialog({
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedJrId, setSelectedJrId] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
+    const [pendingJrId, setPendingJrId] = useState<string | null>(null);
+    const [blacklistConfirm, setBlacklistConfirm] = useState<{ candidates: BlacklistedCandidate[]; isNewJr: boolean } | null>(null);
     const [uploadingFile, setUploadingFile] = useState(false);
     const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
 
@@ -227,7 +236,17 @@ export function AddCandidateDialog({
         });
     }, [jrs, searchQuery, jrFilters]);
 
-    async function handleAddExisting() {
+    function handleSuccess(res: BulkAddResponse, jrId: string, label: string) {
+        const parts = [];
+        if ((res.added ?? 0) > 0) parts.push(`✅ Added ${res.added} candidate(s).`);
+        if ((res.duplicates?.length ?? 0) > 0) parts.push(`⚠️ Skipped ${res.duplicates?.length} duplicate(s).`);
+        if ((res.blacklisted?.length ?? 0) > 0) parts.push(`🚫 Included ${res.blacklisted?.length} blacklisted candidate(s).`);
+        toast.success(label, { description: parts.join(" "), duration: 6000 });
+        onOpenChange(false);
+        onSuccess?.(jrId);
+    }
+
+    async function handleAddExisting(forceBlacklisted = false) {
         if (!selectedJrId) return;
         setSubmitting(true);
         try {
@@ -237,40 +256,28 @@ export function AddCandidateDialog({
             } else {
                 res = await bulkAddCandidatesToJR(
                     selectedJrId,
-                    candidateIds.map((id, idx) => ({ 
-                        id, 
-                        name: candidateNames?.[idx] || id,
-                        source: candidateSources?.[idx] || 'internal_db'
-                    }))
+                    candidateIds.map((id, idx) => ({ id, name: candidateNames?.[idx] || id, source: candidateSources?.[idx] || 'internal_db' })),
+                    'Longlist',
+                    undefined,
+                    forceBlacklisted
                 ) as BulkAddResponse;
             }
 
-            if (res.success) {
-                const parts = [];
-                if ((res.added ?? 0) > 0) parts.push(`✅ Added ${res.added} candidate(s).`);
-                if ((res.duplicates?.length ?? 0) > 0) parts.push(`⚠️ Skipped ${res.duplicates?.length} duplicate(s).`);
-                if ((res.blacklisted?.length ?? 0) > 0) {
-                    const blNames = res.blacklisted?.join(', ');
-                    parts.push(`🚫 Skipped blacklisted: ${blNames}`);
-                }
-
-                toast.success(`Operation Complete`, {
-                    description: parts.join(" "),
-                    duration: 6000
-                });
-                onOpenChange(false);
-                onSuccess?.(selectedJrId!);
-            } else {
-                toast.error(res.error || "Failed to add candidates");
+            if (res.needsBlacklistConfirm && res.blacklisted?.length) {
+                setPendingJrId(selectedJrId);
+                setBlacklistConfirm({ candidates: res.blacklisted, isNewJr: false });
+                return;
             }
-        } catch (error) {
+            if (res.success) handleSuccess(res, selectedJrId, "Operation Complete");
+            else toast.error(res.error || "Failed to add candidates");
+        } catch {
             toast.error("An error occurred");
         } finally {
             setSubmitting(false);
         }
     }
 
-    async function handleCreateAndAdd() {
+    async function handleCreateAndAdd(forceBlacklisted = false) {
         if (!newJr.position_jr) return;
         setSubmitting(true);
         try {
@@ -279,35 +286,45 @@ export function AddCandidateDialog({
 
             const res = await bulkAddCandidatesToJR(
                 createdJr.id,
-                candidateIds.map((id, idx) => ({ 
-                    id, 
-                    name: candidateNames?.[idx] || id,
-                    source: candidateSources?.[idx] || 'internal_db'
-                }))
+                candidateIds.map((id, idx) => ({ id, name: candidateNames?.[idx] || id, source: candidateSources?.[idx] || 'internal_db' })),
+                'Longlist',
+                undefined,
+                forceBlacklisted
             ) as BulkAddResponse;
 
-            if (res.success) {
-                const parts = [];
-                if ((res.added ?? 0) > 0) parts.push(`✅ Added ${res.added} candidate(s).`);
-                if ((res.duplicates?.length ?? 0) > 0) parts.push(`⚠️ Skipped ${res.duplicates?.length} duplicate(s).`);
-                if ((res.blacklisted?.length ?? 0) > 0) {
-                    const blNames = res.blacklisted?.join(', ');
-                    parts.push(`🚫 Skipped blacklisted: ${blNames}`);
-                }
-
-                toast.success(`JR Created and candidates added!`, {
-                    description: parts.join(" "),
-                    duration: 6000
-                });
-                onOpenChange(false);
-                onSuccess?.(createdJr.id);
-            } else {
-                toast.error(res.error || "Failed to add candidates to new JR");
+            if (res.needsBlacklistConfirm && res.blacklisted?.length) {
+                setPendingJrId(createdJr.id);
+                setBlacklistConfirm({ candidates: res.blacklisted, isNewJr: true });
+                return;
             }
-        } catch (error) {
+            if (res.success) handleSuccess(res, createdJr.id, "JR Created and candidates added!");
+            else toast.error(res.error || "Failed to add candidates to new JR");
+        } catch {
             toast.error("An error occurred while creating JR");
         } finally {
             setSubmitting(false);
+        }
+    }
+
+    async function handleBlacklistConfirm(includeBlacklisted: boolean) {
+        if (!pendingJrId || !blacklistConfirm) return;
+        setBlacklistConfirm(null);
+        setSubmitting(true);
+        try {
+            const res = await bulkAddCandidatesToJR(
+                pendingJrId,
+                candidateIds.map((id, idx) => ({ id, name: candidateNames?.[idx] || id, source: candidateSources?.[idx] || 'internal_db' })),
+                'Longlist',
+                undefined,
+                includeBlacklisted
+            ) as BulkAddResponse;
+            if (res.success) handleSuccess(res, pendingJrId, "Operation Complete");
+            else toast.error(res.error || "Failed to add candidates");
+        } catch {
+            toast.error("An error occurred");
+        } finally {
+            setSubmitting(false);
+            setPendingJrId(null);
         }
     }
 
@@ -606,6 +623,62 @@ export function AddCandidateDialog({
                     </div>
                 </Tabs>
 
+                {blacklistConfirm && (
+                    <div className="absolute inset-0 z-50 flex flex-col bg-white/95 backdrop-blur-sm">
+                        <div className="flex-1 flex flex-col justify-center p-8 gap-6">
+                            <div className="flex items-start gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                                    <AlertTriangle className="w-6 h-6 text-red-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-bold text-slate-900">Blacklisted Candidates Detected</h3>
+                                    <p className="text-sm text-slate-500 mt-1">
+                                        {blacklistConfirm.candidates.length} candidate{blacklistConfirm.candidates.length > 1 ? 's' : ''} in your selection {blacklistConfirm.candidates.length > 1 ? 'have' : 'has'} a Blacklist status. Do you want to include them?
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="rounded-xl border border-red-200 bg-red-50 divide-y divide-red-100 overflow-hidden max-h-72 overflow-y-auto">
+                                {blacklistConfirm.candidates.map((c) => (
+                                    <div key={c.id} className="flex items-center justify-between px-4 py-3 gap-3">
+                                        <div>
+                                            <span className="text-sm font-semibold text-slate-800">{c.name}</span>
+                                            <span className="text-xs text-slate-400 ml-2">{c.id}</span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1 justify-end">
+                                            {c.statuses.map((s) => (
+                                                <span key={s} className={cn(
+                                                    "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                                                    s === 'Blacklist' ? "bg-red-200 text-red-800" : "bg-slate-200 text-slate-700"
+                                                )}>{s}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <div className="flex gap-3">
+                                <Button
+                                    variant="outline"
+                                    className="flex-1 rounded-xl font-bold border-slate-300 text-slate-600 hover:bg-slate-50"
+                                    onClick={() => handleBlacklistConfirm(false)}
+                                    disabled={submitting}
+                                >
+                                    Skip Blacklisted
+                                </Button>
+                                <Button
+                                    className="flex-1 rounded-xl font-bold bg-red-600 hover:bg-red-700 text-white"
+                                    onClick={() => handleBlacklistConfirm(true)}
+                                    disabled={submitting}
+                                >
+                                    {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Add Anyway
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <SheetFooter className="p-6 shrink-0 bg-slate-50 border-t flex items-center justify-end sm:justify-end gap-2">
                     <Button
                         variant="ghost"
@@ -617,7 +690,7 @@ export function AddCandidateDialog({
                     {activeTab === 'existing' ? (
                         <Button
                             disabled={!selectedJrId || submitting}
-                            onClick={handleAddExisting}
+                            onClick={() => handleAddExisting()}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-11 px-8 font-bold shadow-lg shadow-indigo-500/20"
                         >
                             {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -626,7 +699,7 @@ export function AddCandidateDialog({
                     ) : (
                         <Button
                             disabled={!newJr.position_jr || submitting}
-                            onClick={handleCreateAndAdd}
+                            onClick={() => handleCreateAndAdd()}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl h-11 px-8 font-bold shadow-lg shadow-indigo-500/20"
                         >
                             {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
