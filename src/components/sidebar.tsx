@@ -19,7 +19,8 @@ import {
     Search,
     Building2,
     ClipboardList,
-    Sparkles
+    Sparkles,
+    UserCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
@@ -30,6 +31,7 @@ const menuItems = [
     { name: "Pending Task for Recruiter", icon: ClipboardList, path: "/pending-tasks" },
     { name: "Dashboard", icon: BarChart3, path: "/dashboard" },
     { name: "Candidates", icon: Users, path: "/candidates" },
+    { name: "Internal Candidates", icon: UserCheck, path: "/internal" },
     { name: "Job Requisitions", icon: Briefcase, path: "/requisitions" },
     { name: "Org Chart", icon: Network, path: "/org-chart" },
     { name: "AI Search", icon: Sparkles, path: "/ai-search-demo" },

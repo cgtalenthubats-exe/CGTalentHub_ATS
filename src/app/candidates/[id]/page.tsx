@@ -5,8 +5,10 @@ import {
     Mail, Phone, MapPin, Calendar, Download, Edit,
     Briefcase, GraduationCap, Globe,
     FileText, CheckCircle2, AlertCircle, UploadCloud, ChevronLeft, Plus,
-    Linkedin, DollarSign, Eye
+    Linkedin, DollarSign, Eye, UserCheck, Building2
 } from "lucide-react";
+import { getInternalCandidates } from "@/app/actions/internal-candidates";
+import type { InternalCandidate } from "@/app/actions/internal-candidates";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -38,6 +40,14 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
     const [openJrDialog, setOpenJrDialog] = React.useState(false);
     const [selectedExpIds, setSelectedExpIds] = React.useState<string[]>([]);
     const [isDeletingBulk, setIsDeletingBulk] = React.useState(false);
+    const [employmentRecord, setEmploymentRecord] = React.useState<InternalCandidate | null>(null);
+
+    React.useEffect(() => {
+        getInternalCandidates({ search: id }).then(results => {
+            const match = results.find(r => r.candidate_id === id);
+            setEmploymentRecord(match || null);
+        });
+    }, [id]);
 
     React.useEffect(() => {
         const fetchCandidate = async () => {
@@ -645,6 +655,56 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                             )}
                         </CardContent>
                     </Card>
+
+                    {/* Internal Employment Record — shown only when candidate has employment_record */}
+                    {employmentRecord?.employment_record_id && (
+                        <Card className="border shadow-sm bg-card overflow-hidden">
+                            <CardHeader className="border-b bg-gradient-to-r from-indigo-50 to-white px-6 py-4">
+                                <CardTitle className="text-lg font-bold flex items-center gap-2 text-slate-800">
+                                    <span className="p-2 rounded-lg bg-indigo-100 text-indigo-600"><UserCheck className="h-5 w-5" /></span>
+                                    Internal Employment Record
+                                    <Badge className={cn(
+                                        "ml-2 text-[10px] font-bold",
+                                        employmentRecord.hiring_status === 'Active'
+                                            ? "bg-emerald-100 text-emerald-700 border-none"
+                                            : "bg-slate-100 text-slate-500 border-none"
+                                    )}>
+                                        {employmentRecord.hiring_status === 'Active' ? 'Active' : 'Ex-Central'}
+                                    </Badge>
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="pt-5">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    {[
+                                        { label: "Position", value: employmentRecord.position },
+                                        { label: "BU", value: employmentRecord.bu },
+                                        { label: "Sub-BU", value: employmentRecord.sub_bu },
+                                        { label: "Job Grade", value: employmentRecord.job_grade != null ? `JG ${employmentRecord.job_grade}` : null },
+                                        { label: "Employee ID", value: employmentRecord.employee_id },
+                                        { label: "Hire Date", value: employmentRecord.hire_date ? new Date(employmentRecord.hire_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : null },
+                                        { label: "Resign Date", value: employmentRecord.resign_date ? new Date(employmentRecord.resign_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : null },
+                                        { label: "Resignation Reason", value: employmentRecord.resignation_reason },
+                                    ].map(({ label, value }) => (
+                                        <div key={label}>
+                                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">{label}</p>
+                                            <p className="text-sm font-semibold text-slate-700">{value || <span className="text-slate-300 font-normal">—</span>}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                                {employmentRecord.note && (
+                                    <div className="mt-4 p-3 rounded-lg bg-slate-50 border border-slate-100">
+                                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">Note</p>
+                                        <p className="text-sm text-slate-600">{employmentRecord.note}</p>
+                                    </div>
+                                )}
+                                <div className="mt-3">
+                                    <a href="/internal" className="text-xs text-indigo-600 hover:underline font-medium">
+                                        → View in Internal Candidates
+                                    </a>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
 
                     {/* Pre-Screen Logs (Enhanced) */}
                     <Card id="pre-screen-logs" className="border shadow-sm bg-card">
