@@ -14,6 +14,7 @@ import {
     Tags,
     ChevronDown,
     AlertCircle,
+    AlertTriangle,
     Building2,
     CheckCircle2
 } from "lucide-react";
@@ -52,6 +53,12 @@ import { searchCompanies, searchPositions } from "@/app/actions/candidate-filter
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/notifications";
 
+interface BlacklistedCandidate {
+    id: string;
+    name: string;
+    statuses: string[];
+}
+
 interface AddCandidateDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -71,6 +78,8 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess, update
     const [existingIds, setExistingIds] = useState<string[]>([]);
     const [listType, setListType] = useState("Longlist");
     const [submitting, setSubmitting] = useState(false);
+    const [blacklistConfirm, setBlacklistConfirm] = useState<BlacklistedCandidate[] | null>(null);
+    const [pendingPayload, setPendingPayload] = useState<{ id: string; name: string }[] | null>(null);
 
     // Filters
     const [showFilters, setShowFilters] = useState(false);
@@ -201,10 +210,30 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess, update
         }
     };
 
+    const finishAdd = (result: Awaited<ReturnType<typeof bulkAddCandidatesToJR>>) => {
+        if (result.added > 0) {
+            toast.success(`Added ${result.added} candidate(s) to pipeline`);
+        }
+        if (result.blacklisted && result.blacklisted.length > 0) {
+            const names = result.blacklisted.slice(0, 3).map(b => b.name).join(', ');
+            toast.warning(`Skipped ${result.blacklisted.length} blacklisted: ${names}${result.blacklisted.length > 3 ? '...' : ''}`, { duration: 6000 });
+        }
+        if (result.duplicates && result.duplicates.length > 0) {
+            toast.info(`Skipped ${result.duplicates.length} already in pipeline: ${result.duplicates.slice(0, 3).join(', ')}${result.duplicates.length > 3 ? '...' : ''}`, { duration: 6000 });
+        }
+        if (result.added === 0 && (!result.blacklisted?.length) && (!result.duplicates?.length)) {
+            toast.info("No candidates were added.");
+        }
+        onSuccess();
+        onOpenChange(false);
+        setSelectedIds([]);
+        setSearchQuery("");
+        setFilters({ countries: [], industries: [], positions: [], companies: [], jobFunctions: [], statuses: [], genders: [], ageMin: "", ageMax: "", experienceType: "All" });
+    };
+
     const handleAdd = async () => {
         if (selectedIds.length === 0) return;
 
-        // Build candidate list with names for server-side validation
         const candidatesPayload = selectedIds.map(id => ({
             id,
             name: results.find(r => r.candidate_id === id)?.name || id
@@ -214,32 +243,32 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess, update
         const result = await bulkAddCandidatesToJR(jrId, candidatesPayload, listType, updatedBy);
         setSubmitting(false);
 
-        if (!result.success) {
-            toast.error("Error: " + result.error);
+        if (result.needsBlacklistConfirm && result.blacklisted?.length) {
+            setPendingPayload(candidatesPayload);
+            setBlacklistConfirm(result.blacklisted);
             return;
         }
 
-        // Show informative feedback
-        if (result.added > 0) {
-            toast.success(`Added ${result.added} candidate(s) to pipeline`);
-        }
-        if (result.blacklisted && result.blacklisted.length > 0) {
-            toast.warning(`Skipped ${result.blacklisted.length} blacklisted: ${result.blacklisted.slice(0, 3).join(', ')}${result.blacklisted.length > 3 ? '...' : ''}`, { duration: 6000 });
-        }
-        if (result.duplicates && result.duplicates.length > 0) {
-            toast.info(`Skipped ${result.duplicates.length} already in pipeline: ${result.duplicates.slice(0, 3).join(', ')}${result.duplicates.length > 3 ? '...' : ''}`, { duration: 6000 });
-        }
-        if (result.added === 0 && (!result.blacklisted?.length) && (!result.duplicates?.length)) {
-            toast.info("No candidates were added.");
+        if (!result.success) {
+            toast.error(result.error || "Failed to add candidates");
+            return;
         }
 
-        onSuccess();
-        onOpenChange(false);
-        setSelectedIds([]);
-        setSearchQuery("");
-        setFilters({
-            countries: [], industries: [], positions: [], companies: [], jobFunctions: [], statuses: [], genders: [], ageMin: "", ageMax: "", experienceType: "All"
-        });
+        finishAdd(result);
+    };
+
+    const handleBlacklistConfirm = async (includeBlacklisted: boolean) => {
+        if (!pendingPayload) return;
+        setBlacklistConfirm(null);
+        setSubmitting(true);
+        const result = await bulkAddCandidatesToJR(jrId, pendingPayload, listType, updatedBy, includeBlacklisted);
+        setSubmitting(false);
+        setPendingPayload(null);
+        if (!result.success) {
+            toast.error(result.error || "Failed to add candidates");
+            return;
+        }
+        finishAdd(result);
     };
 
     const toggleFilter = (key: keyof typeof filters, value: string) => {
@@ -254,6 +283,61 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess, update
 
     return (
         <>
+            {blacklistConfirm && (
+                <Dialog open={true} onOpenChange={() => { setBlacklistConfirm(null); setPendingPayload(null); }}>
+                    <DialogContent className="sm:max-w-md rounded-2xl p-0 overflow-hidden border-none shadow-2xl">
+                        <div className="p-7 flex flex-col gap-5">
+                            <div className="flex items-start gap-4">
+                                <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center shrink-0">
+                                    <AlertTriangle className="w-6 h-6 text-red-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-bold text-slate-900">Blacklisted Candidates Detected</h3>
+                                    <p className="text-sm text-slate-500 mt-1">
+                                        {blacklistConfirm.length} candidate{blacklistConfirm.length > 1 ? 's' : ''} in your selection {blacklistConfirm.length > 1 ? 'have' : 'has'} a Blacklist status. Do you want to include them?
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="rounded-xl border border-red-200 bg-red-50 divide-y divide-red-100 overflow-hidden max-h-64 overflow-y-auto">
+                                {blacklistConfirm.map((c) => (
+                                    <div key={c.id} className="flex items-center justify-between px-4 py-3 gap-3">
+                                        <div>
+                                            <span className="text-sm font-semibold text-slate-800">{c.name}</span>
+                                            <span className="text-xs text-slate-400 ml-2">{c.id}</span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1 justify-end">
+                                            {c.statuses.map((s) => (
+                                                <span key={s} className={cn(
+                                                    "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                                                    s === 'Blacklist' ? "bg-red-200 text-red-800" : "bg-slate-200 text-slate-700"
+                                                )}>{s}</span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="flex gap-3">
+                                <Button
+                                    variant="outline"
+                                    className="flex-1 rounded-xl font-bold border-slate-300 text-slate-600 hover:bg-slate-50"
+                                    onClick={() => handleBlacklistConfirm(false)}
+                                    disabled={submitting}
+                                >
+                                    Skip Blacklisted
+                                </Button>
+                                <Button
+                                    className="flex-1 rounded-xl font-bold bg-red-600 hover:bg-red-700 text-white"
+                                    onClick={() => handleBlacklistConfirm(true)}
+                                    disabled={submitting}
+                                >
+                                    {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                    Add Anyway
+                                </Button>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            )}
             <Dialog open={open} onOpenChange={onOpenChange}>
                 <DialogContent className="sm:max-w-6xl overflow-hidden flex flex-col max-h-[96vh] p-0 border-none shadow-2xl rounded-2xl">
                     <DialogHeader className="p-7 pb-5 bg-gradient-to-r from-indigo-50/80 to-slate-50/50 dark:from-slate-900 dark:to-slate-950 border-b">
