@@ -258,17 +258,43 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess, update
     };
 
     const handleBlacklistConfirm = async (includeBlacklisted: boolean) => {
-        if (!pendingPayload) return;
+        if (!pendingPayload || !blacklistConfirm) return;
+        // Capture who was skipped before clearing state
+        const skipped = includeBlacklisted ? [] : [...blacklistConfirm];
         setBlacklistConfirm(null);
         setSubmitting(true);
-        const result = await bulkAddCandidatesToJR(jrId, pendingPayload, listType, updatedBy, includeBlacklisted);
+
+        // Skip mode: strip blacklisted from payload so the server won't re-trigger the confirmation guard
+        const payload = includeBlacklisted
+            ? pendingPayload
+            : pendingPayload.filter(c => !skipped.some(b => b.id === c.id));
+
+        const result = await bulkAddCandidatesToJR(jrId, payload, listType, updatedBy, includeBlacklisted);
         setSubmitting(false);
         setPendingPayload(null);
+
         if (!result.success) {
             toast.error(result.error || "Failed to add candidates");
             return;
         }
-        finishAdd(result);
+
+        if (result.added > 0) toast.success(`Added ${result.added} candidate(s) to pipeline`);
+        if (skipped.length > 0) {
+            const names = skipped.slice(0, 3).map(b => b.name).join(', ');
+            toast.warning(`Skipped ${skipped.length} blacklisted: ${names}${skipped.length > 3 ? '...' : ''}`, { duration: 6000 });
+        }
+        if (result.duplicates?.length) {
+            toast.info(`Skipped ${result.duplicates.length} already in pipeline: ${result.duplicates.slice(0, 3).join(', ')}${result.duplicates.length > 3 ? '...' : ''}`, { duration: 6000 });
+        }
+        if (result.added === 0 && !skipped.length && !result.duplicates?.length) {
+            toast.info("No candidates were added.");
+        }
+
+        onSuccess();
+        onOpenChange(false);
+        setSelectedIds([]);
+        setSearchQuery("");
+        setFilters({ countries: [], industries: [], positions: [], companies: [], jobFunctions: [], statuses: [], genders: [], ageMin: "", ageMax: "", experienceType: "All" });
     };
 
     const toggleFilter = (key: keyof typeof filters, value: string) => {
@@ -292,7 +318,7 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess, update
                                     <AlertTriangle className="w-6 h-6 text-red-600" />
                                 </div>
                                 <div>
-                                    <h3 className="text-base font-bold text-slate-900">Blacklisted Candidates Detected</h3>
+                                    <DialogTitle className="text-base font-bold text-slate-900">Blacklisted Candidates Detected</DialogTitle>
                                     <p className="text-sm text-slate-500 mt-1">
                                         {blacklistConfirm.length} candidate{blacklistConfirm.length > 1 ? 's' : ''} in your selection {blacklistConfirm.length > 1 ? 'have' : 'has'} a Blacklist status. Do you want to include them?
                                     </p>
@@ -528,6 +554,16 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess, update
                                                             Pipeline Active
                                                         </Badge>
                                                     )}
+                                                    {c.candidate_status?.map((s: string) => (
+                                                        <Badge key={s} variant="secondary" className={cn(
+                                                            "text-[10px] font-bold h-5 border",
+                                                            s === 'Blacklist' ? "bg-rose-50 text-rose-600 border-rose-200" :
+                                                            s === 'Over-aged' ? "bg-orange-50 text-orange-600 border-orange-200" :
+                                                            "bg-slate-100 text-slate-600 border-slate-200"
+                                                        )}>
+                                                            {s}
+                                                        </Badge>
+                                                    ))}
                                                 </div>
                                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4 gap-y-1.5 mt-2 text-xs text-slate-500 font-bold">
                                                     <div className="flex items-center gap-2 truncate text-slate-700/80">
