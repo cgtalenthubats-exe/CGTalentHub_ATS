@@ -67,7 +67,17 @@ export async function POST(req: Request) {
             .replace(/\\t/g, '\t')     // \\t → real tab
             .replace(/\\"/g, '"');     // \\" → real quote
 
-        return NextResponse.json({ answer });
+        // Also extract filters and session_id if present
+        let filters: any = {};
+        let session_id = '';
+        try {
+            const parsed = JSON.parse(rawText);
+            const first = Array.isArray(parsed) ? parsed[0] : parsed;
+            if (first?.filters) filters = first.filters;
+            if (first?.session_id) session_id = first.session_id;
+        } catch {}
+
+        return NextResponse.json({ answer, filters, session_id });
 
     } catch (error: any) {
         console.error('[/api/chat] Error:', error);

@@ -13,7 +13,8 @@ import {
     PenTool,
     UploadCloud,
     CheckCircle,
-    AlertCircle
+    AlertCircle,
+    UserCheck
 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -224,6 +225,15 @@ export default function CandidatesMenuPage() {
                     color="bg-purple-500"
                     description="Initial screening results"
                     onClick={() => router.push('/candidates/pre-screen')}
+                />
+
+                {/* 7. Internal Candidates */}
+                <MenuCard
+                    title="Internal Candidates"
+                    icon={UserCheck}
+                    color="bg-indigo-500"
+                    description="CG Group employees placed through CG Talent Hub"
+                    onClick={() => router.push('/internal')}
                 />
 
             </div>

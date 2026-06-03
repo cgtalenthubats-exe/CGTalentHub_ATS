@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.80",
+    "@ai-sdk/react": "^3.0.197",
     "@anthropic-ai/sdk": "^0.94.0",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -30,6 +32,7 @@
     "@types/d3-scale": "^4.0.9",
     "@types/papaparse": "^5.5.2",
     "@types/uuid": "^10.0.0",
+    "ai": "^6.0.195",
     "autoprefixer": "^10.4.24",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -59,7 +62,8 @@
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^13.0.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.3",
