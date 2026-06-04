@@ -277,7 +277,7 @@ export default function AISearchV3Page() {
                 {/* Chat expanded */}
                 {chatOpen && (
                     <div className="border-t mx-6 mb-3">
-                        <div className="h-96 overflow-y-auto py-3 space-y-2.5">
+                        <div className="h-[544px] overflow-y-auto py-3 space-y-2.5">
                             {messages.length === 0 && (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-400">
                                     <Bot className="h-8 w-8 opacity-15 mb-2" />
