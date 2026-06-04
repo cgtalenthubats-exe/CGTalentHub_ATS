@@ -327,6 +327,9 @@ export default function AISearchV3Page() {
                             </div>
                         </div>
                     </div>
+                    <p className="text-[10px] text-slate-400 px-4 pb-2 text-center">
+                        ⚠️ AI อาจให้ข้อมูลไม่ถูกต้อง 100% โปรดตรวจสอบและปรับแต่ง filter ด้านล่างเพื่อผลลัพธ์ที่แม่นยำ
+                    </p>
                 )}
             </div>
 
