@@ -20,12 +20,13 @@ type Upload = {
 type OrgDirectoryProps = {
     uploads: Upload[]
     currentId: string | null
+    fullPage?: boolean
 }
 
-export function OrgDirectory({ uploads, currentId }: OrgDirectoryProps) {
+export function OrgDirectory({ uploads, currentId, fullPage = false }: OrgDirectoryProps) {
     const router = useRouter()
     const [searchTerm, setSearchTerm] = useState('')
-    const [isExpanded, setIsExpanded] = useState(!currentId) // Auto-collapse if already viewing an org
+    const [isExpanded, setIsExpanded] = useState(fullPage || !currentId) // Auto-collapse if already viewing an org
 
     // Group and stabilize uploads (Pre-sorted by Name, then Date desc)
     const grouped = useMemo(() => {
@@ -76,7 +77,7 @@ export function OrgDirectory({ uploads, currentId }: OrgDirectoryProps) {
     }
 
     const handleCompanyClick = (uploadId: string) => {
-        router.push(`/org-chart?id=${uploadId}`)
+        router.push(`/org-chart/${uploadId}`)
     }
 
     if (uploads.length === 0) return null
@@ -86,14 +87,16 @@ export function OrgDirectory({ uploads, currentId }: OrgDirectoryProps) {
             {/* Header / Search */}
             <div className="p-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/10 dark:bg-slate-900/10 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                    <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-7 w-7 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 p-0"
-                        onClick={() => setIsExpanded(!isExpanded)}
-                    >
-                        {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </Button>
+                    {!fullPage && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 p-0"
+                            onClick={() => setIsExpanded(!isExpanded)}
+                        >
+                            {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        </Button>
+                    )}
                     <div className="bg-indigo-600 p-1.5 rounded-lg text-white cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
                         <Globe size={16} />
                     </div>
@@ -115,7 +118,7 @@ export function OrgDirectory({ uploads, currentId }: OrgDirectoryProps) {
 
             {/* Vertical Flow Directory Grid */}
             {isExpanded && (
-                <ScrollArea className="h-48 transition-all duration-300">
+                <ScrollArea className={cn("transition-all duration-300", fullPage ? "h-[calc(100vh-280px)]" : "h-48")}>
                     <div className="p-4 grid grid-rows-4 grid-flow-col gap-x-8 gap-y-4 auto-cols-max overflow-x-auto">
                         {alphabet.map(letter => {
                             const items = filteredGrouped[letter]

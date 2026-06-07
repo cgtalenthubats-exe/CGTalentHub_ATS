@@ -1,12 +1,12 @@
 'use client'
 
 import React, { useState } from 'react'
-import { ImportOrgDialog } from './import-org-dialog'
+import Link from 'next/link'
 import { AddNodeDialog } from './add-node-dialog'
 import { CloneOrgDialog } from './clone-org-dialog'
 import { ParseImageDialog } from './parse-image-dialog'
 import { Button } from '@/components/ui/button'
-import { Plus, GitFork, ScanLine } from 'lucide-react'
+import { Plus, GitFork, ScanLine, ArrowLeft } from 'lucide-react'
 
 type Props = {
     currentUploadId: string | null
@@ -21,7 +21,14 @@ export function OrgChartHeader({ currentUploadId, uploads, existingNodes = [] }:
 
     return (
         <div className="shrink-0 flex items-center justify-between">
-            <div className="flex items-baseline gap-3">
+            <div className="flex items-center gap-3">
+                <Link
+                    href="/org-chart"
+                    className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors"
+                >
+                    <ArrowLeft size={14} className="stroke-[3]" /> Directory
+                </Link>
+                <span className="text-slate-300 dark:text-slate-700">/</span>
                 <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 italic">
                     Organization Chart
                 </h1>
@@ -56,7 +63,6 @@ export function OrgChartHeader({ currentUploadId, uploads, existingNodes = [] }:
                         </Button>
                     </>
                 )}
-                <ImportOrgDialog />
             </div>
 
             {currentUploadId && (

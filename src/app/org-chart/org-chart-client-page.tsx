@@ -3,7 +3,6 @@
 import React, { Suspense } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { OrgChartHeader } from '@/components/org-chart/org-chart-header'
-import { OrgDirectory } from '@/components/org-chart/org-directory'
 import { OrgNodeTable } from '@/components/org-chart/org-node-table'
 import { OrgChartClientWrapper } from '@/components/org-chart/org-chart-client-wrapper'
 import { UnmappedCandidates } from '@/components/org-chart/unmapped-candidates'
@@ -39,12 +38,6 @@ export function OrgChartClientPage({
                 currentUploadId={currentUploadId}
                 uploads={uploads}
                 existingNodes={tableData.map((n: any) => ({ name: n.name as string, parent_name: (n.parent_name ?? null) as string | null }))}
-            />
-
-            {/* Top Area: Compact Directory Toolbar */}
-            <OrgDirectory
-                uploads={uploads}
-                currentId={currentUploadId}
             />
 
             {/* Main Content: Chart/Table */}

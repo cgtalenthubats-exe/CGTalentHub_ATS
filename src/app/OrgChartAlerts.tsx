@@ -90,7 +90,7 @@ export default function OrgChartAlerts() {
                                             </div>
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            <Link href={`/org-chart?id=${alert.upload_id}`}>
+                                            <Link href={`/org-chart/${alert.upload_id}`}>
                                                 <Button size="sm" className="bg-slate-900 hover:bg-blue-600 text-white font-black uppercase text-[9px] tracking-widest h-8 rounded-lg outline-none">
                                                     Verify <ArrowRight className="ml-1.5 w-3 h-3" />
                                                 </Button>

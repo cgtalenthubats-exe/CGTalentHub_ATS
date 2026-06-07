@@ -81,12 +81,77 @@ type OrgChartViewerProps = {
     modifyDate?: string | null
 }
 
-const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, onExpand, onDeleteNode, onAddSubordinate, onReplaceNode, onMoveNode }: any) => {
+const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, onExpand, onDeleteNode, onAddSubordinate, onReplaceNode, onMoveNode, onToggleGroupNode }: any) => {
     const isMatch = !!nodeDatum.matched_candidate_id
+    const isGroupNode = !!nodeDatum.is_group_node
     const isVerified = nodeDatum.is_verified === 'TRUE'
     const isNotMatch = nodeDatum.is_verified === 'NOT_MATCH'
     const childCount = nodeDatum._childCount || 0
     const hasChildren = childCount > 0
+
+    if (isGroupNode) {
+        return (
+            <div
+                className={cn("relative w-full h-full border-2 rounded-xl flex flex-col items-center justify-center transition-all shadow-sm group", hasChildren && "cursor-pointer hover:ring-2 hover:ring-indigo-400")}
+                onClick={hasChildren ? () => onExpand(nodeDatum.node_id) : undefined}
+                style={{
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                    width: '100%', height: '100%', padding: '10px', borderWidth: '2px', borderRadius: '12px', borderStyle: 'solid',
+                    boxSizing: 'border-box', position: 'relative',
+                    background: 'linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%)',
+                    borderColor: '#6366f1', boxShadow: '0 1px 3px rgba(99,102,241,0.15)',
+                    fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
+                }}
+            >
+                <div className="absolute -top-1.5 -right-1.5 z-50" onClick={(e) => e.stopPropagation()}>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-6 w-6 bg-white border border-slate-200 shadow-sm rounded-full p-0 flex items-center justify-center hover:bg-slate-50 transition-all hover:scale-110">
+                                <MoreHorizontal size={14} strokeWidth={3} />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onAddSubordinate(nodeDatum.name); }}>
+                                <Plus size={14} className="mr-2" /> Add Subordinate
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onReplaceNode(nodeDatum); }}>
+                                <UserPlus size={14} className="mr-2" /> Edit Label
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onMoveNode(nodeDatum); }}>
+                                <Focus size={14} className="mr-2" /> Move Node
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onToggleGroupNode(nodeDatum.node_id, false); }}>
+                                <User size={14} className="mr-2" /> Switch to Person Node
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="text-rose-600" onClick={(e) => { e.stopPropagation(); onDeleteNode({ node_id: nodeDatum.node_id, name: nodeDatum.name }); }}>
+                                <Trash2 size={14} className="mr-2" /> Remove Node
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+
+                <div style={{ background: '#6366f1', borderRadius: '8px', padding: '5px', marginBottom: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Building2 size={14} color="white" />
+                </div>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: '#3730a3', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '90%' }}>
+                    {nodeDatum.name}
+                </div>
+                {nodeDatum.title && (
+                    <div style={{ fontSize: '9px', color: '#6366f1', fontWeight: 500, textAlign: 'center', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '90%' }}>
+                        {nodeDatum.title}
+                    </div>
+                )}
+                <div style={{ position: 'absolute', bottom: '8px', left: '10px', right: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '8px', fontWeight: 700, color: '#818cf8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>GROUP</span>
+                    {hasChildren && (
+                        <div style={{ background: '#6366f1', borderRadius: '999px', minWidth: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', fontWeight: 700, color: 'white', padding: '0 5px' }}>
+                            {childCount}
+                        </div>
+                    )}
+                </div>
+            </div>
+        )
+    }
 
     const status = nodeDatum.match_status || (isMatch ? 'matched' : 'unmapped')
     const current = nodeDatum.current_experience
@@ -190,6 +255,11 @@ const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCrea
                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onMoveNode(nodeDatum); }}>
                                 <Focus size={14} className="mr-2" /> Move Node
                             </DropdownMenuItem>
+                            {!isMatch && (
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onToggleGroupNode(nodeDatum.node_id, true); }}>
+                                    <Building2 size={14} className="mr-2" /> Switch to Group Node
+                                </DropdownMenuItem>
+                            )}
                             <DropdownMenuItem className="text-rose-600" onClick={(e) => { e.stopPropagation(); onDeleteNode({ node_id: nodeDatum.node_id, name: nodeDatum.name }); }}>
                                 <Trash2 size={14} className="mr-2" /> Remove Node
                             </DropdownMenuItem>
@@ -401,6 +471,7 @@ const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVe
                                     onAddSubordinate={onAddSubordinate}
                                     onReplaceNode={onReplaceNode}
                                     onMoveNode={onMoveNode}
+                                    onToggleGroupNode={onToggleGroupNode}
                                 />
                             </div>
                         </foreignObject>

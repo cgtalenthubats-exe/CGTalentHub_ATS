@@ -73,6 +73,75 @@ export async function fetchOrgChartUploads() {
     return data
 }
 
+export type AgingBucket = 'fresh' | 'aging' | 'stale' | 'unknown'
+
+export type DirectoryUpload = {
+    upload_id: string
+    company_name: string
+    branch_name?: string | null
+    created_at: string
+    notes?: string
+    status?: string
+    company_id: string | null
+    modify_date: string | null
+    resolved_group: string
+    resolved_industry: string | null
+    aging_bucket: AgingBucket
+}
+
+function resolveAgingBucket(modifyDate: string | null): AgingBucket {
+    if (!modifyDate) return 'unknown'
+    const months = (Date.now() - new Date(modifyDate).getTime()) / (1000 * 60 * 60 * 24 * 30)
+    if (months < 3) return 'fresh'
+    if (months < 9) return 'aging'
+    return 'stale'
+}
+
+/**
+ * Fetches uploads enriched with company_master.group / industry (with industry_group as fallback)
+ * and an aging bucket derived from modify_date — used by the Org Chart Directory page.
+ */
+export async function fetchOrgDirectoryUploads(): Promise<DirectoryUpload[]> {
+    const { data: uploads, error } = await supabase
+        .from('org_chart_uploads')
+        .select('*')
+        .order('company_name', { ascending: true })
+
+    if (error) {
+        console.error('Error fetching uploads:', error)
+        return []
+    }
+
+    const companyIds = [...new Set((uploads || []).map((u: any) => u.company_id).filter(Boolean))]
+
+    const [{ data: companies }, { data: industryGroups }] = await Promise.all([
+        companyIds.length > 0
+            ? supabase.from('company_master').select('company_id, group, industry').in('company_id', companyIds)
+            : Promise.resolve({ data: [] }),
+        supabase.from('industry_group').select('industry, group')
+    ])
+
+    const companyMap = new Map<string, { group: string | null; industry: string | null }>(
+        (companies || []).map((c: any) => [String(c.company_id), { group: c.group, industry: c.industry }])
+    )
+    const industryGroupMap = new Map<string, string>(
+        (industryGroups || []).map((ig: any) => [ig.industry, ig.group])
+    )
+
+    return (uploads || []).map((u: any) => {
+        const company = u.company_id ? companyMap.get(String(u.company_id)) : null
+        const industry = company?.industry || null
+        const resolvedGroup = company?.group || (industry ? industryGroupMap.get(industry) : null) || 'Uncategorized'
+
+        return {
+            ...u,
+            resolved_group: resolvedGroup,
+            resolved_industry: industry,
+            aging_bucket: resolveAgingBucket(u.modify_date),
+        } as DirectoryUpload
+    })
+}
+
 export async function verifyOrgChart(uploadId: string) {
     if (!uploadId) return { success: false, error: 'Upload ID is required' }
     

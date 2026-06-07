@@ -129,7 +129,7 @@ export function ImportOrgDialog() {
                 setBranchName('')
                 setNotes('')
                 setFormKey(prev => prev + 1)
-                router.push(`/org-chart?id=${result.uploadId}`)
+                router.push(`/org-chart/${result.uploadId}`)
                 router.refresh()
             } else {
                 toast.error(result.error || 'Failed to create org chart')
