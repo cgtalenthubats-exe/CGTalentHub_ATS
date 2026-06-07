@@ -21,6 +21,21 @@ const AGING_META: Record<AgingBucket, { label: string; dot: string; text: string
 
 const AGING_ORDER: AgingBucket[] = ['fresh', 'aging', 'stale', 'unknown']
 
+const GROUP_ORDER = [
+    'Retail / FMCG / F&B',
+    'Technology / Digital / Telecom',
+    'Hospitality & Real Estate',
+    'Financial Services / Banking / Insurance',
+    'Consulting Firm / Consulting Services',
+    'Others',
+]
+
+function groupRank(name: string) {
+    if (name === 'Uncategorized') return GROUP_ORDER.length + 1
+    const idx = GROUP_ORDER.indexOf(name)
+    return idx === -1 ? GROUP_ORDER.length : idx
+}
+
 // Plain codepoint comparison — avoids localeCompare, whose collation differs
 // between Node (SSR) and the browser (CSR) and causes hydration mismatches.
 function compareNames(a: string, b: string) {
@@ -60,8 +75,9 @@ export function OrgDirectoryGrouped({ uploads }: Props) {
         })
 
         const groupNames = [...byGroup.keys()].sort((a, b) => {
-            if (a === 'Uncategorized') return 1
-            if (b === 'Uncategorized') return -1
+            const ra = groupRank(a)
+            const rb = groupRank(b)
+            if (ra !== rb) return ra - rb
             return compareNames(a, b)
         })
 
@@ -173,7 +189,10 @@ export function OrgDirectoryGrouped({ uploads }: Props) {
                                                     >
                                                         <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', aging.dot)} />
                                                         <span className="flex flex-col flex-1 min-w-0">
-                                                            <span className={cn('truncate font-medium', aging.text)}>{u.company_name}</span>
+                                                            <span className={cn('truncate font-medium', aging.text)}>
+                                                                {u.company_name}
+                                                                {u.notes && <span className="font-normal opacity-70"> ({u.notes})</span>}
+                                                            </span>
                                                             {hasBranch && (
                                                                 <span className="truncate text-[10px] font-bold text-indigo-400">
                                                                     {u.branch_name}
