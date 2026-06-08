@@ -554,6 +554,7 @@ export async function addCandidatesToJR(
                 jr_candidate_id: jrCandidateId,
                 status: 'Pool Candidate',
                 updated_By: addedBy,
+                updated_by: addedBy,
                 timestamp: timestampStr,
                 note: null
             });
