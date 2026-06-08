@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
-import { Search, Globe } from 'lucide-react'
+import { FilterMultiSelect } from '@/components/ui/filter-multi-select'
+import { Search, Globe, Layers, Building2 } from 'lucide-react'
 import type { DirectoryUpload, AgingBucket } from '@/app/actions/org-chart-actions'
 
 type Props = {
@@ -46,9 +47,24 @@ function compareNames(a: string, b: string) {
     return 0
 }
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function formatModifyDate(modifyDate: string | null) {
+    if (!modifyDate) return null
+    const d = new Date(modifyDate)
+    if (Number.isNaN(d.getTime())) return null
+    return `${String(d.getDate()).padStart(2, '0')}-${MONTHS[d.getMonth()]}-${d.getFullYear()}`
+}
+
+function toggleInArray(arr: string[], value: string) {
+    return arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value]
+}
+
 export function OrgDirectoryGrouped({ uploads }: Props) {
     const router = useRouter()
     const [searchTerm, setSearchTerm] = useState('')
+    const [groupFilter, setGroupFilter] = useState<string[]>([])
+    const [industryFilter, setIndustryFilter] = useState<string[]>([])
 
     const agingCounts = useMemo(() => {
         const counts: Record<AgingBucket, number> = { fresh: 0, aging: 0, stale: 0, unknown: 0 }
@@ -56,17 +72,36 @@ export function OrgDirectoryGrouped({ uploads }: Props) {
         return counts
     }, [uploads])
 
+    const groupOptions = useMemo(() => {
+        const names = new Set(uploads.map(u => u.resolved_group))
+        return [...names].sort((a, b) => {
+            const ra = groupRank(a)
+            const rb = groupRank(b)
+            if (ra !== rb) return ra - rb
+            return compareNames(a, b)
+        })
+    }, [uploads])
+
+    const industryOptions = useMemo(() => {
+        const names = new Set<string>()
+        uploads.forEach(u => { if (u.resolved_industry) names.add(u.resolved_industry) })
+        return [...names].sort(compareNames)
+    }, [uploads])
+
     // Group -> Industry -> Companies (alphabetical)
     const groups = useMemo(() => {
         const term = searchTerm.trim().toLowerCase()
-        const filtered = term
-            ? uploads.filter(u =>
+        const filtered = uploads.filter(u => {
+            if (groupFilter.length > 0 && !groupFilter.includes(u.resolved_group)) return false
+            if (industryFilter.length > 0 && (!u.resolved_industry || !industryFilter.includes(u.resolved_industry))) return false
+            if (!term) return true
+            return (
                 u.company_name.toLowerCase().includes(term) ||
                 (u.notes && u.notes.toLowerCase().includes(term)) ||
                 (u.resolved_industry && u.resolved_industry.toLowerCase().includes(term)) ||
                 u.resolved_group.toLowerCase().includes(term)
             )
-            : uploads
+        })
 
         const byGroup = new Map<string, DirectoryUpload[]>()
         filtered.forEach(u => {
@@ -107,44 +142,62 @@ export function OrgDirectoryGrouped({ uploads }: Props) {
                 }))
             }
         })
-    }, [uploads, searchTerm])
+    }, [uploads, searchTerm, groupFilter, industryFilter])
 
     if (uploads.length === 0) return null
 
     return (
         <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden flex flex-col shrink-0">
             {/* Header / Search / Legend */}
-            <div className="p-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/10 dark:bg-slate-900/10 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-2 shrink-0">
-                    <div className="bg-indigo-600 p-1.5 rounded-lg text-white">
-                        <Globe size={16} />
-                    </div>
-                    <div>
-                        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 italic">Organization Directory</h2>
-                        <p className="text-[10px] text-slate-500 font-medium">Grouped by industry · Total {uploads.length} org charts</p>
-                    </div>
-                </div>
-
-                {/* Aging Legend */}
-                <div className="hidden lg:flex items-center gap-3 text-[10px] font-bold shrink-0">
-                    {AGING_ORDER.filter(b => b !== 'unknown' || agingCounts.unknown > 0).map(bucket => (
-                        <div key={bucket} className="flex items-center gap-1.5">
-                            <span className={cn('h-2 w-2 rounded-full', AGING_META[bucket].dot)} />
-                            <span className={AGING_META[bucket].text}>
-                                {AGING_META[bucket].label} ({agingCounts[bucket]})
-                            </span>
+            <div className="p-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/10 dark:bg-slate-900/10 flex flex-col gap-2.5">
+                <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2 shrink-0">
+                        <div className="bg-indigo-600 p-1.5 rounded-lg text-white">
+                            <Globe size={16} />
                         </div>
-                    ))}
+                        <div>
+                            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 italic">Organization Directory</h2>
+                            <p className="text-sm text-slate-600 dark:text-slate-400 font-bold">Grouped by industry · Total {uploads.length} org charts</p>
+                        </div>
+                    </div>
+
+                    {/* Aging Legend */}
+                    <div className="hidden lg:flex items-center gap-3 text-[10px] font-bold shrink-0">
+                        {AGING_ORDER.filter(b => b !== 'unknown' || agingCounts.unknown > 0).map(bucket => (
+                            <div key={bucket} className="flex items-center gap-1.5">
+                                <span className={cn('h-2 w-2 rounded-full', AGING_META[bucket].dot)} />
+                                <span className={AGING_META[bucket].text}>
+                                    {AGING_META[bucket].label} ({agingCounts[bucket]})
+                                </span>
+                            </div>
+                        ))}
+                    </div>
                 </div>
 
-                <div className="relative w-64 shrink-0">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                    <Input
-                        placeholder="Search company, industry..."
-                        className="h-9 pl-9 text-xs bg-white dark:bg-slate-950 shadow-sm border-slate-200 dark:border-slate-800 focus:ring-indigo-500 rounded-lg"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                <div className="flex items-center justify-end gap-2">
+                    <FilterMultiSelect
+                        label="Group"
+                        icon={Layers}
+                        options={groupOptions}
+                        selected={groupFilter}
+                        onChange={(value) => setGroupFilter(prev => toggleInArray(prev, value))}
                     />
+                    <FilterMultiSelect
+                        label="Industry"
+                        icon={Building2}
+                        options={industryOptions}
+                        selected={industryFilter}
+                        onChange={(value) => setIndustryFilter(prev => toggleInArray(prev, value))}
+                    />
+                    <div className="relative w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                        <Input
+                            placeholder="Search company, industry..."
+                            className="h-9 pl-9 text-xs bg-white dark:bg-slate-950 shadow-sm border-slate-200 dark:border-slate-800 focus:ring-indigo-500 rounded-lg"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                    </div>
                 </div>
             </div>
 
@@ -180,6 +233,7 @@ export function OrgDirectoryGrouped({ uploads }: Props) {
                                             {industry.companies.map(u => {
                                                 const aging = AGING_META[u.aging_bucket]
                                                 const hasBranch = !!(u.branch_name && u.branch_name !== u.company_name)
+                                                const formattedDate = formatModifyDate(u.modify_date)
                                                 return (
                                                     <button
                                                         key={u.upload_id}
@@ -189,9 +243,16 @@ export function OrgDirectoryGrouped({ uploads }: Props) {
                                                     >
                                                         <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', aging.dot)} />
                                                         <span className="flex flex-col flex-1 min-w-0">
-                                                            <span className={cn('truncate font-medium', aging.text)}>
-                                                                {u.company_name}
-                                                                {u.notes && <span className="font-normal opacity-70"> ({u.notes})</span>}
+                                                            <span className="font-medium text-slate-800 dark:text-slate-100 flex items-baseline justify-between gap-2">
+                                                                <span className="truncate">
+                                                                    {u.company_name}
+                                                                    {u.notes && <span className="font-normal opacity-60"> ({u.notes})</span>}
+                                                                </span>
+                                                                {formattedDate && (
+                                                                    <span className={cn('shrink-0 text-[10px] font-bold tabular-nums', aging.text)}>
+                                                                        {formattedDate}
+                                                                    </span>
+                                                                )}
                                                             </span>
                                                             {hasBranch && (
                                                                 <span className="truncate text-[10px] font-bold text-indigo-400">
