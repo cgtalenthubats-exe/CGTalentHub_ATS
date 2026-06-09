@@ -284,7 +284,20 @@ export default function JRManagePage() {
                 <div className="flex flex-col lg:flex-row justify-between lg:items-start gap-6 border-b pb-6">
                     <div className="flex flex-col gap-4">
                         <div className="flex items-center gap-4">
-                            <h1 className="text-2xl font-bold tracking-tight text-foreground">Job Requisition Manage</h1>
+                            <div className="flex flex-col gap-0.5">
+                                <h1 className="text-2xl font-bold tracking-tight text-foreground">Job Requisition Manage</h1>
+                                {selectedJR && (
+                                    <div className="flex items-center gap-2 text-base text-muted-foreground">
+                                        <span className="font-mono font-bold text-indigo-600">{selectedJR.id}</span>
+                                        <span className="text-slate-400">—</span>
+                                        <span>Position: <span className="font-semibold text-foreground">{selectedJR.job_title || '-'}</span></span>
+                                        <span className="text-slate-300">·</span>
+                                        <span>BU: <span className="font-semibold text-foreground">{selectedJR.division || '-'}</span></span>
+                                        <span className="text-slate-300">·</span>
+                                        <span>Sub-BU: <span className="font-semibold text-foreground">{selectedJR.department || '-'}</span></span>
+                                    </div>
+                                )}
+                            </div>
                             <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg border border-indigo-100 dark:border-indigo-800">
                                 <User className="h-4 w-4 text-indigo-600" />
                                 <Select value={selectedCreatedBy} onValueChange={setSelectedCreatedBy}>
@@ -340,8 +353,7 @@ export default function JRManagePage() {
                                         profiles={profiles}
                                         onSuccess={(newJR) => {
                                             setIsCreateOpen(false);
-                                            setSelectedJR(newJR);
-                                            setIsSyncing(true); // Start syncing state
+                                            handleJRSelect(newJR.id);
                                         }}
                                     />
                                 </DialogContent>
@@ -422,7 +434,6 @@ export default function JRManagePage() {
                                             onSuccess={(updatedJR) => {
                                                 setIsEditOpen(false);
                                                 setSelectedJR(updatedJR);
-                                                setIsSyncing(true); // Start syncing state
                                             }}
                                         />
                                     )}

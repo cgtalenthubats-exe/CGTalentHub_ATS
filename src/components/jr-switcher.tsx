@@ -36,8 +36,17 @@ export function JRSwitcher({ selectedId, onSelect }: JRSwitcherProps) {
     const [loading, setLoading] = useState(!jrListCache);
 
     useEffect(() => {
+        // If selectedId isn't in cache (e.g. newly created JR), invalidate so we re-fetch
+        if (selectedId && jrListCache && !jrListCache.find(j => j.id === selectedId)) {
+            jrListCache = null;
+            jrListFetching = null;
+            setJrs([]);
+            setLoading(true);
+        }
+
         // Already cached — skip fetch, just re-trigger onSelect if needed
         if (jrListCache) {
+            setJrs(jrListCache);
             if (selectedId) {
                 const found = jrListCache.find(j => j.id === selectedId);
                 if (found) onSelect(found);
@@ -63,7 +72,7 @@ export function JRSwitcher({ selectedId, onSelect }: JRSwitcherProps) {
             console.error(e);
             setLoading(false);
         });
-    }, []);
+    }, [selectedId]);
 
     const selectedJR = jrs.find((jr) => jr.id === selectedId);
 
