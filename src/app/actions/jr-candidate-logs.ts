@@ -143,6 +143,105 @@ export async function getJRCandidateDetails(jrCandidateId: string) {
     };
 }
 
+export async function getCandidateProfileDetails(candidateId: string) {
+    const supabase = adminAuthClient;
+
+    // 1. Global Profile + Experiences + Enhancement + JR associations
+    const [profileRes, experiencesRes, enhanceRes, allJRsRes] = await Promise.all([
+        (supabase as any)
+            .from('Candidate Profile')
+            .select('*')
+            .eq('candidate_id', candidateId)
+            .single(),
+
+        (supabase as any)
+            .from('candidate_experiences')
+            .select('*')
+            .eq('candidate_id', candidateId)
+            .order('start_date', { ascending: false }),
+
+        (supabase as any)
+            .from('candidate_profile_enhance')
+            .select('*')
+            .eq('candidate_id', candidateId)
+            .maybeSingle(),
+
+        (supabase as any)
+            .from('jr_candidates')
+            .select('jr_candidate_id, jr_id')
+            .eq('candidate_id', candidateId),
+    ]);
+
+    const { data: candidateProfile, error: profileError } = profileRes;
+    if (profileError || !candidateProfile) {
+        console.error("Error fetching candidate profile:", profileError);
+        return null;
+    }
+
+    const { data: experiences } = experiencesRes;
+    const { data: enhance } = enhanceRes;
+    const { data: allJRs } = allJRsRes;
+
+    const jrCandIds = (allJRs || []).map((j: any) => j.jr_candidate_id).filter(Boolean);
+    const jrIds = [...new Set((allJRs || []).map((j: any) => j.jr_id).filter(Boolean))];
+
+    // 2. Logs, feedback, and JR position names for history
+    const [logsRes, feedbackRes, jrInfoRes] = await Promise.all([
+        jrCandIds.length > 0
+            ? (supabase as any).from('status_log').select('*').in('jr_candidate_id', jrCandIds).order('log_id', { ascending: false })
+            : Promise.resolve({ data: [] }),
+
+        jrCandIds.length > 0
+            ? (supabase as any).from('interview_feedback').select('*').in('jr_candidate_id', jrCandIds).order('interview_date', { ascending: false })
+            : Promise.resolve({ data: [] }),
+
+        jrIds.length > 0
+            ? (supabase as any).from('job_requisitions').select('jr_id, position_jr').in('jr_id', jrIds)
+            : Promise.resolve({ data: [] }),
+    ]);
+
+    const { data: allLogs } = logsRes;
+    const { data: allFeedback } = feedbackRes;
+    const { data: jrDetails } = jrInfoRes;
+
+    const jrMap: Record<string, string> = {};
+    jrDetails?.forEach((j: any) => {
+        jrMap[j.jr_id] = j.position_jr;
+    });
+
+    const historyRecords = (allJRs || []).map((jr: any) => ({
+        jr_id: jr.jr_id,
+        jr_candidate_id: jr.jr_candidate_id,
+        position: jrMap[jr.jr_id] || "Unknown Position",
+        logs: allLogs?.filter((l: any) => String(l.jr_candidate_id) === String(jr.jr_candidate_id)) || [],
+        feedback: allFeedback?.filter((f: any) => String(f.jr_candidate_id) === String(jr.jr_candidate_id)) || []
+    }));
+
+    const meta = {
+        candidate_id: candidateId,
+        candidate_profile: {
+            ...candidateProfile,
+            photo_url: candidateProfile?.photo,
+            experiences: experiences || [],
+            enhancement: enhance ? {
+                about: enhance.about_summary,
+                education_summary: enhance.education_summary,
+                languages: enhance.languages,
+                skills: enhance.skills_list,
+                alt_email: enhance.email,
+                country: enhance.country,
+                full_address: enhance.full_address
+            } : null
+        },
+        history_count: historyRecords.length
+    };
+
+    return {
+        meta,
+        history: historyRecords
+    };
+}
+
 export async function addActivityLog(
     jrCandidateId: string,
     status: string,

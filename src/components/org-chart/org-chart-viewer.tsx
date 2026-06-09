@@ -24,6 +24,7 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { NodeFormDialog } from './node-form-dialog'
+import { CandidateProfileSheet } from '@/components/candidate-profile-sheet'
 
 const extractNodes = (node: any): any[] => {
     if (!node) return [];
@@ -81,7 +82,7 @@ type OrgChartViewerProps = {
     modifyDate?: string | null
 }
 
-const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, onExpand, onDeleteNode, onAddSubordinate, onReplaceNode, onMoveNode, onToggleGroupNode }: any) => {
+const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, onExpand, onDeleteNode, onAddSubordinate, onReplaceNode, onMoveNode, onToggleGroupNode, onOpenProfile }: any) => {
     const isMatch = !!nodeDatum.matched_candidate_id
     const isGroupNode = !!nodeDatum.is_group_node
     const isVerified = nodeDatum.is_verified === 'TRUE'
@@ -225,9 +226,14 @@ const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCrea
 
                 <div className="absolute top-0 right-0 flex gap-1 z-10" onClick={(e) => e.stopPropagation()}>
                     {isMatch && nodeDatum.candidate_id && (
-                        <Link href={`/candidates/${nodeDatum.candidate_id}`} target="_blank" className="text-slate-400 hover:text-indigo-600 p-0.5">
+                        <button
+                            type="button"
+                            onClick={() => onOpenProfile?.(nodeDatum.candidate_id)}
+                            className="text-slate-400 hover:text-indigo-600 p-0.5"
+                            title="View Profile"
+                        >
                             <ExternalLink size={12} />
-                        </Link>
+                        </button>
                     )}
                     {nodeDatum.linkedin && (
                         <CandidateLinkedinButton 
@@ -301,7 +307,7 @@ const TeamMemberMiniCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCrea
 }
 
 // Custom Node Component
-const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVerifying, onToggleExpand, expandedSet, onDeleteNode, onAddSubordinate, onReplaceNode, onMoveNode, onFocusTeam, highlightNodeId, onToggleGroupNode }: any) => {
+const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVerifying, onToggleExpand, expandedSet, onDeleteNode, onAddSubordinate, onReplaceNode, onMoveNode, onFocusTeam, highlightNodeId, onToggleGroupNode, onOpenProfile }: any) => {
     // Hide phantom nodes (Standard Grid columns)
     if (nodeDatum.isPhantom && !nodeDatum.isTeamGrid) {
         return <g />
@@ -461,8 +467,8 @@ const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVe
                     return (
                         <foreignObject key={member.node_id} width={cardWidth} height={cardHeight} x={x} y={y}>
                             <div style={{ width: '100%', height: '100%' }}>
-                                <TeamMemberMiniCard 
-                                    nodeDatum={member} 
+                                <TeamMemberMiniCard
+                                    nodeDatum={member}
                                     onToggleVerify={onToggleVerify}
                                     onCreateProfile={onCreateProfile}
                                     isCreating={isCreating}
@@ -472,6 +478,7 @@ const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVe
                                     onReplaceNode={onReplaceNode}
                                     onMoveNode={onMoveNode}
                                     onToggleGroupNode={onToggleGroupNode}
+                                    onOpenProfile={onOpenProfile}
                                 />
                             </div>
                         </foreignObject>
@@ -584,9 +591,15 @@ const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVe
                             {/* Icons Top Right */}
                             <div className="absolute top-0 right-0 flex gap-1 items-center z-10" onClick={handleLinkClick} style={{ position: 'absolute', top: 0, right: 0, display: 'flex', gap: '4px', alignItems: 'center', zIndex: 10 }}>
                                 {isMatch && nodeDatum.candidate_id && (
-                                    <Link href={`/candidates/${nodeDatum.candidate_id}`} target="_blank" className="text-slate-400 hover:text-indigo-600 p-0.5" title="View Profile" style={{ display: 'flex', alignItems: 'center', padding: '2px' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => onOpenProfile?.(nodeDatum.candidate_id)}
+                                        className="text-slate-400 hover:text-indigo-600 p-0.5"
+                                        title="View Profile"
+                                        style={{ display: 'flex', alignItems: 'center', padding: '2px', background: 'none', border: 'none', cursor: 'pointer' }}
+                                    >
                                         <ExternalLink size={14} style={{ width: 14, height: 14, color: '#94a3b8' }} />
-                                    </Link>
+                                    </button>
                                 )}
                                 {nodeDatum.linkedin && (
                                     <CandidateLinkedinButton
@@ -908,6 +921,9 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
     const [searchQuery, setSearchQuery] = useState('')
     const [searchResults, setSearchResults] = useState<OrgNode[]>([])
     const [highlightNodeId, setHighlightNodeId] = useState<string | null>(null)
+
+    // Candidate Profile Sheet (Org Chart)
+    const [profileSheetCandidateId, setProfileSheetCandidateId] = useState<string | null>(null)
 
     const allChartNodes = React.useMemo(() => extractNodes(initialData), [initialData])
 
@@ -1650,6 +1666,7 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                             onFocusTeam={handleFocusTeam}
                             highlightNodeId={highlightNodeId}
                             onToggleGroupNode={handleToggleGroupNode}
+                            onOpenProfile={setProfileSheetCandidateId}
                         />
                     )}
                     orientation="vertical"
@@ -1766,7 +1783,7 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                     </div>
                 </DialogContent>
             </Dialog>
-            <VerificationDialog 
+            <VerificationDialog
                 isOpen={isVerifyDialogOpen}
                 onClose={() => setIsVerifyDialogOpen(false)}
                 node={nodeToVerify}
@@ -1774,6 +1791,12 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                 onConfirmMatch={(id) => handleConfirmVerification(id, 'TRUE')}
                 onFlagError={(id) => handleConfirmVerification(id, 'NOT_MATCH')}
                 isProcessing={isVerifyingNode}
+            />
+
+            <CandidateProfileSheet
+                candidateId={profileSheetCandidateId}
+                open={!!profileSheetCandidateId}
+                onOpenChange={(open) => !open && setProfileSheetCandidateId(null)}
             />
         </div>
         </TooltipProvider>
