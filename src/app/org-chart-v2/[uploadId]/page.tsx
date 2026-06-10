@@ -40,7 +40,7 @@ export default async function OrgChartV2ViewerRoute({
                 </Link>
             </div>
             <div className="flex-1 border rounded-xl overflow-hidden bg-white dark:bg-slate-900">
-                <OrgChartClientWrapperV2 data={data} />
+                <OrgChartClientWrapperV2 data={data} companyName={companyName} />
             </div>
         </div>
     )

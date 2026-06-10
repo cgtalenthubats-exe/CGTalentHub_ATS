@@ -1,7 +1,11 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { OrgChart } from 'd3-org-chart'
+import { Download, Loader2 } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { toast } from '@/lib/notifications'
+import { exportOrgChartPptx } from '@/lib/org-chart-pptx'
 import type { OrgNodeV2 } from '@/app/actions/org-chart-v2-actions'
 
 const DEFAULT_AVATAR = 'https://ddeqeaicjyrevqdognbn.supabase.co/storage/v1/object/public/system/Blank%20Profile.JPG'
@@ -103,9 +107,24 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
     `
 }
 
-export function OrgChartViewerV2({ data }: { data: OrgNodeV2[] }) {
+export function OrgChartViewerV2({ data, companyName = 'Organization' }: { data: OrgNodeV2[]; companyName?: string }) {
     const containerRef = useRef<HTMLDivElement>(null)
     const chartRef = useRef<OrgChart<OrgNodeV2> | null>(null)
+    const [isExporting, setIsExporting] = useState(false)
+
+    const handleExportPptx = async () => {
+        try {
+            setIsExporting(true)
+            toast.info('กำลังสร้างไฟล์ PowerPoint อาจใช้เวลาสักครู่...', { duration: 5000 })
+            await exportOrgChartPptx(data, companyName)
+            toast.success('Export PowerPoint สำเร็จ! 🎉')
+        } catch (err) {
+            console.error('Export PPTX error:', err)
+            toast.error('Export PowerPoint ล้มเหลว กรุณาลองใหม่')
+        } finally {
+            setIsExporting(false)
+        }
+    }
 
     useEffect(() => {
         const container = containerRef.current
@@ -153,5 +172,21 @@ export function OrgChartViewerV2({ data }: { data: OrgNodeV2[] }) {
         )
     }
 
-    return <div ref={containerRef} className="w-full" style={{ minHeight: '600px' }} />
+    return (
+        <div className="relative w-full">
+            <div className="absolute top-3 right-3 z-10">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 px-4 gap-2 border-indigo-100 text-indigo-600 hover:bg-indigo-50 shadow-sm bg-white rounded-full font-bold text-[11px]"
+                    disabled={isExporting}
+                    onClick={handleExportPptx}
+                >
+                    {isExporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                    EXPORT PPTX
+                </Button>
+            </div>
+            <div ref={containerRef} className="w-full" style={{ minHeight: '600px' }} />
+        </div>
+    )
 }

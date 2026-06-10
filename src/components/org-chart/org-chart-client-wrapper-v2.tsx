@@ -15,10 +15,10 @@ const DynamicViewer = dynamic(
     }
 )
 
-export function OrgChartClientWrapperV2({ data }: { data: OrgNodeV2[] }) {
+export function OrgChartClientWrapperV2({ data, companyName }: { data: OrgNodeV2[]; companyName?: string }) {
     return (
         <div className="flex-1 w-full flex flex-col">
-            <DynamicViewer data={data} />
+            <DynamicViewer data={data} companyName={companyName} />
         </div>
     )
 }
