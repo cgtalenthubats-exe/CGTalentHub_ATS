@@ -11,6 +11,7 @@ import { AddCandidateDialog } from "@/components/ai-search/AddCandidateDialog";
 import { getStatuses } from "@/app/actions/candidate-filters";
 import { getUserProfiles, UserProfile } from "@/app/actions/user-actions";
 import { createClient } from "@/utils/supabase/client";
+import { supabase as authClient } from "@/lib/supabase/client";
 import { updateUploadCandidateStatus } from "@/app/actions/resume-actions"; // Import update action
 // Ensure ResumeUpload is exported correctly in src/components/ResumeUpload.tsx
 import { ResumeUpload, UploadedFile } from "@/components/ResumeUpload";
@@ -149,8 +150,7 @@ export default function CandidateImportPage() {
     const [userEmail, setUserEmail] = useState<string>('');
 
     useEffect(() => {
-        const supabase = createClient();
-        supabase.auth.getUser().then(({ data: { user } }) => {
+        authClient.auth.getUser().then(({ data: { user } }) => {
             const email = user?.email || '';
             setUserEmail(email);
             
