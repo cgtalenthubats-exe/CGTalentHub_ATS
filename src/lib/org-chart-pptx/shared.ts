@@ -205,15 +205,16 @@ export async function renderNodesToSlide(
 }
 
 /**
- * Injects elbow connector shapes (<p:cxnSp>, bentConnector3) between parent/child node
+ * Injects elbow connector shapes (<p:cxnSp>, custom geometry) between parent/child node
  * shapes into a slide's raw XML — pptxgenjs cannot create connector shapes directly.
  *
- * These are drawn as plain (non-glued) shapes rather than using stCxn/endCxn: PowerPoint
- * only recomputes a glued connector's geometry after a connected shape is manually moved,
- * so glued connectors render in the wrong place until the user nudges a box. The
- * off/ext/flipH below are derived directly from the bentConnector3 path formula (bend at
- * the horizontal midpoint, x1 = w/2), so they connect the parent's bottom-center to the
- * child's top-center correctly as soon as the file is opened.
+ * Each connector is a plain (non-glued) shape with an explicit 4-point path: from the
+ * parent's bottom-center, across to the horizontal midpoint, down to the child's row,
+ * then across to the child's top-center. A custom path is used (rather than the
+ * "bentConnector3" preset + adj1) because PowerPoint does not reliably render the preset's
+ * final segment, leaving the line short of the child box. Plain (non-glued) shapes are
+ * used because PowerPoint only recomputes a glued connector's geometry after a connected
+ * shape is manually moved, which left connectors misplaced on first open.
  */
 export function injectConnectors(
     slideXml: string,
@@ -244,9 +245,14 @@ export function injectConnectors(
         const offY = Math.round(py * EMU)
         const extCx = Math.max(Math.round(Math.abs(cx - px) * EMU), 1)
         const extCy = Math.max(Math.round((cy - py) * EMU), 1)
-        const flipH = cx < px
+        const xMid = Math.round(extCx / 2)
+        // Path starts at the parent's bottom-center and ends at the child's top-center
+        const xStart = cx >= px ? 0 : extCx
+        const xEnd = cx >= px ? extCx : 0
 
-        connectorXml += `<p:cxnSp><p:nvCxnSpPr><p:cNvPr id="${cxnId}" name="Connector ${cxnId}"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr><p:spPr><a:xfrm${flipH ? ' flipH="1"' : ''}><a:off x="${offX}" y="${offY}"/><a:ext cx="${extCx}" cy="${extCy}"/></a:xfrm><a:prstGeom prst="bentConnector3"><a:avLst><a:gd name="adj1" fmla="val 50000"/></a:avLst></a:prstGeom><a:noFill/><a:ln w="12700"><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln></p:spPr></p:cxnSp>`
+        const path = `<a:moveTo><a:pt x="${xStart}" y="0"/></a:moveTo><a:lnTo><a:pt x="${xMid}" y="0"/></a:lnTo><a:lnTo><a:pt x="${xMid}" y="${extCy}"/></a:lnTo><a:lnTo><a:pt x="${xEnd}" y="${extCy}"/></a:lnTo>`
+
+        connectorXml += `<p:cxnSp><p:nvCxnSpPr><p:cNvPr id="${cxnId}" name="Connector ${cxnId}"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr><p:spPr><a:xfrm><a:off x="${offX}" y="${offY}"/><a:ext cx="${extCx}" cy="${extCy}"/></a:xfrm><a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="0" b="0"/><a:pathLst><a:path w="${extCx}" h="${extCy}" fill="none">${path}</a:path></a:pathLst></a:custGeom><a:noFill/><a:ln w="12700"><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln></p:spPr></p:cxnSp>`
         cxnId++
     })
 
