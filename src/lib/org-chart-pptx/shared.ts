@@ -205,45 +205,89 @@ export async function renderNodesToSlide(
 }
 
 /**
- * Draws elbow connectors between parent/child node boxes as plain straight-line shapes
- * (pptx.ShapeType.line) — three segments per edge: across to the horizontal midpoint,
- * down to the child's row, then across to the child's top-center. Each segment is a
- * simple 2-point line (no presets/custom geometry/glue), which PowerPoint always renders
- * correctly on first open.
+ * Injects elbow connector shapes (<p:cxnSp>, bentConnector3) between parent/child node
+ * shapes into a slide's raw XML — pptxgenjs cannot create connector shapes directly.
  *
- * Must be called before renderNodesToSlide so the lines render behind the node boxes.
+ * Each connector is glued to its parent/child box via stCxn/endCxn (parent's
+ * bottom-center, idx 3 → child's top-center, idx 1), referencing those shapes' cNvPr ids
+ * (looked up via the OrgNode_<n> objectName renderNodesToSlide assigns). The off/ext/
+ * flipH below give a reasonable initial route — PowerPoint only recomputes a glued
+ * connector's actual path (snapping it onto both boxes) after a connected shape is
+ * nudged, so the line is correct from then on even if the box is moved back.
  */
-export function renderConnectors(
-    pptx: PptxGenJS,
-    slide: PptxGenJS.Slide,
+export function injectConnectors(
+    slideXml: string,
     nodes: HierarchyPointNode<OrgNodeV2>[],
     { toX, toY, scale }: CoordTransform
-): void {
+): string {
     const boxW = BOX_W * scale
     const boxH = BOX_H * scale
-    const MIN = 0.005 // inches — avoid zero-size shapes for perfectly aligned segments
+    const EMU = 914400
 
-    const segment = (x1: number, y1: number, x2: number, y2: number) => {
-        slide.addShape(pptx.ShapeType.line, {
-            x: Math.min(x1, x2),
-            y: Math.min(y1, y2),
-            w: Math.max(Math.abs(x2 - x1), MIN),
-            h: Math.max(Math.abs(y2 - y1), MIN),
-            line: { color: '000000', width: 1 },
-        })
+    const idByName = new Map<string, number>()
+    for (const m of slideXml.matchAll(/<p:cNvPr id="(\d+)" name="(OrgNode_\d+)"/g)) {
+        idByName.set(m[2], parseInt(m[1], 10))
     }
 
-    nodes.forEach((n) => {
+    let maxId = 1
+    for (const m of slideXml.matchAll(/<p:cNvPr id="(\d+)"/g)) {
+        maxId = Math.max(maxId, parseInt(m[1], 10))
+    }
+
+    const indexOf = new Map<HierarchyPointNode<OrgNodeV2>, number>()
+    nodes.forEach((n, i) => indexOf.set(n, i))
+
+    let connectorXml = ''
+    let cxnId = maxId + 1
+
+    nodes.forEach((n, i) => {
         if (!n.parent) return
+        const parentIdx = indexOf.get(n.parent)
+        if (parentIdx === undefined) return
+
+        const parentShapeId = idByName.get(`OrgNode_${parentIdx}`)
+        const childShapeId = idByName.get(`OrgNode_${i}`)
+        if (parentShapeId === undefined || childShapeId === undefined) return
 
         const px = toX(n.parent.x) + boxW / 2
         const py = toY(n.parent.y) + boxH
         const cx = toX(n.x) + boxW / 2
         const cy = toY(n.y)
-        const midX = (px + cx) / 2
 
-        segment(px, py, midX, py)   // parent's bottom-center → horizontal midpoint
-        segment(midX, py, midX, cy) // down to the child's row
-        segment(midX, cy, cx, cy)   // across to the child's top-center
+        const offX = Math.round(Math.min(px, cx) * EMU)
+        const offY = Math.round(py * EMU)
+        const extCx = Math.max(Math.round(Math.abs(cx - px) * EMU), 1)
+        const extCy = Math.max(Math.round((cy - py) * EMU), 1)
+        const flipH = cx < px
+
+        connectorXml += `<p:cxnSp><p:nvCxnSpPr><p:cNvPr id="${cxnId}" name="Connector ${cxnId}"/><p:cNvCxnSpPr><a:stCxn id="${parentShapeId}" idx="3"/><a:endCxn id="${childShapeId}" idx="1"/></p:cNvCxnSpPr><p:nvPr/></p:nvCxnSpPr><p:spPr><a:xfrm${flipH ? ' flipH="1"' : ''}><a:off x="${offX}" y="${offY}"/><a:ext cx="${extCx}" cy="${extCy}"/></a:xfrm><a:prstGeom prst="bentConnector3"><a:avLst><a:gd name="adj1" fmla="val 50000"/></a:avLst></a:prstGeom><a:noFill/><a:ln w="12700"><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln></p:spPr></p:cxnSp>`
+        cxnId++
     })
+
+    // Insert connectors right after the spTree's <p:grpSpPr> so they render behind the boxes
+    return slideXml.replace('</p:grpSpPr>', `</p:grpSpPr>${connectorXml}`)
+}
+
+/**
+ * Writes a pptx to a raw arraybuffer, then post-processes each slide's XML
+ * (in order) via JSZip and returns the final .pptx as a Blob.
+ */
+export async function finalizePptx(
+    pptx: PptxGenJS,
+    slideXmlTransforms: Array<(xml: string) => string>
+): Promise<Blob> {
+    const arrayBuffer = (await pptx.write({ outputType: 'arraybuffer' })) as ArrayBuffer
+
+    const JSZip = (await import('jszip')).default
+    const zip = await JSZip.loadAsync(arrayBuffer)
+
+    for (let i = 0; i < slideXmlTransforms.length; i++) {
+        const slideFile = zip.file(`ppt/slides/slide${i + 1}.xml`)
+        if (!slideFile) continue
+        let xml = await slideFile.async('text')
+        xml = slideXmlTransforms[i](xml)
+        zip.file(`ppt/slides/slide${i + 1}.xml`, xml)
+    }
+
+    return (await zip.generateAsync({ type: 'blob' })) as Blob
 }

@@ -3,7 +3,7 @@ import type { OrgNodeV2 } from '@/app/actions/org-chart-v2-actions'
 import {
     BOX_W, BOX_H, GAP_X, GAP_Y,
     buildHierarchy, computeSubCounts,
-    renderNodesToSlide, renderConnectors,
+    renderNodesToSlide, injectConnectors, finalizePptx,
 } from './shared'
 
 // Standard 16:9 widescreen slide, in inches
@@ -49,6 +49,8 @@ export async function buildTeamDetailsPptx(data: OrgNodeV2[]): Promise<Blob | nu
     pptx.defineLayout({ name: 'ORG_TEAM_DETAILS', width: SLIDE_W, height: SLIDE_H })
     pptx.layout = 'ORG_TEAM_DETAILS'
 
+    const slideXmlTransforms: Array<(xml: string) => string> = []
+
     for (const teamRoot of teamRoots) {
         const idSet = getSubtreeIds(teamRoot)
         const subData: OrgNodeV2[] = data
@@ -92,9 +94,9 @@ export async function buildTeamDetailsPptx(data: OrgNodeV2[]): Promise<Blob | nu
             align: 'left', valign: 'middle',
         })
 
-        renderConnectors(pptx, slide, nodes, { toX, toY, scale })
         await renderNodesToSlide(pptx, slide, nodes, { toX, toY, scale }, subCounts)
+        slideXmlTransforms.push((xml) => injectConnectors(xml, nodes, { toX, toY, scale }))
     }
 
-    return (await pptx.write({ outputType: 'blob' })) as Blob
+    return finalizePptx(pptx, slideXmlTransforms)
 }
