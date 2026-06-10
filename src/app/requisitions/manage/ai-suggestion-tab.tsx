@@ -9,6 +9,7 @@ import { triggerStage3Ranking, getStage3JobStatus, getLatestJobForJR, getJobHist
 interface Props {
     jrId: string;
     jrTitle?: string;
+    jrDescription?: string;
 }
 
 // ── Category definitions ────────────────────────
@@ -292,8 +293,8 @@ function OriginalResultRow({ r }: { r: Stage3Result }) {
 }
 
 // ── Main Component ──────────────────────────────
-export function AiSuggestionTab({ jrId, jrTitle }: Props) {
-    const [query, setQuery] = useState(jrTitle ?? "");
+export function AiSuggestionTab({ jrId, jrTitle, jrDescription }: Props) {
+    const [query, setQuery] = useState(jrDescription ?? "");
     const [status, setStatus] = useState<"idle" | "processing" | "completed" | "error">("idle");
     const [pollingStatus, setPollingStatus] = useState<string | null>(null);
     const [data, setData] = useState<Stage3JobData | null>(null);
@@ -319,7 +320,7 @@ export function AiSuggestionTab({ jrId, jrTitle }: Props) {
         setStatus("idle");
         setData(null);
         setPollingStatus(null);
-        setQuery(jrTitle ?? "");
+        setQuery(jrDescription ?? "");
         setErrorMsg(null);
         setActiveCategory("overall");
         setShowHistory(false);
@@ -343,7 +344,7 @@ export function AiSuggestionTab({ jrId, jrTitle }: Props) {
             }
         };
         restore();
-    }, [jrId, jrTitle]);
+    }, [jrId, jrDescription]);
 
     const startPolling = (jobId: string) => {
         jobIdRef.current = jobId;
@@ -458,13 +459,13 @@ export function AiSuggestionTab({ jrId, jrTitle }: Props) {
             <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
                 <div className="flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-indigo-500" />
-                    <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">AI Criteria</span>
+                    <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">AI Criteria (Default is Job Description)</span>
                 </div>
                 <Textarea
                     value={query}
                     onChange={e => setQuery(e.target.value)}
-                    rows={2}
-                    className="resize-none text-sm border-slate-200"
+                    rows={6}
+                    className="resize-y text-sm border-slate-200"
                     placeholder="เช่น General Manager of 5-star hotel in Thailand with international chain experience"
                 />
                 <div className="flex items-center gap-2">

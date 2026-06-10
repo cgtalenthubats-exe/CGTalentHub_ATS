@@ -694,6 +694,7 @@ export default function JRManagePage() {
                                         key={`ai-${selectedJR.id}`}
                                         jrId={selectedJR.id}
                                         jrTitle={selectedJR.job_title}
+                                        jrDescription={selectedJR.job_description}
                                     />
                                 </TabsContent>
                             </Tabs>
