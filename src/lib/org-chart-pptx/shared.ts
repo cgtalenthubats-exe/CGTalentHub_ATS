@@ -77,9 +77,14 @@ export type CoordTransform = {
     scale: number
 }
 
+// Scales a base font size (defined for scale=1) with the box so text fits without
+// relying on PowerPoint's shrink-to-fit, which only kicks in after the user clicks the box
+function scaledFont(base: number, scale: number, min = 6): number {
+    return Math.max(Math.round(base * scale), min)
+}
+
 /**
  * Renders org chart nodes as PowerPoint shapes onto a slide.
- * Returns a map from node -> generated shape objectName, used to wire up connectors afterwards.
  */
 export async function renderNodesToSlide(
     pptx: PptxGenJS,
@@ -87,7 +92,7 @@ export async function renderNodesToSlide(
     nodes: HierarchyPointNode<OrgNodeV2>[],
     { toX, toY, scale }: CoordTransform,
     subCounts: SubCounts
-): Promise<Map<HierarchyPointNode<OrgNodeV2>, string>> {
+): Promise<void> {
     const boxW = BOX_W * scale
     const boxH = BOX_H * scale
 
@@ -98,7 +103,6 @@ export async function renderNodesToSlide(
         photoByNode.set(n, (!n.data.is_group_node && photoUrl) ? await toDataUri(photoUrl) : null)
     }))
 
-    const objectNameByNode = new Map<HierarchyPointNode<OrgNodeV2>, string>()
     let boxCounter = 0
 
     nodes.forEach((n) => {
@@ -107,7 +111,6 @@ export async function renderNodesToSlide(
         const x = toX(n.x)
         const y = toY(n.y)
         const objectName = `OrgNode_${boxCounter++}`
-        objectNameByNode.set(n, objectName)
 
         // Root wrapper — dashed placeholder card with just the company name
         if (d.id === ROOT_WRAPPER_ID) {
@@ -120,7 +123,7 @@ export async function renderNodesToSlide(
                 align: 'center',
                 valign: 'middle',
                 bold: true,
-                fontSize: 13,
+                fontSize: scaledFont(13, scale),
                 color: '64748B',
                 fontFace: 'Tahoma',
                 shrinkText: true,
@@ -140,23 +143,24 @@ export async function renderNodesToSlide(
         const photoSize = PHOTO_SIZE * scale
         const linkedinUrl = isGroup ? null : getLinkedinUrl(d.linkedin)
 
-        const leftMargin = (!isGroup && photoData) ? (PHOTO_MARGIN + PHOTO_SIZE + PHOTO_MARGIN) * scale * 72 : 4
-        const rightMargin = linkedinUrl ? (BADGE_SIZE + BADGE_MARGIN) * scale * 72 + 2 : 4
+        const baseMargin = Math.max(4 * scale, 1)
+        const leftMargin = (!isGroup && photoData) ? (PHOTO_MARGIN + PHOTO_SIZE + PHOTO_MARGIN) * scale * 72 : baseMargin
+        const rightMargin = linkedinUrl ? (BADGE_SIZE + BADGE_MARGIN) * scale * 72 + Math.max(2 * scale, 0.5) : baseMargin
 
         slide.addText(
             [
-                { text: d.name || '', options: { bold: true, fontSize: 13, color: isGroup ? '3730A3' : '1E293B', breakLine: true } },
-                { text: d.title || '', options: { fontSize: 10, color: isGroup ? '6366F1' : '64748B', breakLine: true } },
-                { text: idLabel, options: { fontSize: 10, color: '94A3B8' } },
+                { text: d.name || '', options: { bold: true, fontSize: scaledFont(13, scale), color: isGroup ? '3730A3' : '1E293B', breakLine: true } },
+                { text: d.title || '', options: { fontSize: scaledFont(10, scale), color: isGroup ? '6366F1' : '64748B', breakLine: true } },
+                { text: idLabel, options: { fontSize: scaledFont(10, scale), color: '94A3B8' } },
             ],
             {
                 x, y, w: boxW, h: boxH,
                 shape: pptx.ShapeType.roundRect,
-                rectRadius: 0.06,
+                rectRadius: Math.max(0.06 * scale, 0.02),
                 fill: { color: fill },
                 line: { color: line, width: 1.5, dashType: dash },
                 // margin order is [left, right, bottom, top] in points
-                margin: [leftMargin, rightMargin, 4, 4],
+                margin: [leftMargin, rightMargin, baseMargin, baseMargin],
                 valign: 'middle',
                 align: isGroup ? 'center' : 'left',
                 shrinkText: true,
@@ -190,7 +194,7 @@ export async function renderNodesToSlide(
                 line: { type: 'none' },
                 fontFace: 'Tahoma',
                 bold: true,
-                fontSize: 9,
+                fontSize: scaledFont(9, scale, 5),
                 color: 'FFFFFF',
                 align: 'center',
                 valign: 'middle',
@@ -198,28 +202,29 @@ export async function renderNodesToSlide(
             })
         }
     })
-
-    return objectNameByNode
 }
 
 /**
- * Injects real glued elbow connector shapes (<p:cxnSp>, bentConnector3) between parent/child
- * node shapes into a slide's raw XML — pptxgenjs cannot create glued connectors directly.
+ * Injects elbow connector shapes (<p:cxnSp>, bentConnector3) between parent/child node
+ * shapes into a slide's raw XML — pptxgenjs cannot create connector shapes directly.
+ *
+ * These are drawn as plain (non-glued) shapes rather than using stCxn/endCxn: PowerPoint
+ * only recomputes a glued connector's geometry after a connected shape is manually moved,
+ * so glued connectors render in the wrong place until the user nudges a box. The
+ * off/ext/flipH below are derived directly from the bentConnector3 path formula (bend at
+ * the horizontal midpoint, x1 = w/2), so they connect the parent's bottom-center to the
+ * child's top-center correctly as soon as the file is opened.
  */
 export function injectConnectors(
     slideXml: string,
     nodes: HierarchyPointNode<OrgNodeV2>[],
-    objectNameByNode: Map<HierarchyPointNode<OrgNodeV2>, string>,
     { toX, toY, scale }: CoordTransform
 ): string {
     const boxW = BOX_W * scale
     const boxH = BOX_H * scale
 
-    // Map our objectName -> the shape id PowerPoint assigned it
-    const idByName = new Map<string, string>()
     let maxId = 1
-    for (const m of slideXml.matchAll(/<p:cNvPr id="(\d+)" name="([^"]*)"/g)) {
-        idByName.set(m[2], m[1])
+    for (const m of slideXml.matchAll(/<p:cNvPr id="(\d+)"/g)) {
         maxId = Math.max(maxId, parseInt(m[1], 10))
     }
 
@@ -229,10 +234,6 @@ export function injectConnectors(
 
     nodes.forEach((n) => {
         if (!n.parent) return
-
-        const parentId = idByName.get(objectNameByNode.get(n.parent) || '')
-        const childId = idByName.get(objectNameByNode.get(n) || '')
-        if (!parentId || !childId) return
 
         const px = toX(n.parent.x) + boxW / 2
         const py = toY(n.parent.y) + boxH
@@ -245,9 +246,7 @@ export function injectConnectors(
         const extCy = Math.max(Math.round((cy - py) * EMU), 1)
         const flipH = cx < px
 
-        // bentConnector3 (elbow, 1 bend) glued to the parent's bottom-center (idx 2)
-        // and the child's top-center (idx 0) connection sites
-        connectorXml += `<p:cxnSp><p:nvCxnSpPr><p:cNvPr id="${cxnId}" name="Connector ${cxnId}"/><p:cNvCxnSpPr><a:stCxn id="${parentId}" idx="2"/><a:endCxn id="${childId}" idx="0"/></p:cNvCxnSpPr><p:nvPr/></p:nvCxnSpPr><p:spPr><a:xfrm${flipH ? ' flipH="1"' : ''}><a:off x="${offX}" y="${offY}"/><a:ext cx="${extCx}" cy="${extCy}"/></a:xfrm><a:prstGeom prst="bentConnector3"><a:avLst><a:gd name="adj1" fmla="val 50000"/></a:avLst></a:prstGeom><a:noFill/><a:ln w="12700"><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln></p:spPr></p:cxnSp>`
+        connectorXml += `<p:cxnSp><p:nvCxnSpPr><p:cNvPr id="${cxnId}" name="Connector ${cxnId}"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr><p:spPr><a:xfrm${flipH ? ' flipH="1"' : ''}><a:off x="${offX}" y="${offY}"/><a:ext cx="${extCx}" cy="${extCy}"/></a:xfrm><a:prstGeom prst="bentConnector3"><a:avLst><a:gd name="adj1" fmla="val 50000"/></a:avLst></a:prstGeom><a:noFill/><a:ln w="12700"><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln></p:spPr></p:cxnSp>`
         cxnId++
     })
 

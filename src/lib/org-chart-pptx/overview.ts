@@ -55,9 +55,9 @@ export async function buildOverviewPptx(data: OrgNodeV2[]): Promise<Blob> {
     const toX = (x: number) => (x - minX + MARGIN) * scale
     const toY = (y: number) => (y - minY + MARGIN) * scale
 
-    const objectNameByNode = await renderNodesToSlide(pptx, slide, nodes, { toX, toY, scale }, subCounts)
+    await renderNodesToSlide(pptx, slide, nodes, { toX, toY, scale }, subCounts)
 
     return finalizePptx(pptx, [
-        (xml) => injectConnectors(xml, nodes, objectNameByNode, { toX, toY, scale }),
+        (xml) => injectConnectors(xml, nodes, { toX, toY, scale }),
     ])
 }

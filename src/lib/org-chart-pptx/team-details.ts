@@ -94,8 +94,8 @@ export async function buildTeamDetailsPptx(data: OrgNodeV2[]): Promise<Blob | nu
             align: 'left', valign: 'middle',
         })
 
-        const objectNameByNode = await renderNodesToSlide(pptx, slide, nodes, { toX, toY, scale }, subCounts)
-        slideXmlTransforms.push((xml) => injectConnectors(xml, nodes, objectNameByNode, { toX, toY, scale }))
+        await renderNodesToSlide(pptx, slide, nodes, { toX, toY, scale }, subCounts)
+        slideXmlTransforms.push((xml) => injectConnectors(xml, nodes, { toX, toY, scale }))
     }
 
     return finalizePptx(pptx, slideXmlTransforms)
