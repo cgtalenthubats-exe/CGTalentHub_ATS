@@ -821,7 +821,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[50px]">LI</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[280px]">Candidate Details</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[160px]">Remark</th>
-                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[120px]">Sex/Age</th>
+                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[120px]">Gender/Age</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[200px]">Company</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[200px]">Position</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[130px]">Is Current Job</th>
@@ -1044,7 +1044,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                             }}
                                         />
                                     </td>
-                                    {/* Sex/Age — inline edit */}
+                                    {/* Gender/Age — inline edit */}
                                     <td className="px-4 py-4">
                                         <SexAgeCell
                                             candidateId={c.candidate_id}
@@ -1303,7 +1303,7 @@ function RemarkCell({ candidateId, statuses, onSaved }: {
     );
 }
 
-const GENDER_OPTIONS = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
+const GENDER_OPTIONS = ['Male', 'Female', 'N/A'];
 
 function SexAgeCell({ candidateId, gender, age, onSaved }: {
     candidateId: string;
@@ -1336,7 +1336,7 @@ function SexAgeCell({ candidateId, gender, age, onSaved }: {
                 </button>
             </PopoverTrigger>
             <PopoverContent className="w-52 p-3 rounded-xl shadow-xl border-slate-100 space-y-3" align="start">
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Sex / Age</p>
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Gender / Age</p>
                 <select
                     value={g}
                     onChange={e => setG(e.target.value)}

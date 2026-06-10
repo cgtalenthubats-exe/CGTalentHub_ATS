@@ -619,7 +619,7 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
 }
 
 const STATUS_OPTIONS = ['Blacklist', 'Over-aged', "Don't touch", 'Ex-Central', 'VIP'];
-const GENDER_OPTIONS = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
+const GENDER_OPTIONS = ['Male', 'Female', 'N/A'];
 
 function QuickEditBar({ candidate, onSave }: { candidate: any; onSave: (fields: Record<string, any>) => Promise<void> }) {
     const [linkedin, setLinkedin] = useState(candidate?.linkedin || '');

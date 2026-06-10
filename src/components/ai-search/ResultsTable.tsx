@@ -185,7 +185,7 @@ export function ResultsTable({
                             <th className="px-3 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-slate-400 w-28">ID</th>
                             <th className="px-3 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-slate-400 w-10">LI</th>
                             <th className="px-3 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-slate-400">Candidate Details</th>
-                            <th className="px-3 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-slate-400 w-24">Sex / Age</th>
+                            <th className="px-3 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-slate-400 w-24">Gender / Age</th>
                             <th className="px-3 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-slate-400 w-28">Screening</th>
                         </tr>
                     </thead>
@@ -305,7 +305,7 @@ export function ResultsTable({
                                         </div>
                                     </td>
 
-                                    {/* Sex / Age */}
+                                    {/* Gender / Age */}
                                     <td className="px-3 py-3">
                                         {(r.sex || r.age) ? (
                                             <span className="text-xs text-slate-600">

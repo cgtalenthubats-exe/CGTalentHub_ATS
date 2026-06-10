@@ -42,6 +42,8 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
     // Master Data
     const [nationalities, setNationalities] = useState<string[]>([]);
     const [openNat, setOpenNat] = useState(false);
+    const [countries, setCountries] = useState<string[]>([]);
+    const [openCountry, setOpenCountry] = useState(false);
 
     // Form State (Files)
     const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -99,6 +101,10 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                 // 1. Fetch Nationalities
                 const { data: natData } = await supabase.from('nationality').select('nationality').order('nationality');
                 if (natData) setNationalities(["N/A", ...(natData as any).map((n: any) => n.nationality)]);
+
+                // 1b. Fetch Countries
+                const { data: countryData } = await supabase.from('country').select('country').order('country');
+                if (countryData) setCountries((countryData as any).map((c: any) => c.country).filter(Boolean));
 
                 // 2. Fetch Candidate
                 const res = await fetch(`/api/candidates/${candidateId}`);
@@ -512,7 +518,7 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                                         <option value="">Select Gender...</option>
                                         <option value="Male">Male</option>
                                         <option value="Female">Female</option>
-                                        <option value="Other">Other</option>
+                                        <option value="N/A">N/A</option>
                                     </select>
                                 </div>
                             </div>
@@ -549,9 +555,38 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                                     <Label htmlFor="linkedin" className="text-xs">LinkedIn URL</Label>
                                     <Input id="linkedin" value={formData.linkedin} onChange={handleChange} className="h-9 text-sm" />
                                 </div>
-                                <div className="space-y-1.5">
-                                    <Label htmlFor="country" className="text-xs">Country (from LI)</Label>
-                                    <Input id="country" placeholder="e.g. Thailand" value={formData.country} onChange={handleChange} className="h-9 text-sm" />
+                                <div className="space-y-1.5 flex flex-col">
+                                    <Label className="text-xs">Country (from LI)</Label>
+                                    <Popover open={openCountry} onOpenChange={setOpenCountry}>
+                                        <PopoverTrigger asChild>
+                                            <Button variant="outline" role="combobox" className="h-9 justify-between pl-3 font-normal w-full text-left text-sm">
+                                                {formData.country || "Select country..."}
+                                                <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="p-0 w-[240px]" align="start">
+                                            <Command>
+                                                <CommandInput placeholder="Search..." />
+                                                <CommandList>
+                                                    <CommandEmpty>No country found.</CommandEmpty>
+                                                    <CommandGroup className="max-h-[200px] overflow-y-auto">
+                                                        {formData.country && !countries.includes(formData.country) && (
+                                                            <CommandItem value={formData.country} onSelect={() => { setOpenCountry(false); }}>
+                                                                <Check className="mr-2 h-4 w-4 opacity-100" />
+                                                                {formData.country} (current)
+                                                            </CommandItem>
+                                                        )}
+                                                        {countries.map((c) => (
+                                                            <CommandItem key={c} value={c} onSelect={() => { setFormData(prev => ({ ...prev, country: c })); setOpenCountry(false); }}>
+                                                                <Check className={cn("mr-2 h-4 w-4", formData.country === c ? "opacity-100" : "opacity-0")} />
+                                                                {c}
+                                                            </CommandItem>
+                                                        ))}
+                                                    </CommandGroup>
+                                                </CommandList>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
                                 </div>
                             </div>
 
