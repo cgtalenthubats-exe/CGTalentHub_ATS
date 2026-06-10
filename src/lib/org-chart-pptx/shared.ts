@@ -205,15 +205,16 @@ export async function renderNodesToSlide(
 }
 
 /**
- * Injects elbow connector shapes (<p:cxnSp>, bentConnector3) between parent/child node
- * shapes into a slide's raw XML — pptxgenjs cannot create connector shapes directly.
+ * Injects straight connector shapes (<p:cxnSp>, straightConnector1) between parent/child
+ * node shapes into a slide's raw XML — pptxgenjs cannot create connector shapes directly.
  *
  * Each connector is glued to its parent/child box via stCxn/endCxn (parent's
  * bottom-center, idx 3 → child's top-center, idx 1), referencing those shapes' cNvPr ids
- * (looked up via the OrgNode_<n> objectName renderNodesToSlide assigns). The off/ext/
- * flipH below give a reasonable initial route — PowerPoint only recomputes a glued
- * connector's actual path (snapping it onto both boxes) after a connected shape is
- * nudged, so the line is correct from then on even if the box is moved back.
+ * (looked up via the OrgNode_<n> objectName renderNodesToSlide assigns). straightConnector1
+ * has no adjustment-value geometry to second-guess: its path is just a line across its
+ * off/ext bounding box (mirrored by flipH), so the off/ext below — built directly from the
+ * parent bottom-center and child top-center points — render a correct line on first open.
+ * Glue then lets PowerPoint re-route it as a straight line if either box is moved.
  */
 export function injectConnectors(
     slideXml: string,
@@ -260,7 +261,7 @@ export function injectConnectors(
         const extCy = Math.max(Math.round((cy - py) * EMU), 1)
         const flipH = cx < px
 
-        connectorXml += `<p:cxnSp><p:nvCxnSpPr><p:cNvPr id="${cxnId}" name="Connector ${cxnId}"/><p:cNvCxnSpPr><a:stCxn id="${parentShapeId}" idx="3"/><a:endCxn id="${childShapeId}" idx="1"/></p:cNvCxnSpPr><p:nvPr/></p:nvCxnSpPr><p:spPr><a:xfrm${flipH ? ' flipH="1"' : ''}><a:off x="${offX}" y="${offY}"/><a:ext cx="${extCx}" cy="${extCy}"/></a:xfrm><a:prstGeom prst="bentConnector3"><a:avLst><a:gd name="adj1" fmla="val 50000"/></a:avLst></a:prstGeom><a:noFill/><a:ln w="12700"><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln></p:spPr></p:cxnSp>`
+        connectorXml += `<p:cxnSp><p:nvCxnSpPr><p:cNvPr id="${cxnId}" name="Connector ${cxnId}"/><p:cNvCxnSpPr><a:stCxn id="${parentShapeId}" idx="3"/><a:endCxn id="${childShapeId}" idx="1"/></p:cNvCxnSpPr><p:nvPr/></p:nvCxnSpPr><p:spPr><a:xfrm${flipH ? ' flipH="1"' : ''}><a:off x="${offX}" y="${offY}"/><a:ext cx="${extCx}" cy="${extCy}"/></a:xfrm><a:prstGeom prst="straightConnector1"><a:avLst/></a:prstGeom><a:noFill/><a:ln w="12700"><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln></p:spPr></p:cxnSp>`
         cxnId++
     })
 
