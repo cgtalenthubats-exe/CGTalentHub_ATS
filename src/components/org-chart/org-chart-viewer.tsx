@@ -9,7 +9,7 @@ import {
     ExternalLink, Sparkles, Loader2, Trash2, Info, UploadCloud,
     Users, ChevronUp, Download, Image as ImageIcon, FileText,
     AlertTriangle, X, MoreHorizontal, Target, Search, ArrowLeft,
-    Building2, User
+    Building2, User, Presentation
 } from 'lucide-react'
 import {
     DropdownMenu,
@@ -1158,6 +1158,253 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
         }
     }
 
+    // Export the org chart as a native, editable PowerPoint file (boxes + connector lines
+    // generated from the parent/child hierarchy in the database — not a screenshot)
+    const exportPptx = async () => {
+        if (!initialData) return
+        try {
+            setIsExporting(true)
+            toast.info("กำลังสร้างไฟล์ PowerPoint อาจใช้เวลาสักครู่...", { duration: 5000 })
+
+            const { hierarchy, tree } = await import('d3-hierarchy')
+            const PptxGenJS = (await import('pptxgenjs')).default
+
+            const root = hierarchy<any>(initialData, (d) => d.children)
+
+            const BOX_W = 3.0
+            const BOX_H = 1.2
+            const GAP_X = 0.4
+            const GAP_Y = 1.0
+
+            const layout = tree<any>().nodeSize([BOX_W + GAP_X, BOX_H + GAP_Y])
+            layout(root)
+
+            const nodes = root.descendants()
+
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity
+            nodes.forEach((n: any) => {
+                minX = Math.min(minX, n.x)
+                maxX = Math.max(maxX, n.x)
+                minY = Math.min(minY, n.y)
+                maxY = Math.max(maxY, n.y)
+            })
+
+            const MARGIN = 0.5
+            const totalW = (maxX - minX) + BOX_W + MARGIN * 2
+            const totalH = (maxY - minY) + BOX_H + MARGIN * 2
+
+            const MAX_DIM = 50 // inches — stay safely under PowerPoint's ~56in slide size cap
+            const scale = Math.min(1, MAX_DIM / totalW, MAX_DIM / totalH)
+
+            const pptx = new PptxGenJS()
+            pptx.defineLayout({ name: 'ORG_CHART', width: Math.max(totalW * scale, 1), height: Math.max(totalH * scale, 1) })
+            pptx.layout = 'ORG_CHART'
+
+            const slide = pptx.addSlide()
+
+            const toX = (x: number) => (x - minX + MARGIN) * scale
+            const toY = (y: number) => (y - minY + MARGIN) * scale
+            const boxW = BOX_W * scale
+            const boxH = BOX_H * scale
+
+            const isHiddenRoot = (d: any) => d.node_id === 'root-wrapper' && d.name === 'Organization' && !d.matched_candidate_id
+
+            const colorFor = (d: any) => {
+                const isMatch = !!d.matched_candidate_id
+                const isVerified = d.is_verified === 'TRUE'
+                const isNotMatch = d.is_verified === 'NOT_MATCH'
+                const status = d.match_status || (isMatch ? 'matched' : 'unmapped')
+                if (d.is_group_node) return { fill: 'EEF2FF', line: '6366F1', dash: undefined }
+                if (isVerified || status === 'matched') return { fill: 'ECFDF5', line: '10B981', dash: undefined }
+                if (isNotMatch || status === 'mismatch_company') return { fill: 'FFF1F2', line: 'F43F5E', dash: undefined }
+                if (status === 'mismatch_position') return { fill: 'FFFBEB', line: 'FBBF24', dash: undefined }
+                if (status === 'n8n_processing') return { fill: 'EEF2FF', line: '818CF8', dash: 'dash' as const }
+                return { fill: 'FFFFFF', line: 'E2E8F0', dash: undefined }
+            }
+
+            // Extract a clean LinkedIn URL — the field sometimes has extra notes appended after the link
+            const getLinkedinUrl = (raw?: string | null): string | null => {
+                if (!raw) return null
+                const m = raw.match(/https?:\/\/[^\s]*linkedin\.com[^\s]*/i)
+                return m ? m[0] : null
+            }
+
+            // Fetch an image and convert it to a base64 data URI (pptxgenjs needs data/path, not a remote URL it can fetch itself)
+            const toDataUri = async (url: string): Promise<string | null> => {
+                try {
+                    const res = await fetch(url)
+                    if (!res.ok) return null
+                    const blob = await res.blob()
+                    return await new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader()
+                        reader.onloadend = () => resolve(reader.result as string)
+                        reader.onerror = reject
+                        reader.readAsDataURL(blob)
+                    })
+                } catch {
+                    return null
+                }
+            }
+
+            // Pre-fetch all candidate photos in parallel
+            const visibleNodes = nodes.filter((n: any) => !isHiddenRoot(n.data))
+            const photoByNode = new Map<any, string | null>()
+            await Promise.all(visibleNodes.map(async (n: any) => {
+                const photoUrl = n.data.candidate_photo
+                photoByNode.set(n, photoUrl ? await toDataUri(photoUrl) : null)
+            }))
+
+            const PHOTO_SIZE = 0.6
+            const PHOTO_MARGIN = 0.1
+            const BADGE_SIZE = 0.32
+            const BADGE_MARGIN = 0.06
+
+            // Boxes — single shape with text inside (one editable object per node)
+            const objectNameByNode = new Map<any, string>()
+            let boxCounter = 0
+            visibleNodes.forEach((n: any) => {
+                const d = n.data
+
+                const { fill, line, dash } = colorFor(d)
+                const x = toX(n.x)
+                const y = toY(n.y)
+
+                const isMatch = !!d.matched_candidate_id
+                const idLabel = d.is_group_node ? 'GROUP' : (isMatch ? (d.candidate_id || '') : 'UNMATCHED')
+                const objectName = `OrgNode_${boxCounter++}`
+                objectNameByNode.set(n, objectName)
+
+                // Reserve space on the left for the photo and on the right for the LinkedIn badge
+                const photoData = photoByNode.get(n)
+                const photoSize = PHOTO_SIZE * scale
+                const textOffsetX = (PHOTO_MARGIN + PHOTO_SIZE + PHOTO_MARGIN) * scale
+                const linkedinUrl = getLinkedinUrl(d.linkedin)
+
+                slide.addText(
+                    [
+                        { text: d.name || '', options: { bold: true, fontSize: 13, color: '1E293B', breakLine: true } },
+                        { text: d.title || '', options: { fontSize: 10, color: '64748B', breakLine: true } },
+                        { text: idLabel, options: { fontSize: 10, color: '94A3B8' } },
+                    ],
+                    {
+                        x, y, w: boxW, h: boxH,
+                        shape: pptx.ShapeType.roundRect,
+                        rectRadius: 0.06,
+                        fill: { color: fill },
+                        line: { color: line, width: 1.5, dashType: dash },
+                        // margin order is [left, right, bottom, top] in points
+                        margin: [textOffsetX * 72, (BADGE_SIZE + BADGE_MARGIN) * scale * 72 + 2, 4, 4],
+                        valign: 'middle',
+                        align: 'left',
+                        shrinkText: true,
+                        fontFace: 'Tahoma',
+                        objectName,
+                    }
+                )
+
+                // Profile photo (left, circular)
+                if (photoData) {
+                    slide.addImage({
+                        data: photoData,
+                        x: x + PHOTO_MARGIN * scale,
+                        y: y + (boxH - photoSize) / 2,
+                        w: photoSize,
+                        h: photoSize,
+                        rounding: true,
+                    })
+                }
+
+                // LinkedIn badge (top-right, clickable)
+                if (linkedinUrl) {
+                    slide.addText('in', {
+                        x: x + boxW - (BADGE_SIZE + BADGE_MARGIN) * scale,
+                        y: y + BADGE_MARGIN * scale,
+                        w: BADGE_SIZE * scale,
+                        h: BADGE_SIZE * scale,
+                        shape: pptx.ShapeType.roundRect,
+                        rectRadius: 0.04,
+                        fill: { color: '0A66C2' },
+                        line: { type: 'none' },
+                        fontFace: 'Tahoma',
+                        bold: true,
+                        fontSize: 9,
+                        color: 'FFFFFF',
+                        align: 'center',
+                        valign: 'middle',
+                        hyperlink: { url: linkedinUrl },
+                    })
+                }
+            })
+
+            // Generate the raw .pptx so we can post-process the slide XML and inject
+            // real glued connector shapes (<p:cxnSp>), which pptxgenjs cannot create directly.
+            const arrayBuffer = (await pptx.write({ outputType: 'arraybuffer' })) as ArrayBuffer
+
+            const JSZip = (await import('jszip')).default
+            const zip = await JSZip.loadAsync(arrayBuffer)
+            const slideFile = zip.file('ppt/slides/slide1.xml')
+            let slideXml = await slideFile!.async('text')
+
+            // Map our objectName -> the shape id PowerPoint assigned it
+            const idByName = new Map<string, string>()
+            let maxId = 1
+            for (const m of slideXml.matchAll(/<p:cNvPr id="(\d+)" name="([^"]*)"/g)) {
+                idByName.set(m[2], m[1])
+                maxId = Math.max(maxId, parseInt(m[1], 10))
+            }
+
+            const EMU = 914400
+            let connectorXml = ''
+            let cxnId = maxId + 1
+
+            nodes.forEach((n: any) => {
+                if (!n.parent) return
+                if (isHiddenRoot(n.parent.data)) return // top-level nodes have no incoming connector
+
+                const parentId = idByName.get(objectNameByNode.get(n.parent) || '')
+                const childId = idByName.get(objectNameByNode.get(n) || '')
+                if (!parentId || !childId) return
+
+                const px = toX(n.parent.x) + boxW / 2
+                const py = toY(n.parent.y) + boxH
+                const cx = toX(n.x) + boxW / 2
+                const cy = toY(n.y)
+
+                const offX = Math.round(Math.min(px, cx) * EMU)
+                const offY = Math.round(py * EMU)
+                const extCx = Math.max(Math.round(Math.abs(cx - px) * EMU), 1)
+                const extCy = Math.max(Math.round((cy - py) * EMU), 1)
+                const flipH = cx < px
+
+                // bentConnector3 (elbow, 1 bend) glued to the parent's bottom-center (idx 2)
+                // and the child's top-center (idx 0) connection sites
+                connectorXml += `<p:cxnSp><p:nvCxnSpPr><p:cNvPr id="${cxnId}" name="Connector ${cxnId}"/><p:cNvCxnSpPr><a:stCxn id="${parentId}" idx="2"/><a:endCxn id="${childId}" idx="0"/></p:cNvCxnSpPr><p:nvPr/></p:nvCxnSpPr><p:spPr><a:xfrm${flipH ? ' flipH="1"' : ''}><a:off x="${offX}" y="${offY}"/><a:ext cx="${extCx}" cy="${extCy}"/></a:xfrm><a:prstGeom prst="bentConnector3"><a:avLst><a:gd name="adj1" fmla="val 50000"/></a:avLst></a:prstGeom><a:noFill/><a:ln w="12700"><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln></p:spPr></p:cxnSp>`
+                cxnId++
+            })
+
+            // Insert connectors right after the spTree's <p:grpSpPr> so they render behind the boxes
+            slideXml = slideXml.replace('</p:grpSpPr>', `</p:grpSpPr>${connectorXml}`)
+            zip.file('ppt/slides/slide1.xml', slideXml)
+
+            const blob = (await zip.generateAsync({ type: 'blob' })) as Blob
+            const url = URL.createObjectURL(blob)
+            const a = document.createElement('a')
+            a.href = url
+            a.download = `OrgChart_${companyId || 'Export'}_${Date.now()}.pptx`
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+            URL.revokeObjectURL(url)
+
+            toast.success("Export PowerPoint สำเร็จ! 🎉")
+        } catch (err) {
+            console.error('Export PPTX error:', err)
+            toast.error("Export PowerPoint ล้มเหลว กรุณาลองใหม่")
+        } finally {
+            setIsExporting(false)
+        }
+    }
+
     // Sync state if prop changes
     useEffect(() => {
         setCompanyLogoUrl(initialLogo || null)
@@ -1453,6 +1700,9 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => exportImage('pdf')} className="cursor-pointer gap-2">
                                 <FileText size={14} className="text-slate-400" /> Save as PDF
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => exportPptx()} className="cursor-pointer gap-2">
+                                <Presentation size={14} className="text-slate-400" /> Save as PowerPoint
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
