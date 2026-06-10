@@ -205,33 +205,33 @@ export async function renderNodesToSlide(
 }
 
 /**
- * Injects elbow connector shapes (<p:cxnSp>, custom geometry) between parent/child node
- * shapes into a slide's raw XML — pptxgenjs cannot create connector shapes directly.
+ * Draws elbow connectors between parent/child node boxes as plain straight-line shapes
+ * (pptx.ShapeType.line) — three segments per edge: across to the horizontal midpoint,
+ * down to the child's row, then across to the child's top-center. Each segment is a
+ * simple 2-point line (no presets/custom geometry/glue), which PowerPoint always renders
+ * correctly on first open.
  *
- * Each connector is a plain (non-glued) shape with an explicit 4-point path: from the
- * parent's bottom-center, across to the horizontal midpoint, down to the child's row,
- * then across to the child's top-center. A custom path is used (rather than the
- * "bentConnector3" preset + adj1) because PowerPoint does not reliably render the preset's
- * final segment, leaving the line short of the child box. Plain (non-glued) shapes are
- * used because PowerPoint only recomputes a glued connector's geometry after a connected
- * shape is manually moved, which left connectors misplaced on first open.
+ * Must be called before renderNodesToSlide so the lines render behind the node boxes.
  */
-export function injectConnectors(
-    slideXml: string,
+export function renderConnectors(
+    pptx: PptxGenJS,
+    slide: PptxGenJS.Slide,
     nodes: HierarchyPointNode<OrgNodeV2>[],
     { toX, toY, scale }: CoordTransform
-): string {
+): void {
     const boxW = BOX_W * scale
     const boxH = BOX_H * scale
+    const MIN = 0.005 // inches — avoid zero-size shapes for perfectly aligned segments
 
-    let maxId = 1
-    for (const m of slideXml.matchAll(/<p:cNvPr id="(\d+)"/g)) {
-        maxId = Math.max(maxId, parseInt(m[1], 10))
+    const segment = (x1: number, y1: number, x2: number, y2: number) => {
+        slide.addShape(pptx.ShapeType.line, {
+            x: Math.min(x1, x2),
+            y: Math.min(y1, y2),
+            w: Math.max(Math.abs(x2 - x1), MIN),
+            h: Math.max(Math.abs(y2 - y1), MIN),
+            line: { color: '000000', width: 1 },
+        })
     }
-
-    const EMU = 914400
-    let connectorXml = ''
-    let cxnId = maxId + 1
 
     nodes.forEach((n) => {
         if (!n.parent) return
@@ -240,46 +240,10 @@ export function injectConnectors(
         const py = toY(n.parent.y) + boxH
         const cx = toX(n.x) + boxW / 2
         const cy = toY(n.y)
+        const midX = (px + cx) / 2
 
-        const offX = Math.round(Math.min(px, cx) * EMU)
-        const offY = Math.round(py * EMU)
-        const extCx = Math.max(Math.round(Math.abs(cx - px) * EMU), 1)
-        const extCy = Math.max(Math.round((cy - py) * EMU), 1)
-        const xMid = Math.round(extCx / 2)
-        // Path starts at the parent's bottom-center and ends at the child's top-center
-        const xStart = cx >= px ? 0 : extCx
-        const xEnd = cx >= px ? extCx : 0
-
-        const path = `<a:moveTo><a:pt x="${xStart}" y="0"/></a:moveTo><a:lnTo><a:pt x="${xMid}" y="0"/></a:lnTo><a:lnTo><a:pt x="${xMid}" y="${extCy}"/></a:lnTo><a:lnTo><a:pt x="${xEnd}" y="${extCy}"/></a:lnTo>`
-
-        connectorXml += `<p:cxnSp><p:nvCxnSpPr><p:cNvPr id="${cxnId}" name="Connector ${cxnId}"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr><p:spPr><a:xfrm><a:off x="${offX}" y="${offY}"/><a:ext cx="${extCx}" cy="${extCy}"/></a:xfrm><a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="0" b="0"/><a:pathLst><a:path w="${extCx}" h="${extCy}" fill="none">${path}</a:path></a:pathLst></a:custGeom><a:noFill/><a:ln w="12700"><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln></p:spPr></p:cxnSp>`
-        cxnId++
+        segment(px, py, midX, py)   // parent's bottom-center → horizontal midpoint
+        segment(midX, py, midX, cy) // down to the child's row
+        segment(midX, cy, cx, cy)   // across to the child's top-center
     })
-
-    // Insert connectors right after the spTree's <p:grpSpPr> so they render behind the boxes
-    return slideXml.replace('</p:grpSpPr>', `</p:grpSpPr>${connectorXml}`)
-}
-
-/**
- * Writes a pptx to a raw arraybuffer, then post-processes each slide's XML
- * (in order) via JSZip and returns the final .pptx as a Blob.
- */
-export async function finalizePptx(
-    pptx: PptxGenJS,
-    slideXmlTransforms: Array<(xml: string) => string>
-): Promise<Blob> {
-    const arrayBuffer = (await pptx.write({ outputType: 'arraybuffer' })) as ArrayBuffer
-
-    const JSZip = (await import('jszip')).default
-    const zip = await JSZip.loadAsync(arrayBuffer)
-
-    for (let i = 0; i < slideXmlTransforms.length; i++) {
-        const slideFile = zip.file(`ppt/slides/slide${i + 1}.xml`)
-        if (!slideFile) continue
-        let xml = await slideFile.async('text')
-        xml = slideXmlTransforms[i](xml)
-        zip.file(`ppt/slides/slide${i + 1}.xml`, xml)
-    }
-
-    return (await zip.generateAsync({ type: 'blob' })) as Blob
 }

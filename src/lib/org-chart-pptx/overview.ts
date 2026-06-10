@@ -3,7 +3,7 @@ import type { OrgNodeV2 } from '@/app/actions/org-chart-v2-actions'
 import {
     BOX_W, BOX_H, GAP_X, GAP_Y,
     buildHierarchy, computeSubCounts,
-    renderNodesToSlide, injectConnectors, finalizePptx,
+    renderNodesToSlide, renderConnectors,
 } from './shared'
 
 const MARGIN = 0.5
@@ -55,9 +55,8 @@ export async function buildOverviewPptx(data: OrgNodeV2[]): Promise<Blob> {
     const toX = (x: number) => (x - minX + MARGIN) * scale
     const toY = (y: number) => (y - minY + MARGIN) * scale
 
+    renderConnectors(pptx, slide, nodes, { toX, toY, scale })
     await renderNodesToSlide(pptx, slide, nodes, { toX, toY, scale }, subCounts)
 
-    return finalizePptx(pptx, [
-        (xml) => injectConnectors(xml, nodes, { toX, toY, scale }),
-    ])
+    return (await pptx.write({ outputType: 'blob' })) as Blob
 }
