@@ -129,6 +129,11 @@ export function OrgChartViewerV2({ data }: { data: OrgNodeV2[] }) {
             .initialExpandLevel(2)
             .svgHeight(height)
             .nodeContent(renderNodeContent as (d: any) => string)
+            .linkUpdate(function (this: SVGPathElement) {
+                this.setAttribute('stroke', '#000000')
+                this.setAttribute('stroke-width', '1.5')
+                this.setAttribute('stroke-opacity', '1')
+            })
             .render()
 
         chartRef.current = chart

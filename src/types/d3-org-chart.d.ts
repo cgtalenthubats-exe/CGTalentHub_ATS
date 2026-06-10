@@ -17,6 +17,7 @@ declare module 'd3-org-chart' {
         svgHeight(value: number): this
         svgWidth(value: number): this
         nodeContent(fn: (d: any) => string): this
+        linkUpdate(fn: (this: SVGPathElement, d: any, i: number, arr: ArrayLike<SVGPathElement>) => void): this
         onNodeClick(fn: (d: any) => void): this
         render(): this
         fit(opts?: { animate?: boolean; nodes?: any[]; scale?: boolean; onCompleted?: () => void }): this
