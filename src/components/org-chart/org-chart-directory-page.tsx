@@ -3,6 +3,8 @@
 import React from 'react'
 import { ImportOrgDialog } from './import-org-dialog'
 import { OrgDirectoryGrouped } from './org-directory-grouped'
+import { OrgUploadsTable } from './org-uploads-table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { DirectoryUpload } from '@/app/actions/org-chart-actions'
 
 type Props = {
@@ -18,7 +20,18 @@ export function OrgChartDirectoryPage({ uploads }: Props) {
                 </h1>
                 <ImportOrgDialog />
             </div>
-            <OrgDirectoryGrouped uploads={uploads} />
+            <Tabs defaultValue="directory" className="flex flex-col gap-3">
+                <TabsList className="w-fit">
+                    <TabsTrigger value="directory">Directory</TabsTrigger>
+                    <TabsTrigger value="database">Database Table</TabsTrigger>
+                </TabsList>
+                <TabsContent value="directory" className="mt-0">
+                    <OrgDirectoryGrouped uploads={uploads} />
+                </TabsContent>
+                <TabsContent value="database" className="mt-0">
+                    <OrgUploadsTable uploads={uploads} />
+                </TabsContent>
+            </Tabs>
         </div>
     )
 }

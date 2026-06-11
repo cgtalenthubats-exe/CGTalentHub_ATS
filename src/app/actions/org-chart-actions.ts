@@ -1497,6 +1497,41 @@ export async function updateOrgUploadMeta(uploadId: string, fields: { company_na
     return { success: true }
 }
 
+const EDITABLE_UPLOAD_FIELDS = ['company_name', 'branch_name', 'company_id', 'notes', 'modify_date', 'created_at'] as const
+export type EditableUploadField = typeof EDITABLE_UPLOAD_FIELDS[number]
+
+export async function updateOrgChartUploadField(uploadId: string, field: EditableUploadField, value: string | null) {
+    if (!EDITABLE_UPLOAD_FIELDS.includes(field)) {
+        return { success: false, error: 'Field is not editable' }
+    }
+
+    let parsedValue: string | number | null = value
+
+    if (field === 'company_id') {
+        parsedValue = value === '' || value === null ? null : Number(value)
+        if (parsedValue !== null && Number.isNaN(parsedValue)) {
+            return { success: false, error: 'company_id ต้องเป็นตัวเลข' }
+        }
+    }
+
+    if ((field === 'modify_date' || field === 'created_at') && value === '') {
+        parsedValue = null
+    }
+
+    const { error } = await supabase
+        .from('org_chart_uploads')
+        .update({ [field]: parsedValue })
+        .eq('upload_id', uploadId)
+
+    if (error) {
+        console.error('[UpdateOrgChartUploadField] Error:', error)
+        return { success: false, error: error.message }
+    }
+
+    revalidatePath('/org-chart')
+    return { success: true }
+}
+
 export async function unlinkOrgNode(nodeId: string, uploadId: string) {
     const { error } = await supabase
         .from('all_org_nodes')
