@@ -211,6 +211,7 @@ type DialogState = {
     editingNode: RawOrgNode | null
     defaultParentName?: string
     hasChildren: boolean
+    isStandaloneAdd?: boolean
 }
 
 type MenuState = {
@@ -983,6 +984,17 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
                         EXPORT PPTX
                     </Button>
 
+                    {/* Add Standalone Node */}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 px-4 gap-2 border-indigo-100 text-indigo-600 hover:bg-indigo-50 shadow-sm bg-white rounded-full font-bold text-[11px]"
+                        onClick={() => setDialogState({ mode: 'add', editingNode: null, hasChildren: false, isStandaloneAdd: true })}
+                    >
+                        <Plus size={14} />
+                        ADD NODE
+                    </Button>
+
                     <Separator orientation="vertical" className="h-4 bg-slate-300 mx-0.5" />
 
                     {/* Expand / Collapse All */}
@@ -1240,6 +1252,7 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
                 defaultParentName={dialogState?.defaultParentName}
                 isAddMode={dialogState?.mode === 'add'}
                 isMoveMode={dialogState?.mode === 'move'}
+                isStandaloneAddMode={dialogState?.isStandaloneAdd}
                 hasChildren={dialogState?.hasChildren ?? false}
             />
 
