@@ -13,6 +13,12 @@ export type OrgNodeV2 = {
     candidate_id: string | null
     candidate_photo: string | null
     linkedin: string | null
+    current_experience?: {
+        company: string
+        position: string
+        is_current_job: string
+        start_date: string | null
+    } | null
 }
 
 /**
@@ -38,6 +44,7 @@ export async function fetchOrgChartFlatData(uploadId: string, chartCompanyName =
         candidate_id: n.candidate?.candidate_id || null,
         candidate_photo: n.candidate?.photo || null,
         linkedin: n.candidate?.linkedin || n.linkedin || null,
+        current_experience: n.current_experience || null,
     }))
 
     const idSet = new Set(flat.map((n) => n.id))
@@ -60,6 +67,7 @@ export async function fetchOrgChartFlatData(uploadId: string, chartCompanyName =
         candidate_id: null,
         candidate_photo: null,
         linkedin: null,
+        current_experience: null,
     }
 
     return [wrapper, ...flat.map((n) => (rootIds.has(n.id) ? { ...n, parentId: 'root-wrapper' } : n))]
