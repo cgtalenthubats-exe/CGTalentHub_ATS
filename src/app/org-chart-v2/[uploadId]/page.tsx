@@ -1,9 +1,7 @@
 import { redirect } from 'next/navigation'
-import Link from 'next/link'
 import { fetchOrgChartUploads, getOrgNodesRaw, fetchCompanyLogo } from '@/app/actions/org-chart-actions'
 import { fetchOrgChartFlatData } from '@/app/actions/org-chart-v2-actions'
-import { OrgChartClientWrapperV2 } from '@/components/org-chart/org-chart-client-wrapper-v2'
-import { OrgChartV2HeaderActions } from '@/components/org-chart/org-chart-v2-header-actions'
+import { OrgChartV2PageContent } from '@/components/org-chart/org-chart-v2-page-content'
 
 export default async function OrgChartV2ViewerRoute({
     params,
@@ -19,6 +17,7 @@ export default async function OrgChartV2ViewerRoute({
     }
 
     const companyName = currentUpload?.company_name || 'Organization'
+    const branchName = currentUpload?.branch_name || null
     const companyId = currentUpload?.company_id || null
     const notes = currentUpload?.notes || null
     const chartFileUrl = currentUpload?.chart_file || null
@@ -30,44 +29,18 @@ export default async function OrgChartV2ViewerRoute({
     ])
 
     return (
-        <div className="container mx-auto py-2 flex flex-col h-screen px-4 md:px-6">
-            <div className="shrink-0 flex items-center justify-between py-2 gap-2">
-                <div className="min-w-0">
-                    <Link href="/org-chart-v2" className="text-xs text-slate-400 hover:text-indigo-600">
-                        &larr; OrgChart V2 Directory
-                    </Link>
-                    <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 italic truncate">
-                        {companyName}
-                        {currentUpload?.branch_name ? ` — ${currentUpload.branch_name}` : ''}
-                        <span className="ml-2 text-xs font-normal text-indigo-500 not-italic align-middle border border-indigo-200 bg-indigo-50 rounded px-1.5 py-0.5">
-                            V2 Preview
-                        </span>
-                    </h1>
-                </div>
-                <div className="shrink-0 flex items-center gap-3">
-                    <OrgChartV2HeaderActions
-                        uploadId={uploadId}
-                        uploads={uploads}
-                        existingNodes={rawNodes.map((n) => ({ name: n.name, parent_name: n.parent_name }))}
-                    />
-                    <Link href={`/org-chart/${uploadId}`} className="text-xs text-slate-400 hover:text-indigo-600">
-                        View V1 &rarr;
-                    </Link>
-                </div>
-            </div>
-            <div className="flex-1 border rounded-xl overflow-hidden bg-white dark:bg-slate-900">
-                <OrgChartClientWrapperV2
-                    data={data}
-                    rawNodes={rawNodes}
-                    uploadId={uploadId}
-                    companyName={companyName}
-                    companyId={companyId}
-                    companyLogoUrl={companyLogoUrl}
-                    notes={notes}
-                    chartFileUrl={chartFileUrl}
-                    modifyDate={modifyDate}
-                />
-            </div>
-        </div>
+        <OrgChartV2PageContent
+            data={data}
+            rawNodes={rawNodes}
+            uploadId={uploadId}
+            uploads={uploads}
+            companyName={companyName}
+            branchName={branchName}
+            companyId={companyId}
+            companyLogoUrl={companyLogoUrl}
+            notes={notes}
+            chartFileUrl={chartFileUrl}
+            modifyDate={modifyDate}
+        />
     )
 }
