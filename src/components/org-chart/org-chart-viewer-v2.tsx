@@ -158,10 +158,10 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
             label = 'VERIFY'
             btnStyle = 'border:1px solid #f59e0b;background:#fef3c7;color:#b45309;'
         }
-        actionHtml = `<button type="button" data-action="verify" data-node-id="${escapeHtml(data.id)}" style="position:absolute;top:6px;right:6px;display:inline-flex;align-items:center;gap:2px;font-size:8px;font-weight:700;border-radius:5px;padding:1px 5px;cursor:pointer;font-family:${FONT_FAMILY};z-index:5;${btnStyle}">${ICON_USER_CHECK}${label}</button>`
+        actionHtml = `<button type="button" data-action="verify" data-node-id="${escapeHtml(data.id)}" style="position:absolute;top:8px;right:8px;display:inline-flex;align-items:center;gap:2px;font-size:8px;font-weight:700;border-radius:5px;padding:1px 5px;cursor:pointer;font-family:${FONT_FAMILY};z-index:5;${btnStyle}">${ICON_USER_CHECK}${label}</button>`
     } else {
         label = 'CREATE'
-        actionHtml = `<button type="button" data-action="create" data-node-id="${escapeHtml(data.id)}" style="position:absolute;top:6px;right:6px;display:inline-flex;align-items:center;gap:2px;font-size:8px;font-weight:700;border-radius:5px;padding:1px 5px;border:1px dashed #818cf8;background:transparent;color:#4f46e5;cursor:pointer;font-family:${FONT_FAMILY};z-index:5;"><span data-role="icon" style="display:inline-flex;">${ICON_USER_PLUS}</span><span data-role="spinner" style="display:none;">${ICON_LOADER}</span>${label}</button>`
+        actionHtml = `<button type="button" data-action="create" data-node-id="${escapeHtml(data.id)}" style="position:absolute;top:8px;right:8px;display:inline-flex;align-items:center;gap:2px;font-size:8px;font-weight:700;border-radius:5px;padding:1px 5px;border:1px dashed #818cf8;background:transparent;color:#4f46e5;cursor:pointer;font-family:${FONT_FAMILY};z-index:5;"><span data-role="icon" style="display:inline-flex;">${ICON_USER_PLUS}</span><span data-role="spinner" style="display:none;">${ICON_LOADER}</span>${label}</button>`
     }
     const titlePaddingRight = Math.ceil(label.length * 5) + 24
 
@@ -190,7 +190,7 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
     }
 
     return `
-        <div draggable="true" data-drag-node="${escapeHtml(data.id)}" style="width:${width}px;height:${height}px;border:2px ${style.dashed ? 'dashed' : 'solid'} ${style.border};border-radius:10px;background:${style.bg};box-shadow:0 1px 3px rgba(0,0,0,0.06);font-family:${FONT_FAMILY};box-sizing:border-box;padding:8px;display:flex;flex-direction:column;position:relative;cursor:grab;">
+        <div draggable="true" data-drag-node="${escapeHtml(data.id)}" style="width:${width}px;height:${height}px;border:2px ${style.dashed ? 'dashed' : 'solid'} ${style.border};border-radius:10px;background:${style.bg};box-shadow:0 1px 3px rgba(0,0,0,0.06);font-family:${FONT_FAMILY};box-sizing:border-box;padding:10px;display:flex;flex-direction:column;position:relative;cursor:grab;">
             ${renderKebabButton(data.id)}
             ${actionHtml}
             <div style="display:flex;align-items:flex-start;gap:8px;width:100%;">
@@ -199,16 +199,16 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
                     ${childCount > 0 ? `<div style="position:absolute;bottom:-3px;right:-3px;background:#4f46e5;color:white;border:2px solid white;border-radius:9999px;min-width:14px;height:14px;font-size:7px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 2px;">${childCount}</div>` : ''}
                 </div>
                 <div style="flex:1;min-width:0;padding-right:${titlePaddingRight}px;">
-                    <div style="display:flex;align-items:center;gap:3px;font-weight:700;color:#1e293b;font-size:12px;line-height:1.3;">
+                    <div style="display:flex;align-items:center;gap:3px;font-weight:700;color:#1e293b;font-size:12px;line-height:1.25;">
                         <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(data.name)}">${escapeHtml(data.name)}</span>
                         ${mismatchIconHtml}
                     </div>
-                    <div style="font-size:10px;color:#475569;font-weight:500;text-transform:uppercase;letter-spacing:0.02em;margin-top:2px;height:24px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.2;" title="${escapeHtml(data.title || '')}">
+                    <div style="font-size:10px;color:#475569;font-weight:500;text-transform:uppercase;letter-spacing:0.02em;margin-top:2px;height:22px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.1;" title="${escapeHtml(data.title || '')}">
                         ${escapeHtml(data.title || 'Position Not Set')}
                     </div>
                 </div>
             </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:auto;padding-top:6px;gap:6px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:auto;padding-top:4px;gap:6px;">
                 ${candidateIdHtml}
                 ${linkIconHtml}
             </div>
