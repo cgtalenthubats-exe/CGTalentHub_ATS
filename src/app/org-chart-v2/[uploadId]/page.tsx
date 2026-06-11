@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { fetchOrgChartUploads, getOrgNodesRaw } from '@/app/actions/org-chart-actions'
 import { fetchOrgChartFlatData } from '@/app/actions/org-chart-v2-actions'
 import { OrgChartClientWrapperV2 } from '@/components/org-chart/org-chart-client-wrapper-v2'
+import { OrgChartV2HeaderActions } from '@/components/org-chart/org-chart-v2-header-actions'
 
 export default async function OrgChartV2ViewerRoute({
     params,
@@ -38,9 +39,16 @@ export default async function OrgChartV2ViewerRoute({
                         </span>
                     </h1>
                 </div>
-                <Link href={`/org-chart/${uploadId}`} className="shrink-0 text-xs text-slate-400 hover:text-indigo-600">
-                    View V1 &rarr;
-                </Link>
+                <div className="shrink-0 flex items-center gap-3">
+                    <OrgChartV2HeaderActions
+                        uploadId={uploadId}
+                        uploads={uploads}
+                        existingNodes={rawNodes.map((n) => ({ name: n.name, parent_name: n.parent_name }))}
+                    />
+                    <Link href={`/org-chart/${uploadId}`} className="text-xs text-slate-400 hover:text-indigo-600">
+                        View V1 &rarr;
+                    </Link>
+                </div>
             </div>
             <div className="flex-1 border rounded-xl overflow-hidden bg-white dark:bg-slate-900">
                 <OrgChartClientWrapperV2 data={data} rawNodes={rawNodes} uploadId={uploadId} companyName={companyName} />

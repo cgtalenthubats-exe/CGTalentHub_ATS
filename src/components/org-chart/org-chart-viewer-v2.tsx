@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { OrgChart } from 'd3-org-chart'
-import { Download, Loader2, Plus, UserPlus, Focus, User, Building2, Trash2, Users, X } from 'lucide-react'
+import { Download, Loader2, Plus, UserPlus, Focus, User, Building2, Trash2, Users, X, Maximize2, Minimize2, ZoomIn, ZoomOut, Sparkles, UserCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
     Dialog,
@@ -13,9 +13,22 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog'
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import { Separator } from '@/components/ui/separator'
+import { cn } from '@/lib/utils'
 import { toast } from '@/lib/notifications'
 import { exportOrgChartPptx } from '@/lib/org-chart-pptx'
-import { createSingleOrgProfile, verifyOrgNode, deleteOrgNode, clearOrgNode, toggleGroupNode, moveOrgNode, type RawOrgNode } from '@/app/actions/org-chart-actions'
+import { createSingleOrgProfile, verifyOrgNode, deleteOrgNode, clearOrgNode, toggleGroupNode, moveOrgNode, bulkCreateOrgProfiles, verifyOrgChart, deleteOrgChart, type RawOrgNode } from '@/app/actions/org-chart-actions'
 import { VerificationDialog } from '@/components/org-chart/verification-dialog'
 import { CandidateProfileSheet } from '@/components/candidate-profile-sheet'
 import { NodeFormDialog } from '@/components/org-chart/node-form-dialog'
@@ -212,6 +225,12 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
     const [verifyNode, setVerifyNode] = useState<(OrgNodeV2 & { node_id: string }) | null>(null)
     const [isVerifying, setIsVerifying] = useState(false)
 
+    // Toolbar: bulk actions, legend, chart-level verify/delete
+    const [showLegend, setShowLegend] = useState(false)
+    const [isBulkLoading, setIsBulkLoading] = useState(false)
+    const [isVerifyingChart, setIsVerifyingChart] = useState(false)
+    const [isDeletingChart, setIsDeletingChart] = useState(false)
+
     // CRUD action menu ("⋮" kebab) state
     const [menuState, setMenuState] = useState<MenuState | null>(null)
     const [dialogState, setDialogState] = useState<DialogState | null>(null)
@@ -241,6 +260,12 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
         })
         return map
     }, [data])
+
+    // Nodes without a matched candidate profile yet — same definition as the V1 "CREATE ALL" count
+    const unmatchedCount = useMemo(
+        () => rawNodes.filter((n) => !n.matched_candidate_id).length,
+        [rawNodes]
+    )
 
     const handleExportPptx = async () => {
         try {
@@ -351,6 +376,72 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
             toast.error('Failed to move node')
         } finally {
             setIsMovingViaDrag(false)
+        }
+    }
+
+    const handleExpandAll = () => {
+        chartRef.current?.expandAll().fit()
+    }
+
+    const handleCollapseAll = () => {
+        chartRef.current?.collapseAll().fit()
+    }
+
+    const handleRecenter = () => {
+        chartRef.current?.fit()
+    }
+
+    const handleZoomIn = () => {
+        chartRef.current?.zoomIn()
+    }
+
+    const handleZoomOut = () => {
+        chartRef.current?.zoomOut()
+    }
+
+    const handleBulkCreate = async () => {
+        try {
+            setIsBulkLoading(true)
+            const res = await bulkCreateOrgProfiles(uploadId)
+            toast.success(`Successfully created ${res.count} profiles! ${(res.webhookCount ?? 0) > 0 ? `${res.webhookCount} webhooks sent to n8n.` : ''}`)
+            router.refresh()
+        } catch {
+            toast.error('Bulk creation failed. Check logs.')
+        } finally {
+            setIsBulkLoading(false)
+        }
+    }
+
+    const handleVerifyChart = async () => {
+        try {
+            setIsVerifyingChart(true)
+            const res = await verifyOrgChart(uploadId)
+            if (res.success) {
+                toast.success('Org Chart verified and timestamp updated 🛡️')
+            } else {
+                toast.error('Failed to verify chart')
+            }
+        } catch {
+            toast.error('An error occurred during verification')
+        } finally {
+            setIsVerifyingChart(false)
+        }
+    }
+
+    const handleDeleteChart = async () => {
+        try {
+            setIsDeletingChart(true)
+            const res = await deleteOrgChart(uploadId)
+            if (res.success) {
+                toast.success('Org Chart deleted successfully')
+                router.push('/org-chart-v2')
+            } else {
+                toast.error(res.error || 'Failed to delete chart')
+            }
+        } catch {
+            toast.error('An error occurred during deletion')
+        } finally {
+            setIsDeletingChart(false)
         }
     }
 
@@ -566,19 +657,200 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
 
     return (
         <div className="relative w-full">
-            <div className="absolute top-3 right-3 z-10">
-                <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-9 px-4 gap-2 border-indigo-100 text-indigo-600 hover:bg-indigo-50 shadow-sm bg-white rounded-full font-bold text-[11px]"
-                    disabled={isExporting}
-                    onClick={handleExportPptx}
-                >
-                    {isExporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
-                    EXPORT PPTX
-                </Button>
-            </div>
             <div ref={containerRef} className="w-full" style={{ minHeight: '600px' }} />
+
+            {/* Action Toolbar (Bottom Right) */}
+            <div className="absolute bottom-4 right-4 z-10 flex flex-col items-end gap-3">
+                {/* Legend Panel (Collapsible) */}
+                {showLegend && (
+                    <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm p-4 rounded-xl shadow-2xl border border-indigo-100 dark:border-indigo-900/30 text-[10px] text-slate-500 space-y-3 w-64 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <div className="font-bold text-slate-800 dark:text-slate-100 uppercase tracking-widest text-[9px] border-b pb-2">
+                            Legend &amp; Help
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <div className="h-2.5 w-2.5 rounded-full bg-indigo-500 ring-4 ring-indigo-50 dark:ring-indigo-900/20" />
+                            <span className="font-medium text-slate-700 dark:text-slate-300 text-xs">Internal Matched Profile</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <div className="h-2.5 w-2.5 rounded-full bg-slate-300 ring-4 ring-slate-50 dark:ring-slate-800/20" />
+                            <span className="font-medium text-slate-500 text-xs">External / Unmatched Info</span>
+                        </div>
+                        <div className="pt-2 flex flex-col gap-2 border-t mt-1 opacity-80">
+                            <div className="flex items-center gap-2 italic">
+                                <ZoomIn size={12} className="text-indigo-400" /> Scroll to Zoom
+                            </div>
+                            <div className="flex items-center gap-2 italic">
+                                <Focus size={12} className="text-indigo-400" /> Drag Background to Pan
+                            </div>
+                            <div className="flex items-center gap-2 italic">
+                                <Plus size={12} className="text-indigo-400" /> Click Card to Expand / Collapse Team
+                            </div>
+                            <div className="flex items-center gap-2 italic">
+                                <Users size={12} className="text-indigo-400" /> Drag a Card onto Another to Move It
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                <div className="flex flex-wrap justify-end gap-2 items-center bg-white/40 dark:bg-slate-900/40 backdrop-blur-md p-1.5 rounded-full border border-slate-200/50 shadow-sm max-w-[92vw]">
+                    {/* Export PPTX */}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 px-4 gap-2 border-indigo-100 text-indigo-600 hover:bg-indigo-50 shadow-sm bg-white rounded-full font-bold text-[11px]"
+                        disabled={isExporting}
+                        onClick={handleExportPptx}
+                    >
+                        {isExporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                        EXPORT PPTX
+                    </Button>
+
+                    <Separator orientation="vertical" className="h-4 bg-slate-300 mx-0.5" />
+
+                    {/* Expand / Collapse All */}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 px-3 gap-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-full text-xs text-slate-600 hover:bg-slate-50"
+                        onClick={handleExpandAll}
+                        title="Expand All"
+                    >
+                        <Maximize2 size={14} />
+                        EXPAND ALL
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 px-3 gap-2 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-full text-xs text-slate-600 hover:bg-slate-50"
+                        onClick={handleCollapseAll}
+                        title="Collapse All"
+                    >
+                        <Minimize2 size={14} />
+                        COLLAPSE ALL
+                    </Button>
+
+                    <Separator orientation="vertical" className="h-4 bg-slate-300 mx-0.5" />
+
+                    {/* Bulk Create */}
+                    <Button
+                        variant="default"
+                        size="sm"
+                        className={cn(
+                            "h-9 px-4 shadow-md rounded-full text-[11px] font-bold gap-2 transition-all border-none",
+                            unmatchedCount > 0 ? "bg-emerald-600 hover:bg-emerald-700 text-white" : "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none"
+                        )}
+                        onClick={handleBulkCreate}
+                        disabled={isBulkLoading || unmatchedCount === 0}
+                    >
+                        {isBulkLoading ? (
+                            <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                            <Sparkles size={14} className={unmatchedCount > 0 ? "text-emerald-100" : "text-slate-300"} />
+                        )}
+                        CREATE ALL ({unmatchedCount})
+                    </Button>
+
+                    <Separator orientation="vertical" className="h-4 bg-slate-300 mx-0.5" />
+
+                    {/* Chart Key Toggle */}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowLegend(!showLegend)}
+                        className={cn(
+                            "h-9 px-3 shadow-sm border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 rounded-full text-xs gap-2 transition-all",
+                            showLegend ? "bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400" : "text-slate-600 hover:bg-slate-50"
+                        )}
+                        title="Toggle Legend"
+                    >
+                        <Plus size={14} className={cn("transition-transform", showLegend && "rotate-45")} />
+                        CHART KEY
+                    </Button>
+
+                    {/* Zoom / Recenter Controls */}
+                    <div className="flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 p-0.5 shadow-sm">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleZoomOut}
+                            className="h-8 w-8 rounded-full hover:bg-slate-50"
+                            title="Zoom Out"
+                        >
+                            <ZoomOut size={16} className="text-slate-600" />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="icon"
+                            onClick={handleRecenter}
+                            className="h-8 w-8 rounded-full border-none hover:bg-slate-50"
+                            title="Recenter Chart"
+                        >
+                            <Focus size={16} className="text-slate-600" />
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleZoomIn}
+                            className="h-8 w-8 rounded-full hover:bg-slate-50"
+                            title="Zoom In"
+                        >
+                            <ZoomIn size={16} className="text-slate-600" />
+                        </Button>
+                    </div>
+
+                    <Separator orientation="vertical" className="h-4 bg-slate-200 mx-0.5" />
+
+                    {/* Verify Chart */}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 px-4 gap-2 bg-indigo-600 border-none text-white hover:bg-indigo-700 shadow-md rounded-full text-[11px] font-bold"
+                        onClick={handleVerifyChart}
+                        disabled={isVerifyingChart}
+                    >
+                        {isVerifyingChart ? (
+                            <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                            <UserCheck size={14} />
+                        )}
+                        VERIFY CHART
+                    </Button>
+
+                    <Separator orientation="vertical" className="h-4 bg-slate-200 mx-0.5" />
+
+                    {/* Delete Chart */}
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-9 px-3 gap-2 border-rose-100 text-rose-500 hover:bg-rose-50 hover:text-rose-600 shadow-sm bg-white rounded-full"
+                                disabled={isDeletingChart}
+                            >
+                                <Trash2 size={14} />
+                                DELETE
+                            </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will permanently delete this Org Chart and all its mappings.
+                                    <br /><br />
+                                    <strong className="text-rose-600">Note:</strong> Candidate profiles themselves will NOT be deleted, only their association with this specific chart.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel disabled={isDeletingChart}>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDeleteChart} disabled={isDeletingChart} className="bg-rose-600 hover:bg-rose-700 text-white rounded-lg">
+                                    {isDeletingChart && <Loader2 size={14} className="mr-2 animate-spin inline" />}
+                                    Yes, Delete Chart
+                                </AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </div>
+            </div>
 
             <VerificationDialog
                 isOpen={!!verifyNode}

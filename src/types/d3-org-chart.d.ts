@@ -30,5 +30,7 @@ declare module 'd3-org-chart' {
         collapseAll(): this
         setExpanded(id: string, expanded?: boolean): this
         getChartState(): any
+        zoomIn(): void
+        zoomOut(): void
     }
 }
