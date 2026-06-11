@@ -17,7 +17,7 @@ const FONT_FAMILY = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", R
 
 // Node/chart sizing — kept compact so more of the org fits on screen at once
 const NODE_WIDTH = 220
-const NODE_HEIGHT = 116
+const NODE_HEIGHT = 86
 const COMPACT_MARGIN_PAIR = 16
 const COMPACT_MARGIN_BETWEEN = 8
 const NEIGHBOUR_MARGIN = 24
@@ -33,10 +33,13 @@ const STATUS_STYLES: Record<string, { border: string; bg: string; dashed?: boole
 }
 
 // Inline SVGs (lucide path data) — nodeContent() returns raw HTML strings, so React icons can't be used directly
-const ICON_EXTERNAL_LINK = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`
+const ICON_EXTERNAL_LINK = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`
+const ICON_LINKEDIN = `<svg width="9" height="9" viewBox="0 0 24 24" fill="white"><path d="M19 0h-14c-2.76 0-5 2.24-5 5v14c0 2.76 2.24 5 5 5h14c2.76 0 5-2.24 5-5v-14c0-2.76-2.24-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.27c-.97 0-1.75-.79-1.75-1.76s.78-1.75 1.75-1.75 1.75.78 1.75 1.75-.78 1.76-1.75 1.76zm13.5 12.27h-3v-5.6c0-1.34-.03-3.07-1.87-3.07-1.87 0-2.16 1.46-2.16 2.97v5.7h-3v-11h2.88v1.5h.04c.4-.76 1.38-1.56 2.84-1.56 3.04 0 3.6 2 3.6 4.59v6.47z"/></svg>`
 const ICON_USER_CHECK = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>`
 const ICON_USER_PLUS = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>`
 const ICON_LOADER = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`
+const ICON_CHEVRON_UP = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#1e293b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>`
+const ICON_CHEVRON_DOWN = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#1e293b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`
 
 function escapeHtml(value: string | null | undefined): string {
     if (!value) return ''
@@ -69,17 +72,17 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
 
     if (data.is_group_node) {
         return `
-            <div style="width:${width}px;height:${height}px;border:2px solid #6366f1;border-radius:10px;background:linear-gradient(135deg,#eef2ff 0%,#e0e7ff 100%);box-shadow:0 1px 3px rgba(99,102,241,0.15);display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:${FONT_FAMILY};box-sizing:border-box;position:relative;">
-                <div style="background:#6366f1;border-radius:7px;padding:4px;margin-bottom:3px;display:flex;align-items:center;justify-content:center;">
+            <div style="width:${width}px;height:${height}px;border:2px solid #6366f1;border-radius:10px;background:linear-gradient(135deg,#eef2ff 0%,#e0e7ff 100%);box-shadow:0 1px 3px rgba(99,102,241,0.15);display:flex;flex-direction:column;align-items:center;font-family:${FONT_FAMILY};box-sizing:border-box;padding:8px;">
+                <div style="background:#6366f1;border-radius:7px;padding:4px;margin:1px 0 4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>
                     </svg>
                 </div>
-                <div style="font-size:11px;font-weight:700;color:#3730a3;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:90%;">
+                <div style="font-size:11px;font-weight:700;color:#3730a3;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;line-height:1.3;">
                     ${escapeHtml(data.name)}
                 </div>
-                ${data.title ? `<div style="font-size:9px;color:#6366f1;font-weight:500;text-align:center;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:90%;">${escapeHtml(data.title)}</div>` : ''}
-                <div style="position:absolute;bottom:6px;left:8px;right:8px;display:flex;justify-content:space-between;align-items:center;">
+                ${data.title ? `<div style="font-size:9px;color:#6366f1;font-weight:500;text-align:center;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;line-height:1.3;">${escapeHtml(data.title)}</div>` : ''}
+                <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:auto;padding-top:6px;flex-shrink:0;">
                     <span style="font-size:8px;font-weight:700;color:#818cf8;text-transform:uppercase;letter-spacing:0.08em;">GROUP</span>
                     ${childCount > 0 ? `<div style="background:#6366f1;border-radius:999px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:white;padding:0 4px;">${childCount}</div>` : ''}
                 </div>
@@ -95,15 +98,15 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
     // Top-right icons: open candidate profile (matched only) + LinkedIn link
     const topIcons: string[] = []
     if (isMatch) {
-        topIcons.push(`<button type="button" data-action="profile" data-candidate-id="${escapeHtml(data.candidate_id)}" title="View Profile" style="display:inline-flex;align-items:center;justify-content:center;color:#94a3b8;padding:1px;line-height:0;background:none;border:none;cursor:pointer;">${ICON_EXTERNAL_LINK}</button>`)
+        topIcons.push(`<button type="button" data-action="profile" data-candidate-id="${escapeHtml(data.candidate_id)}" title="View Profile" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:4px;background:#f1f5f9;color:#64748b;padding:0;line-height:0;border:none;cursor:pointer;">${ICON_EXTERNAL_LINK}</button>`)
     }
     if (data.linkedin) {
-        topIcons.push(`<a href="${escapeHtml(data.linkedin)}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;justify-content:center;color:#94a3b8;padding:1px;line-height:0;" title="LinkedIn"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.76 0-5 2.24-5 5v14c0 2.76 2.24 5 5 5h14c2.76 0 5-2.24 5-5v-14c0-2.76-2.24-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.27c-.97 0-1.75-.79-1.75-1.76s.78-1.75 1.75-1.75 1.75.78 1.75 1.75-.78 1.76-1.75 1.76zm13.5 12.27h-3v-5.6c0-1.34-.03-3.07-1.87-3.07-1.87 0-2.16 1.46-2.16 2.97v5.7h-3v-11h2.88v1.5h.04c.4-.76 1.38-1.56 2.84-1.56 3.04 0 3.6 2 3.6 4.59v6.47z"/></svg></a>`)
+        topIcons.push(`<a href="${escapeHtml(data.linkedin)}" target="_blank" rel="noopener noreferrer" title="LinkedIn" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:4px;background:#0A66C2;line-height:0;">${ICON_LINKEDIN}</a>`)
     }
     const topIconsHtml = topIcons.length > 0
-        ? `<div style="position:absolute;top:5px;right:5px;display:flex;gap:3px;align-items:center;">${topIcons.join('')}</div>`
+        ? `<div style="position:absolute;top:6px;right:6px;display:flex;gap:3px;align-items:center;">${topIcons.join('')}</div>`
         : ''
-    const titlePaddingRight = topIcons.length === 2 ? 32 : topIcons.length === 1 ? 16 : 0
+    const titlePaddingRight = topIcons.length === 2 ? 36 : topIcons.length === 1 ? 18 : 0
 
     // Bottom-right action: VERIFY / RE-VERIFY / VERIFIED for matched nodes, +CREATE for unmatched
     let actionHtml: string
@@ -126,23 +129,23 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
     }
 
     return `
-        <div style="width:${width}px;height:${height}px;border:2px ${style.dashed ? 'dashed' : 'solid'} ${style.border};border-radius:10px;background:${style.bg};box-shadow:0 1px 3px rgba(0,0,0,0.06);font-family:${FONT_FAMILY};box-sizing:border-box;padding:8px;display:flex;flex-direction:column;justify-content:space-between;position:relative;">
-            <div style="display:flex;align-items:flex-start;width:100%;">
-                <div style="flex-shrink:0;margin-right:8px;position:relative;">
-                    <div style="width:32px;height:32px;border-radius:9999px;background-image:url('${escapeHtml(photo)}');background-size:cover;background-position:center;background-color:#f1f5f9;border:1px solid #e2e8f0;"></div>
+        <div style="width:${width}px;height:${height}px;border:2px ${style.dashed ? 'dashed' : 'solid'} ${style.border};border-radius:10px;background:${style.bg};box-shadow:0 1px 3px rgba(0,0,0,0.06);font-family:${FONT_FAMILY};box-sizing:border-box;padding:8px;display:flex;flex-direction:column;position:relative;">
+            <div style="display:flex;align-items:flex-start;gap:8px;width:100%;">
+                <div style="flex-shrink:0;position:relative;">
+                    <div style="width:36px;height:36px;border-radius:9999px;background-image:url('${escapeHtml(photo)}');background-size:cover;background-position:center;background-color:#f1f5f9;border:1px solid #e2e8f0;"></div>
                     ${childCount > 0 ? `<div style="position:absolute;bottom:-3px;right:-3px;background:#4f46e5;color:white;border:2px solid white;border-radius:9999px;min-width:14px;height:14px;font-size:7px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 2px;">${childCount}</div>` : ''}
                 </div>
                 <div style="flex:1;min-width:0;${titlePaddingRight ? `padding-right:${titlePaddingRight}px;` : ''}">
                     <div style="font-weight:700;color:#1e293b;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;" title="${escapeHtml(data.name)}">
                         ${escapeHtml(data.name)}
                     </div>
-                    <div style="font-size:9px;color:#64748b;font-weight:500;text-transform:uppercase;letter-spacing:0.02em;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.3;" title="${escapeHtml(data.title || '')}">
+                    <div style="font-size:9px;color:#64748b;font-weight:500;text-transform:uppercase;letter-spacing:0.02em;margin-top:2px;height:23px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.28;" title="${escapeHtml(data.title || '')}">
                         ${escapeHtml(data.title || 'Position Not Set')}
                     </div>
                 </div>
             </div>
             ${topIconsHtml}
-            <div style="display:flex;justify-content:space-between;align-items:flex-end;width:100%;">
+            <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:auto;padding-top:6px;">
                 <span style="font-size:8px;font-family:ui-monospace,monospace;font-weight:700;color:#94a3b8;">
                     ${isMatch ? escapeHtml(data.candidate_id) : 'UNMATCHED'}
                 </span>
@@ -150,6 +153,12 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
             </div>
         </div>
     `
+}
+
+function renderButtonContent({ node }: { node: any }): string {
+    const count = node.data._directSubordinates || 0
+    const chevron = node.children ? ICON_CHEVRON_UP : ICON_CHEVRON_DOWN
+    return `<div style="display:flex;align-items:center;gap:2px;border:1.5px solid #1e293b;border-radius:999px;padding:2px 6px;font-size:9px;font-weight:700;color:#1e293b;background:#ffffff;box-shadow:0 1px 2px rgba(0,0,0,0.08);font-family:${FONT_FAMILY};">${chevron}<span>${count}</span></div>`
 }
 
 export function OrgChartViewerV2({ data, companyName = 'Organization' }: { data: OrgNodeV2[]; companyName?: string }) {
@@ -245,6 +254,11 @@ export function OrgChartViewerV2({ data, companyName = 'Organization' }: { data:
                 .initialExpandLevel(2)
                 .svgHeight(height)
                 .nodeContent(renderNodeContent as (d: any) => string)
+                .nodeButtonWidth(() => 28)
+                .nodeButtonHeight(() => 18)
+                .nodeButtonX(() => -14)
+                .nodeButtonY(() => -9)
+                .buttonContent(renderButtonContent)
                 .linkUpdate(function (this: SVGPathElement) {
                     this.setAttribute('stroke', '#000000')
                     this.setAttribute('stroke-width', '1.5')
