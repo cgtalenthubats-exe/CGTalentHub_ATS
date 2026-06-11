@@ -29,6 +29,8 @@ declare module 'd3-org-chart' {
         expandAll(): this
         collapseAll(): this
         setExpanded(id: string, expanded?: boolean): this
+        setHighlighted(id: string): this
+        clearHighlighting(): this
         getChartState(): any
         zoomIn(): void
         zoomOut(): void

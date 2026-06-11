@@ -20,6 +20,9 @@ export default async function OrgChartV2ViewerRoute({
 
     const companyName = currentUpload?.company_name || 'Organization'
     const companyId = currentUpload?.company_id || null
+    const notes = currentUpload?.notes || null
+    const chartFileUrl = currentUpload?.chart_file || null
+    const modifyDate = currentUpload?.modify_date || null
     const [data, rawNodes, companyLogoUrl] = await Promise.all([
         fetchOrgChartFlatData(uploadId, companyName),
         getOrgNodesRaw(uploadId),
@@ -60,6 +63,9 @@ export default async function OrgChartV2ViewerRoute({
                     companyName={companyName}
                     companyId={companyId}
                     companyLogoUrl={companyLogoUrl}
+                    notes={notes}
+                    chartFileUrl={chartFileUrl}
+                    modifyDate={modifyDate}
                 />
             </div>
         </div>

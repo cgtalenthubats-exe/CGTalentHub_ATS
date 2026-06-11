@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useMemo, type ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { OrgChart } from 'd3-org-chart'
-import { Download, Loader2, Plus, UserPlus, Focus, User, Building2, Trash2, Users, X, Maximize2, Minimize2, ZoomIn, ZoomOut, Sparkles, UserCheck, UploadCloud } from 'lucide-react'
+import { Download, Loader2, Plus, UserPlus, Focus, User, Building2, Trash2, Users, X, Maximize2, Minimize2, ZoomIn, ZoomOut, Sparkles, UserCheck, UploadCloud, Target, Search, ExternalLink, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
     Dialog,
@@ -25,6 +25,7 @@ import {
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { Separator } from '@/components/ui/separator'
+import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { toast } from '@/lib/notifications'
 import { exportOrgChartPptx } from '@/lib/org-chart-pptx'
@@ -32,6 +33,7 @@ import { createSingleOrgProfile, verifyOrgNode, deleteOrgNode, clearOrgNode, tog
 import { VerificationDialog } from '@/components/org-chart/verification-dialog'
 import { CandidateProfileSheet } from '@/components/candidate-profile-sheet'
 import { NodeFormDialog } from '@/components/org-chart/node-form-dialog'
+import { CandidateAvatar } from '@/components/candidate-avatar'
 import type { OrgNodeV2 } from '@/app/actions/org-chart-v2-actions'
 import { supabase } from '@/lib/supabase/client'
 
@@ -64,6 +66,8 @@ const ICON_LOADER = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" s
 const ICON_CHEVRON_UP = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#1e293b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>`
 const ICON_CHEVRON_DOWN = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#1e293b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`
 const ICON_MORE = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>`
+const ICON_ALERT_TRIANGLE = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`
+const ICON_INFO = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>`
 
 function escapeHtml(value: string | null | undefined): string {
     if (!value) return ''
@@ -159,6 +163,14 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
         actionHtml = `<button type="button" data-action="create" data-node-id="${escapeHtml(data.id)}" style="display:inline-flex;align-items:center;gap:2px;font-size:8px;font-weight:700;border-radius:5px;padding:1px 5px;border:1px dashed #818cf8;background:transparent;color:#4f46e5;cursor:pointer;font-family:${FONT_FAMILY};"><span data-role="icon" style="display:inline-flex;">${ICON_USER_PLUS}</span><span data-role="spinner" style="display:none;">${ICON_LOADER}</span>CREATE</button>`
     }
 
+    // Inline warning icon for company/position mismatches — native title attr doubles as a tooltip
+    let mismatchIconHtml = ''
+    if (status === 'mismatch_company') {
+        mismatchIconHtml = `<span title="Company Mismatch: ${escapeHtml(data.current_experience?.company || 'Unknown')}" style="display:inline-flex;flex-shrink:0;color:#f43f5e;cursor:help;">${ICON_ALERT_TRIANGLE}</span>`
+    } else if (status === 'mismatch_position') {
+        mismatchIconHtml = `<span title="Position Mismatch: ${escapeHtml(data.current_experience?.position || 'Unknown')}" style="display:inline-flex;flex-shrink:0;color:#f59e0b;cursor:help;">${ICON_INFO}</span>`
+    }
+
     return `
         <div draggable="true" data-drag-node="${escapeHtml(data.id)}" style="width:${width}px;height:${height}px;border:2px ${style.dashed ? 'dashed' : 'solid'} ${style.border};border-radius:10px;background:${style.bg};box-shadow:0 1px 3px rgba(0,0,0,0.06);font-family:${FONT_FAMILY};box-sizing:border-box;padding:8px;display:flex;flex-direction:column;position:relative;cursor:grab;">
             ${renderKebabButton(data.id)}
@@ -168,8 +180,9 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
                     ${childCount > 0 ? `<div style="position:absolute;bottom:-3px;right:-3px;background:#4f46e5;color:white;border:2px solid white;border-radius:9999px;min-width:14px;height:14px;font-size:7px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 2px;">${childCount}</div>` : ''}
                 </div>
                 <div style="flex:1;min-width:0;${titlePaddingRight ? `padding-right:${titlePaddingRight}px;` : ''}">
-                    <div style="font-weight:700;color:#1e293b;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.3;" title="${escapeHtml(data.name)}">
-                        ${escapeHtml(data.name)}
+                    <div style="display:flex;align-items:center;gap:3px;font-weight:700;color:#1e293b;font-size:11px;line-height:1.3;">
+                        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(data.name)}">${escapeHtml(data.name)}</span>
+                        ${mismatchIconHtml}
                     </div>
                     <div style="font-size:9px;color:#64748b;font-weight:500;text-transform:uppercase;letter-spacing:0.02em;margin-top:2px;height:23px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.28;" title="${escapeHtml(data.title || '')}">
                         ${escapeHtml(data.title || 'Position Not Set')}
@@ -214,12 +227,14 @@ type DragMoveState = {
     targetName: string
 }
 
-export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Organization', companyId, companyLogoUrl: initialLogo }: { data: OrgNodeV2[]; rawNodes: RawOrgNode[]; uploadId: string; companyName?: string; companyId?: string | null; companyLogoUrl?: string | null }) {
+export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Organization', companyId, companyLogoUrl: initialLogo, notes, chartFileUrl, modifyDate: initialModifyDate }: { data: OrgNodeV2[]; rawNodes: RawOrgNode[]; uploadId: string; companyName?: string; companyId?: string | null; companyLogoUrl?: string | null; notes?: string | null; chartFileUrl?: string | null; modifyDate?: string | null }) {
     const containerRef = useRef<HTMLDivElement>(null)
     const chartRef = useRef<OrgChart<OrgNodeV2> | null>(null)
     const hasFitRef = useRef(false)
     const creatingNodesRef = useRef<Set<string>>(new Set())
     const logoInputRef = useRef<HTMLInputElement>(null)
+    const pendingHighlightRef = useRef<string | null>(null)
+    const prevFocusedNodeIdRef = useRef<string | null>(null)
     const router = useRouter()
 
     const [isExporting, setIsExporting] = useState(false)
@@ -236,6 +251,14 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
     const [isBulkLoading, setIsBulkLoading] = useState(false)
     const [isVerifyingChart, setIsVerifyingChart] = useState(false)
     const [isDeletingChart, setIsDeletingChart] = useState(false)
+    const [modifyDate, setModifyDate] = useState<string | null>(initialModifyDate || null)
+
+    // Global search (jump to a node by name / candidate ID)
+    const [searchQuery, setSearchQuery] = useState('')
+    const [searchResults, setSearchResults] = useState<OrgNodeV2[]>([])
+
+    // "Focus on this Team" mode
+    const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null)
 
     // CRUD action menu ("⋮" kebab) state
     const [menuState, setMenuState] = useState<MenuState | null>(null)
@@ -272,6 +295,25 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
         () => rawNodes.filter((n) => !n.matched_candidate_id).length,
         [rawNodes]
     )
+
+    // "Focus on this Team" — when active, render only the focused node + its descendants as a new root
+    const focusedData = useMemo(() => {
+        if (!focusedNodeId || !data.some((n) => n.id === focusedNodeId)) return data
+
+        const idsToInclude = new Set<string>()
+        const stack = [focusedNodeId]
+        while (stack.length) {
+            const cur = stack.pop() as string
+            if (idsToInclude.has(cur)) continue
+            idsToInclude.add(cur)
+            const kids = childrenMap.get(cur)
+            if (kids) stack.push(...kids)
+        }
+
+        return data
+            .filter((n) => idsToInclude.has(n.id))
+            .map((n) => (n.id === focusedNodeId ? { ...n, parentId: undefined } : n))
+    }, [data, focusedNodeId, childrenMap])
 
     const handleExportPptx = async () => {
         try {
@@ -405,6 +447,46 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
         chartRef.current?.zoomOut()
     }
 
+    const handleSearchInput = (e: ChangeEvent<HTMLInputElement>) => {
+        const q = e.target.value
+        setSearchQuery(q)
+        if (!q || q.length < 2) {
+            setSearchResults([])
+            return
+        }
+        const lowerQ = q.toLowerCase()
+        const results = data.filter((n) =>
+            n.id !== 'root-wrapper' &&
+            (n.name.toLowerCase().includes(lowerQ) ||
+                (n.candidate_id && n.candidate_id.toLowerCase().includes(lowerQ)))
+        )
+        setSearchResults(results.slice(0, 8))
+    }
+
+    const executeSearchResult = (nodeId: string) => {
+        setSearchQuery('')
+        setSearchResults([])
+
+        if (focusedNodeId && !focusedData.some((n) => n.id === nodeId)) {
+            // Target node is outside the focused subtree — exit focus mode first,
+            // then highlight once the full chart re-renders (see chart effect below)
+            setFocusedNodeId(null)
+            pendingHighlightRef.current = nodeId
+            return
+        }
+
+        chartRef.current?.setHighlighted(nodeId).render()
+        setTimeout(() => chartRef.current?.clearHighlighting(), 4000)
+    }
+
+    const handleFocusTeam = (nodeId: string) => {
+        setFocusedNodeId(nodeId)
+    }
+
+    const handleExitFocus = () => {
+        setFocusedNodeId(null)
+    }
+
     const handleBulkCreate = async () => {
         try {
             setIsBulkLoading(true)
@@ -423,6 +505,7 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
             setIsVerifyingChart(true)
             const res = await verifyOrgChart(uploadId)
             if (res.success) {
+                setModifyDate(new Date().toISOString())
                 toast.success('Org Chart verified and timestamp updated 🛡️')
             } else {
                 toast.error('Failed to verify chart')
@@ -488,11 +571,25 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
         setCompanyLogoUrl(initialLogo || null)
     }, [initialLogo])
 
+    // Realtime: refresh whenever another user edits this company's org nodes
+    useEffect(() => {
+        if (!companyId) return
+        const channel = supabase
+            .channel('org-chart-v2-updates-' + companyId)
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'all_org_nodes', filter: `company_id=eq.${companyId}` },
+                () => { router.refresh() }
+            )
+            .subscribe()
+        return () => { supabase.removeChannel(channel) }
+    }, [companyId, router])
+
     // Creates the chart on first run, then re-renders in place on subsequent data
     // changes (e.g. after router.refresh()) so zoom/pan/expand state is preserved.
     useEffect(() => {
         const container = containerRef.current
-        if (!container || data.length === 0) return
+        if (!container || focusedData.length === 0) return
 
         if (!chartRef.current) {
             const height = Math.max(window.innerHeight - 220, 500)
@@ -524,7 +621,7 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
                 })
         }
 
-        chartRef.current.data(data).render()
+        chartRef.current.data(focusedData).render()
 
         // Let native HTML5 drag-and-drop on cards take precedence over d3-zoom's
         // pan gesture — without this, d3-zoom's mousedown.preventDefault() blocks
@@ -539,9 +636,20 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
             })
         }
 
-        if (!hasFitRef.current) {
+        // Re-fit on first render and whenever "Focus on this Team" is entered/exited
+        const focusChanged = prevFocusedNodeIdRef.current !== focusedNodeId
+        prevFocusedNodeIdRef.current = focusedNodeId
+        if (!hasFitRef.current || focusChanged) {
             chartRef.current.fit()
             hasFitRef.current = true
+        }
+
+        // Apply a search highlight that was deferred while exiting focus mode
+        if (pendingHighlightRef.current) {
+            const pendingId = pendingHighlightRef.current
+            pendingHighlightRef.current = null
+            chartRef.current.setHighlighted(pendingId).render()
+            setTimeout(() => chartRef.current?.clearHighlighting(), 4000)
         }
 
         const handleClick = (e: MouseEvent) => {
@@ -673,7 +781,7 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
             container.removeEventListener('drop', handleDrop)
             container.removeEventListener('dragend', handleDragEnd)
         }
-    }, [data, childrenMap])
+    }, [data, focusedData, childrenMap])
 
     // Close the action menu / drag-move confirm whenever the chart re-renders (e.g. after a mutation)
     useEffect(() => {
@@ -701,6 +809,90 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
     return (
         <div className="relative w-full">
             <div ref={containerRef} className="w-full" style={{ minHeight: '600px' }} />
+
+            {/* Focus Mode Banner */}
+            {focusedNodeId && (
+                <div className="absolute top-0 left-0 w-full z-10 flex justify-center mt-2 animate-in slide-in-from-top-4">
+                    <div className="bg-indigo-600 text-white px-5 py-2 rounded-full shadow-lg flex items-center gap-3 text-xs font-bold border border-indigo-500">
+                        <Target size={16} className="animate-pulse" />
+                        FOCUS MODE ACTIVE: VIEWING SUB-TEAM
+                        <button
+                            type="button"
+                            onClick={handleExitFocus}
+                            className="ml-2 bg-indigo-800 hover:bg-rose-500 transition-colors px-2.5 py-1 rounded-full flex items-center gap-1"
+                        >
+                            <X size={12} />
+                            EXIT
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Global Employee Search */}
+            <div className="absolute top-4 right-64 z-10 w-64 max-w-sm">
+                <div className="relative">
+                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                        <Search size={14} />
+                    </div>
+                    <input
+                        type="text"
+                        className="w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100 text-xs rounded-full focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 block pl-9 p-2 shadow-sm"
+                        placeholder="Search employee or ID..."
+                        value={searchQuery}
+                        onChange={handleSearchInput}
+                    />
+                    {searchResults.length > 0 && (
+                        <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 rounded-xl max-h-64 overflow-y-auto animate-in fade-in slide-in-from-top-2 p-1">
+                            {searchResults.map((res) => (
+                                <div
+                                    key={res.id}
+                                    onClick={() => executeSearchResult(res.id)}
+                                    className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex items-center gap-3 rounded-lg border-b last:border-0 border-slate-100 dark:border-slate-800 transition-colors"
+                                >
+                                    <CandidateAvatar src={res.candidate_photo} name={res.name} className="h-8 w-8" />
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">{res.name}</p>
+                                        <p className="text-[10px] text-slate-500 truncate">{res.title || 'No Title'}</p>
+                                    </div>
+                                    {res.candidate_id && <Badge variant="outline" className="text-[8px] px-1 py-0 border-indigo-200 bg-indigo-50 text-indigo-700">{res.candidate_id}</Badge>}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Chart Notes */}
+            {notes && (
+                <div className="absolute top-4 right-4 z-10 max-w-[30%]">
+                    <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-md flex gap-3">
+                        <div className="mt-0.5 text-indigo-500">
+                            <Info size={16} />
+                        </div>
+                        <div className="flex-1">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Chart Notes</p>
+                            <p className="text-xs text-slate-600 dark:text-slate-300 whitespace-pre-line leading-relaxed italic">
+                                "{notes}"
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Last Verified (Top Center) */}
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+                <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-full px-4 py-1.5 shadow-sm flex items-center gap-3">
+                    <div className="flex flex-col items-center">
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">Last Verified</span>
+                        <span className="text-[10px] font-medium text-slate-600 dark:text-slate-300">
+                            {modifyDate ? new Date(modifyDate).toLocaleString('th-TH', {
+                                day: '2-digit', month: '2-digit', year: 'numeric',
+                                hour: '2-digit', minute: '2-digit'
+                            }) : 'Never'}
+                        </span>
+                    </div>
+                </div>
+            </div>
 
             {/* Company Logo Top Left */}
             {companyId && (
@@ -886,6 +1078,21 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
 
                     <Separator orientation="vertical" className="h-4 bg-slate-200 mx-0.5" />
 
+                    {/* View Original PDF */}
+                    {chartFileUrl && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-9 px-3 gap-2 border-slate-200 text-slate-600 hover:bg-slate-50 shadow-sm bg-white rounded-full"
+                            onClick={() => window.open(chartFileUrl, '_blank')}
+                        >
+                            <ExternalLink size={14} />
+                            VIEW PDF
+                        </Button>
+                    )}
+
+                    <Separator orientation="vertical" className="h-4 bg-slate-200 mx-0.5" />
+
                     {/* Verify Chart */}
                     <Button
                         variant="outline"
@@ -987,6 +1194,13 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
                                 onClick={() => { setMenuState(null); setDialogState({ mode: 'move', editingNode: node, hasChildren }) }}
                             >
                                 <Focus size={14} /> Move Node
+                            </button>
+                            <button
+                                type="button"
+                                className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-indigo-600"
+                                onClick={() => { setMenuState(null); handleFocusTeam(node.node_id) }}
+                            >
+                                <Target size={14} /> Focus on this Team
                             </button>
                             {node.is_group_node ? (
                                 <button
