@@ -261,7 +261,7 @@ export function OrgDirectoryGrouped({ uploads }: Props) {
                                                 return (
                                                     <button
                                                         key={u.upload_id}
-                                                        onClick={() => router.push(`/org-chart/${u.upload_id}`)}
+                                                        onClick={() => router.push(`/org-chart-v2/${u.upload_id}`)}
                                                         title={`${u.company_name}${u.branch_name ? ` — ${u.branch_name}` : ''}${u.notes ? `\n${u.notes}` : ''}\n${aging.label}`}
                                                         className="text-[11px] px-2 py-1 rounded-md text-left transition-all hover:bg-slate-50 dark:hover:bg-slate-900 hover:shadow-sm border border-transparent flex items-start gap-2"
                                                     >

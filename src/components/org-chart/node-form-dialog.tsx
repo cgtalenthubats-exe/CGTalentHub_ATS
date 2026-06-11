@@ -13,7 +13,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog'
-import { Search, X, Loader2, UserCheck } from 'lucide-react'
+import { Search, X, Loader2, UserCheck, User, Building2 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from '@/lib/notifications'
@@ -28,6 +28,7 @@ interface NodeFormDialogProps {
     defaultParentName?: string
     isAddMode?: boolean
     isMoveMode?: boolean
+    isStandaloneAddMode?: boolean
     hasChildren?: boolean
     onSuccess?: () => void
 }
@@ -41,6 +42,7 @@ export function NodeFormDialog({
     defaultParentName,
     isAddMode = false,
     isMoveMode = false,
+    isStandaloneAddMode = false,
     hasChildren = false,
     onSuccess
 }: NodeFormDialogProps) {
@@ -56,7 +58,8 @@ export function NodeFormDialog({
         parent_name: '',
         matched_candidate_id: '',
         matched_candidate_name: '',
-        linkedin: ''
+        linkedin: '',
+        node_type: 'person' as 'person' | 'group'
     })
 
     // Sync form data when props change
@@ -69,7 +72,8 @@ export function NodeFormDialog({
                     parent_name: defaultParentName || '',
                     matched_candidate_id: '',
                     matched_candidate_name: '',
-                    linkedin: ''
+                    linkedin: '',
+                    node_type: 'person'
                 })
             } else if (editingNode) {
                 setFormData({
@@ -78,7 +82,8 @@ export function NodeFormDialog({
                     parent_name: editingNode.parent_name || '',
                     matched_candidate_id: editingNode.matched_candidate_id || '',
                     matched_candidate_name: editingNode.candidate ? (editingNode.candidate.name || '') : '',
-                    linkedin: editingNode.linkedin || ''
+                    linkedin: editingNode.linkedin || '',
+                    node_type: editingNode.is_group_node ? 'group' : 'person'
                 })
             }
             setSearchQuery('')
@@ -133,13 +138,15 @@ export function NodeFormDialog({
                 }
             } else {
                 // Create or Replace/Edit logic
+                const isGroupNode = isStandaloneAddMode ? formData.node_type === 'group' : (editingNode?.is_group_node ?? false)
                 const payload = {
                     name: formData.name,
                     title: formData.title,
-                    parent_name: formData.parent_name,
-                    matched_candidate_id: formData.matched_candidate_id || null,
-                    linkedin: formData.linkedin || null,
-                    is_verified: editingNode?.is_verified || false
+                    parent_name: isStandaloneAddMode ? null : formData.parent_name,
+                    matched_candidate_id: isGroupNode ? null : (formData.matched_candidate_id || null),
+                    linkedin: isGroupNode ? null : (formData.linkedin || null),
+                    is_verified: editingNode?.is_verified || false,
+                    is_group_node: isGroupNode
                 }
 
                 if (isAddMode) {
@@ -187,14 +194,16 @@ export function NodeFormDialog({
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                     <DialogTitle>
-                        {isAddMode ? 'Add New Employee' : (isMoveMode ? 'Move Node' : 'Replace / Edit Node')}
+                        {isStandaloneAddMode ? 'Add New Node' : (isAddMode ? 'Add New Employee' : (isMoveMode ? 'Move Node' : 'Replace / Edit Node'))}
                     </DialogTitle>
                     <DialogDescription>
-                        {isAddMode 
-                            ? 'Enter details for the new person in the chart.' 
-                            : (isMoveMode 
-                                ? `Choose a new manager for ${formData.name}.`
-                                : 'Update info or replace the person in this position.')
+                        {isStandaloneAddMode
+                            ? 'Create a standalone node. It will appear unattached at the top level — drag it onto a manager later to place it in the chart.'
+                            : (isAddMode
+                                ? 'Enter details for the new person in the chart.'
+                                : (isMoveMode
+                                    ? `Choose a new manager for ${formData.name}.`
+                                    : 'Update info or replace the person in this position.'))
                         }
                     </DialogDescription>
                 </DialogHeader>
@@ -202,49 +211,81 @@ export function NodeFormDialog({
                     {!isMoveMode && (
                         <>
                             <div className="space-y-2">
-                                <Label htmlFor="node-name">Full Name</Label>
+                                <Label htmlFor="node-name">{isStandaloneAddMode && formData.node_type === 'group' ? 'Group / Department Name' : 'Full Name'}</Label>
                                 <Input
                                     id="node-name"
                                     value={formData.name}
                                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    placeholder="Full Name"
+                                    placeholder={isStandaloneAddMode && formData.node_type === 'group' ? 'e.g. Sales Department' : 'Full Name'}
                                 />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="node-title">Job Title</Label>
+                                <Label htmlFor="node-title">{isStandaloneAddMode && formData.node_type === 'group' ? 'Description (optional)' : 'Job Title'}</Label>
                                 <Input
                                     id="node-title"
                                     value={formData.title}
                                     onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                                    placeholder="CEO / Manager"
+                                    placeholder={isStandaloneAddMode && formData.node_type === 'group' ? 'e.g. Regional Office' : 'CEO / Manager'}
                                 />
                             </div>
+
+                            {isStandaloneAddMode && (
+                                <div className="space-y-2">
+                                    <Label>Node Type</Label>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, node_type: 'person' })}
+                                            className={`flex items-center justify-center gap-2 rounded-lg border p-3 text-sm font-medium transition-colors ${
+                                                formData.node_type === 'person'
+                                                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-950'
+                                                    : 'border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-slate-700'
+                                            }`}
+                                        >
+                                            <User size={16} /> Person
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setFormData({ ...formData, node_type: 'group' })}
+                                            className={`flex items-center justify-center gap-2 rounded-lg border p-3 text-sm font-medium transition-colors ${
+                                                formData.node_type === 'group'
+                                                    ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-950'
+                                                    : 'border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-slate-700'
+                                            }`}
+                                        >
+                                            <Building2 size={16} /> Group
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
                         </>
                     )}
-                    
-                    <div className="space-y-2">
-                        <Label htmlFor="node-parent">Reporting To (Manager Name)</Label>
-                        <Select 
-                            value={formData.parent_name || 'none'} 
-                            onValueChange={(val) => setFormData({ ...formData, parent_name: val === 'none' ? '' : val })}
-                        >
-                            <SelectTrigger id="node-parent" className="w-full bg-white dark:bg-slate-950">
-                                <SelectValue placeholder="Select a manager" />
-                            </SelectTrigger>
-                            <SelectContent className="max-h-[250px]">
-                                <SelectItem value="none" className="italic text-slate-500">None (Root Level)</SelectItem>
-                                {nodes
-                                    .filter(n => !(editingNode && (n.node_id === editingNode.node_id || n.name === editingNode.name))) // Prevent selecting self or same name
-                                    .map(node => (
-                                        <SelectItem key={node.node_id || node.name} value={node.name}>
-                                            {node.name} {node.title ? `— ${node.title}` : ''}
-                                        </SelectItem>
-                                    ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
 
-                    {!isMoveMode && (
+                    {!isStandaloneAddMode && (
+                        <div className="space-y-2">
+                            <Label htmlFor="node-parent">Reporting To (Manager Name)</Label>
+                            <Select
+                                value={formData.parent_name || 'none'}
+                                onValueChange={(val) => setFormData({ ...formData, parent_name: val === 'none' ? '' : val })}
+                            >
+                                <SelectTrigger id="node-parent" className="w-full bg-white dark:bg-slate-950">
+                                    <SelectValue placeholder="Select a manager" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-[250px]">
+                                    <SelectItem value="none" className="italic text-slate-500">None (Root Level)</SelectItem>
+                                    {nodes
+                                        .filter(n => !(editingNode && (n.node_id === editingNode.node_id || n.name === editingNode.name))) // Prevent selecting self or same name
+                                        .map(node => (
+                                            <SelectItem key={node.node_id || node.name} value={node.name}>
+                                                {node.name} {node.title ? `— ${node.title}` : ''}
+                                            </SelectItem>
+                                        ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
+
+                    {!isMoveMode && !(isStandaloneAddMode && formData.node_type === 'group') && (
                         <>
                             <div className="space-y-2">
                                 <Label htmlFor="node-linkedin-dialog" className="flex items-center gap-2">

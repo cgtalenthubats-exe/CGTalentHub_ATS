@@ -11,7 +11,7 @@ export default async function OrgChartPage({
     const legacyId = params.id
 
     if (typeof legacyId === 'string' && legacyId) {
-        redirect(`/org-chart/${legacyId}`)
+        redirect(`/org-chart-v2/${legacyId}`)
     }
 
     const uploads = await fetchOrgDirectoryUploads()

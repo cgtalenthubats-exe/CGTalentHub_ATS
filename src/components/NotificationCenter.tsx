@@ -115,7 +115,7 @@ export function NotificationCenter() {
                                                 </p>
                                                 <div className="flex items-center gap-2 mt-3">
                                                     <a 
-                                                        href={`/org-chart/${task.upload_id}`}
+                                                        href={`/org-chart-v2/${task.upload_id}`}
                                                         className="text-[10px] font-black uppercase tracking-widest text-white bg-rose-500 hover:bg-rose-600 px-3 py-1.5 rounded-lg transition-colors shadow-sm shadow-rose-200"
                                                     >
                                                         Start Verifying
