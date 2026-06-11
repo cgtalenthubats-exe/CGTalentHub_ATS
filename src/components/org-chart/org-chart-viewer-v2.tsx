@@ -540,7 +540,7 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
             const res = await deleteOrgChart(uploadId)
             if (res.success) {
                 toast.success('Org Chart deleted successfully')
-                router.push('/org-chart-v2')
+                router.push('/org-chart')
             } else {
                 toast.error(res.error || 'Failed to delete chart')
             }
