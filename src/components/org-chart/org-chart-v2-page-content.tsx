@@ -33,8 +33,8 @@ export function OrgChartV2PageContent({
                 <div className="shrink-0 flex flex-col gap-1 py-2">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="min-w-0">
-                            <Link href="/org-chart-v2" className="text-xs text-slate-400 hover:text-indigo-600">
-                                &larr; OrgChart V2 Directory
+                            <Link href="/org-chart" className="text-xs text-slate-400 hover:text-indigo-600">
+                                &larr; Org Chart Directory
                             </Link>
                             <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 italic truncate flex items-center gap-1.5">
                                 <span className="truncate">
@@ -47,9 +47,6 @@ export function OrgChartV2PageContent({
                                     notes={notes}
                                     branchName={branchName}
                                 />
-                                <span className="text-xs font-normal text-indigo-500 not-italic align-middle border border-indigo-200 bg-indigo-50 rounded px-1.5 py-0.5 shrink-0">
-                                    V2 Preview
-                                </span>
                             </h1>
                         </div>
                         <div className="shrink-0 flex items-center gap-3">

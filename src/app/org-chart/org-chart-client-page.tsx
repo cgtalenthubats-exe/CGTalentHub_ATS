@@ -80,9 +80,9 @@ export function OrgChartClientPage({
                                     <Link
                                         href={`/org-chart-v2/${currentUploadId}`}
                                         className="shrink-0 text-[10px] font-semibold text-indigo-500 border border-indigo-200 bg-indigo-50 dark:bg-indigo-950/30 rounded px-1.5 py-0.5 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
-                                        title="Read-only preview using the new d3-org-chart layout"
+                                        title="Open this org chart in the current view"
                                     >
-                                        Try V2 →
+                                        Open V2 &rarr;
                                     </Link>
                                     <div className="flex flex-col items-end gap-0">
                                         <div className="flex items-center gap-1.5">

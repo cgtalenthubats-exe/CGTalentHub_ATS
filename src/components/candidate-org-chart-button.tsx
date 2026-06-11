@@ -122,7 +122,7 @@ export function CandidateOrgChartButton({
                     <DropdownMenuItem 
                         key={chart.upload_id}
                         className="flex items-center gap-3 cursor-pointer py-2 px-3 hover:bg-slate-50 focus:bg-slate-50"
-                        onClick={() => window.open(`/org-chart/${chart.upload_id}`, '_blank')}
+                        onClick={() => window.open(`/org-chart-v2/${chart.upload_id}`, '_blank')}
                     >
                         {chart.company_logo ? (
                             <img src={chart.company_logo} alt={chart.company_name} className="h-6 w-6 object-contain rounded-sm" />

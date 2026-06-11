@@ -13,7 +13,7 @@ export default async function OrgChartV2ViewerRoute({
     const currentUpload = uploads.find((u: any) => u.upload_id === uploadId)
 
     if (!currentUpload) {
-        redirect('/org-chart-v2')
+        redirect('/org-chart')
     }
 
     const companyName = currentUpload?.company_name || 'Organization'
