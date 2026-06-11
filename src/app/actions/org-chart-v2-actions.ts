@@ -1,6 +1,7 @@
 'use server'
 
 import { getOrgNodesRaw } from './org-chart-actions'
+import { getCheckedStatus } from '@/lib/candidate-utils'
 
 export type OrgNodeV2 = {
     id: string
@@ -13,6 +14,7 @@ export type OrgNodeV2 = {
     candidate_id: string | null
     candidate_photo: string | null
     linkedin: string | null
+    checked: string | null
     current_experience?: {
         company: string
         position: string
@@ -44,6 +46,7 @@ export async function fetchOrgChartFlatData(uploadId: string, chartCompanyName =
         candidate_id: n.candidate?.candidate_id || null,
         candidate_photo: n.candidate?.photo || null,
         linkedin: n.candidate?.linkedin || n.linkedin || null,
+        checked: n.candidate?.checked || (n.linkedin ? getCheckedStatus(n.linkedin) : null),
         current_experience: n.current_experience || null,
     }))
 
@@ -67,6 +70,7 @@ export async function fetchOrgChartFlatData(uploadId: string, chartCompanyName =
         candidate_id: null,
         candidate_photo: null,
         linkedin: null,
+        checked: null,
         current_experience: null,
     }
 

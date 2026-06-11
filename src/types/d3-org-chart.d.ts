@@ -23,6 +23,7 @@ declare module 'd3-org-chart' {
         nodeButtonX(fn: (d: any) => number): this
         nodeButtonY(fn: (d: any) => number): this
         linkUpdate(fn: (this: SVGPathElement, d: any, i: number, arr: ArrayLike<SVGPathElement>) => void): this
+        diagonal(fn: (s: any, t: any, m: any, offsets?: { sy?: number }) => string): this
         onNodeClick(fn: (d: any) => void): this
         render(): this
         fit(opts?: { animate?: boolean; nodes?: any[]; scale?: boolean; onCompleted?: () => void }): this

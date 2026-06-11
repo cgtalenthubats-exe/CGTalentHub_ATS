@@ -58,8 +58,8 @@ const STATUS_STYLES: Record<string, { border: string; bg: string; dashed?: boole
 }
 
 // Inline SVGs (lucide path data) — nodeContent() returns raw HTML strings, so React icons can't be used directly
-const ICON_EXTERNAL_LINK = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>`
-const ICON_LINKEDIN = `<svg width="9" height="9" viewBox="0 0 24 24" fill="white"><path d="M19 0h-14c-2.76 0-5 2.24-5 5v14c0 2.76 2.24 5 5 5h14c2.76 0 5-2.24 5-5v-14c0-2.76-2.24-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.27c-.97 0-1.75-.79-1.75-1.76s.78-1.75 1.75-1.75 1.75.78 1.75 1.75-.78 1.76-1.75 1.76zm13.5 12.27h-3v-5.6c0-1.34-.03-3.07-1.87-3.07-1.87 0-2.16 1.46-2.16 2.97v5.7h-3v-11h2.88v1.5h.04c.4-.76 1.38-1.56 2.84-1.56 3.04 0 3.6 2 3.6 4.59v6.47z"/></svg>`
+const ICON_LINKEDIN = `<svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M19 0h-14c-2.76 0-5 2.24-5 5v14c0 2.76 2.24 5 5 5h14c2.76 0 5-2.24 5-5v-14c0-2.76-2.24-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.27c-.97 0-1.75-.79-1.75-1.76s.78-1.75 1.75-1.75 1.75.78 1.75 1.75-.78 1.76-1.75 1.76zm13.5 12.27h-3v-5.6c0-1.34-.03-3.07-1.87-3.07-1.87 0-2.16 1.46-2.16 2.97v5.7h-3v-11h2.88v1.5h.04c.4-.76 1.38-1.56 2.84-1.56 3.04 0 3.6 2 3.6 4.59v6.47z"/></svg>`
+const ICON_GLOBE = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>`
 const ICON_USER_CHECK = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>`
 const ICON_USER_PLUS = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>`
 const ICON_LOADER = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`
@@ -68,6 +68,19 @@ const ICON_CHEVRON_DOWN = `<svg width="9" height="9" viewBox="0 0 24 24" fill="n
 const ICON_MORE = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>`
 const ICON_ALERT_TRIANGLE = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`
 const ICON_INFO = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>`
+
+// Right-angle (R=0) connector — replaces d3-org-chart's default rounded-corner
+// diagonal so parent/child links render as sharp elbow connectors.
+function rightAngleDiagonal(s: any, t: any, m: any, offsets: { sy?: number } = {}): string {
+    const x = s.x
+    const y = s.y + (offsets.sy || 0)
+    const ex = t.x
+    const ey = t.y
+    const mx = m && m.x != null ? m.x : x
+    const my = m && m.y != null ? m.y : y
+    const midY = (y + ey) / 2
+    return `M ${mx} ${my} L ${x} ${my} L ${x} ${y} L ${x} ${midY} L ${ex} ${midY} L ${ex} ${ey}`
+}
 
 function escapeHtml(value: string | null | undefined): string {
     if (!value) return ''
@@ -130,23 +143,10 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
     const style = STATUS_STYLES[status] || STATUS_STYLES.unmapped
     const photo = data.candidate_photo || DEFAULT_AVATAR
 
-    // Top-right icons: open candidate profile (matched only) + LinkedIn link
-    const topIcons: string[] = []
-    if (isMatch) {
-        topIcons.push(`<button type="button" data-action="profile" data-candidate-id="${escapeHtml(data.candidate_id)}" title="View Profile" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:4px;background:#f1f5f9;color:#64748b;padding:0;line-height:0;border:none;cursor:pointer;">${ICON_EXTERNAL_LINK}</button>`)
-    }
-    if (data.linkedin) {
-        topIcons.push(`<a href="${escapeHtml(data.linkedin)}" target="_blank" rel="noopener noreferrer" title="LinkedIn" draggable="false" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:4px;background:#0A66C2;line-height:0;">${ICON_LINKEDIN}</a>`)
-    }
-    const topIconsHtml = topIcons.length > 0
-        ? `<div style="position:absolute;top:6px;right:6px;display:flex;gap:3px;align-items:center;">${topIcons.join('')}</div>`
-        : ''
-    const titlePaddingRight = topIcons.length === 2 ? 36 : topIcons.length === 1 ? 18 : 0
-
-    // Bottom-right action: VERIFY / RE-VERIFY / VERIFIED for matched nodes, +CREATE for unmatched
+    // Top-right badge: VERIFY / RE-VERIFY / VERIFIED for matched nodes, CREATE for unmatched
+    let label: string
     let actionHtml: string
     if (isMatch) {
-        let label: string
         let btnStyle: string
         if (status === 'matched') {
             label = 'VERIFIED'
@@ -158,9 +158,27 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
             label = 'VERIFY'
             btnStyle = 'border:1px solid #f59e0b;background:#fef3c7;color:#b45309;'
         }
-        actionHtml = `<button type="button" data-action="verify" data-node-id="${escapeHtml(data.id)}" style="display:inline-flex;align-items:center;gap:2px;font-size:8px;font-weight:700;border-radius:5px;padding:1px 5px;cursor:pointer;font-family:${FONT_FAMILY};${btnStyle}">${ICON_USER_CHECK}${label}</button>`
+        actionHtml = `<button type="button" data-action="verify" data-node-id="${escapeHtml(data.id)}" style="position:absolute;top:6px;right:6px;display:inline-flex;align-items:center;gap:2px;font-size:8px;font-weight:700;border-radius:5px;padding:1px 5px;cursor:pointer;font-family:${FONT_FAMILY};z-index:5;${btnStyle}">${ICON_USER_CHECK}${label}</button>`
     } else {
-        actionHtml = `<button type="button" data-action="create" data-node-id="${escapeHtml(data.id)}" style="display:inline-flex;align-items:center;gap:2px;font-size:8px;font-weight:700;border-radius:5px;padding:1px 5px;border:1px dashed #818cf8;background:transparent;color:#4f46e5;cursor:pointer;font-family:${FONT_FAMILY};"><span data-role="icon" style="display:inline-flex;">${ICON_USER_PLUS}</span><span data-role="spinner" style="display:none;">${ICON_LOADER}</span>CREATE</button>`
+        label = 'CREATE'
+        actionHtml = `<button type="button" data-action="create" data-node-id="${escapeHtml(data.id)}" style="position:absolute;top:6px;right:6px;display:inline-flex;align-items:center;gap:2px;font-size:8px;font-weight:700;border-radius:5px;padding:1px 5px;border:1px dashed #818cf8;background:transparent;color:#4f46e5;cursor:pointer;font-family:${FONT_FAMILY};z-index:5;"><span data-role="icon" style="display:inline-flex;">${ICON_USER_PLUS}</span><span data-role="spinner" style="display:none;">${ICON_LOADER}</span>${label}</button>`
+    }
+    const titlePaddingRight = Math.ceil(label.length * 5) + 24
+
+    // Bottom-left: clickable candidate ID badge that opens the profile (matched only)
+    const candidateIdHtml = isMatch
+        ? `<button type="button" data-action="profile" data-candidate-id="${escapeHtml(data.candidate_id)}" title="View Profile" style="font-size:10px;font-weight:700;font-family:ui-monospace,monospace;color:#4338ca;background:#eef2ff;border:1px solid #c7d2fe;border-radius:5px;padding:2px 7px;cursor:pointer;line-height:1.2;flex-shrink:0;">${escapeHtml(data.candidate_id)}</button>`
+        : `<span style="font-size:9px;font-family:ui-monospace,monospace;font-weight:700;color:#94a3b8;">UNMATCHED</span>`
+
+    // Bottom-right: LinkedIn (blue) or other profile link (grey globe), based on V1's `checked` differentiation
+    let linkIconHtml = ''
+    if (data.linkedin) {
+        const normChecked = (data.checked || '').trim().toLowerCase()
+        if (normChecked === 'individual link') {
+            linkIconHtml = `<a href="${escapeHtml(data.linkedin)}" target="_blank" rel="noopener noreferrer" title="Profile Link" draggable="false" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:#f1f5f9;border:1px solid #cbd5e1;color:#475569;flex-shrink:0;">${ICON_GLOBE}</a>`
+        } else {
+            linkIconHtml = `<a href="${escapeHtml(data.linkedin)}" target="_blank" rel="noopener noreferrer" title="LinkedIn" draggable="false" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:6px;background:#0A66C2;flex-shrink:0;">${ICON_LINKEDIN}</a>`
+        }
     }
 
     // Inline warning icon for company/position mismatches — native title attr doubles as a tooltip
@@ -174,27 +192,25 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
     return `
         <div draggable="true" data-drag-node="${escapeHtml(data.id)}" style="width:${width}px;height:${height}px;border:2px ${style.dashed ? 'dashed' : 'solid'} ${style.border};border-radius:10px;background:${style.bg};box-shadow:0 1px 3px rgba(0,0,0,0.06);font-family:${FONT_FAMILY};box-sizing:border-box;padding:8px;display:flex;flex-direction:column;position:relative;cursor:grab;">
             ${renderKebabButton(data.id)}
+            ${actionHtml}
             <div style="display:flex;align-items:flex-start;gap:8px;width:100%;">
                 <div style="flex-shrink:0;position:relative;">
                     <div style="width:36px;height:36px;border-radius:9999px;background-image:url('${escapeHtml(photo)}');background-size:cover;background-position:center;background-color:#f1f5f9;border:1px solid #e2e8f0;"></div>
                     ${childCount > 0 ? `<div style="position:absolute;bottom:-3px;right:-3px;background:#4f46e5;color:white;border:2px solid white;border-radius:9999px;min-width:14px;height:14px;font-size:7px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 2px;">${childCount}</div>` : ''}
                 </div>
-                <div style="flex:1;min-width:0;${titlePaddingRight ? `padding-right:${titlePaddingRight}px;` : ''}">
-                    <div style="display:flex;align-items:center;gap:3px;font-weight:700;color:#1e293b;font-size:11px;line-height:1.3;">
+                <div style="flex:1;min-width:0;padding-right:${titlePaddingRight}px;">
+                    <div style="display:flex;align-items:center;gap:3px;font-weight:700;color:#1e293b;font-size:12px;line-height:1.3;">
                         <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(data.name)}">${escapeHtml(data.name)}</span>
                         ${mismatchIconHtml}
                     </div>
-                    <div style="font-size:9px;color:#64748b;font-weight:500;text-transform:uppercase;letter-spacing:0.02em;margin-top:2px;height:23px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.28;" title="${escapeHtml(data.title || '')}">
+                    <div style="font-size:10px;color:#475569;font-weight:500;text-transform:uppercase;letter-spacing:0.02em;margin-top:2px;height:24px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.2;" title="${escapeHtml(data.title || '')}">
                         ${escapeHtml(data.title || 'Position Not Set')}
                     </div>
                 </div>
             </div>
-            ${topIconsHtml}
-            <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:auto;padding-top:6px;">
-                <span style="font-size:8px;font-family:ui-monospace,monospace;font-weight:700;color:#94a3b8;">
-                    ${isMatch ? escapeHtml(data.candidate_id) : 'UNMATCHED'}
-                </span>
-                ${actionHtml}
+            <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:auto;padding-top:6px;gap:6px;">
+                ${candidateIdHtml}
+                ${linkIconHtml}
             </div>
         </div>
     `
@@ -615,6 +631,7 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
                 .nodeButtonX(() => -14)
                 .nodeButtonY(() => -9)
                 .buttonContent(renderButtonContent)
+                .diagonal(rightAngleDiagonal)
                 .linkUpdate(function (this: SVGPathElement) {
                     this.setAttribute('stroke', '#000000')
                     this.setAttribute('stroke-width', '1.5')
@@ -622,7 +639,17 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
                 })
         }
 
-        chartRef.current.data(focusedData).render()
+        // Preserve the user's current expand/collapse state across data refreshes.
+        // d3-org-chart collapses every node back to its default state whenever
+        // .data() is called with fresh objects (the new objects carry no _expanded
+        // flags), so we copy that flag forward for every node that's currently visible.
+        const prevState = chartRef.current.getChartState()
+        const visibleIds = new Set<string>((prevState.allNodes || []).map((n: any) => n.data.id))
+        const dataToRender = visibleIds.size > 0
+            ? focusedData.map((d) => visibleIds.has(d.id) ? { ...d, _expanded: true } : d)
+            : focusedData
+
+        chartRef.current.data(dataToRender).render()
 
         // Let native HTML5 drag-and-drop on cards take precedence over d3-zoom's
         // pan gesture — without this, d3-zoom's mousedown.preventDefault() blocks
