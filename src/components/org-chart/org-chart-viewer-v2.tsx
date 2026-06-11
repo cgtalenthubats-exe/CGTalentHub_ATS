@@ -392,6 +392,19 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
 
         chartRef.current.data(data).render()
 
+        // Let native HTML5 drag-and-drop on cards take precedence over d3-zoom's
+        // pan gesture — without this, d3-zoom's mousedown.preventDefault() blocks
+        // dragstart from ever firing on [data-drag-node] elements.
+        const zoomBehavior = chartRef.current.getChartState().zoomBehavior
+        if (zoomBehavior) {
+            zoomBehavior.filter((event: MouseEvent & { type: string }) => {
+                if (event.type !== 'wheel' && (event.target as HTMLElement)?.closest?.('[data-drag-node]')) {
+                    return false
+                }
+                return (!event.ctrlKey || event.type === 'wheel') && !event.button
+            })
+        }
+
         if (!hasFitRef.current) {
             chartRef.current.fit()
             hasFitRef.current = true

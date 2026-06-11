@@ -29,5 +29,6 @@ declare module 'd3-org-chart' {
         expandAll(): this
         collapseAll(): this
         setExpanded(id: string, expanded?: boolean): this
+        getChartState(): any
     }
 }
