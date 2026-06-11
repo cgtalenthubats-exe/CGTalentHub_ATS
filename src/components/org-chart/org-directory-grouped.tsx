@@ -3,24 +3,24 @@
 import React, { useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Input } from '@/components/ui/input'
 import { FilterMultiSelect } from '@/components/ui/filter-multi-select'
-import { Search, Globe, Layers, Building2 } from 'lucide-react'
+import { Search, Globe, Layers, Building2, CalendarClock } from 'lucide-react'
 import type { DirectoryUpload, AgingBucket } from '@/app/actions/org-chart-actions'
 
 type Props = {
     uploads: DirectoryUpload[]
 }
 
-const AGING_META: Record<AgingBucket, { label: string; dot: string; text: string }> = {
-    fresh: { label: 'Updated < 3 months', dot: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-400' },
-    aging: { label: 'Updated 3-9 months', dot: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-400' },
-    stale: { label: 'Updated > 9 months', dot: 'bg-rose-500', text: 'text-rose-700 dark:text-rose-400' },
-    unknown: { label: 'No update date', dot: 'bg-slate-400', text: 'text-slate-500 dark:text-slate-400' },
+const AGING_META: Record<AgingBucket, { label: string; short: string; dot: string; text: string; bg: string }> = {
+    fresh: { label: 'Updated < 3 months', short: '< 3 months', dot: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-100 dark:bg-emerald-900/30' },
+    aging: { label: 'Updated 3-9 months', short: '3-9 months', dot: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-100 dark:bg-amber-900/30' },
+    stale: { label: 'Updated > 9 months', short: '> 9 months', dot: 'bg-rose-500', text: 'text-rose-700 dark:text-rose-400', bg: 'bg-rose-100 dark:bg-rose-900/30' },
+    unknown: { label: 'No update date', short: 'No date', dot: 'bg-slate-400', text: 'text-slate-500 dark:text-slate-400', bg: 'bg-slate-100 dark:bg-slate-800' },
 }
 
 const AGING_ORDER: AgingBucket[] = ['fresh', 'aging', 'stale', 'unknown']
+const AGING_FILTER_OPTIONS = AGING_ORDER.filter(b => b !== 'unknown').map(b => AGING_META[b].short)
 
 const GROUP_ORDER = [
     'Retail / FMCG / F&B',
@@ -30,6 +30,9 @@ const GROUP_ORDER = [
     'Consulting Firm / Consulting Services',
     'Others',
 ]
+
+// Groups pinned first, in this exact order — remaining groups follow, sorted by company count desc
+const PINNED_GROUPS = ['Retail / FMCG / F&B', 'Hospitality & Real Estate']
 
 function groupRank(name: string) {
     if (name === 'Uncategorized') return GROUP_ORDER.length + 1
@@ -65,6 +68,7 @@ export function OrgDirectoryGrouped({ uploads }: Props) {
     const [searchTerm, setSearchTerm] = useState('')
     const [groupFilter, setGroupFilter] = useState<string[]>([])
     const [industryFilter, setIndustryFilter] = useState<string[]>([])
+    const [agingFilter, setAgingFilter] = useState<string[]>([])
 
     const agingCounts = useMemo(() => {
         const counts: Record<AgingBucket, number> = { fresh: 0, aging: 0, stale: 0, unknown: 0 }
@@ -94,6 +98,7 @@ export function OrgDirectoryGrouped({ uploads }: Props) {
         const filtered = uploads.filter(u => {
             if (groupFilter.length > 0 && !groupFilter.includes(u.resolved_group)) return false
             if (industryFilter.length > 0 && (!u.resolved_industry || !industryFilter.includes(u.resolved_industry))) return false
+            if (agingFilter.length > 0 && !agingFilter.includes(AGING_META[u.aging_bucket].short)) return false
             if (!term) return true
             return (
                 u.company_name.toLowerCase().includes(term) ||
@@ -110,9 +115,15 @@ export function OrgDirectoryGrouped({ uploads }: Props) {
         })
 
         const groupNames = [...byGroup.keys()].sort((a, b) => {
-            const ra = groupRank(a)
-            const rb = groupRank(b)
-            if (ra !== rb) return ra - rb
+            const pa = PINNED_GROUPS.indexOf(a)
+            const pb = PINNED_GROUPS.indexOf(b)
+            if (pa !== -1 || pb !== -1) {
+                if (pa === -1) return 1
+                if (pb === -1) return -1
+                return pa - pb
+            }
+            const countDiff = byGroup.get(b)!.length - byGroup.get(a)!.length
+            if (countDiff !== 0) return countDiff
             return compareNames(a, b)
         })
 
@@ -142,7 +153,7 @@ export function OrgDirectoryGrouped({ uploads }: Props) {
                 }))
             }
         })
-    }, [uploads, searchTerm, groupFilter, industryFilter])
+    }, [uploads, searchTerm, groupFilter, industryFilter, agingFilter])
 
     if (uploads.length === 0) return null
 
@@ -150,31 +161,36 @@ export function OrgDirectoryGrouped({ uploads }: Props) {
         <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden flex flex-col shrink-0">
             {/* Header / Search / Legend */}
             <div className="p-3 border-b border-slate-100 dark:border-slate-800 bg-slate-50/10 dark:bg-slate-900/10 flex flex-col gap-2.5">
-                <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-2 shrink-0">
-                        <div className="bg-indigo-600 p-1.5 rounded-lg text-white">
-                            <Globe size={16} />
-                        </div>
-                        <div>
-                            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 italic">Organization Directory</h2>
-                            <p className="text-sm text-slate-600 dark:text-slate-400 font-bold">Grouped by industry · Total {uploads.length} org charts</p>
-                        </div>
+                <div className="flex items-center gap-2 shrink-0">
+                    <div className="bg-indigo-600 p-1.5 rounded-lg text-white">
+                        <Globe size={16} />
                     </div>
-
-                    {/* Aging Legend */}
-                    <div className="hidden lg:flex items-center gap-3 text-[10px] font-bold shrink-0">
-                        {AGING_ORDER.filter(b => b !== 'unknown' || agingCounts.unknown > 0).map(bucket => (
-                            <div key={bucket} className="flex items-center gap-1.5">
-                                <span className={cn('h-2 w-2 rounded-full', AGING_META[bucket].dot)} />
-                                <span className={AGING_META[bucket].text}>
-                                    {AGING_META[bucket].label} ({agingCounts[bucket]})
-                                </span>
-                            </div>
-                        ))}
+                    <div>
+                        <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 italic">Organization Directory</h2>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold">Grouped by industry</p>
                     </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                    {/* Stats Badges */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex flex-col items-center justify-center bg-slate-900 dark:bg-slate-800 text-white rounded-xl px-4 py-2 min-w-[80px] leading-none">
+                            <span className="text-2xl font-black">{uploads.length}</span>
+                            <span className="text-[10px] font-bold uppercase tracking-wide opacity-70 mt-1">Total Org</span>
+                        </div>
+                        {AGING_ORDER.filter(b => b !== 'unknown' || agingCounts.unknown > 0).map(bucket => (
+                            <div
+                                key={bucket}
+                                className={cn('flex flex-col items-center justify-center rounded-xl px-4 py-2 min-w-[80px] leading-none', AGING_META[bucket].bg)}
+                                title={AGING_META[bucket].label}
+                            >
+                                <span className={cn('text-2xl font-black', AGING_META[bucket].text)}>{agingCounts[bucket]}</span>
+                                <span className={cn('text-[10px] font-bold uppercase tracking-wide opacity-70 mt-1', AGING_META[bucket].text)}>{AGING_META[bucket].short}</span>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
                     <FilterMultiSelect
                         label="Group"
                         icon={Layers}
@@ -189,6 +205,13 @@ export function OrgDirectoryGrouped({ uploads }: Props) {
                         selected={industryFilter}
                         onChange={(value) => setIndustryFilter(prev => toggleInArray(prev, value))}
                     />
+                    <FilterMultiSelect
+                        label="Aging"
+                        icon={CalendarClock}
+                        options={AGING_FILTER_OPTIONS}
+                        selected={agingFilter}
+                        onChange={(value) => setAgingFilter(prev => toggleInArray(prev, value))}
+                    />
                     <div className="relative w-64">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                         <Input
@@ -198,25 +221,26 @@ export function OrgDirectoryGrouped({ uploads }: Props) {
                             onChange={(e) => setSearchTerm(e.target.value)}
                         />
                     </div>
+                    </div>
                 </div>
             </div>
 
-            <ScrollArea className="h-[calc(100vh-280px)]">
-                <div className="p-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
+            <div className="overflow-x-auto overflow-y-hidden">
+                <div className="p-4 flex gap-4 items-start w-max">
                     {groups.map(group => (
                         <div
                             key={group.groupName}
-                            className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-950"
+                            className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-950 w-[300px] shrink-0 flex flex-col"
                         >
-                            <div className="px-3 py-2 bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                                <h3 className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wide">
+                            <div className="px-3 py-2 bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+                                <h3 className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase tracking-wide truncate">
                                     {group.groupName}
                                 </h3>
-                                <span className="text-sm font-black text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-full px-2.5 py-0.5">
-                                    {group.count} {group.count === 1 ? 'company' : 'companies'}
+                                <span className="text-sm font-black text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-full px-2.5 py-0.5 shrink-0 ml-2">
+                                    {group.count}
                                 </span>
                             </div>
-                            <div className="p-3 flex flex-col gap-3">
+                            <div className="p-3 flex flex-col gap-3 overflow-y-auto max-h-[calc(100vh-330px)]">
                                 {group.industries.map(industry => (
                                     <div key={industry.industryName} className="flex flex-col gap-1">
                                         {group.industries.length > 1 && (
@@ -229,7 +253,7 @@ export function OrgDirectoryGrouped({ uploads }: Props) {
                                                 </span>
                                             </div>
                                         )}
-                                        <div className="flex flex-col gap-0.5">
+                                        <div className="flex flex-col gap-0.5 pl-3">
                                             {industry.companies.map(u => {
                                                 const aging = AGING_META[u.aging_bucket]
                                                 const hasBranch = !!(u.branch_name && u.branch_name !== u.company_name)
@@ -239,17 +263,16 @@ export function OrgDirectoryGrouped({ uploads }: Props) {
                                                         key={u.upload_id}
                                                         onClick={() => router.push(`/org-chart/${u.upload_id}`)}
                                                         title={`${u.company_name}${u.branch_name ? ` — ${u.branch_name}` : ''}${u.notes ? `\n${u.notes}` : ''}\n${aging.label}`}
-                                                        className="text-[11px] px-2 py-1 rounded-md text-left transition-all hover:bg-slate-50 dark:hover:bg-slate-900 hover:shadow-sm border border-transparent flex items-center gap-2"
+                                                        className="text-[11px] px-2 py-1 rounded-md text-left transition-all hover:bg-slate-50 dark:hover:bg-slate-900 hover:shadow-sm border border-transparent flex items-start gap-2"
                                                     >
-                                                        <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', aging.dot)} />
+                                                        <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-slate-800 dark:bg-slate-300 mt-1" />
                                                         <span className="flex flex-col flex-1 min-w-0">
-                                                            <span className="font-medium text-slate-800 dark:text-slate-100 flex items-baseline justify-between gap-2">
-                                                                <span className="truncate">
+                                                            <span className="font-medium text-slate-800 dark:text-slate-100 flex items-start justify-between gap-2">
+                                                                <span className="break-words">
                                                                     {u.company_name}
-                                                                    {u.notes && <span className="font-normal opacity-60"> ({u.notes})</span>}
                                                                 </span>
                                                                 {formattedDate && (
-                                                                    <span className={cn('shrink-0 text-[10px] font-bold tabular-nums', aging.text)}>
+                                                                    <span className={cn('shrink-0 text-[9px] font-bold tabular-nums px-1.5 py-0.5 rounded-full', aging.bg, aging.text)}>
                                                                         {formattedDate}
                                                                     </span>
                                                                 )}
@@ -275,12 +298,12 @@ export function OrgDirectoryGrouped({ uploads }: Props) {
                         </div>
                     ))}
                     {groups.length === 0 && (
-                        <div className="col-span-full text-center text-xs text-slate-400 py-10 italic">
+                        <div className="text-center text-xs text-slate-400 py-10 italic w-full">
                             No organizations match your search.
                         </div>
                     )}
                 </div>
-            </ScrollArea>
+            </div>
         </div>
     )
 }

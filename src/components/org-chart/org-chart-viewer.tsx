@@ -1596,8 +1596,11 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
 
             {/* Company Logo Top Left */}
             {companyId && (
-                <div className="absolute top-4 left-4 z-10">
-                    <div 
+                <div className="absolute top-4 left-4 z-10 flex flex-col gap-1.5">
+                    <span className="text-xs font-black text-slate-700 bg-white/90 border border-slate-200 rounded-full px-3 py-1 shadow-sm w-fit">
+                        {chartCompanyName}
+                    </span>
+                    <div
                         className={cn(
                             "relative group rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden flex items-center justify-center cursor-pointer transition-all",
                             companyLogoUrl ? "h-16 w-32 p-1" : "h-9 px-4 hover:border-indigo-300 hover:bg-slate-50 rounded-full"
