@@ -820,10 +820,10 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[120px]">ID</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[50px]">LI</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[280px]">Candidate Details</th>
-                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[160px]">Remark</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[120px]">Gender/Age</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[200px]">Company</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[200px]">Position</th>
+                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[160px]">Remark</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[130px]">Is Current Job</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[160px]">Country</th>
                             {showSalary && (
@@ -1033,17 +1033,6 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                             </span>
                                         </div>
                                     </td>
-                                    {/* Remark (candidate_status) — inline toggle */}
-                                    <td className="px-4 py-4">
-                                        <RemarkCell
-                                            candidateId={c.candidate_id}
-                                            statuses={c.candidate_status || []}
-                                            onSaved={async () => {
-                                                const updated = await getJRCandidates(jrId);
-                                                setCandidates(updated);
-                                            }}
-                                        />
-                                    </td>
                                     {/* Gender/Age — inline edit */}
                                     <td className="px-4 py-4">
                                         <SexAgeCell
@@ -1080,6 +1069,17 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                                 {safeRender(c.candidate_current_position)}
                                             </span>
                                         </div>
+                                    </td>
+                                    {/* Remark (candidate_status) — inline toggle */}
+                                    <td className="px-4 py-4">
+                                        <RemarkCell
+                                            candidateId={c.candidate_id}
+                                            statuses={c.candidate_status || []}
+                                            onSaved={async () => {
+                                                const updated = await getJRCandidates(jrId);
+                                                setCandidates(updated);
+                                            }}
+                                        />
                                     </td>
                                     {/* NEW: Is Current Job column */}
                                     <td className="px-4 py-4">
