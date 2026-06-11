@@ -16,10 +16,10 @@ const DynamicViewer = dynamic(
     }
 )
 
-export function OrgChartClientWrapperV2({ data, rawNodes, uploadId, companyName }: { data: OrgNodeV2[]; rawNodes: RawOrgNode[]; uploadId: string; companyName?: string }) {
+export function OrgChartClientWrapperV2({ data, rawNodes, uploadId, companyName, companyId, companyLogoUrl }: { data: OrgNodeV2[]; rawNodes: RawOrgNode[]; uploadId: string; companyName?: string; companyId?: string | null; companyLogoUrl?: string | null }) {
     return (
         <div className="flex-1 w-full flex flex-col">
-            <DynamicViewer data={data} rawNodes={rawNodes} uploadId={uploadId} companyName={companyName} />
+            <DynamicViewer data={data} rawNodes={rawNodes} uploadId={uploadId} companyName={companyName} companyId={companyId} companyLogoUrl={companyLogoUrl} />
         </div>
     )
 }
