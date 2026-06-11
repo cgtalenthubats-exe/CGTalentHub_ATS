@@ -190,7 +190,7 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
     }
 
     return `
-        <div draggable="true" data-drag-node="${escapeHtml(data.id)}" style="width:${width}px;height:${height}px;border:2px ${style.dashed ? 'dashed' : 'solid'} ${style.border};border-radius:10px;background:${style.bg};box-shadow:0 1px 3px rgba(0,0,0,0.06);font-family:${FONT_FAMILY};box-sizing:border-box;padding:10px;display:flex;flex-direction:column;justify-content:center;gap:6px;position:relative;cursor:grab;">
+        <div draggable="true" data-drag-node="${escapeHtml(data.id)}" style="width:${width}px;height:${height}px;border:2px ${style.dashed ? 'dashed' : 'solid'} ${style.border};border-radius:10px;background:${style.bg};box-shadow:0 1px 3px rgba(0,0,0,0.06);font-family:${FONT_FAMILY};box-sizing:border-box;padding:10px;position:relative;cursor:grab;">
             ${renderKebabButton(data.id)}
             ${actionHtml}
             <div style="display:flex;align-items:flex-start;gap:8px;width:100%;">
@@ -208,7 +208,7 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
                     </div>
                 </div>
             </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;width:100%;gap:6px;">
+            <div style="position:absolute;left:10px;right:10px;bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:6px;">
                 ${candidateIdHtml}
                 ${linkIconHtml}
             </div>
