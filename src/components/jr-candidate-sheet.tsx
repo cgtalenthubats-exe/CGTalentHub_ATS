@@ -16,6 +16,8 @@ import {
     SetCurrentExperienceButton
 } from "@/components/experience-dialog";
 import { CandidateEditSheet } from "./candidate-edit-sheet";
+import { RefreshProfileButton } from "@/components/candidate-client-actions";
+import { StatusSelect } from "@/components/ui/status-select";
 import { getJRCandidateDetails } from "@/app/actions/jr-candidate-logs";
 import { FeedbackSection } from "@/components/feedback-section";
 import { CandidateActivityLog } from "@/components/candidate-activity-log";
@@ -588,6 +590,21 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
                                                     )}
                                                 </div>
                                             </div>
+
+                                            {/* Danger Zone */}
+                                            <div className="space-y-3">
+                                                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-rose-400 flex items-center gap-2">
+                                                    <AlertCircle className="h-3 w-3" /> Danger Zone
+                                                </h3>
+                                                <div className="bg-rose-50/40 rounded-2xl p-5 ring-1 ring-rose-100/60 space-y-3">
+                                                    <p className="text-xs text-slate-500 font-medium">Actions that affect this candidate's data.</p>
+                                                    <RefreshProfileButton
+                                                        candidateId={meta?.candidate_id}
+                                                        candidateName={candidate?.name}
+                                                        linkedinUrl={candidate?.linkedin}
+                                                    />
+                                                </div>
+                                            </div>
                                     </div>
                                 </div>
                             )}
@@ -618,7 +635,6 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
     );
 }
 
-const STATUS_OPTIONS = ['Blacklist', 'Over-aged', "Don't touch", 'Ex-Central', 'VIP'];
 const GENDER_OPTIONS = ['Male', 'Female', 'N/A'];
 
 function QuickEditBar({ candidate, onSave }: { candidate: any; onSave: (fields: Record<string, any>) => Promise<void> }) {
@@ -639,12 +655,6 @@ function QuickEditBar({ candidate, onSave }: { candidate: any; onSave: (fields: 
         setSaving(field);
         await onSave({ [field]: value });
         setSaving(null);
-    };
-
-    const toggleStatus = async (s: string) => {
-        const next = statuses.includes(s) ? statuses.filter(x => x !== s) : [...statuses, s];
-        setStatuses(next);
-        await save('candidate_status', next);
     };
 
     return (
@@ -705,25 +715,14 @@ function QuickEditBar({ candidate, onSave }: { candidate: any; onSave: (fields: 
                 {/* Remark / candidate_status */}
                 <div className="space-y-1">
                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Remark (Status Tags)</label>
-                    <div className="flex flex-wrap gap-1.5">
-                        {STATUS_OPTIONS.map(s => (
-                            <button
-                                key={s}
-                                onClick={() => toggleStatus(s)}
-                                disabled={saving === 'candidate_status'}
-                                className={cn(
-                                    "text-[10px] font-black px-2.5 py-1 rounded-lg border transition-all",
-                                    statuses.includes(s)
-                                        ? s === 'Blacklist' ? 'bg-rose-500 text-white border-rose-500'
-                                        : s === 'Over-aged' ? 'bg-orange-400 text-white border-orange-400'
-                                        : 'bg-indigo-500 text-white border-indigo-500'
-                                        : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
-                                )}
-                            >
-                                {s}
-                            </button>
-                        ))}
-                        {saving === 'candidate_status' && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />}
+                    <div className="flex items-center gap-2">
+                        <StatusSelect
+                            value={statuses}
+                            onChange={(next) => { setStatuses(next); save('candidate_status', next); }}
+                            className="h-8 text-xs bg-white"
+                            disabled={saving === 'candidate_status'}
+                        />
+                        {saving === 'candidate_status' && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400 flex-shrink-0" />}
                     </div>
                 </div>
             </div>
