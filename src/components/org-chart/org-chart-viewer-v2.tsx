@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { toast } from '@/lib/notifications'
 import { exportOrgChartPptx } from '@/lib/org-chart-pptx'
-import { createSingleOrgProfile, verifyOrgNode, deleteOrgNode, clearOrgNode, toggleGroupNode, type RawOrgNode } from '@/app/actions/org-chart-actions'
+import { createSingleOrgProfile, verifyOrgNode, deleteOrgNode, clearOrgNode, toggleGroupNode, moveOrgNode, type RawOrgNode } from '@/app/actions/org-chart-actions'
 import { VerificationDialog } from '@/components/org-chart/verification-dialog'
 import { CandidateProfileSheet } from '@/components/candidate-profile-sheet'
 import { NodeFormDialog } from '@/components/org-chart/node-form-dialog'
@@ -88,7 +88,7 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
 
     if (data.is_group_node) {
         return `
-            <div style="width:${width}px;height:${height}px;border:2px solid #6366f1;border-radius:10px;background:linear-gradient(135deg,#eef2ff 0%,#e0e7ff 100%);box-shadow:0 1px 3px rgba(99,102,241,0.15);display:flex;flex-direction:column;align-items:center;font-family:${FONT_FAMILY};box-sizing:border-box;padding:8px;position:relative;">
+            <div draggable="true" data-drag-node="${escapeHtml(data.id)}" style="width:${width}px;height:${height}px;border:2px solid #6366f1;border-radius:10px;background:linear-gradient(135deg,#eef2ff 0%,#e0e7ff 100%);box-shadow:0 1px 3px rgba(99,102,241,0.15);display:flex;flex-direction:column;align-items:center;font-family:${FONT_FAMILY};box-sizing:border-box;padding:8px;position:relative;cursor:grab;">
                 ${renderKebabButton(data.id)}
                 <div style="background:#6366f1;border-radius:7px;padding:4px;margin:1px 0 4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -118,7 +118,7 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
         topIcons.push(`<button type="button" data-action="profile" data-candidate-id="${escapeHtml(data.candidate_id)}" title="View Profile" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:4px;background:#f1f5f9;color:#64748b;padding:0;line-height:0;border:none;cursor:pointer;">${ICON_EXTERNAL_LINK}</button>`)
     }
     if (data.linkedin) {
-        topIcons.push(`<a href="${escapeHtml(data.linkedin)}" target="_blank" rel="noopener noreferrer" title="LinkedIn" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:4px;background:#0A66C2;line-height:0;">${ICON_LINKEDIN}</a>`)
+        topIcons.push(`<a href="${escapeHtml(data.linkedin)}" target="_blank" rel="noopener noreferrer" title="LinkedIn" draggable="false" style="display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:4px;background:#0A66C2;line-height:0;">${ICON_LINKEDIN}</a>`)
     }
     const topIconsHtml = topIcons.length > 0
         ? `<div style="position:absolute;top:6px;right:6px;display:flex;gap:3px;align-items:center;">${topIcons.join('')}</div>`
@@ -146,7 +146,7 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
     }
 
     return `
-        <div style="width:${width}px;height:${height}px;border:2px ${style.dashed ? 'dashed' : 'solid'} ${style.border};border-radius:10px;background:${style.bg};box-shadow:0 1px 3px rgba(0,0,0,0.06);font-family:${FONT_FAMILY};box-sizing:border-box;padding:8px;display:flex;flex-direction:column;position:relative;">
+        <div draggable="true" data-drag-node="${escapeHtml(data.id)}" style="width:${width}px;height:${height}px;border:2px ${style.dashed ? 'dashed' : 'solid'} ${style.border};border-radius:10px;background:${style.bg};box-shadow:0 1px 3px rgba(0,0,0,0.06);font-family:${FONT_FAMILY};box-sizing:border-box;padding:8px;display:flex;flex-direction:column;position:relative;cursor:grab;">
             ${renderKebabButton(data.id)}
             <div style="display:flex;align-items:flex-start;gap:8px;width:100%;">
                 <div style="flex-shrink:0;position:relative;">
@@ -192,6 +192,14 @@ type MenuState = {
     right: number
 }
 
+type DragMoveState = {
+    nodeId: string
+    nodeName: string
+    hasChildren: boolean
+    targetId: string
+    targetName: string
+}
+
 export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Organization' }: { data: OrgNodeV2[]; rawNodes: RawOrgNode[]; uploadId: string; companyName?: string }) {
     const containerRef = useRef<HTMLDivElement>(null)
     const chartRef = useRef<OrgChart<OrgNodeV2> | null>(null)
@@ -210,11 +218,29 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
     const [deleteTarget, setDeleteTarget] = useState<{ node_id: string; name: string } | null>(null)
     const [isDeletingNodeAction, setIsDeletingNodeAction] = useState(false)
 
+    // Drag-to-move state
+    const [dragMoveTarget, setDragMoveTarget] = useState<DragMoveState | null>(null)
+    const [isMovingViaDrag, setIsMovingViaDrag] = useState(false)
+    const draggedNodeIdRef = useRef<string | null>(null)
+    const dragOverElRef = useRef<HTMLElement | null>(null)
+
     const rawNodeById = useMemo(() => {
         const map = new Map<string, RawOrgNode>()
         rawNodes.forEach((n) => map.set(n.node_id, n))
         return map
     }, [rawNodes])
+
+    // parentId -> direct child ids, used to block drag-drop onto a node's own descendants (cycle prevention)
+    const childrenMap = useMemo(() => {
+        const map = new Map<string, string[]>()
+        data.forEach((n) => {
+            if (!n.parentId) return
+            const list = map.get(n.parentId)
+            if (list) list.push(n.id)
+            else map.set(n.parentId, [n.id])
+        })
+        return map
+    }, [data])
 
     const handleExportPptx = async () => {
         try {
@@ -313,6 +339,21 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
         }
     }
 
+    const handleConfirmDragMove = async () => {
+        if (!dragMoveTarget) return
+        setIsMovingViaDrag(true)
+        try {
+            await moveOrgNode(dragMoveTarget.nodeId, dragMoveTarget.targetName, dragMoveTarget.hasChildren)
+            toast.success(`Moved "${dragMoveTarget.nodeName}" under "${dragMoveTarget.targetName}"`)
+            setDragMoveTarget(null)
+            router.refresh()
+        } catch {
+            toast.error('Failed to move node')
+        } finally {
+            setIsMovingViaDrag(false)
+        }
+    }
+
     // Creates the chart on first run, then re-renders in place on subsequent data
     // changes (e.g. after router.refresh()) so zoom/pan/expand state is preserved.
     useEffect(() => {
@@ -384,12 +425,113 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
         }
 
         container.addEventListener('click', handleClick)
-        return () => container.removeEventListener('click', handleClick)
-    }, [data])
 
-    // Close the action menu whenever the chart re-renders (e.g. after a mutation)
+        // --- Drag-to-move ---
+        const isDescendantOrSelf = (ancestorId: string, nodeId: string): boolean => {
+            if (ancestorId === nodeId) return true
+            const stack = [...(childrenMap.get(ancestorId) || [])]
+            while (stack.length) {
+                const cur = stack.pop() as string
+                if (cur === nodeId) return true
+                const kids = childrenMap.get(cur)
+                if (kids) stack.push(...kids)
+            }
+            return false
+        }
+
+        const clearDragHighlight = () => {
+            if (dragOverElRef.current) {
+                dragOverElRef.current.style.outline = ''
+                dragOverElRef.current.style.outlineOffset = ''
+                dragOverElRef.current = null
+            }
+        }
+
+        const resetDraggedOpacity = () => {
+            const draggedId = draggedNodeIdRef.current
+            if (!draggedId) return
+            const sourceEl = container.querySelector<HTMLElement>(`[data-drag-node="${CSS.escape(draggedId)}"]`)
+            if (sourceEl) sourceEl.style.opacity = ''
+        }
+
+        const handleDragStart = (e: DragEvent) => {
+            const target = (e.target as HTMLElement).closest('[data-drag-node]') as HTMLElement | null
+            if (!target) return
+            const nodeId = target.dataset.dragNode || ''
+            draggedNodeIdRef.current = nodeId
+            e.dataTransfer?.setData('text/plain', nodeId)
+            if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move'
+            target.style.opacity = '0.4'
+        }
+
+        const handleDragOver = (e: DragEvent) => {
+            const draggedId = draggedNodeIdRef.current
+            if (!draggedId) return
+            const target = (e.target as HTMLElement).closest('[data-drag-node]') as HTMLElement | null
+            const targetId = target?.dataset.dragNode
+            if (!target || !targetId || targetId === draggedId || isDescendantOrSelf(draggedId, targetId)) {
+                clearDragHighlight()
+                return
+            }
+            e.preventDefault()
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'
+            if (dragOverElRef.current !== target) {
+                clearDragHighlight()
+                target.style.outline = '3px solid #4f46e5'
+                target.style.outlineOffset = '2px'
+                dragOverElRef.current = target
+            }
+        }
+
+        const handleDrop = (e: DragEvent) => {
+            e.preventDefault()
+            clearDragHighlight()
+            const draggedId = draggedNodeIdRef.current
+            resetDraggedOpacity()
+            draggedNodeIdRef.current = null
+            if (!draggedId) return
+
+            const target = (e.target as HTMLElement).closest('[data-drag-node]') as HTMLElement | null
+            const targetId = target?.dataset.dragNode
+            if (!targetId || targetId === draggedId || isDescendantOrSelf(draggedId, targetId)) return
+
+            const draggedNode = data.find((n) => n.id === draggedId) as V2HierarchyDatum | undefined
+            const targetNode = data.find((n) => n.id === targetId)
+            if (!draggedNode || !targetNode || draggedNode.parentId === targetId) return
+
+            setDragMoveTarget({
+                nodeId: draggedId,
+                nodeName: draggedNode.name,
+                hasChildren: (draggedNode._directSubordinates || 0) > 0,
+                targetId,
+                targetName: targetNode.name,
+            })
+        }
+
+        const handleDragEnd = () => {
+            clearDragHighlight()
+            resetDraggedOpacity()
+            draggedNodeIdRef.current = null
+        }
+
+        container.addEventListener('dragstart', handleDragStart)
+        container.addEventListener('dragover', handleDragOver)
+        container.addEventListener('drop', handleDrop)
+        container.addEventListener('dragend', handleDragEnd)
+
+        return () => {
+            container.removeEventListener('click', handleClick)
+            container.removeEventListener('dragstart', handleDragStart)
+            container.removeEventListener('dragover', handleDragOver)
+            container.removeEventListener('drop', handleDrop)
+            container.removeEventListener('dragend', handleDragEnd)
+        }
+    }, [data, childrenMap])
+
+    // Close the action menu / drag-move confirm whenever the chart re-renders (e.g. after a mutation)
     useEffect(() => {
         setMenuState(null)
+        setDragMoveTarget(null)
     }, [data])
 
     // Unmount cleanup only
@@ -571,6 +713,34 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
                         ) : (
                             <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
                         )}
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!dragMoveTarget} onOpenChange={(open) => !open && !isMovingViaDrag && setDragMoveTarget(null)}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg text-indigo-500">
+                                <Focus size={18} />
+                            </div>
+                            Move Node
+                        </DialogTitle>
+                        <DialogDescription>
+                            Move <strong>{dragMoveTarget?.nodeName}</strong> to report under <strong>{dragMoveTarget?.targetName}</strong>?
+                            {dragMoveTarget?.hasChildren && (
+                                <span className="block mt-2 text-amber-600 dark:text-amber-400">
+                                    Their direct reports will stay in place under a new <span className="font-semibold">(Vacant)</span> position.
+                                </span>
+                            )}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDragMoveTarget(null)} disabled={isMovingViaDrag}>Cancel</Button>
+                        <Button onClick={handleConfirmDragMove} disabled={isMovingViaDrag} className="gap-2">
+                            {isMovingViaDrag && <Loader2 size={14} className="animate-spin" />}
+                            Move
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
