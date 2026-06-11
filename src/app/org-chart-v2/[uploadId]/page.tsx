@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { fetchOrgChartUploads } from '@/app/actions/org-chart-actions'
+import { fetchOrgChartUploads, getOrgNodesRaw } from '@/app/actions/org-chart-actions'
 import { fetchOrgChartFlatData } from '@/app/actions/org-chart-v2-actions'
 import { OrgChartClientWrapperV2 } from '@/components/org-chart/org-chart-client-wrapper-v2'
 
@@ -18,7 +18,10 @@ export default async function OrgChartV2ViewerRoute({
     }
 
     const companyName = currentUpload?.company_name || 'Organization'
-    const data = await fetchOrgChartFlatData(uploadId, companyName)
+    const [data, rawNodes] = await Promise.all([
+        fetchOrgChartFlatData(uploadId, companyName),
+        getOrgNodesRaw(uploadId),
+    ])
 
     return (
         <div className="container mx-auto py-2 flex flex-col h-screen px-4 md:px-6">
@@ -40,7 +43,7 @@ export default async function OrgChartV2ViewerRoute({
                 </Link>
             </div>
             <div className="flex-1 border rounded-xl overflow-hidden bg-white dark:bg-slate-900">
-                <OrgChartClientWrapperV2 data={data} companyName={companyName} />
+                <OrgChartClientWrapperV2 data={data} rawNodes={rawNodes} uploadId={uploadId} companyName={companyName} />
             </div>
         </div>
     )

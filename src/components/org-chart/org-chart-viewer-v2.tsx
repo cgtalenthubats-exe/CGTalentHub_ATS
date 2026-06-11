@@ -1,15 +1,24 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { OrgChart } from 'd3-org-chart'
-import { Download, Loader2 } from 'lucide-react'
+import { Download, Loader2, Plus, UserPlus, Focus, User, Building2, Trash2, Users, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog'
 import { toast } from '@/lib/notifications'
 import { exportOrgChartPptx } from '@/lib/org-chart-pptx'
-import { createSingleOrgProfile, verifyOrgNode } from '@/app/actions/org-chart-actions'
+import { createSingleOrgProfile, verifyOrgNode, deleteOrgNode, clearOrgNode, toggleGroupNode, type RawOrgNode } from '@/app/actions/org-chart-actions'
 import { VerificationDialog } from '@/components/org-chart/verification-dialog'
 import { CandidateProfileSheet } from '@/components/candidate-profile-sheet'
+import { NodeFormDialog } from '@/components/org-chart/node-form-dialog'
 import type { OrgNodeV2 } from '@/app/actions/org-chart-v2-actions'
 
 const DEFAULT_AVATAR = 'https://ddeqeaicjyrevqdognbn.supabase.co/storage/v1/object/public/system/Blank%20Profile.JPG'
@@ -40,6 +49,7 @@ const ICON_USER_PLUS = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none
 const ICON_LOADER = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="animate-spin"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`
 const ICON_CHEVRON_UP = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#1e293b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>`
 const ICON_CHEVRON_DOWN = `<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#1e293b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`
+const ICON_MORE = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>`
 
 function escapeHtml(value: string | null | undefined): string {
     if (!value) return ''
@@ -54,6 +64,12 @@ function escapeHtml(value: string | null | undefined): string {
 type V2HierarchyDatum = OrgNodeV2 & {
     _directSubordinates?: number
     _totalSubordinates?: number
+}
+
+// "⋮" action menu trigger — sits on the card border so it doesn't collide with the
+// profile/LinkedIn icons inside the card. Click is handled via the data-action delegation pattern.
+function renderKebabButton(nodeId: string): string {
+    return `<button type="button" data-action="menu" data-node-id="${escapeHtml(nodeId)}" title="Actions" style="position:absolute;top:-8px;right:-8px;width:20px;height:20px;border-radius:9999px;background:#ffffff;border:1px solid #cbd5e1;box-shadow:0 1px 3px rgba(0,0,0,0.12);display:flex;align-items:center;justify-content:center;color:#475569;cursor:pointer;padding:0;z-index:6;">${ICON_MORE}</button>`
 }
 
 function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: number }): string {
@@ -72,7 +88,8 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
 
     if (data.is_group_node) {
         return `
-            <div style="width:${width}px;height:${height}px;border:2px solid #6366f1;border-radius:10px;background:linear-gradient(135deg,#eef2ff 0%,#e0e7ff 100%);box-shadow:0 1px 3px rgba(99,102,241,0.15);display:flex;flex-direction:column;align-items:center;font-family:${FONT_FAMILY};box-sizing:border-box;padding:8px;">
+            <div style="width:${width}px;height:${height}px;border:2px solid #6366f1;border-radius:10px;background:linear-gradient(135deg,#eef2ff 0%,#e0e7ff 100%);box-shadow:0 1px 3px rgba(99,102,241,0.15);display:flex;flex-direction:column;align-items:center;font-family:${FONT_FAMILY};box-sizing:border-box;padding:8px;position:relative;">
+                ${renderKebabButton(data.id)}
                 <div style="background:#6366f1;border-radius:7px;padding:4px;margin:1px 0 4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>
@@ -130,6 +147,7 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
 
     return `
         <div style="width:${width}px;height:${height}px;border:2px ${style.dashed ? 'dashed' : 'solid'} ${style.border};border-radius:10px;background:${style.bg};box-shadow:0 1px 3px rgba(0,0,0,0.06);font-family:${FONT_FAMILY};box-sizing:border-box;padding:8px;display:flex;flex-direction:column;position:relative;">
+            ${renderKebabButton(data.id)}
             <div style="display:flex;align-items:flex-start;gap:8px;width:100%;">
                 <div style="flex-shrink:0;position:relative;">
                     <div style="width:36px;height:36px;border-radius:9999px;background-image:url('${escapeHtml(photo)}');background-size:cover;background-position:center;background-color:#f1f5f9;border:1px solid #e2e8f0;"></div>
@@ -161,7 +179,20 @@ function renderButtonContent({ node }: { node: any }): string {
     return `<div style="display:flex;align-items:center;gap:2px;border:1.5px solid #1e293b;border-radius:999px;padding:2px 6px;font-size:9px;font-weight:700;color:#1e293b;background:#ffffff;box-shadow:0 1px 2px rgba(0,0,0,0.08);font-family:${FONT_FAMILY};">${chevron}<span>${count}</span></div>`
 }
 
-export function OrgChartViewerV2({ data, companyName = 'Organization' }: { data: OrgNodeV2[]; companyName?: string }) {
+type DialogState = {
+    mode: 'add' | 'edit' | 'move'
+    editingNode: RawOrgNode | null
+    defaultParentName?: string
+    hasChildren: boolean
+}
+
+type MenuState = {
+    nodeId: string
+    top: number
+    right: number
+}
+
+export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Organization' }: { data: OrgNodeV2[]; rawNodes: RawOrgNode[]; uploadId: string; companyName?: string }) {
     const containerRef = useRef<HTMLDivElement>(null)
     const chartRef = useRef<OrgChart<OrgNodeV2> | null>(null)
     const hasFitRef = useRef(false)
@@ -172,6 +203,18 @@ export function OrgChartViewerV2({ data, companyName = 'Organization' }: { data:
     const [profileSheetCandidateId, setProfileSheetCandidateId] = useState<string | null>(null)
     const [verifyNode, setVerifyNode] = useState<(OrgNodeV2 & { node_id: string }) | null>(null)
     const [isVerifying, setIsVerifying] = useState(false)
+
+    // CRUD action menu ("⋮" kebab) state
+    const [menuState, setMenuState] = useState<MenuState | null>(null)
+    const [dialogState, setDialogState] = useState<DialogState | null>(null)
+    const [deleteTarget, setDeleteTarget] = useState<{ node_id: string; name: string } | null>(null)
+    const [isDeletingNodeAction, setIsDeletingNodeAction] = useState(false)
+
+    const rawNodeById = useMemo(() => {
+        const map = new Map<string, RawOrgNode>()
+        rawNodes.forEach((n) => map.set(n.node_id, n))
+        return map
+    }, [rawNodes])
 
     const handleExportPptx = async () => {
         try {
@@ -227,6 +270,46 @@ export function OrgChartViewerV2({ data, companyName = 'Organization' }: { data:
             toast.error('Failed to update verification status')
         } finally {
             setIsVerifying(false)
+        }
+    }
+
+    const handleToggleGroupNode = async (nodeId: string, isGroupNode: boolean) => {
+        const result = await toggleGroupNode(nodeId, isGroupNode)
+        if (result.success) {
+            toast.success(isGroupNode ? 'Switched to Group Node' : 'Switched to Person Node')
+            router.refresh()
+        } else {
+            toast.error(result.error || 'Failed to toggle node type')
+        }
+    }
+
+    const handleClearNode = async () => {
+        if (!deleteTarget) return
+        setIsDeletingNodeAction(true)
+        try {
+            await clearOrgNode(deleteTarget.node_id)
+            toast.success('Node info cleared to (Vacant)')
+            setDeleteTarget(null)
+            router.refresh()
+        } catch {
+            toast.error('Failed to clear node info')
+        } finally {
+            setIsDeletingNodeAction(false)
+        }
+    }
+
+    const handleDeleteNode = async () => {
+        if (!deleteTarget) return
+        setIsDeletingNodeAction(true)
+        try {
+            await deleteOrgNode(deleteTarget.node_id)
+            toast.success('Node removed and team re-parented')
+            setDeleteTarget(null)
+            router.refresh()
+        } catch {
+            toast.error('Failed to remove node')
+        } finally {
+            setIsDeletingNodeAction(false)
         }
     }
 
@@ -288,11 +371,25 @@ export function OrgChartViewerV2({ data, companyName = 'Organization' }: { data:
                 if (node) setVerifyNode({ ...node, node_id: node.id })
             } else if (action === 'create') {
                 if (nodeId) handleCreate(nodeId, actionEl)
+            } else if (action === 'menu') {
+                e.stopPropagation()
+                if (!nodeId) return
+                const rect = actionEl.getBoundingClientRect()
+                setMenuState((prev) => (prev?.nodeId === nodeId ? null : {
+                    nodeId,
+                    top: rect.bottom + 4,
+                    right: window.innerWidth - rect.right,
+                }))
             }
         }
 
         container.addEventListener('click', handleClick)
         return () => container.removeEventListener('click', handleClick)
+    }, [data])
+
+    // Close the action menu whenever the chart re-renders (e.g. after a mutation)
+    useEffect(() => {
+        setMenuState(null)
     }, [data])
 
     // Unmount cleanup only
@@ -342,6 +439,141 @@ export function OrgChartViewerV2({ data, companyName = 'Organization' }: { data:
                 open={!!profileSheetCandidateId}
                 onOpenChange={(open) => !open && setProfileSheetCandidateId(null)}
             />
+
+            {menuState && (() => {
+                const node = rawNodeById.get(menuState.nodeId)
+                if (!node) return null
+                const v2Node = data.find((n) => n.id === menuState.nodeId) as V2HierarchyDatum | undefined
+                const isMatch = !!node.matched_candidate_id
+                const hasChildren = (v2Node?._directSubordinates || 0) > 0
+
+                return (
+                    <>
+                        <div className="fixed inset-0 z-40" onClick={() => setMenuState(null)} />
+                        <div
+                            className="fixed z-50 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl py-1 text-xs overflow-hidden"
+                            style={{ top: menuState.top, right: menuState.right }}
+                        >
+                            <button
+                                type="button"
+                                className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+                                onClick={() => { setMenuState(null); setDialogState({ mode: 'add', editingNode: null, defaultParentName: node.name, hasChildren: false }) }}
+                            >
+                                <Plus size={14} /> Add Subordinate
+                            </button>
+                            <button
+                                type="button"
+                                className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+                                onClick={() => { setMenuState(null); setDialogState({ mode: 'edit', editingNode: node, hasChildren: false }) }}
+                            >
+                                <UserPlus size={14} /> {node.is_group_node ? 'Edit Label' : 'Replace / Edit'}
+                            </button>
+                            <button
+                                type="button"
+                                className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+                                onClick={() => { setMenuState(null); setDialogState({ mode: 'move', editingNode: node, hasChildren }) }}
+                            >
+                                <Focus size={14} /> Move Node
+                            </button>
+                            {node.is_group_node ? (
+                                <button
+                                    type="button"
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+                                    onClick={() => { setMenuState(null); handleToggleGroupNode(node.node_id, false) }}
+                                >
+                                    <User size={14} /> Switch to Person Node
+                                </button>
+                            ) : !isMatch && (
+                                <button
+                                    type="button"
+                                    className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200"
+                                    onClick={() => { setMenuState(null); handleToggleGroupNode(node.node_id, true) }}
+                                >
+                                    <Building2 size={14} /> Switch to Group Node
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 border-t border-slate-100 dark:border-slate-800"
+                                onClick={() => { setMenuState(null); setDeleteTarget({ node_id: node.node_id, name: node.name }) }}
+                            >
+                                <Trash2 size={14} /> Remove Node
+                            </button>
+                        </div>
+                    </>
+                )
+            })()}
+
+            <NodeFormDialog
+                isOpen={!!dialogState}
+                onOpenChange={(open) => !open && setDialogState(null)}
+                uploadId={uploadId}
+                nodes={rawNodes}
+                editingNode={dialogState?.editingNode ?? null}
+                defaultParentName={dialogState?.defaultParentName}
+                isAddMode={dialogState?.mode === 'add'}
+                isMoveMode={dialogState?.mode === 'move'}
+                hasChildren={dialogState?.hasChildren ?? false}
+            />
+
+            <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <div className="p-2 bg-rose-50 dark:bg-rose-900/20 rounded-lg text-rose-500">
+                                <Trash2 size={18} />
+                            </div>
+                            Manage Removal
+                        </DialogTitle>
+                        <DialogDescription>
+                            How would you like to handle <strong>{deleteTarget?.name}</strong> and their team?
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3 py-2">
+                        <button
+                            type="button"
+                            disabled={isDeletingNodeAction}
+                            onClick={handleClearNode}
+                            className="w-full flex items-start gap-3 p-3 rounded-xl border-2 border-slate-100 dark:border-slate-800 hover:border-emerald-200 hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20 text-left transition-colors disabled:opacity-50"
+                        >
+                            <div className="mt-0.5 p-2 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-lg">
+                                <Users size={16} />
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">Clear Info & Keep Box</h4>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                                    Remove the person but keep the position as <span className="font-semibold text-slate-600 dark:text-slate-300">(Vacant)</span>. Team structure stays the same.
+                                </p>
+                            </div>
+                        </button>
+                        <button
+                            type="button"
+                            disabled={isDeletingNodeAction}
+                            onClick={handleDeleteNode}
+                            className="w-full flex items-start gap-3 p-3 rounded-xl border-2 border-slate-100 dark:border-slate-800 hover:border-rose-200 hover:bg-rose-50/40 dark:hover:bg-rose-950/20 text-left transition-colors disabled:opacity-50"
+                        >
+                            <div className="mt-0.5 p-2 bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400 rounded-lg">
+                                <X size={16} />
+                            </div>
+                            <div>
+                                <h4 className="text-sm font-bold text-rose-600 dark:text-rose-400">Remove Entire Node</h4>
+                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                                    Delete this position entirely. Subordinates are <span className="font-semibold text-slate-600 dark:text-slate-300">re-parented to the manager above</span>.
+                                </p>
+                            </div>
+                        </button>
+                    </div>
+                    <DialogFooter>
+                        {isDeletingNodeAction ? (
+                            <Button disabled className="gap-2">
+                                <Loader2 size={14} className="animate-spin" /> Processing...
+                            </Button>
+                        ) : (
+                            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+                        )}
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }
