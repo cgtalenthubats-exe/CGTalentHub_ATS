@@ -336,7 +336,7 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
         try {
             setIsExporting(true)
             toast.info('กำลังสร้างไฟล์ PowerPoint อาจใช้เวลาสักครู่...', { duration: 5000 })
-            await exportOrgChartPptx(data, companyName)
+            await exportOrgChartPptx(data, companyName, companyLogoUrl)
             toast.success('Export PowerPoint สำเร็จ! 🎉')
         } catch (err) {
             console.error('Export PPTX error:', err)

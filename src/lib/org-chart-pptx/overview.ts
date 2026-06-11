@@ -3,10 +3,11 @@ import type { OrgNodeV2 } from '@/app/actions/org-chart-v2-actions'
 import {
     BOX_W, BOX_H, GAP_X, GAP_Y,
     buildHierarchy, computeSubCounts,
-    renderNodesToSlide, injectConnectors, finalizePptx,
+    renderNodesToSlide, injectConnectors, finalizePptx, addBranding,
 } from './shared'
 
 const MARGIN = 0.5
+const HEADER_H = 0.5 // extra space at the top for the company logo/name
 const MAX_DIM = 50 // inches — stay safely under PowerPoint's ~56in slide size cap
 
 /**
@@ -14,7 +15,7 @@ const MAX_DIM = 50 // inches — stay safely under PowerPoint's ~56in slide size
  * collapsed to a single card, so the whole org structure fits on one slide
  * sized to its bounding box.
  */
-export async function buildOverviewPptx(data: OrgNodeV2[]): Promise<Blob> {
+export async function buildOverviewPptx(data: OrgNodeV2[], companyName: string, logoDataUri: string | null): Promise<Blob> {
     const PptxGenJS = (await import('pptxgenjs')).default
     const { tree } = await import('d3-hierarchy')
 
@@ -43,7 +44,7 @@ export async function buildOverviewPptx(data: OrgNodeV2[]): Promise<Blob> {
     })
 
     const totalW = (maxX - minX) + BOX_W + MARGIN * 2
-    const totalH = (maxY - minY) + BOX_H + MARGIN * 2
+    const totalH = (maxY - minY) + BOX_H + MARGIN * 2 + HEADER_H
     const scale = Math.min(1, MAX_DIM / totalW, MAX_DIM / totalH)
 
     const pptx = new PptxGenJS()
@@ -53,9 +54,10 @@ export async function buildOverviewPptx(data: OrgNodeV2[]): Promise<Blob> {
     const slide = pptx.addSlide()
 
     const toX = (x: number) => (x - minX + MARGIN) * scale
-    const toY = (y: number) => (y - minY + MARGIN) * scale
+    const toY = (y: number) => (y - minY + MARGIN + HEADER_H) * scale
 
     await renderNodesToSlide(pptx, slide, nodes, { toX, toY, scale }, subCounts)
+    addBranding(pptx, slide, companyName, logoDataUri, 0.15, 0.08)
 
     return finalizePptx(pptx, [
         (xml) => injectConnectors(xml, nodes, { toX, toY, scale }),

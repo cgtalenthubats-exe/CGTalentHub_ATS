@@ -1,6 +1,7 @@
 import type { OrgNodeV2 } from '@/app/actions/org-chart-v2-actions'
 import { buildOverviewPptx } from './overview'
 import { buildTeamDetailsPptx } from './team-details'
+import { toDataUri } from './shared'
 
 function sanitizeFilename(name: string): string {
     return name.replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^_+|_+$/g, '') || 'OrgChart'
@@ -24,10 +25,12 @@ function downloadBlob(blob: Blob, filename: string): void {
  *
  * If there are no team/group nodes, only the Overview file is produced (no zip needed).
  */
-export async function exportOrgChartPptx(data: OrgNodeV2[], companyName: string): Promise<void> {
+export async function exportOrgChartPptx(data: OrgNodeV2[], companyName: string, companyLogoUrl?: string | null): Promise<void> {
+    const logoDataUri = companyLogoUrl ? await toDataUri(companyLogoUrl) : null
+
     const [overviewBlob, teamDetailsBlob] = await Promise.all([
-        buildOverviewPptx(data),
-        buildTeamDetailsPptx(data),
+        buildOverviewPptx(data, companyName, logoDataUri),
+        buildTeamDetailsPptx(data, companyName, logoDataUri),
     ])
 
     const baseName = sanitizeFilename(companyName)

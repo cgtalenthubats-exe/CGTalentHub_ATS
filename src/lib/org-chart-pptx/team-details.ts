@@ -3,7 +3,7 @@ import type { OrgNodeV2 } from '@/app/actions/org-chart-v2-actions'
 import {
     BOX_W, BOX_H, GAP_X, GAP_Y,
     buildHierarchy, computeSubCounts,
-    renderNodesToSlide, injectConnectors, finalizePptx,
+    renderNodesToSlide, injectConnectors, finalizePptx, addBranding, BRAND_LOGO_H,
 } from './shared'
 
 // Standard 16:9 widescreen slide, in inches
@@ -11,6 +11,7 @@ const SLIDE_W = 13.333
 const SLIDE_H = 7.5
 const MARGIN = 0.4
 const TITLE_H = 0.8
+const BRAND_GAP = 0.08
 const MAX_SCALE = 1.5
 
 /**
@@ -35,7 +36,7 @@ function getSubtreeIds(root: HierarchyNode<OrgNodeV2>): Set<string> {
  * the root), each showing that team's members at a readable scale.
  * Returns null if the chart has no group nodes (nothing to show).
  */
-export async function buildTeamDetailsPptx(data: OrgNodeV2[]): Promise<Blob | null> {
+export async function buildTeamDetailsPptx(data: OrgNodeV2[], companyName: string, logoDataUri: string | null): Promise<Blob | null> {
     const PptxGenJS = (await import('pptxgenjs')).default
     const { tree } = await import('d3-hierarchy')
 
@@ -88,8 +89,9 @@ export async function buildTeamDetailsPptx(data: OrgNodeV2[]): Promise<Blob | nu
         const toY = (y: number) => (y - minY) * scale + offsetY
 
         const slide = pptx.addSlide()
+        addBranding(pptx, slide, companyName, logoDataUri, MARGIN, 0.06)
         slide.addText(teamRoot.data.name, {
-            x: MARGIN, y: 0.15, w: SLIDE_W - MARGIN * 2, h: TITLE_H - 0.15,
+            x: MARGIN, y: BRAND_LOGO_H + BRAND_GAP, w: SLIDE_W - MARGIN * 2, h: TITLE_H - BRAND_LOGO_H - BRAND_GAP,
             fontSize: 20, bold: true, color: '3730A3', fontFace: 'Tahoma',
             align: 'left', valign: 'middle',
         })

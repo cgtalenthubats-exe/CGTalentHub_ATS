@@ -11,6 +11,8 @@ export const PHOTO_MARGIN = 0.1
 export const BADGE_SIZE = 0.32
 export const BADGE_MARGIN = 0.06
 export const ROOT_WRAPPER_ID = 'root-wrapper'
+export const BRAND_LOGO_W = 0.5
+export const BRAND_LOGO_H = 0.32
 
 export type ColorStyle = { fill: string; line: string; dash?: 'dash' }
 
@@ -50,6 +52,35 @@ export async function toDataUri(url: string): Promise<string | null> {
     } catch {
         return null
     }
+}
+
+/**
+ * Adds the company logo (if available) and company name to the top-left corner of a slide.
+ */
+export function addBranding(
+    pptx: PptxGenJS,
+    slide: PptxGenJS.Slide,
+    companyName: string,
+    logoDataUri: string | null,
+    x: number,
+    y: number
+): void {
+    let textX = x
+
+    if (logoDataUri) {
+        slide.addImage({
+            data: logoDataUri,
+            x, y, w: BRAND_LOGO_W, h: BRAND_LOGO_H,
+            sizing: { type: 'contain', w: BRAND_LOGO_W, h: BRAND_LOGO_H },
+        })
+        textX = x + BRAND_LOGO_W + 0.1
+    }
+
+    slide.addText(companyName, {
+        x: textX, y, w: 3, h: BRAND_LOGO_H,
+        fontSize: 11, bold: true, color: '475569', fontFace: 'Tahoma',
+        align: 'left', valign: 'middle', shrinkText: true,
+    })
 }
 
 export type SubCounts = { direct: Map<string, number>; total: Map<string, number> }
