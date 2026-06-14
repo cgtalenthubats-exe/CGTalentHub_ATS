@@ -310,15 +310,13 @@ export async function getJRAnalytics(jrId: string): Promise<JRAnalytics> {
     try {
         // 0. Fetch Master & Candidates
         const [{ data: masters }, { data: jrCands }] = await Promise.all([
-            supabase.from('status_master').select('status_name, stage_order').order('stage_order', { ascending: true }),
+            supabase.from('status_master').select('status, stage_order').order('stage_order', { ascending: true }),
             supabase.from('jr_candidates').select('jr_candidate_id, temp_status').eq('jr_id', jrId).returns<{ jr_candidate_id: string; temp_status: string }[]>()
         ]);
 
         // Use sorted status list from master
-        const allStatuses = (masters as any[])?.map(m => m.status_name) || [
-            "New Candidate", "Pool Candidate", "Pre-screen", "Interview", "Offer", "Successful Placement", "Rejected", "Withdrawn"
-        ];
-        const statusOrderMap = new Map((masters as any[])?.map(m => [m.status_name, m.stage_order]));
+        const allStatuses = (masters as any[])?.map(m => m.status) || [];
+        const statusOrderMap = new Map((masters as any[])?.map(m => [m.status, m.stage_order]));
 
         if (!jrCands || jrCands.length === 0) {
             // Even if no candidates, return all statuses with 0 count to keep graphs visible

@@ -467,41 +467,47 @@ export default function JRManagePage() {
                             {/* ANALYTICS SECTION */}
                             {analytics && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <Card className="h-[250px]">
-                                        <CardContent className="h-full pt-4">
+                                    <Card className="h-[250px] overflow-y-auto">
+                                        <CardContent className="pt-4">
                                             <h3 className="text-sm font-semibold text-muted-foreground mb-4">Activity Transaction</h3>
-                                            <ResponsiveContainer width="100%" height="80%">
-                                                <BarChart
-                                                    data={analytics.countsByStatus.filter((i: any) => i.count > 0)}
-                                                    layout="vertical"
-                                                    margin={{ left: 10, right: 10, bottom: 5 }}
-                                                >
-                                                    <XAxis type="number" hide />
-                                                    <YAxis dataKey="status" type="category" width={100} tick={{ fontSize: 10 }} />
-                                                    <Tooltip
-                                                        cursor={{ fill: 'transparent' }}
-                                                        content={({ active, payload }) => {
-                                                            if (active && payload && payload.length) {
-                                                                const data = payload[0].payload;
-                                                                return (
-                                                                    <div className="bg-slate-900 text-white text-xs rounded px-2 py-1 shadow-xl">
-                                                                        <p className="font-semibold">{data.status}</p>
-                                                                        <p>Count: {data.count}</p>
-                                                                    </div>
-                                                                );
-                                                            }
-                                                            return null;
-                                                        }}
-                                                    />
-                                                    <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20}>
-                                                        {analytics.countsByStatus
-                                                            .filter((i: any) => i.count > 0)
-                                                            .map((entry: any, index: number) => (
-                                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                                            ))}
-                                                    </Bar>
-                                                </BarChart>
-                                            </ResponsiveContainer>
+                                            {(() => {
+                                                const chartData = analytics.countsByStatus.filter((i: any) => i.count > 0);
+                                                const chartHeight = Math.max(180, chartData.length * 28);
+                                                return (
+                                                    <div style={{ height: chartHeight }}>
+                                                        <ResponsiveContainer width="100%" height="100%">
+                                                            <BarChart
+                                                                data={chartData}
+                                                                layout="vertical"
+                                                                margin={{ left: 10, right: 10, bottom: 5 }}
+                                                            >
+                                                                <XAxis type="number" hide />
+                                                                <YAxis dataKey="status" type="category" width={150} tick={{ fontSize: 9 }} />
+                                                                <Tooltip
+                                                                    cursor={{ fill: 'transparent' }}
+                                                                    content={({ active, payload }) => {
+                                                                        if (active && payload && payload.length) {
+                                                                            const data = payload[0].payload;
+                                                                            return (
+                                                                                <div className="bg-slate-900 text-white text-xs rounded px-2 py-1 shadow-xl">
+                                                                                    <p className="font-semibold">{data.status}</p>
+                                                                                    <p>Count: {data.count}</p>
+                                                                                </div>
+                                                                            );
+                                                                        }
+                                                                        return null;
+                                                                    }}
+                                                                />
+                                                                <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={16}>
+                                                                    {chartData.map((entry: any, index: number) => (
+                                                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                                    ))}
+                                                                </Bar>
+                                                            </BarChart>
+                                                        </ResponsiveContainer>
+                                                    </div>
+                                                );
+                                            })()}
                                         </CardContent>
                                     </Card>
                                     <Card className="h-[250px]">
