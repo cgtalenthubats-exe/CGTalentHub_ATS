@@ -42,7 +42,7 @@ const MODELS = [
 
 const PAGE_SIZE = 20;
 const STORAGE_KEY = "ai-search-v3-messages-v2";
-const N8N_WEBHOOK = "https://n8n.srv1212906.hstgr.cloud/webhook/0777f5b4-867c-499e-b412-d5daecefefb5";
+const N8N_WEBHOOK = "https://n8n.srv1212906.hstgr.cloud/webhook/ai-search-chat";
 const VECTOR_RANK_WEBHOOK = "https://n8n.srv1212906.hstgr.cloud/webhook/vector-rank";
 
 type ChatMsg = { id: string; role: "user" | "assistant"; content: string; filters?: any; sessionId?: string; jdText?: string };
