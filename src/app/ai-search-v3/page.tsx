@@ -101,7 +101,7 @@ export default function AISearchV3Page() {
     const [analysing, setAnalysing] = useState(false);
     const [analyseError, setAnalyseError] = useState<string | null>(null);
     const [resultTab, setResultTab] = useState("candidates");
-    const chatEndRef = useRef<HTMLDivElement>(null); // kept for scroll anchor but no auto-scroll
+    const chatEndRef = useRef<HTMLDivElement>(null);
 
     // Load from localStorage after mount
     useEffect(() => {
@@ -111,6 +111,11 @@ export default function AISearchV3Page() {
         } catch {}
         setHasLoaded(true);
     }, []);
+
+    // Auto-scroll to bottom on new messages or after initial load
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: hasLoaded ? 'smooth' : 'instant' });
+    }, [messages, hasLoaded]);
 
     useEffect(() => {
         if (!hasLoaded) return;
