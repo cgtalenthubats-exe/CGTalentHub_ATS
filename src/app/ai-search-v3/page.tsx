@@ -101,7 +101,7 @@ export default function AISearchV3Page() {
     const [analysing, setAnalysing] = useState(false);
     const [analyseError, setAnalyseError] = useState<string | null>(null);
     const [resultTab, setResultTab] = useState("candidates");
-    const chatEndRef = useRef<HTMLDivElement>(null);
+    const chatContainerRef = useRef<HTMLDivElement>(null);
 
     // Load from localStorage after mount
     useEffect(() => {
@@ -112,9 +112,11 @@ export default function AISearchV3Page() {
         setHasLoaded(true);
     }, []);
 
-    // Auto-scroll to bottom on new messages or after initial load
+    // Auto-scroll chat container (not full page) to bottom on new messages or after initial load
     useEffect(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: hasLoaded ? 'smooth' : 'instant' });
+        const el = chatContainerRef.current;
+        if (!el) return;
+        el.scrollTop = el.scrollHeight;
     }, [messages, hasLoaded]);
 
     useEffect(() => {
@@ -354,7 +356,7 @@ export default function AISearchV3Page() {
                 {/* Chat expanded */}
                 {chatOpen && (
                     <div className="border-t mx-6 mb-3">
-                        <div className="h-[544px] overflow-y-auto py-3 space-y-2.5">
+                        <div ref={chatContainerRef} className="h-[544px] overflow-y-auto py-3 space-y-2.5">
                             {messages.length === 0 && (
                                 <div className="flex flex-col items-center justify-center h-full text-slate-400">
                                     <Bot className="h-8 w-8 opacity-15 mb-2" />
@@ -412,7 +414,6 @@ export default function AISearchV3Page() {
                                     )}
                                 </div>
                             ))}
-                            <div ref={chatEndRef} />
                         </div>
                         <div className="flex gap-2 pt-2 border-t">
                             <Textarea
