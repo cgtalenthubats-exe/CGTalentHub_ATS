@@ -3,6 +3,7 @@
 import { adminAuthClient } from "@/lib/supabase/admin";
 
 const N8N_SEARCH_STAGE3_URL = "https://n8n.srv1212906.hstgr.cloud/webhook/search-stage3";
+const N8N_VECTOR_RANK_URL = "https://n8n.srv1212906.hstgr.cloud/webhook/vector-rank";
 
 export type SearchJobData = {
     status: string;
@@ -18,6 +19,10 @@ export type SearchJobData = {
 export type SearchResult = {
     candidate_id: string;
     name: string;
+    photo_url: string | null;
+    linkedin: string | null;
+    age: number | null;
+    address: string | null;
     position: string | null;
     company: string | null;
     score: number;
@@ -87,6 +92,34 @@ export async function triggerSearchRanking(
     return { jobId, candidateCount: candidateIds.length };
 }
 
+export async function triggerVectorRankAssessment(
+    candidateIds: string[],
+    criteria: string,
+): Promise<{ jobId: string; sessionId: string; candidateCount: number }> {
+    if (!candidateIds.length) throw new Error("ไม่มี candidates ที่จะประเมิน");
+
+    const sessionId = `v2_${Math.floor(Date.now() / 1000)}`;
+
+    const { error: insertError } = await adminAuthClient
+        .from("v2_search_results")
+        .insert(candidateIds.map((candidateId) => ({ session_id: sessionId, candidate_id: candidateId })) as any);
+
+    if (insertError) throw new Error(`ไม่สามารถสร้าง pool ได้: ${insertError.message}`);
+
+    const response = await fetch(N8N_VECTOR_RANK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId, jd_text: criteria, query: criteria }),
+        signal: AbortSignal.timeout(120000),
+    });
+
+    if (!response.ok) throw new Error(`n8n webhook failed: ${response.statusText}`);
+    const data = await response.json();
+    if (!data.job_id) throw new Error("ไม่ได้รับ job_id จาก vector-rank");
+
+    return { jobId: data.job_id, sessionId: data.session_id ?? sessionId, candidateCount: data.candidate_count ?? candidateIds.length };
+}
+
 export type SearchJobSummary = {
     job_id: string;
     query: string;
@@ -137,24 +170,36 @@ export async function getSearchJobStatus(jobId: string): Promise<SearchJobData |
         return { status: jobData.status, summary: jobData.status === "completed" ? jobData.summary : null, results: [], result_count: jobData.result_count };
     }
 
-    const [profilesRes, expRes] = await Promise.all([
+    const [profilesRes, expRes, enhanceRes] = await Promise.all([
         adminAuthClient
             .from("Candidate Profile")
-            .select("candidate_id, name")
+            .select("candidate_id, name, photo, linkedin, age")
             .in("candidate_id", candidateIds),
         adminAuthClient
             .from("candidate_experiences")
             .select("candidate_id, position, company")
             .in("candidate_id", candidateIds)
             .eq("is_current_job", "Current"),
+        adminAuthClient
+            .from("candidate_profile_enhance")
+            .select("candidate_id, country, full_address")
+            .in("candidate_id", candidateIds),
     ]);
 
     const profileMap = new Map((profilesRes.data ?? []).map((p: any) => [p.candidate_id, p]));
     const expMap = new Map((expRes.data ?? []).map((e: any) => [e.candidate_id, e]));
+    const enhanceMap = new Map((enhanceRes.data ?? []).map((e: any) => [e.candidate_id, e]));
 
-    const enriched: SearchResult[] = (results ?? []).map((r: any) => ({
+    const enriched: SearchResult[] = (results ?? []).map((r: any) => {
+        const profile = profileMap.get(r.candidate_id) as any;
+        const enhance = enhanceMap.get(r.candidate_id) as any;
+        return {
         candidate_id: r.candidate_id,
-        name: profileMap.get(r.candidate_id)?.name ?? r.candidate_id,
+        name: profile?.name ?? r.candidate_id,
+        photo_url: profile?.photo ?? null,
+        linkedin: profile?.linkedin ?? null,
+        age: profile?.age ?? null,
+        address: [enhance?.country, enhance?.full_address].filter(Boolean).join(", ") || null,
         position: (expMap.get(r.candidate_id) as any)?.position ?? null,
         company: (expMap.get(r.candidate_id) as any)?.company ?? null,
         score: r.score,
@@ -170,7 +215,8 @@ export async function getSearchJobStatus(jobId: string): Promise<SearchJobData |
         market_summary: r.market_summary ?? null,
         skills_score: r.skills_score ?? null,
         skills_summary: r.skills_summary ?? null,
-    }));
+        };
+    });
 
     return {
         status: jobData.status,

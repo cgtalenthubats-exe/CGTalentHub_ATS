@@ -3,7 +3,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
     Bot, User, Send, Loader2, Sparkles, ChevronDown, ChevronUp,
-    RotateCcw, Search, UserPlus, Trash2, Users, TrendingUp, Building2, Globe
+    RotateCcw, Search, UserPlus, Trash2, Users, TrendingUp, Building2, Globe, Filter
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,6 +13,9 @@ import { FilterPanel } from "@/app/ai-search-demo/FilterPanel";
 import { ChainRatingPicker } from "@/app/ai-search-demo/ChainRatingPicker";
 import { CandidateTableView } from "@/app/candidates/list/table-view";
 import { AddCandidateDialog } from "@/components/ai-search/AddCandidateDialog";
+import { Stage3ResultsPanel } from "@/app/ai-search-v3/Stage3ResultsPanel";
+import { getSearchJobHistory, triggerVectorRankAssessment, type SearchJobSummary } from "@/app/actions/ai-search-ranking";
+import { Input } from "@/components/ui/input";
 import {
     getDemoFilterOptions,
     getCascadingFilterOptions,
@@ -29,6 +32,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const MODELS = [
     { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
@@ -39,8 +43,15 @@ const MODELS = [
 const PAGE_SIZE = 20;
 const STORAGE_KEY = "ai-search-v3-messages-v2";
 const N8N_WEBHOOK = "https://n8n.srv1212906.hstgr.cloud/webhook/ai-search-chat";
+const VECTOR_RANK_WEBHOOK = "https://n8n.srv1212906.hstgr.cloud/webhook/vector-rank";
 
-type ChatMsg = { id: string; role: "user" | "assistant"; content: string };
+type ChatMsg = { id: string; role: "user" | "assistant"; content: string; filters?: any; sessionId?: string; jdText?: string };
+
+function hasMeaningfulFilters(f: any): boolean {
+    if (!f) return false;
+    const arrayKeys = ["position_search", "position_levels", "countries", "hotel_ratings", "hotel_chains", "industries", "genders"];
+    return arrayKeys.some((k) => Array.isArray(f[k]) && f[k].length > 0);
+}
 
 function SummaryCard({ label, value, icon: Icon, color }: { label: string; value: number | string; icon: any; color: string }) {
     return (
@@ -80,6 +91,16 @@ export default function AISearchV3Page() {
 
     const [addDialogOpen, setAddDialogOpen] = useState(false);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+    const [jobIdInput, setJobIdInput] = useState("");
+    const [activeJobId, setActiveJobId] = useState<string | null>(null);
+    const [assessingId, setAssessingId] = useState<string | null>(null);
+    const [jobHistory, setJobHistory] = useState<SearchJobSummary[]>([]);
+
+    const [aiCriteria, setAiCriteria] = useState("");
+    const [analysing, setAnalysing] = useState(false);
+    const [analyseError, setAnalyseError] = useState<string | null>(null);
+    const [resultTab, setResultTab] = useState("candidates");
     const chatEndRef = useRef<HTMLDivElement>(null); // kept for scroll anchor but no auto-scroll
 
     // Load from localStorage after mount
@@ -102,6 +123,7 @@ export default function AISearchV3Page() {
             setChainCounts(opts.chainCounts ?? []);
             setSubBrandsByChain(opts.subBrandsByChain ?? {});
         });
+        getSearchJobHistory(20).then(setJobHistory);
     }, []);
 
 
@@ -177,6 +199,7 @@ export default function AISearchV3Page() {
 
     const handleSend = async () => {
         if (!input.trim() || isLoading) return;
+        const jdText = input;
         const userMsg: ChatMsg = { id: Date.now().toString(), role: "user", content: input };
         const newMessages = [...messages, userMsg];
         setMessages(newMessages);
@@ -190,7 +213,7 @@ export default function AISearchV3Page() {
             const res = await fetch(N8N_WEBHOOK, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ message: input, sessionId: "ai-search-v3" }),
+                body: JSON.stringify({ message: jdText, sessionId: "ai-search-v3" }),
                 signal: AbortSignal.timeout(120000),
             });
 
@@ -198,6 +221,7 @@ export default function AISearchV3Page() {
             const rawText = await res.text();
             let content = "";
             let aiFilters: any = {};
+            let sessionId: string | undefined;
 
             try {
                 const data = JSON.parse(rawText);
@@ -205,14 +229,20 @@ export default function AISearchV3Page() {
                 content = first.answer ?? first.output ?? first.text ?? rawText;
                 content = content.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"');
                 if (first?.filters) aiFilters = first.filters;
+                if (first?.session_id) sessionId = first.session_id;
             } catch { content = rawText; }
 
             setMessages(prev => prev.map(m =>
-                m.id === assistantId ? { ...m, content: content || "⚠️ No response" } : m
+                m.id === assistantId
+                    ? {
+                        ...m,
+                        content: content || "⚠️ No response",
+                        filters: hasMeaningfulFilters(aiFilters) ? aiFilters : undefined,
+                        sessionId: sessionId?.startsWith("v2_") ? sessionId : undefined,
+                        jdText,
+                    }
+                    : m
             ));
-            if (aiFilters && Object.keys(aiFilters).length > 0) {
-                applyFiltersFromAI(aiFilters);
-            }
         } catch (e: any) {
             setMessages(prev => prev.map(m =>
                 m.id === assistantId ? { ...m, content: `⚠️ ${e.message}` } : m
@@ -221,6 +251,48 @@ export default function AISearchV3Page() {
             setIsLoading(false);
         }
     };
+
+    async function runAIAssessment(msg: ChatMsg) {
+        if (!msg.sessionId || !msg.jdText || assessingId) return;
+        setAssessingId(msg.id);
+        try {
+            const res = await fetch(VECTOR_RANK_WEBHOOK, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ session_id: msg.sessionId, jd_text: msg.jdText, query: msg.jdText }),
+                signal: AbortSignal.timeout(120000),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            if (data.job_id) {
+                setActiveJobId(data.job_id);
+                setJobIdInput(data.job_id);
+                setResultTab("ai-analyse");
+                getSearchJobHistory(20).then(setJobHistory);
+            }
+        } catch (e: any) {
+            setMessages(prev => [...prev, { id: Date.now().toString(), role: "assistant", content: `⚠️ AI Assessment failed: ${e.message}` }]);
+        } finally {
+            setAssessingId(null);
+        }
+    }
+
+    async function handleAIAnalyse() {
+        if (!aiCriteria.trim() || !allCandidateIds.length || analysing) return;
+        setAnalysing(true);
+        setAnalyseError(null);
+        try {
+            const result = await triggerVectorRankAssessment(allCandidateIds, aiCriteria);
+            setActiveJobId(result.jobId);
+            setJobIdInput(result.jobId);
+            setResultTab("ai-analyse");
+            getSearchJobHistory(20).then(setJobHistory);
+        } catch (e: any) {
+            setAnalyseError(e.message);
+        } finally {
+            setAnalysing(false);
+        }
+    }
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -291,11 +363,42 @@ export default function AISearchV3Page() {
                                             <Bot className="h-3 w-3 text-indigo-600" />
                                         </div>
                                     )}
-                                    <div className={cn(
-                                        "max-w-[75%] rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
-                                        m.role === "user" ? "bg-indigo-600 text-white rounded-tr-sm" : "bg-slate-100 text-slate-800 rounded-tl-sm"
-                                    )}>
-                                        <span className="whitespace-pre-wrap">{m.content}</span>
+                                    <div className="flex flex-col gap-1.5 max-w-[75%]">
+                                        <div className={cn(
+                                            "rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
+                                            m.role === "user" ? "bg-indigo-600 text-white rounded-tr-sm" : "bg-slate-100 text-slate-800 rounded-tl-sm"
+                                        )}>
+                                            <span className="whitespace-pre-wrap">{m.content}</span>
+                                        </div>
+                                        {(m.filters || m.sessionId) && (
+                                            <div className="flex gap-1.5">
+                                                {m.filters && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-7 text-xs gap-1.5 self-start rounded-lg border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                                                        onClick={() => applyFiltersFromAI(m.filters)}
+                                                    >
+                                                        <Filter className="h-3 w-3" />
+                                                        Apply to filters
+                                                    </Button>
+                                                )}
+                                                {m.sessionId && (
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-7 text-xs gap-1.5 self-start rounded-lg border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+                                                        disabled={assessingId === m.id}
+                                                        onClick={() => runAIAssessment(m)}
+                                                    >
+                                                        {assessingId === m.id
+                                                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                                                            : <Sparkles className="h-3 w-3" />}
+                                                        AI Assessment
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                     {m.role === "user" && (
                                         <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center shrink-0 mt-0.5">
@@ -382,64 +485,153 @@ export default function AISearchV3Page() {
 
                 {/* Right: Summary + Results */}
                 <div className="flex-1 flex flex-col gap-3 min-w-0">
-                    {hasSearched && (
-                        <>
-                            {/* Summary Cards */}
-                            <div className="grid grid-cols-5 gap-3 shrink-0">
-                                <SummaryCard label="Total Found" value={searching ? "…" : summary.total} icon={Users} color="bg-indigo-500" />
-                                <SummaryCard label="Currently in Role" value={searching ? "…" : summary.current} icon={TrendingUp} color="bg-emerald-500" />
-                                <SummaryCard label="Past Role" value={searching ? "…" : summary.past} icon={RotateCcw} color="bg-sky-500" />
-                                <SummaryCard label="Companies" value={searching ? "…" : summary.companies} icon={Building2} color="bg-violet-500" />
-                                <SummaryCard label="Countries" value={searching ? "…" : summary.countries} icon={Globe} color="bg-teal-500" />
+                    <Tabs value={resultTab} onValueChange={setResultTab} className="flex flex-col gap-3 min-w-0">
+                        <TabsList className="self-start">
+                            <TabsTrigger value="candidates">
+                                Candidates{hasSearched ? ` (${summary.total})` : ""}
+                            </TabsTrigger>
+                            <TabsTrigger value="ai-analyse">
+                                AI Analyse{activeJobId ? " •" : ""}
+                            </TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="candidates" className="flex flex-col gap-3 min-w-0 mt-0">
+                            {hasSearched && (
+                                <>
+                                    {/* Summary Cards */}
+                                    <div className="grid grid-cols-5 gap-3 shrink-0">
+                                        <SummaryCard label="Total Found" value={searching ? "…" : summary.total} icon={Users} color="bg-indigo-500" />
+                                        <SummaryCard label="Currently in Role" value={searching ? "…" : summary.current} icon={TrendingUp} color="bg-emerald-500" />
+                                        <SummaryCard label="Past Role" value={searching ? "…" : summary.past} icon={RotateCcw} color="bg-sky-500" />
+                                        <SummaryCard label="Companies" value={searching ? "…" : summary.companies} icon={Building2} color="bg-violet-500" />
+                                        <SummaryCard label="Countries" value={searching ? "…" : summary.countries} icon={Globe} color="bg-teal-500" />
+                                    </div>
+
+                                    {/* Candidate Table */}
+                                    <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+                                        <div className="px-4 py-2.5 border-b flex items-center justify-between shrink-0">
+                                            <span className="text-sm font-bold text-slate-700">
+                                                {searching ? "Searching..." : `${summary.total} candidates`}
+                                            </span>
+                                            {selectedIds.length > 0 && (
+                                                <Button size="sm" className="h-7 text-xs gap-1.5 rounded-lg" onClick={() => setAddDialogOpen(true)}>
+                                                    <UserPlus className="h-3.5 w-3.5" />
+                                                    Add {selectedIds.length} to JR
+                                                </Button>
+                                            )}
+                                        </div>
+                                        <div>
+                                            <CandidateTableView
+                                                candidates={candidates}
+                                                loading={searching}
+                                                selectedIds={selectedIds}
+                                                onToggleSelect={(id) => setSelectedIds(prev =>
+                                                    prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+                                                )}
+                                                onToggleSelectAll={(ids) => setSelectedIds(ids)}
+                                                showHotelColumn={filters.hotel_ratings.length > 0 || filters.hotel_chains.length > 0}
+                                            />
+                                        </div>
+                                        {totalPages > 1 && (
+                                            <div className="px-4 py-2.5 border-t flex items-center justify-between shrink-0">
+                                                <span className="text-xs text-slate-500">Page {currentPage} of {totalPages}</span>
+                                                <div className="flex gap-2">
+                                                    <Button variant="outline" size="sm" className="h-7 text-xs" disabled={currentPage === 1} onClick={() => loadPage(currentPage - 1)}>Prev</Button>
+                                                    <Button variant="outline" size="sm" className="h-7 text-xs" disabled={currentPage >= totalPages} onClick={() => loadPage(currentPage + 1)}>Next</Button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+
+                            {!hasSearched && !searching && (
+                                <div className="flex-1 flex items-center justify-center text-slate-400 py-24">
+                                    <div className="text-center">
+                                        <Search className="h-16 w-16 opacity-10 mx-auto mb-3" />
+                                        <p className="font-medium">Ask AI or use filters to search</p>
+                                        <p className="text-xs mt-1 opacity-60">Results will appear here</p>
+                                    </div>
+                                </div>
+                            )}
+                        </TabsContent>
+
+                        <TabsContent value="ai-analyse" className="flex flex-col gap-3 min-w-0 mt-0">
+                            {/* AI Analyse — vector-rank top20 → Stage3 pipeline */}
+                            <div className="bg-white border border-slate-200 rounded-xl shadow-sm px-4 py-3 flex flex-col gap-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-slate-500">AI Criteria</span>
+                                    <span className="text-xs text-slate-400">{allCandidateIds.length} candidates in pool</span>
+                                </div>
+                                <Textarea
+                                    value={aiCriteria}
+                                    onChange={(e) => setAiCriteria(e.target.value)}
+                                    placeholder="ระบุเกณฑ์ที่ต้องการให้ AI วิเคราะห์ เช่น ตำแหน่ง, ทักษะ, ประสบการณ์ที่ต้องการ..."
+                                    className="min-h-[60px] text-sm rounded-lg border-slate-200 resize-none"
+                                />
+                                <div className="flex items-center justify-between gap-2">
+                                    {analyseError && <span className="text-xs text-red-500">⚠️ {analyseError}</span>}
+                                    <Button
+                                        size="sm"
+                                        className="h-8 text-xs gap-1.5 ml-auto bg-indigo-600 hover:bg-indigo-700"
+                                        disabled={!aiCriteria.trim() || !allCandidateIds.length || analysing}
+                                        onClick={handleAIAnalyse}
+                                    >
+                                        {analysing
+                                            ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Analysing...</>
+                                            : <><Sparkles className="h-3.5 w-3.5" />AI Analyse</>}
+                                    </Button>
+                                </div>
                             </div>
 
-                            {/* Candidate Table */}
-                            <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
-                                <div className="px-4 py-2.5 border-b flex items-center justify-between shrink-0">
-                                    <span className="text-sm font-bold text-slate-700">
-                                        {searching ? "Searching..." : `${summary.total} candidates`}
-                                    </span>
-                                    {selectedIds.length > 0 && (
-                                        <Button size="sm" className="h-7 text-xs gap-1.5 rounded-lg" onClick={() => setAddDialogOpen(true)}>
-                                            <UserPlus className="h-3.5 w-3.5" />
-                                            Add {selectedIds.length} to JR
-                                        </Button>
-                                    )}
-                                </div>
-                                <div>
-                                    <CandidateTableView
-                                        candidates={candidates}
-                                        loading={searching}
-                                        selectedIds={selectedIds}
-                                        onToggleSelect={(id) => setSelectedIds(prev =>
-                                            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-                                        )}
-                                        onToggleSelectAll={(ids) => setSelectedIds(ids)}
-                                        showHotelColumn={filters.hotel_ratings.length > 0 || filters.hotel_chains.length > 0}
-                                    />
-                                </div>
-                                {totalPages > 1 && (
-                                    <div className="px-4 py-2.5 border-t flex items-center justify-between shrink-0">
-                                        <span className="text-xs text-slate-500">Page {currentPage} of {totalPages}</span>
-                                        <div className="flex gap-2">
-                                            <Button variant="outline" size="sm" className="h-7 text-xs" disabled={currentPage === 1} onClick={() => loadPage(currentPage - 1)}>Prev</Button>
-                                            <Button variant="outline" size="sm" className="h-7 text-xs" disabled={currentPage >= totalPages} onClick={() => loadPage(currentPage + 1)}>Next</Button>
-                                        </div>
-                                    </div>
+                            {/* Temporary: load AI Ranking results by job_id (Stage 2/3 pipeline) */}
+                            <div className="bg-white border border-slate-200 rounded-xl shadow-sm px-4 py-2.5 flex items-center gap-2">
+                                <span className="text-xs font-semibold text-slate-500 shrink-0">AI Ranking job_id:</span>
+                                <Input
+                                    value={jobIdInput}
+                                    onChange={(e) => setJobIdInput(e.target.value)}
+                                    placeholder="job_xxxxxxxxxxxxx"
+                                    className="h-8 text-xs max-w-xs"
+                                />
+                                <Button size="sm" className="h-8 text-xs" onClick={() => setActiveJobId(jobIdInput.trim() || null)}>
+                                    Load
+                                </Button>
+                                {jobHistory.length > 0 && (
+                                    <Select onValueChange={(jobId) => { setJobIdInput(jobId); setActiveJobId(jobId); }}>
+                                        <SelectTrigger className="h-8 w-56 text-xs">
+                                            <SelectValue placeholder="หรือเลือกจาก job ล่าสุด..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {jobHistory.map((job) => (
+                                                <SelectItem key={job.job_id} value={job.job_id} className="text-xs">
+                                                    {new Date(job.created_at).toLocaleString("th-TH", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                                                    {" · "}{job.status}
+                                                    {" · "}{job.query.slice(0, 30)}{job.query.length > 30 ? "…" : ""}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                                {activeJobId && (
+                                    <Button size="sm" variant="ghost" className="h-8 text-xs text-slate-400 hover:text-red-500" onClick={() => { setActiveJobId(null); setJobIdInput(""); }}>
+                                        Clear
+                                    </Button>
                                 )}
                             </div>
-                        </>
-                    )}
 
-                    {!hasSearched && !searching && (
-                        <div className="flex-1 flex items-center justify-center text-slate-400">
-                            <div className="text-center">
-                                <Search className="h-16 w-16 opacity-10 mx-auto mb-3" />
-                                <p className="font-medium">Ask AI or use filters to search</p>
-                                <p className="text-xs mt-1 opacity-60">Results will appear here</p>
-                            </div>
-                        </div>
-                    )}
+                            {activeJobId && <Stage3ResultsPanel jobId={activeJobId} />}
+
+                            {!activeJobId && (
+                                <div className="flex-1 flex items-center justify-center text-slate-400 py-24">
+                                    <div className="text-center">
+                                        <Sparkles className="h-16 w-16 opacity-10 mx-auto mb-3" />
+                                        <p className="font-medium">กรอก AI Criteria แล้วกด "AI Analyse"</p>
+                                        <p className="text-xs mt-1 opacity-60">หรือเลือก job ล่าสุดจาก dropdown ด้านบน</p>
+                                    </div>
+                                </div>
+                            )}
+                        </TabsContent>
+                    </Tabs>
                 </div>
             </div>
 
