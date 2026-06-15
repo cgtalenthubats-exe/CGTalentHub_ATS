@@ -6,7 +6,8 @@ import {
     Loader2, Mail, Phone, MapPin,
     Globe, Briefcase, GraduationCap,
     FileText, Calendar, ExternalLink, Download,
-    UserCog, Edit3, AlertCircle, Trash2, CheckSquare
+    UserCog, Edit3, AlertCircle, Trash2, CheckSquare,
+    ShieldCheck, User, Building2
 } from "lucide-react";
 import {
     AddExperienceDialog,
@@ -17,7 +18,7 @@ import {
 import { CandidateEditSheet } from "./candidate-edit-sheet";
 import { RefreshProfileButton } from "@/components/candidate-client-actions";
 import { StatusSelect } from "@/components/ui/status-select";
-import { getCandidateProfileDetails } from "@/app/actions/jr-candidate-logs";
+import { getCandidateProfileDetails, getReferenceChecks, type ReferenceCheck } from "@/app/actions/jr-candidate-logs";
 import { CandidateAvatar } from "@/components/candidate-avatar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -37,18 +38,29 @@ interface CandidateProfileSheetProps {
 export function CandidateProfileSheet({ candidateId, open, onOpenChange }: CandidateProfileSheetProps) {
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
+    const [fetchError, setFetchError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState("profile");
     const [isEditOpen, setIsEditOpen] = useState(false);
     const [selectedExpIds, setSelectedExpIds] = useState<string[]>([]);
     const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+    const [referenceChecks, setReferenceChecks] = useState<ReferenceCheck[] | null>(null);
+    const [referenceLoading, setReferenceLoading] = useState(false);
 
     const fetchData = useCallback(async (id: string, isSilent = false) => {
-        if (!isSilent) setLoading(true);
+        if (!isSilent) { setLoading(true); setFetchError(null); }
         try {
-            const result = await getCandidateProfileDetails(id);
-            setData(result);
+            const timeout = new Promise<"timeout">((resolve) => setTimeout(() => resolve("timeout"), 20000));
+            const result = await Promise.race([getCandidateProfileDetails(id), timeout]);
+            if (result === "timeout") {
+                setFetchError("โหลดข้อมูลใช้เวลานานเกินไป กรุณาลองใหม่");
+            } else if (!result) {
+                setFetchError("ไม่พบข้อมูล candidate นี้");
+            } else {
+                setData(result);
+            }
         } catch (err) {
             console.error("Error fetching candidate details:", err);
+            setFetchError("เกิดข้อผิดพลาดระหว่างโหลดข้อมูล");
         } finally {
             if (!isSilent) setLoading(false);
         }
@@ -57,11 +69,23 @@ export function CandidateProfileSheet({ candidateId, open, onOpenChange }: Candi
     useEffect(() => {
         if (!open || !candidateId) {
             setData(null);
+            setFetchError(null);
             setActiveTab("profile");
+            setReferenceChecks(null);
             return;
         }
+        setData(null);
+        setReferenceChecks(null);
         fetchData(candidateId);
     }, [candidateId, open, fetchData]);
+
+    useEffect(() => {
+        if (activeTab !== "reference" || !candidateId || referenceChecks !== null) return;
+        setReferenceLoading(true);
+        getReferenceChecks(candidateId)
+            .then(setReferenceChecks)
+            .finally(() => setReferenceLoading(false));
+    }, [activeTab, candidateId, referenceChecks]);
 
     const handleRefresh = () => {
         if (candidateId) fetchData(candidateId, true);
@@ -95,7 +119,14 @@ export function CandidateProfileSheet({ candidateId, open, onOpenChange }: Candi
                         {loading || !data ? "Candidate Details" : candidate?.name}
                     </SheetTitle>
 
-                    {loading || !data ? (
+                    {fetchError ? (
+                        <div className="flex items-center gap-4 py-2">
+                            <div className="h-12 w-12 rounded-full bg-rose-50 flex items-center justify-center text-rose-400">
+                                <AlertCircle className="h-5 w-5" />
+                            </div>
+                            <p className="text-sm font-bold text-slate-500">Candidate Details</p>
+                        </div>
+                    ) : loading || !data ? (
                         <div className="flex items-center gap-4 py-2">
                             <div className="h-12 w-12 rounded-full bg-slate-100 animate-pulse" />
                             <div className="space-y-2">
@@ -188,13 +219,35 @@ export function CandidateProfileSheet({ candidateId, open, onOpenChange }: Candi
                                 <HistoryIcon className="h-3 w-3" />
                                 History Record {meta?.history_count > 0 && `(${meta.history_count})`}
                             </TabsTrigger>
+                            <TabsTrigger value="reference" className="font-black text-xs uppercase tracking-widest px-6 data-[state=active]:bg-white data-[state=active]:text-emerald-600 data-[state=active]:shadow-sm flex gap-2">
+                                <ShieldCheck className="h-3 w-3" />
+                                Reference Check
+                            </TabsTrigger>
                         </TabsList>
                     </Tabs>
                 </div>
 
                 {/* Content Area */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
-                    {loading && !data ? (
+                    {fetchError ? (
+                        <div className="h-full flex flex-col items-center justify-center p-12 text-center space-y-4">
+                            <div className="p-4 bg-rose-50 rounded-2xl text-rose-400">
+                                <AlertCircle className="h-8 w-8" />
+                            </div>
+                            <div className="space-y-1">
+                                <p className="text-lg font-black text-slate-900 tracking-tight">โหลดข้อมูลไม่สำเร็จ</p>
+                                <p className="text-sm font-medium text-slate-400">{fetchError}</p>
+                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="font-bold"
+                                onClick={() => candidateId && fetchData(candidateId)}
+                            >
+                                ลองใหม่
+                            </Button>
+                        </div>
+                    ) : !data ? (
                         <div className="h-full flex flex-col items-center justify-center p-12 text-center space-y-4">
                             <Loader2 className="h-10 w-10 animate-spin text-indigo-500 opacity-50" />
                             <div className="space-y-1">
@@ -555,6 +608,86 @@ export function CandidateProfileSheet({ candidateId, open, onOpenChange }: Candi
                                         history={history}
                                         candidateName={candidate?.name || "Candidate"}
                                     />
+                                </div>
+                            )}
+
+                            {activeTab === "reference" && (
+                                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                    <div className="flex flex-col gap-1 mb-2">
+                                        <h2 className="text-xl font-black text-slate-800 tracking-tight">Reference Check</h2>
+                                        <p className="text-xs font-medium text-slate-400 italic">ผลการตรวจสอบ reference ของ candidate คนนี้</p>
+                                    </div>
+                                    {referenceLoading ? (
+                                        <div className="flex items-center justify-center py-16">
+                                            <Loader2 className="h-6 w-6 animate-spin text-emerald-400" />
+                                        </div>
+                                    ) : referenceChecks && referenceChecks.length > 0 ? (
+                                        <div className="space-y-4">
+                                            {referenceChecks.map((rc) => (
+                                                <div key={rc.id} className="bg-white rounded-2xl p-6 shadow-sm ring-1 ring-slate-100 space-y-3">
+                                                    <div className="flex flex-wrap items-start justify-between gap-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-2.5 bg-emerald-50 rounded-xl text-emerald-600 shadow-sm">
+                                                                <User className="h-5 w-5" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-sm font-black text-slate-900">{rc.referee_name || "Unknown Referee"}</p>
+                                                                <p className="text-xs font-bold text-slate-400">
+                                                                    {[rc.referee_position, rc.referee_company].filter(Boolean).join(" @ ") || "-"}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        {rc.overall_rating && (
+                                                            <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 text-[10px] font-black uppercase tracking-widest py-1">
+                                                                {rc.overall_rating}
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    {rc.relationship && (
+                                                        <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400">
+                                                            <Building2 className="h-3.5 w-3.5" />
+                                                            Relationship: {rc.relationship}
+                                                        </div>
+                                                    )}
+                                                    {rc.summary && (
+                                                        <p className="text-sm text-slate-600 font-medium leading-relaxed bg-slate-50/50 p-4 rounded-xl border border-dashed border-slate-200 whitespace-pre-line">
+                                                            {rc.summary}
+                                                        </p>
+                                                    )}
+                                                    {rc.sources && rc.sources.length > 0 && (
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                            {rc.sources.map((url, idx) => (
+                                                                <a
+                                                                    key={idx}
+                                                                    href={url}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded-lg transition-colors truncate max-w-[220px]"
+                                                                    title={url}
+                                                                >
+                                                                    <ExternalLink className="h-3 w-3 shrink-0" />
+                                                                    <span className="truncate">{url}</span>
+                                                                </a>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+                                                        <Calendar className="h-3 w-3" />
+                                                        {rc.checked_at ? new Date(rc.checked_at).toLocaleDateString("th-TH", { year: "numeric", month: "short", day: "numeric" }) : "-"}
+                                                        {rc.checked_by && ` · by ${rc.checked_by}`}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col items-center justify-center text-center py-16 bg-white rounded-2xl shadow-sm ring-1 ring-slate-100">
+                                            <div className="p-4 bg-emerald-50 rounded-2xl text-emerald-400 mb-4">
+                                                <ShieldCheck className="h-8 w-8" />
+                                            </div>
+                                            <p className="text-sm font-black text-slate-700">ยังไม่มีข้อมูล Reference Check</p>
+                                            <p className="text-xs font-medium text-slate-400 mt-1">candidate คนนี้ยังไม่มีการตรวจสอบ reference</p>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

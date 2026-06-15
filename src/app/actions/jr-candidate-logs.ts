@@ -349,3 +349,35 @@ export async function deleteInterviewFeedback(feedbackId: string | number) {
         return { success: false, error: e.message };
     }
 }
+
+export type ReferenceCheck = {
+    id: number;
+    candidate_id: string;
+    referee_name: string | null;
+    referee_position: string | null;
+    referee_company: string | null;
+    relationship: string | null;
+    overall_rating: string | null;
+    summary: string | null;
+    sources: string[] | null;
+    checked_by: string | null;
+    checked_at: string | null;
+    created_at: string;
+};
+
+export async function getReferenceChecks(candidateId: string): Promise<ReferenceCheck[]> {
+    const supabase = adminAuthClient;
+
+    const { data, error } = await (supabase as any)
+        .from('reference_checks')
+        .select('*')
+        .eq('candidate_id', candidateId)
+        .order('checked_at', { ascending: false });
+
+    if (error) {
+        console.error("Error fetching reference checks:", error);
+        return [];
+    }
+
+    return (data ?? []) as ReferenceCheck[];
+}
