@@ -21,6 +21,7 @@ export interface DemoFilterState {
     // Candidate status
     internal_only: boolean;
     // Profile filters
+    based_in_countries: string[];
     genders: string[];
     nationalities: string[];
     age_min: number | null;
@@ -49,6 +50,7 @@ export const EMPTY_FILTERS: DemoFilterState = {
     exclude_keywords: [],
     hotel_sub_brands: [],
     internal_only: false,
+    based_in_countries: [],
     genders: [],
     nationalities: [],
     age_min: null,

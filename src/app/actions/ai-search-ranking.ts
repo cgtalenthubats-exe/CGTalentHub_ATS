@@ -7,6 +7,7 @@ const N8N_VECTOR_RANK_URL = "https://n8n.srv1212906.hstgr.cloud/webhook/vector-r
 
 export type SearchJobData = {
     status: string;
+    query: string | null;
     summary: {
         highlights?: string[];
         top5?: any[];
@@ -151,7 +152,7 @@ export async function getSearchJobHistory(limit = 20): Promise<SearchJobSummary[
 export async function getSearchJobStatus(jobId: string): Promise<SearchJobData | null> {
     const { data: job } = await adminAuthClient
         .from("ai_search_jobs")
-        .select("status, summary, result_count")
+        .select("status, query, summary, result_count")
         .eq("job_id", jobId)
         .single();
 
@@ -167,7 +168,7 @@ export async function getSearchJobStatus(jobId: string): Promise<SearchJobData |
 
     const candidateIds = (results ?? []).map((r: any) => r.candidate_id);
     if (!candidateIds.length) {
-        return { status: jobData.status, summary: jobData.status === "completed" ? jobData.summary : null, results: [], result_count: jobData.result_count };
+        return { status: jobData.status, query: jobData.query ?? null, summary: jobData.status === "completed" ? jobData.summary : null, results: [], result_count: jobData.result_count };
     }
 
     const [profilesRes, expRes, enhanceRes] = await Promise.all([
@@ -220,6 +221,7 @@ export async function getSearchJobStatus(jobId: string): Promise<SearchJobData |
 
     return {
         status: jobData.status,
+        query: jobData.query ?? null,
         summary: jobData.status === "completed" ? jobData.summary : null,
         results: enriched,
         result_count: jobData.result_count,

@@ -809,6 +809,13 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
                     onChange={v => set("countries", v)}
                     placeholder="Search country..."
                 />
+                <FilterPopover
+                    label="Based in"
+                    options={availableCountries}
+                    selected={filters.based_in_countries}
+                    onChange={v => set("based_in_countries", v)}
+                    placeholder="Search country..."
+                />
 
                 <SectionLabel label="Other" />
                 <FilterPopover

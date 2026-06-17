@@ -14,6 +14,7 @@ function toRpcParams(f: DemoFilterState) {
         p_positions:          f.positions,
         p_companies:          f.companies,
         p_countries:          f.countries,
+        p_based_in_countries: f.based_in_countries,
         p_regions:            f.regions,
         p_hotel_ratings:      f.hotel_ratings,
         p_hotel_chains:       f.hotel_chains,
@@ -43,6 +44,7 @@ function hasAnyFilter(f: DemoFilterState) {
         f.positions.length > 0 ||
         f.companies.length > 0 ||
         f.countries.length > 0 ||
+        f.based_in_countries.length > 0 ||
         f.regions.length > 0 ||
         f.hotel_ratings.length > 0 ||
         f.hotel_chains.length > 0 ||
@@ -336,6 +338,17 @@ export async function getCohortAnalysis(candidateIds: string[]) {
     return data as import("@/app/ai-search-demo/types").CohortAnalysis;
 }
 
+// Expand position search terms via position_keyword_vocab
+// Returns vocab keywords that match the given search terms
+export async function expandPositionVocab(terms: string[]): Promise<string[]> {
+    if (terms.length === 0) return [];
+    const { data } = await (adminAuthClient as any)
+        .from("position_keyword_vocab")
+        .select("keyword")
+        .or(terms.map(t => `keyword.ilike.%${t}%,aliases.ilike.%${t}%`).join(","));
+    return (data ?? []).map((r: any) => r.keyword);
+}
+
 // Parse natural language query → filters + suggestions directly via Anthropic SDK
 // Replicates n8n "AI Parse Filters" workflow: keyword alias match → Claude Haiku → normalize
 export async function parseQueryToFilters(query: string): Promise<AiParseResult> {
@@ -389,6 +402,10 @@ Extract structured filters from the user's natural language query and return ONL
 position_levels (string[]): ${JSON.stringify(["C-Level", "VP", "Director", "Manager", "Supervisor", "Staff"])}
 
 countries (string[]): ${JSON.stringify(allCountries)}
+Use countries when user mentions a country as a work location (e.g. "worked in Thailand", "experience in Singapore").
+
+based_in_countries (string[]): ${JSON.stringify(allCountries)}
+Use based_in_countries when user mentions current location or where someone is based (e.g. "based in Thailand", "living in Bangkok", "currently in Thailand"). Use BOTH countries AND based_in_countries when the intent is ambiguous.
 
 regions (string[]): ${JSON.stringify(allRegions)}
 
@@ -459,6 +476,7 @@ function normalizeFilterShape(raw: Record<string, any>): Partial<DemoFilterState
         ...(raw.position_keywords !== undefined && { position_keywords: ensureArr(raw.position_keywords) }),
         ...(raw.position_levels !== undefined && { position_levels: ensureArr(raw.position_levels) }),
         ...(raw.countries !== undefined && { countries: ensureArr(raw.countries) }),
+        ...(raw.based_in_countries !== undefined && { based_in_countries: ensureArr(raw.based_in_countries) }),
         ...(raw.regions !== undefined && { regions: ensureArr(raw.regions) }),
         ...(raw.hotel_ratings !== undefined && { hotel_ratings: ensureArr(raw.hotel_ratings) }),
         ...(raw.hotel_chains !== undefined && { hotel_chains: ensureArr(raw.hotel_chains) }),

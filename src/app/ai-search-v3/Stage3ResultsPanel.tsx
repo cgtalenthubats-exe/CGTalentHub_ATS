@@ -174,8 +174,13 @@ function CandidateName({ r, className }: { r: SearchResult; className?: string }
 }
 
 // ── Top 3 Card ───────────────────────────────────
-function TopCard({ r, rank, activeCategory, onOpenProfile }: { r: SearchResult; rank: number; activeCategory: CategoryKey; onOpenProfile: (candidateId: string) => void }) {
-    const [expanded, setExpanded] = useState(false);
+function TopCard({ r, rank, activeCategory, onOpenProfile, isExpanded, onToggle, fullWidth = false }: {
+    r: SearchResult; rank: number; activeCategory: CategoryKey;
+    onOpenProfile: (candidateId: string) => void;
+    isExpanded: boolean;
+    onToggle: () => void;
+    fullWidth?: boolean;
+}) {
     const cat = CATEGORIES.find(c => c.key === activeCategory)!;
     const has4DimData = r.experience_score !== null;
 
@@ -190,88 +195,155 @@ function TopCard({ r, rank, activeCategory, onOpenProfile }: { r: SearchResult; 
             ? "bg-gradient-to-br from-slate-300 to-slate-400"
             : "bg-gradient-to-br from-orange-300 to-orange-400";
 
+    const dimDetails = has4DimData ? CATEGORIES.filter(c => c.key !== "overall" && c.summaryKey).map(c => ({
+        ...c,
+        summary: r[c.summaryKey as keyof SearchResult] as string | null,
+    })) : [];
+
     return (
         <div
-            className="relative bg-white border border-slate-200 rounded-xl p-4 flex flex-col gap-3 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-            onClick={() => setExpanded(v => !v)}
+            className="relative bg-white border border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+            onClick={onToggle}
         >
             <div className={`absolute -top-2.5 -left-2.5 w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shadow ${medalStyle}`}>
                 {rank}
             </div>
 
-            <div className="flex items-center gap-3">
-                <CandidateAvatar src={r.photo_url} name={r.name} className="h-16 w-16 ring-2 ring-slate-100 shrink-0" />
-                <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                        <CandidateName r={r} className="text-base font-bold text-slate-900 truncate" />
-                        <CandidateIdBadge candidateId={r.candidate_id} onClick={() => onOpenProfile(r.candidate_id)} />
+            {/* Full-width expanded layout */}
+            {fullWidth && isExpanded ? (
+                <div className="flex flex-col gap-3">
+                    {/* Header row */}
+                    <div className="flex items-center gap-3">
+                        <CandidateAvatar src={r.photo_url} name={r.name} className="h-16 w-16 ring-2 ring-slate-100 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                                <CandidateName r={r} className="text-base font-bold text-slate-900 truncate" />
+                                <CandidateIdBadge candidateId={r.candidate_id} onClick={() => onOpenProfile(r.candidate_id)} />
+                            </div>
+                            {(r.position || r.company) && (
+                                <p className="text-sm font-semibold text-slate-600 leading-snug mt-0.5">
+                                    {r.position}
+                                    {r.company && <span className="text-slate-400 font-medium"> @ {r.company}</span>}
+                                </p>
+                            )}
+                        </div>
+                        {/* Score badge on the right */}
+                        <div className="shrink-0 flex items-center gap-3">
+                            <div className="text-right">
+                                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{activeCategory === "overall" ? "Overall Score" : cat.label}</p>
+                                <span className={`text-3xl font-extrabold tabular-nums ${activeCategory === "overall" ? "text-indigo-600" : cat.color}`}>
+                                    {displayScore ?? "-"}<span className="text-xs text-slate-400 font-medium"> / {displayMax}</span>
+                                </span>
+                            </div>
+                        </div>
                     </div>
-                    {(r.position || r.company) && (
-                        <p className="text-sm font-semibold text-slate-600 leading-snug mt-0.5">
-                            {r.position}
-                            {r.company && <span className="text-slate-400 font-medium"> @ {r.company}</span>}
-                        </p>
-                    )}
-                </div>
-            </div>
 
-            {(r.age != null || r.address || r.linkedin) && (
-                <div className="grid grid-cols-2 gap-1.5">
-                    {r.age != null && <InfoChip icon={Cake} label="Age" value={`${r.age} ปี`} />}
-                    {r.linkedin && <InfoChip icon={Linkedin} label="LinkedIn" value="View Profile" href={r.linkedin} />}
-                    {r.address && <InfoChip icon={MapPin} label="Address" value={r.address} className="col-span-2" />}
-                </div>
-            )}
-
-            <div className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
-                    {activeCategory === "overall" ? "Overall Score" : cat.label}
-                </span>
-                <span className={`text-2xl font-extrabold tabular-nums ${activeCategory === "overall" ? "text-indigo-600" : cat.color}`}>
-                    {displayScore ?? "-"}<span className="text-xs text-slate-400 font-medium"> / {displayMax}</span>
-                </span>
-            </div>
-
-            {has4DimData && (
-                <div className="grid grid-cols-4 gap-1.5">
-                    {CATEGORIES.filter(c => c.key !== "overall" && c.scoreKey).map(c => (
-                        <div key={c.key} className={`flex flex-col items-center gap-0.5 rounded-lg py-1.5 ${c.bgColor} border ${c.borderColor}`}>
-                            <span className={`text-[10px] font-semibold ${c.color}`}>{c.label.split(" ")[0]}</span>
-                            <span className={`text-sm font-extrabold ${c.color}`}>{r[c.scoreKey as keyof SearchResult] as number}</span>
+                    {/* Info chips */}
+                    {(r.age != null || r.address || r.linkedin) && (
+                        <div className="flex flex-wrap gap-1.5">
+                            {r.age != null && <InfoChip icon={Cake} label="Age" value={`${r.age} ปี`} />}
+                            {r.linkedin && <InfoChip icon={Linkedin} label="LinkedIn" value="View Profile" href={r.linkedin} />}
+                            {r.address && <InfoChip icon={MapPin} label="Address" value={r.address} />}
                         </div>
-                    ))}
-                </div>
-            )}
+                    )}
 
-            {r.strengths && <p className="text-xs text-slate-600 leading-relaxed line-clamp-2">{r.strengths}</p>}
-
-            {expanded && (
-                <div className="pt-2 border-t border-slate-100 space-y-2">
-                    {r.gaps && <p className="text-xs text-rose-500 leading-relaxed">⚠ {r.gaps}</p>}
-                    {r.tradeoff && <p className="text-xs text-slate-500 italic leading-relaxed">↔ {r.tradeoff}</p>}
+                    {/* 4 dim badges */}
                     {has4DimData && (
-                        <div className="space-y-2">
-                            {CATEGORIES.filter(c => c.key !== "overall" && c.summaryKey).map(c => {
-                                const catSummary = r[c.summaryKey as keyof SearchResult] as string | null;
-                                const Icon = c.icon;
-                                return (
-                                    <div key={c.key} className={`p-2.5 rounded-lg ${c.bgColor} border ${c.borderColor}`}>
-                                        <div className="flex items-center gap-1.5 mb-1">
-                                            <Icon className={`w-3 h-3 ${c.color}`} />
-                                            <span className={`text-[11px] font-semibold ${c.color}`}>{c.label}</span>
-                                        </div>
-                                        <BulletInsights summary={catSummary} />
-                                    </div>
-                                );
-                            })}
+                        <div className="grid grid-cols-4 gap-1.5">
+                            {CATEGORIES.filter(c => c.key !== "overall" && c.scoreKey).map(c => (
+                                <div key={c.key} className={`flex flex-col items-center gap-0.5 rounded-lg py-1.5 ${c.bgColor} border ${c.borderColor}`}>
+                                    <span className={`text-[10px] font-semibold ${c.color}`}>{c.label.split(" ")[0]}</span>
+                                    <span className={`text-sm font-extrabold ${c.color}`}>{r[c.scoreKey as keyof SearchResult] as number}</span>
+                                </div>
+                            ))}
                         </div>
                     )}
+
+                    {/* Main body: 2-column */}
+                    <div className="grid grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                        {/* Left: strengths + gaps + tradeoff */}
+                        <div className="space-y-2">
+                            {r.strengths && <p className="text-xs text-slate-600 leading-relaxed">{r.strengths}</p>}
+                            {r.gaps && <p className="text-xs text-rose-500 leading-relaxed">⚠ {r.gaps}</p>}
+                            {r.tradeoff && <p className="text-xs text-slate-500 italic leading-relaxed">↔ {r.tradeoff}</p>}
+                        </div>
+                        {/* Right: dimension detail boxes in 2x2 */}
+                        {dimDetails.length > 0 && (
+                            <div className="grid grid-cols-2 gap-2">
+                                {dimDetails.map(c => {
+                                    const Icon = c.icon;
+                                    return (
+                                        <div key={c.key} className={`p-2.5 rounded-lg ${c.bgColor} border ${c.borderColor}`}>
+                                            <div className="flex items-center gap-1.5 mb-1">
+                                                <Icon className={`w-3 h-3 ${c.color}`} />
+                                                <span className={`text-[11px] font-semibold ${c.color}`}>{c.label}</span>
+                                            </div>
+                                            <BulletInsights summary={c.summary} />
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex justify-center">
+                        <ChevronUp className="w-3.5 h-3.5 text-slate-300" />
+                    </div>
+                </div>
+            ) : (
+                /* Collapsed / non-full-width layout */
+                <div className="flex flex-col gap-3">
+                    <div className="flex items-center gap-3">
+                        <CandidateAvatar src={r.photo_url} name={r.name} className="h-16 w-16 ring-2 ring-slate-100 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                                <CandidateName r={r} className="text-base font-bold text-slate-900 truncate" />
+                                <CandidateIdBadge candidateId={r.candidate_id} onClick={() => onOpenProfile(r.candidate_id)} />
+                            </div>
+                            {(r.position || r.company) && (
+                                <p className="text-sm font-semibold text-slate-600 leading-snug mt-0.5">
+                                    {r.position}
+                                    {r.company && <span className="text-slate-400 font-medium"> @ {r.company}</span>}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+
+                    {(r.age != null || r.address || r.linkedin) && (
+                        <div className="grid grid-cols-2 gap-1.5">
+                            {r.age != null && <InfoChip icon={Cake} label="Age" value={`${r.age} ปี`} />}
+                            {r.linkedin && <InfoChip icon={Linkedin} label="LinkedIn" value="View Profile" href={r.linkedin} />}
+                            {r.address && <InfoChip icon={MapPin} label="Address" value={r.address} className="col-span-2" />}
+                        </div>
+                    )}
+
+                    <div className="flex items-center justify-between bg-slate-50 rounded-lg px-3 py-2">
+                        <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">
+                            {activeCategory === "overall" ? "Overall Score" : cat.label}
+                        </span>
+                        <span className={`text-2xl font-extrabold tabular-nums ${activeCategory === "overall" ? "text-indigo-600" : cat.color}`}>
+                            {displayScore ?? "-"}<span className="text-xs text-slate-400 font-medium"> / {displayMax}</span>
+                        </span>
+                    </div>
+
+                    {has4DimData && (
+                        <div className="grid grid-cols-4 gap-1.5">
+                            {CATEGORIES.filter(c => c.key !== "overall" && c.scoreKey).map(c => (
+                                <div key={c.key} className={`flex flex-col items-center gap-0.5 rounded-lg py-1.5 ${c.bgColor} border ${c.borderColor}`}>
+                                    <span className={`text-[10px] font-semibold ${c.color}`}>{c.label.split(" ")[0]}</span>
+                                    <span className={`text-sm font-extrabold ${c.color}`}>{r[c.scoreKey as keyof SearchResult] as number}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {r.strengths && <p className="text-xs text-slate-600 leading-relaxed">{r.strengths}</p>}
+
+                    <div className="flex justify-center">
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-300" />
+                    </div>
                 </div>
             )}
-
-            <div className="flex justify-center">
-                {expanded ? <ChevronUp className="w-3.5 h-3.5 text-slate-300" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-300" />}
-            </div>
         </div>
     );
 }
@@ -388,6 +460,7 @@ export function Stage3ResultsPanel({ jobId }: Props) {
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [activeCategory, setActiveCategory] = useState<CategoryKey>("overall");
     const [profileCandidateId, setProfileCandidateId] = useState<string | null>(null);
+    const [expandedTopRank, setExpandedTopRank] = useState<number | null>(null);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const stopPolling = () => {
@@ -401,6 +474,7 @@ export function Stage3ResultsPanel({ jobId }: Props) {
         setErrorMsg(null);
         setPollingStatus(null);
         setActiveCategory("overall");
+        setExpandedTopRank(null);
 
         if (!jobId) {
             setStatus("idle");
@@ -469,12 +543,12 @@ export function Stage3ResultsPanel({ jobId }: Props) {
                 <div className="p-1.5 bg-indigo-100 rounded-lg">
                     <Sparkles className="w-4 h-4 text-indigo-600" />
                 </div>
-                <div>
-                    <p className="text-sm font-bold text-slate-800">AI Ranking — Top 20</p>
-                    <p className="text-xs text-slate-500">
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                        <p className="text-sm font-bold text-slate-800">AI Ranking — Top 20</p>
                         {status === "loading" && !data?.results.length && (
-                            <span className="text-indigo-600 flex items-center gap-1">
-                                <Loader2 className="w-3 h-3 animate-spin inline" />
+                            <span className="text-xs text-indigo-600 flex items-center gap-1">
+                                <Loader2 className="w-3 h-3 animate-spin" />
                                 {pollingStatus === "ready_to_analyse" && "รอ AI เริ่มประเมิน..."}
                                 {pollingStatus === "analysing" && "AI กำลังประเมิน..."}
                                 {pollingStatus === "pending_summary" && "AI กำลังสรุปผลและจัดอันดับ..."}
@@ -482,14 +556,18 @@ export function Stage3ResultsPanel({ jobId }: Props) {
                             </span>
                         )}
                         {status === "loading" && (data?.results.length ?? 0) > 0 && (
-                            <span className="text-indigo-600 flex items-center gap-1">
-                                <Loader2 className="w-3 h-3 animate-spin inline" />
+                            <span className="text-xs text-indigo-600 flex items-center gap-1">
+                                <Loader2 className="w-3 h-3 animate-spin" />
                                 {data?.results.length} / {data?.result_count ?? "?"} evaluated...
                             </span>
                         )}
-                        {status === "completed" && `Completed — ${data?.results.length ?? 0} candidates ranked`}
-                        {status === "error" && <span className="text-rose-500">{errorMsg ?? "Error"}</span>}
-                    </p>
+                        {status === "error" && <span className="text-xs text-rose-500">{errorMsg ?? "Error"}</span>}
+                    </div>
+                    {data?.query && (
+                        <p className="text-base font-medium text-slate-700 mt-1 leading-snug">
+                            {data.query}
+                        </p>
+                    )}
                 </div>
             </div>
 
@@ -507,11 +585,54 @@ export function Stage3ResultsPanel({ jobId }: Props) {
                 {sortedResults.length > 0 && (
                     <div className="space-y-4">
                         {/* Top 3 — visual cards */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                            {topResults.map((r, idx) => (
-                                <TopCard key={r.candidate_id} r={r} rank={idx + 1} activeCategory={activeCategory} onOpenProfile={setProfileCandidateId} />
-                            ))}
-                        </div>
+                        {expandedTopRank !== null ? (
+                            <div className="space-y-3">
+                                {/* Expanded card — full width */}
+                                <TopCard
+                                    key={topResults[expandedTopRank - 1]?.candidate_id}
+                                    r={topResults[expandedTopRank - 1]}
+                                    rank={expandedTopRank}
+                                    activeCategory={activeCategory}
+                                    onOpenProfile={setProfileCandidateId}
+                                    isExpanded={true}
+                                    onToggle={() => setExpandedTopRank(null)}
+                                    fullWidth={true}
+                                />
+                                {/* Other 2 — side by side */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    {topResults
+                                        .filter((_, i) => i + 1 !== expandedTopRank)
+                                        .map((r, _) => {
+                                            const rank = topResults.indexOf(r) + 1;
+                                            return (
+                                                <TopCard
+                                                    key={r.candidate_id}
+                                                    r={r}
+                                                    rank={rank}
+                                                    activeCategory={activeCategory}
+                                                    onOpenProfile={setProfileCandidateId}
+                                                    isExpanded={false}
+                                                    onToggle={() => setExpandedTopRank(rank)}
+                                                />
+                                            );
+                                        })}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                {topResults.map((r, idx) => (
+                                    <TopCard
+                                        key={r.candidate_id}
+                                        r={r}
+                                        rank={idx + 1}
+                                        activeCategory={activeCategory}
+                                        onOpenProfile={setProfileCandidateId}
+                                        isExpanded={false}
+                                        onToggle={() => setExpandedTopRank(idx + 1)}
+                                    />
+                                ))}
+                            </div>
+                        )}
 
                         {/* Summary banner */}
                         {status === "completed" && data?.summary?.final_recommendation && (

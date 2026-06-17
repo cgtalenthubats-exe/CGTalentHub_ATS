@@ -42,14 +42,14 @@ const MODELS = [
 
 const PAGE_SIZE = 20;
 const STORAGE_KEY = "ai-search-v3-messages-v2";
-const N8N_WEBHOOK = "https://n8n.srv1212906.hstgr.cloud/webhook/ai-search-chat";
+const N8N_WEBHOOK = "https://n8n.srv1212906.hstgr.cloud/webhook/0777f5b4-867c-499e-b412-d5daecefefb5";
 const VECTOR_RANK_WEBHOOK = "https://n8n.srv1212906.hstgr.cloud/webhook/vector-rank";
 
 type ChatMsg = { id: string; role: "user" | "assistant"; content: string; filters?: any; sessionId?: string; jdText?: string };
 
 function hasMeaningfulFilters(f: any): boolean {
     if (!f) return false;
-    const arrayKeys = ["position_search", "position_levels", "countries", "hotel_ratings", "hotel_chains", "industries", "genders"];
+    const arrayKeys = ["position_keywords", "position_search", "position_levels", "countries", "hotel_ratings", "hotel_chains", "industries", "genders"];
     return arrayKeys.some((k) => Array.isArray(f[k]) && f[k].length > 0);
 }
 
@@ -153,13 +153,31 @@ export default function AISearchV3Page() {
         });
     }
 
-    function applyFiltersFromAI(f: any) {
+    async function applyFiltersFromAI(f: any) {
+        const baseKeywords: string[] = f.position_keywords ?? [];
+        const searchTerms: string[] = f.position_search ?? [];
+
+        // get all suggestions for each search term (same items user sees in dropdown)
+        const allSuggestions: Array<{ label: string; type: "keyword" | "position" }> = [];
+        for (const term of searchTerms) {
+            const suggestions = await searchPositionSuggestions(term);
+            allSuggestions.push(...suggestions);
+        }
+
+        const expandedKeywords = allSuggestions.filter(s => s.type === "keyword").map(s => s.label);
+        const expandedPositions = allSuggestions.filter(s => s.type === "position").map(s => s.label);
+
+        const mergedKeywords = Array.from(new Set([...baseKeywords, ...expandedKeywords]));
+        const mergedPositions = Array.from(new Set([...searchTerms, ...expandedPositions]));
+
         const newFilters: DemoFilterState = {
             ...EMPTY_FILTERS,
-            position_search: f.position_search ?? [],
+            position_keywords: mergedKeywords,
+            position_search: mergedPositions,
             position_levels: f.position_levels ?? [],
             hotel_ratings: f.hotel_ratings ?? [],
             countries: f.countries ?? [],
+            based_in_countries: f.based_in_countries ?? [],
             industries: f.industries ?? [],
             hotel_chains: resolveChainNames(f.hotel_chains ?? []),
             genders: f.genders ?? [],
