@@ -49,7 +49,7 @@ type ChatMsg = { id: string; role: "user" | "assistant"; content: string; filter
 
 function hasMeaningfulFilters(f: any): boolean {
     if (!f) return false;
-    const arrayKeys = ["position_keywords", "position_search", "position_levels", "countries", "hotel_ratings", "hotel_chains", "industries", "genders"];
+    const arrayKeys = ["position_keywords", "position_search", "position_levels", "companies", "countries", "based_in_countries", "hotel_ratings", "hotel_chains", "industries", "genders"];
     return arrayKeys.some((k) => Array.isArray(f[k]) && f[k].length > 0);
 }
 
@@ -175,6 +175,7 @@ export default function AISearchV3Page() {
             position_keywords: mergedKeywords,
             position_search: mergedPositions,
             position_levels: f.position_levels ?? [],
+            companies: f.companies ?? [],
             hotel_ratings: f.hotel_ratings ?? [],
             countries: f.countries ?? [],
             based_in_countries: f.based_in_countries ?? [],
