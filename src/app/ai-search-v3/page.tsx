@@ -153,6 +153,19 @@ export default function AISearchV3Page() {
         });
     }
 
+    function expandCompanyAliases(companies: string[]): string[] {
+        const result: string[] = [];
+        for (const name of companies) {
+            const match = name.match(/^(.+?)\s*\((.+?)\)$/);
+            if (match) {
+                result.push(match[1].trim(), match[2].trim());
+            } else {
+                result.push(name);
+            }
+        }
+        return Array.from(new Set(result));
+    }
+
     async function applyFiltersFromAI(f: any) {
         const baseKeywords: string[] = f.position_keywords ?? [];
         const searchTerms: string[] = f.position_search ?? [];
@@ -170,12 +183,22 @@ export default function AISearchV3Page() {
         const mergedKeywords = Array.from(new Set([...baseKeywords, ...expandedKeywords]));
         const mergedPositions = Array.from(new Set([...searchTerms, ...expandedPositions]));
 
+        // expand company terms: split aliases → look up exact names from DB
+        const splitTerms = expandCompanyAliases(f.companies ?? []);
+        const expandedCompanyNames: string[] = [];
+        for (const term of splitTerms) {
+            if (term.trim().length < 2) continue;
+            const results = await searchCompanySuggestions(term);
+            expandedCompanyNames.push(...results);
+        }
+        const mergedCompanies = Array.from(new Set(expandedCompanyNames));
+
         const newFilters: DemoFilterState = {
             ...EMPTY_FILTERS,
             position_keywords: mergedKeywords,
             position_search: mergedPositions,
             position_levels: f.position_levels ?? [],
-            companies: f.companies ?? [],
+            companies: mergedCompanies,
             hotel_ratings: f.hotel_ratings ?? [],
             countries: f.countries ?? [],
             based_in_countries: f.based_in_countries ?? [],
