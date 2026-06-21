@@ -29,6 +29,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.105.1",
+    "@tanstack/react-virtual": "^3.14.3",
     "@types/d3-scale": "^4.0.9",
     "@types/papaparse": "^5.5.2",
     "@types/uuid": "^10.0.0",

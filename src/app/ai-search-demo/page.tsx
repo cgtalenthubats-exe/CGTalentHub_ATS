@@ -199,6 +199,7 @@ export default function AiSearchDemoPage() {
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
     const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
     const cascadeRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+    const cascadeGenRef = useRef(0);
 
     // Secondary filter (client-side, within loaded result set) — MSFilter style
     const [subSearch, setSubSearch] = useState("");
@@ -293,15 +294,17 @@ export default function AiSearchDemoPage() {
         });
     }, []);
 
-    // Cascading options + dynamic chain counts — debounced 500ms
+    // Cascading options + dynamic chain counts — debounced 500ms with stale-response guard
     useEffect(() => {
         clearTimeout(cascadeRef.current);
         setCascadeLoading(true);
+        const gen = ++cascadeGenRef.current;
         cascadeRef.current = setTimeout(() => {
             void Promise.all([
                 getCascadingFilterOptions(pendingFilters),
                 getFilteredChainCounts(pendingFilters),
             ]).then(([cascadeData, chainData]) => {
+                if (gen !== cascadeGenRef.current) return; // stale response — discard
                 setCascadingOptions(cascadeData);
                 if (chainData) setDynamicChainCounts(chainData);
                 setCascadeLoading(false);
@@ -309,11 +312,12 @@ export default function AiSearchDemoPage() {
         }, 500);
     }, [pendingFilters]);
 
-    // Fetch page when page number changes (after initial search)
+    // Fetch page when page number changes — slice IDs on client to avoid large payload
     useEffect(() => {
         if (allCandidateIds.length === 0) return;
         setPageLoading(true);
-        void fetchCandidatePage(allCandidateIds, currentPage, PAGE_SIZE).then((data) => {
+        const pageIds = allCandidateIds.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+        void fetchCandidatePage(pageIds, 1, PAGE_SIZE).then((data) => {
             setCandidates(data);
             setPageLoading(false);
         });
@@ -330,8 +334,8 @@ export default function AiSearchDemoPage() {
             setAllCandidatesData([]); // reset full dataset on new search
             clearSubFilters();
             setSummary({ total: result.total, current: result.current, past: result.past, companies: result.companies, countries: result.countries ?? 0 });
-            // Fetch page 1
-            const page1 = await fetchCandidatePage(result.candidateIds, 1, PAGE_SIZE);
+            // Fetch page 1 — slice on client to avoid sending full IDs array
+            const page1 = await fetchCandidatePage(result.candidateIds.slice(0, PAGE_SIZE), 1, PAGE_SIZE);
             setCandidates(page1);
             // Fetch all data in background so sub-filter options are always complete
             if (result.candidateIds.length > 0) {

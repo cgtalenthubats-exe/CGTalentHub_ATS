@@ -3,8 +3,11 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
     Bot, User, Send, Loader2, Sparkles, ChevronDown, ChevronUp,
-    RotateCcw, Search, UserPlus, Trash2, Users, TrendingUp, Building2, Globe, Filter
+    RotateCcw, Search, UserPlus, Trash2, Users, TrendingUp, Building2, Globe, Filter, AlertCircle, X
 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import {
     getDemoFilterOptions,
     getCascadingFilterOptions,
+    getFilteredChainCounts,
     searchDemoCandidates,
     fetchCandidatePage,
     searchPositionSuggestions,
@@ -33,6 +37,75 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+function SubMSFilter({ label, options, selected, setSelected }: {
+    label: string; options: string[]; selected: string[]; setSelected: (v: string[]) => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const [pending, setPending] = useState<string[]>([]);
+    const [search, setSearch] = useState('');
+    const handleOpenChange = (isOpen: boolean) => {
+        if (isOpen) { setPending([...selected]); setSearch(''); }
+        setOpen(isOpen);
+    };
+    const filtered = search ? options.filter(o => o.toLowerCase().includes(search.toLowerCase())) : options;
+    const toggle = (val: string) => setPending(p => p.includes(val) ? p.filter(x => x !== val) : [...p, val]);
+    const apply = () => { setSelected([...pending]); setOpen(false); };
+    const clear = () => { setPending([]); setSelected([]); setOpen(false); };
+    return (
+        <Popover open={open} onOpenChange={handleOpenChange}>
+            <PopoverTrigger asChild>
+                <button className={cn(
+                    "h-8 inline-flex items-center gap-1.5 rounded-lg border px-3 text-xs font-semibold shadow-sm whitespace-nowrap transition-all",
+                    selected.length > 0 ? "bg-indigo-50 border-indigo-300 text-indigo-700" : "bg-white border-slate-200 text-slate-500 hover:border-slate-300"
+                )}>
+                    {selected.length > 0 ? `${label} (${selected.length})` : label}
+                    <ChevronDown className="h-3 w-3 opacity-50" />
+                </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-[240px] p-0 shadow-xl border-slate-100 rounded-xl z-50">
+                <div className="px-3 py-2 border-b border-slate-100">
+                    <div className="mb-1.5 text-[10px] font-black uppercase text-slate-400 tracking-widest">{label}</div>
+                    <input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)}
+                        className="w-full text-xs px-2 py-1.5 border border-slate-200 rounded-md outline-none focus:ring-1 focus:ring-indigo-300 bg-white" />
+                </div>
+                {filtered.length > 0 && (() => {
+                    const allSel = filtered.every(o => pending.includes(o));
+                    return (
+                        <div className="px-2 py-1.5 border-b border-slate-100">
+                            <label className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-50 cursor-pointer select-none" onClick={() => {
+                                if (allSel) setPending(p => p.filter(x => !filtered.includes(x)));
+                                else setPending(p => [...new Set([...p, ...filtered])]);
+                            }}>
+                                <Checkbox checked={allSel} onCheckedChange={() => {
+                                    if (allSel) setPending(p => p.filter(x => !filtered.includes(x)));
+                                    else setPending(p => [...new Set([...p, ...filtered])]);
+                                }} className="border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600 shrink-0" />
+                                <span className="text-xs font-semibold text-slate-600">Select All</span>
+                            </label>
+                        </div>
+                    );
+                })()}
+                <ScrollArea className="max-h-[200px]">
+                    <div className="p-2 flex flex-col gap-0.5">
+                        {filtered.length === 0 && <div className="text-xs text-slate-400 text-center py-3">No options</div>}
+                        {filtered.map(opt => (
+                            <label key={opt} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-xs font-medium text-slate-700">
+                                <Checkbox checked={pending.includes(opt)} onCheckedChange={() => toggle(opt)}
+                                    className="border-slate-300 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600 shrink-0" />
+                                <span className="leading-snug">{opt}</span>
+                            </label>
+                        ))}
+                    </div>
+                </ScrollArea>
+                <div className="flex gap-2 p-2 border-t border-slate-100">
+                    <button onClick={clear} className="flex-1 text-xs text-red-500 hover:text-red-700 font-semibold py-1.5 border border-red-100 rounded-md hover:bg-red-50">Clear</button>
+                    <button onClick={apply} className="flex-1 text-xs bg-indigo-600 text-white rounded-md py-1.5 font-semibold hover:bg-indigo-700">Apply</button>
+                </div>
+            </PopoverContent>
+        </Popover>
+    );
+}
 
 const MODELS = [
     { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
@@ -49,8 +122,14 @@ type ChatMsg = { id: string; role: "user" | "assistant"; content: string; filter
 
 function hasMeaningfulFilters(f: any): boolean {
     if (!f) return false;
-    const arrayKeys = ["position_keywords", "position_search", "position_levels", "companies", "countries", "based_in_countries", "hotel_ratings", "hotel_chains", "industries", "genders"];
-    return arrayKeys.some((k) => Array.isArray(f[k]) && f[k].length > 0);
+    const arrayKeys = [
+        "position_keywords", "position_search", "position_levels",
+        "companies", "countries", "based_in_countries", "regions",
+        "hotel_ratings", "hotel_chains", "hotel_sub_brands",
+        "industries", "job_functions", "genders", "nationalities",
+        "exclude_companies", "exclude_countries", "exclude_keywords",
+    ];
+    return arrayKeys.some((k) => Array.isArray(f[k]) && f[k].length > 0) || f.current_only === true;
 }
 
 function SummaryCard({ label, value, icon: Icon, color }: { label: string; value: number | string; icon: any; color: string }) {
@@ -84,10 +163,80 @@ export default function AISearchV3Page() {
 
     const [allCandidateIds, setAllCandidateIds] = useState<string[]>([]);
     const [candidates, setCandidates] = useState<any[]>([]);
+    const [allCandidatesData, setAllCandidatesData] = useState<any[]>([]);
+    const [allDataLoading, setAllDataLoading] = useState(false);
     const [summary, setSummary] = useState({ total: 0, current: 0, past: 0, companies: 0, countries: 0 });
     const [currentPage, setCurrentPage] = useState(1);
     const [searching, setSearching] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
+
+    // Sub-filter state (client-side, within fetched result set)
+    const [subSearch, setSubSearch] = useState("");
+    const [subPosition, setSubPosition] = useState<string[]>([]);
+    const [subCompany, setSubCompany] = useState<string[]>([]);
+    const [subCountry, setSubCountry] = useState<string[]>([]);
+    const [subNationality, setSubNationality] = useState<string[]>([]);
+    const [subGender, setSubGender] = useState<string[]>([]);
+    const [subHotelRating, setSubHotelRating] = useState<string[]>([]);
+    const [subScope, setSubScope] = useState<'latest' | 'current' | 'all'>('latest');
+    const hasSubFilter = !!(subSearch || subPosition.length || subCompany.length || subCountry.length || subNationality.length || subGender.length || subHotelRating.length);
+    const clearSubFilters = () => { setSubSearch(""); setSubPosition([]); setSubCompany([]); setSubCountry([]); setSubNationality([]); setSubGender([]); setSubHotelRating([]); };
+
+    const getScopedExps = (c: any) => {
+        const exps: any[] = c.experiences ?? [];
+        if (subScope === 'current') return exps.filter((e: any) => e.is_current_job === 'Current');
+        if (subScope === 'latest') {
+            const cur = exps.find((e: any) => e.is_current_job === 'Current');
+            return cur ? [cur] : exps.slice(0, 1);
+        }
+        return exps;
+    };
+
+    const subOptions = React.useMemo(() => {
+        const uniq = (arr: (string|null|undefined)[]) => Array.from(new Set(arr.filter(Boolean))).sort() as string[];
+        const src = allCandidatesData.length > 0 ? allCandidatesData : candidates;
+        const allExpsOf = (c: any) => {
+            const exps: any[] = c.experiences ?? [];
+            if (subScope === 'current') return exps.filter((e: any) => e.is_current_job === 'Current');
+            if (subScope === 'latest') { const cur = exps.find((e: any) => e.is_current_job === 'Current'); return cur ? [cur] : exps.slice(0, 1); }
+            return exps;
+        };
+        return {
+            positions:     uniq(src.flatMap(c => allExpsOf(c).map((e: any) => e.position))),
+            companies:     uniq(src.flatMap(c => allExpsOf(c).map((e: any) => e.company))),
+            countries:     uniq(src.flatMap(c => allExpsOf(c).map((e: any) => e.country))),
+            nationalities: uniq(src.map(c => c.nationality)),
+            genders:       uniq(src.map(c => c.gender)),
+            hotelRatings:  uniq(src.flatMap(c => allExpsOf(c).map((e: any) => e.hotel_rating))),
+        };
+    }, [allCandidatesData, candidates, subScope]);
+
+    const applySubFilter = React.useCallback((data: any[]) => {
+        if (!hasSubFilter) return data;
+        return data.filter(c => {
+            const scopedExps = getScopedExps(c);
+            if (subSearch) {
+                const q = subSearch.toLowerCase();
+                if (!c.name?.toLowerCase().includes(q) && !scopedExps.some((e: any) => e.position?.toLowerCase().includes(q) || e.company?.toLowerCase().includes(q))) return false;
+            }
+            if (subPosition.length && !scopedExps.some((e: any) => subPosition.includes(e.position))) return false;
+            if (subCompany.length && !scopedExps.some((e: any) => subCompany.includes(e.company))) return false;
+            if (subCountry.length && !scopedExps.some((e: any) => subCountry.includes(e.country))) return false;
+            if (subNationality.length && !subNationality.includes(c.nationality)) return false;
+            if (subGender.length && !subGender.includes(c.gender)) return false;
+            if (subHotelRating.length && !scopedExps.some((e: any) => subHotelRating.includes(e.hotel_rating))) return false;
+            return true;
+        });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [subSearch, subPosition, subCompany, subCountry, subNationality, subGender, subHotelRating, subScope]);
+
+    const sourceData = hasSubFilter && allCandidatesData.length > 0 ? allCandidatesData : candidates;
+    const allFiltered = React.useMemo(() => applySubFilter(sourceData), [applySubFilter, sourceData]);
+    const displayCandidates = React.useMemo(() => {
+        if (!hasSubFilter) return candidates;
+        const start = (currentPage - 1) * PAGE_SIZE;
+        return allFiltered.slice(start, start + PAGE_SIZE);
+    }, [hasSubFilter, candidates, allFiltered, currentPage]);
 
     const [addDialogOpen, setAddDialogOpen] = useState(false);
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -102,6 +251,13 @@ export default function AISearchV3Page() {
     const [analyseError, setAnalyseError] = useState<string | null>(null);
     const [resultTab, setResultTab] = useState("candidates");
     const chatContainerRef = useRef<HTMLDivElement>(null);
+    const cascadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const autoSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const cascadeGenRef = useRef(0);
+    const resultsRef = useRef<HTMLDivElement>(null);
+
+    const [filtersChangedSinceSearch, setFiltersChangedSinceSearch] = useState(false);
+    const [searchError, setSearchError] = useState<string | null>(null);
 
     // Load from localStorage after mount
     useEffect(() => {
@@ -135,8 +291,10 @@ export default function AISearchV3Page() {
 
 
     const updateCascading = useCallback(async (f: DemoFilterState) => {
+        const gen = ++cascadeGenRef.current;
         setCascadeLoading(true);
         const opts = await getCascadingFilterOptions(f);
+        if (gen !== cascadeGenRef.current) return; // stale response — newer request in flight
         setCascadingOptions(opts);
         setCascadeLoading(false);
     }, []);
@@ -145,11 +303,11 @@ export default function AISearchV3Page() {
         if (!chainCounts.length) return chains;
         return chains.map(chain => {
             const lower = chain.toLowerCase();
-            const match = chainCounts.find(c => {
-                const cLower = c.chain_name.toLowerCase();
-                return cLower.includes(lower) || lower.includes(cLower.split(' ')[0]);
-            });
-            return match?.chain_name ?? chain;
+            // exact match first, then DB name contains the AI-supplied term (never reverse — avoids false positives)
+            const exact = chainCounts.find(c => c.chain_name.toLowerCase() === lower);
+            if (exact) return exact.chain_name;
+            const contains = chainCounts.find(c => c.chain_name.toLowerCase().includes(lower));
+            return contains?.chain_name ?? chain;
         });
     }
 
@@ -178,10 +336,10 @@ export default function AISearchV3Page() {
         }
 
         const expandedKeywords = allSuggestions.filter(s => s.type === "keyword").map(s => s.label);
-        const expandedPositions = allSuggestions.filter(s => s.type === "position").map(s => s.label);
 
         const mergedKeywords = Array.from(new Set([...baseKeywords, ...expandedKeywords]));
-        const mergedPositions = Array.from(new Set([...searchTerms, ...expandedPositions]));
+        // Don't expand raw positions — RPC handles ILIKE matching, expanding causes 500+ patterns → timeout
+        const mergedPositions = Array.from(new Set([...searchTerms]));
 
         // expand company terms: split aliases → look up exact names from DB
         const splitTerms = expandCompanyAliases(f.companies ?? []);
@@ -210,35 +368,70 @@ export default function AISearchV3Page() {
         };
         setFilters(newFilters);
         runSearch(newFilters);
+        updateCascading(newFilters);
     }
 
     async function runSearch(f: DemoFilterState) {
         setSearching(true);
         setHasSearched(true);
+        setFiltersChangedSinceSearch(false);
+        setSearchError(null);
         setCurrentPage(1);
         setCandidates([]);
+        setAllCandidatesData([]);
+        clearSubFilters();
         try {
             const result = await searchDemoCandidates(f);
             setAllCandidateIds(result.candidateIds);
             setSummary({ total: result.total, current: result.current, past: result.past, companies: result.companies, countries: result.countries ?? 0 });
             if (result.candidateIds.length > 0) {
-                const page = await fetchCandidatePage(result.candidateIds, 1, PAGE_SIZE);
+                const firstPageIds = result.candidateIds.slice(0, PAGE_SIZE);
+                const page = await fetchCandidatePage(firstPageIds, 1, PAGE_SIZE);
                 setCandidates(page);
+                // Background fetch all candidates for sub-filter
+                setAllDataLoading(true);
+                void fetchCandidatePage(result.candidateIds, 1, result.candidateIds.length).then(all => {
+                    setAllCandidatesData(all);
+                    setAllDataLoading(false);
+                });
             }
+            setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100);
+        } catch (e: any) {
+            setSearchError("ค้นหาไม่สำเร็จ กรุณาลองใหม่");
         } finally {
             setSearching(false);
         }
     }
 
     async function loadPage(page: number) {
-        const data = await fetchCandidatePage(allCandidateIds, page, PAGE_SIZE);
+        const pageIds = allCandidateIds.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+        const data = await fetchCandidatePage(pageIds, 1, PAGE_SIZE);
         setCandidates(data);
         setCurrentPage(page);
     }
 
     const handleFilterChange = (f: DemoFilterState) => {
         setFilters(f);
-        updateCascading(f);
+        if (hasSearched) setFiltersChangedSinceSearch(true);
+        if (cascadeTimerRef.current) clearTimeout(cascadeTimerRef.current);
+        cascadeTimerRef.current = setTimeout(() => {
+            updateCascading(f);
+            // update chain counts dynamically when non-chain filters change
+            const hasOtherFilters =
+                f.position_keywords.length > 0 || f.position_levels.length > 0 ||
+                f.position_search.length > 0 || f.countries.length > 0 ||
+                f.regions.length > 0 || f.industries.length > 0 ||
+                f.job_functions.length > 0 || f.hotel_ratings.length > 0 ||
+                f.companies.length > 0 || f.current_only;
+            if (hasOtherFilters) {
+                getFilteredChainCounts(f).then(counts => { if (counts) setChainCounts(counts); });
+            }
+        }, 400);
+    };
+
+    const handleChainAutoSearch = (f: DemoFilterState) => {
+        if (autoSearchTimerRef.current) clearTimeout(autoSearchTimerRef.current);
+        autoSearchTimerRef.current = setTimeout(() => runSearch(f), 600);
     };
 
     const clearChat = () => {
@@ -347,11 +540,25 @@ export default function AISearchV3Page() {
         if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
     };
 
-    const activeFilterCount = [
-        filters.position_search.length, filters.position_levels.length,
-        filters.hotel_ratings.length, filters.countries.length,
-        filters.industries.length, filters.hotel_chains.length,
-    ].reduce((a, b) => a + b, 0);
+    const activeFilterCount =
+        filters.position_search.length +
+        filters.position_keywords.length +
+        filters.position_levels.length +
+        filters.hotel_ratings.length +
+        filters.hotel_chains.length +
+        filters.hotel_sub_brands.length +
+        filters.countries.length +
+        filters.based_in_countries.length +
+        filters.regions.length +
+        filters.industries.length +
+        filters.companies.length +
+        filters.job_functions.length +
+        filters.genders.length +
+        filters.nationalities.length +
+        filters.exclude_companies.length +
+        filters.exclude_countries.length +
+        filters.exclude_keywords.length +
+        (filters.current_only ? 1 : 0);
 
     const totalPages = Math.ceil(summary.total / PAGE_SIZE);
 
@@ -490,7 +697,7 @@ export default function AISearchV3Page() {
                         subBrandsByChain={subBrandsByChain}
                         filters={filters}
                         onFiltersChange={handleFilterChange}
-                        onAutoSearch={runSearch}
+                        onAutoSearch={handleChainAutoSearch}
                     />
                 </div>
             )}
@@ -523,16 +730,28 @@ export default function AISearchV3Page() {
                     </Button>
                     {activeFilterCount > 0 && (
                         <button
-                            onClick={() => { setFilters(EMPTY_FILTERS); setCascadingOptions(null); }}
+                            onClick={() => { setFilters(EMPTY_FILTERS); setCascadingOptions(null); setFiltersChangedSinceSearch(false); setSearchError(null); }}
                             className="flex items-center justify-center gap-1 text-xs text-slate-400 hover:text-red-500 py-1"
                         >
                             <RotateCcw className="h-3 w-3" /> Reset filters
                         </button>
                     )}
+                    {filtersChangedSinceSearch && hasSearched && (
+                        <div className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
+                            <AlertCircle className="h-3 w-3 shrink-0" />
+                            <span>Filter เปลี่ยนแล้ว — กด Search เพื่อดูผลใหม่</span>
+                        </div>
+                    )}
+                    {filters.position_search.length > 10 && (
+                        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
+                            💡 <strong>Tip:</strong> Using <strong>KW</strong> filters instead of raw position titles is significantly faster
+                            — "General Manager KW" automatically covers all variations.
+                        </div>
+                    )}
                 </div>
 
                 {/* Right: Summary + Results */}
-                <div className="flex-1 flex flex-col gap-3 min-w-0">
+                <div ref={resultsRef} className="flex-1 flex flex-col gap-3 min-w-0">
                     <Tabs value={resultTab} onValueChange={setResultTab} className="flex flex-col gap-3 min-w-0">
                         <TabsList className="self-start">
                             <TabsTrigger value="candidates">
@@ -555,11 +774,66 @@ export default function AISearchV3Page() {
                                         <SummaryCard label="Countries" value={searching ? "…" : summary.countries} icon={Globe} color="bg-teal-500" />
                                     </div>
 
+                                    {/* Sub-filter bar — client-side filter within fetched results */}
+                                    {candidates.length > 0 && (
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest mr-1">Filters:</span>
+                                            <div className="flex items-center h-8 bg-slate-100 rounded-lg p-0.5 gap-0.5 shrink-0">
+                                                {([
+                                                    { key: 'latest',  label: 'Current+Latest' },
+                                                    { key: 'current', label: 'Current Only' },
+                                                    { key: 'all',     label: 'All Exp.' },
+                                                ] as const).map(({ key, label }) => (
+                                                    <button key={key} onClick={() => setSubScope(key)}
+                                                        className={cn("h-7 px-2.5 rounded-md text-[11px] font-semibold transition-all whitespace-nowrap",
+                                                            subScope === key ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                                                        )}>
+                                                        {label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                            <div className="relative">
+                                                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-400" />
+                                                <input value={subSearch} onChange={e => setSubSearch(e.target.value)} placeholder="Search all fields..."
+                                                    className="h-8 pl-6 pr-2.5 text-xs border border-slate-200 rounded-lg outline-none focus:ring-1 focus:ring-indigo-300 w-40 shadow-sm bg-white" />
+                                            </div>
+                                            <SubMSFilter label="Position"     options={subOptions.positions}     selected={subPosition}    setSelected={setSubPosition} />
+                                            <SubMSFilter label="Company"      options={subOptions.companies}     selected={subCompany}     setSelected={setSubCompany} />
+                                            <SubMSFilter label="Country"      options={subOptions.countries}     selected={subCountry}     setSelected={setSubCountry} />
+                                            <SubMSFilter label="Nationality"  options={subOptions.nationalities} selected={subNationality} setSelected={setSubNationality} />
+                                            <SubMSFilter label="Gender"       options={subOptions.genders}       selected={subGender}      setSelected={setSubGender} />
+                                            <SubMSFilter label="Hotel Rating" options={subOptions.hotelRatings}  selected={subHotelRating} setSelected={setSubHotelRating} />
+                                            {hasSubFilter && (
+                                                <>
+                                                    <button onClick={clearSubFilters} className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-500 transition-colors">
+                                                        <X className="h-3 w-3" /> Reset
+                                                    </button>
+                                                    {allDataLoading
+                                                        ? <span className="text-xs text-slate-400 flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Loading...</span>
+                                                        : <span className="text-xs text-slate-400">{allFiltered.length} / {summary.total}</span>
+                                                    }
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {/* Candidate Table */}
                                     <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
                                         <div className="px-4 py-2.5 border-b flex items-center justify-between shrink-0">
                                             <span className="text-sm font-bold text-slate-700">
-                                                {searching ? "Searching..." : `${summary.total} candidates`}
+                                                {searching
+                                                    ? <span className="flex items-center gap-2">
+                                                        <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" />
+                                                        <span>
+                                                            {filters.position_search.length > 10
+                                                                ? `Searching across ${filters.position_search.length} position filters — this may take a moment...`
+                                                                : "Searching..."}
+                                                        </span>
+                                                      </span>
+                                                    : hasSubFilter
+                                                        ? `${allFiltered.length} / ${summary.total} candidates`
+                                                        : `${summary.total} candidates`
+                                                }
                                             </span>
                                             {selectedIds.length > 0 && (
                                                 <Button size="sm" className="h-7 text-xs gap-1.5 rounded-lg" onClick={() => setAddDialogOpen(true)}>
@@ -570,7 +844,7 @@ export default function AISearchV3Page() {
                                         </div>
                                         <div>
                                             <CandidateTableView
-                                                candidates={candidates}
+                                                candidates={displayCandidates}
                                                 loading={searching}
                                                 selectedIds={selectedIds}
                                                 onToggleSelect={(id) => setSelectedIds(prev =>

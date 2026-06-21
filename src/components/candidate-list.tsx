@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { JRCandidate } from "@/types/requisition";
 import { getJRCandidates } from "@/app/actions/jr-candidates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -297,6 +298,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     // Scroll Synchronization Refs
     const topScrollRef = useRef<HTMLDivElement>(null);
     const tableContainerRef = useRef<HTMLDivElement>(null);
+    const virtualScrollRef = useRef<HTMLDivElement>(null);
     const [tableWidth, setTableWidth] = useState(0);
 
     // Sync scroll between top and bottom
@@ -634,6 +636,19 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
         return {};
     };
 
+    // Virtual scroll — only render visible rows (significant for 500+ candidate JRs)
+    const rowVirtualizer = useVirtualizer({
+        count: sortedCandidates.length,
+        getScrollElement: () => virtualScrollRef.current,
+        estimateSize: () => 88,
+        overscan: 8,
+    });
+    const virtualItems = rowVirtualizer.getVirtualItems();
+    const totalVirtualSize = rowVirtualizer.getTotalSize();
+    const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+    const paddingBottom = virtualItems.length > 0 ? totalVirtualSize - virtualItems[virtualItems.length - 1].end : 0;
+    const COL_SPAN = showSalary ? 16 : 15;
+
 
 
     // Selection Logic
@@ -802,8 +817,12 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
             </div>
 
             <CardContent ref={tableContainerRef} className="p-0 overflow-x-auto">
+                <div
+                    ref={virtualScrollRef}
+                    style={{ maxHeight: 'calc(100vh - 320px)', overflowY: 'auto' }}
+                >
                 <table className="w-full text-sm border-collapse">
-                    <thead>
+                    <thead className="sticky top-0 z-10">
                         <tr className="bg-slate-50/80 dark:bg-slate-900/50 border-b border-slate-200 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
                             <th className="px-5 py-4 w-[40px]">
                                 <Checkbox
@@ -832,7 +851,9 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                         </tr>
                     </thead>
                     <tbody>
-                        {sortedCandidates.map((c) => {
+                        {paddingTop > 0 && <tr><td colSpan={COL_SPAN} style={{ height: paddingTop, padding: 0 }} /></tr>}
+                        {virtualItems.map((virtualRow) => {
+                            const c = sortedCandidates[virtualRow.index];
                             const isSelected = selectedIds.includes(c.id);
                             const isUpdating = statusUpdating === c.id;
                             const isTopProfile = c.list_type === "Top profile";
@@ -1129,8 +1150,10 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                 </tr>
                             );
                         })}
+                        {paddingBottom > 0 && <tr><td colSpan={COL_SPAN} style={{ height: paddingBottom, padding: 0 }} /></tr>}
                     </tbody>
                 </table>
+                </div>
             </CardContent>
 
             {feedbackCandidate && (

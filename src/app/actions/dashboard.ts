@@ -39,67 +39,41 @@ function getPrimaryJob(experiences: any[]): any | null {
     return experiences.sort((a, b) => new Date(b.start_date || 0).getTime() - new Date(a.start_date || 0).getTime())[0];
 }
 
+async function fetchAllPaginated(client: any, table: string, select: string, pageSize = 1000, maxPages = 100): Promise<any[]> {
+    const results: any[] = [];
+    for (let page = 0; page < maxPages; page++) {
+        const { data, error } = await client.from(table).select(select).range(page * pageSize, (page + 1) * pageSize - 1);
+        if (error || !data || data.length === 0) break;
+        results.push(...data);
+        if (data.length < pageSize) break;
+    }
+    return results;
+}
+
 export async function getGlobalPoolDisplay() {
     const client = adminAuthClient as any;
 
-    console.log("Starting Global Pool Data Fetch...");
+    // Small lookup tables: fetch in parallel (no row limit issue)
+    // Large tables (profiles, experiences, jr_candidates): paginate to bypass Supabase max_rows=1000
+    const [companyMasterRes, countryMasterRes, jrDetailsRes] = await Promise.all([
+        client.from("company_master").select("company_id, company_master, rating, set, industry, group"),
+        client.from("country").select("country, continent"),
+        client.from("job_requisitions").select("jr_id, position_jr, bu, sub_bu"),
+    ]);
 
-    // 1. Fetch ALL Candidate Profiles (Base: 7,134)
-    let profiles: any[] = [];
-    let page = 0;
-    const pageSize = 1000;
-    let hasMore = true;
-    while (hasMore && page < 50) {
-        const { data, error } = await client.from("Candidate Profile").select("candidate_id, name, age, gender").range(page * pageSize, (page + 1) * pageSize - 1);
-        if (error) break;
-        if (data && data.length > 0) {
-            profiles = profiles.concat(data);
-            page++;
-            if (data.length < pageSize) hasMore = false;
-        } else { hasMore = false; }
-    }
+    const [profiles, allExps, jrCandidates] = await Promise.all([
+        fetchAllPaginated(client, "Candidate Profile", "candidate_id, name, age, gender"),
+        fetchAllPaginated(client, "candidate_experiences", "candidate_id, company_id, country, company, company_industry, company_group, is_current_job, start_date"),
+        fetchAllPaginated(client, "jr_candidates", "candidate_id, jr_id, list_type"),
+    ]);
 
-    // 2. Fetch ALL Experiences
-    let allExps: any[] = [];
-    page = 0;
-    hasMore = true;
-    while (hasMore && page < 100) {
-        const { data, error } = await client.from("candidate_experiences").select("*").range(page * pageSize, (page + 1) * pageSize - 1);
-        if (error) break;
-        if (data && data.length > 0) {
-            allExps = allExps.concat(data);
-            page++;
-            if (data.length < pageSize) hasMore = false;
-        } else { hasMore = false; }
-    }
-
-    // 3. Fetch Company Master for metadata (Rating, Set)
-    const { data: companyMaster } = await client.from("company_master").select("*");
     const companyLookup: Record<number, any> = {};
-    if (companyMaster) {
-        companyMaster.forEach((c: any) => companyLookup[c.company_id] = c);
-    }
+    ((companyMasterRes.data || []) as any[]).forEach((c: any) => { companyLookup[c.company_id] = c; });
 
-    // 4. Fetch country to continent mapping
-    const { data: countryMaster } = await client.from("country").select("country, continent");
     const countryToContinent: Record<string, string> = {};
-    if (countryMaster) countryMaster.forEach((c: any) => countryToContinent[c.country?.trim()] = c.continent);
+    ((countryMasterRes.data || []) as any[]).forEach((c: any) => { countryToContinent[c.country?.trim()] = c.continent; });
 
-    // 5. Fetch JR mapping & JR details
-    let jrCandidates: any[] = [];
-    page = 0;
-    hasMore = true;
-    while (hasMore && page < 20) {
-        const { data, error } = await client.from("jr_candidates").select("candidate_id, jr_id, list_type").range(page * pageSize, (page + 1) * pageSize - 1);
-        if (error) break;
-        if (data && data.length > 0) {
-            jrCandidates = jrCandidates.concat(data);
-            page++;
-            if (data.length < pageSize) hasMore = false;
-        } else { hasMore = false; }
-    }
-
-    const { data: jrDetails } = await client.from("job_requisitions").select("jr_id, position_jr, bu, sub_bu");
+    const jrDetails = jrDetailsRes.data || [];
     
     const jrMap: Record<string, any> = {};
     if (jrDetails) jrDetails.forEach((jr: any) => jrMap[jr.jr_id] = jr);
@@ -217,28 +191,22 @@ export async function getGlobalPoolDisplay() {
 export async function getMarketSalaryStats() {
     const client = adminAuthClient as any;
 
-    // 1. Fetch Company Master for Rating & Industry mapping
-    const { data: companyMaster } = await client.from("company_master").select("company_id, company_master, rating, industry, group");
+    // Small lookup: parallel; large tables: paginate to bypass Supabase max_rows=1000
+    const companyMasterRes = await client.from("company_master").select("company_id, company_master, rating, industry, group");
     const companyLookup: Record<number, any> = {};
-    if (companyMaster) {
-        companyMaster.forEach((c: any) => companyLookup[c.company_id] = c);
-    }
+    ((companyMasterRes.data || []) as any[]).forEach((c: any) => { companyLookup[c.company_id] = c; });
 
-    // 2. Get All Experiences to find the Primary Job for each candidate
-    // We need position_keyword and company_id from here!
-    let allExps: any[] = [];
-    let page = 0;
-    const pageSize = 1000;
-    let hasMore = true;
-    while (hasMore && page < 50) {
-        const { data, error } = await client.from("candidate_experiences").select("*").range(page * pageSize, (page + 1) * pageSize - 1);
-        if (error) break;
-        if (data && data.length > 0) {
-            allExps = allExps.concat(data);
-            page++;
-            if (data.length < pageSize) hasMore = false;
-        } else { hasMore = false; }
-    }
+    const [allExps, profilesRes] = await Promise.all([
+        fetchAllPaginated(client, "candidate_experiences", "candidate_id, company_id, company, company_industry, company_group, is_current_job, start_date, position_keyword, position"),
+        // Salary profiles are few (<500 rows) — single query with filter is fine
+        client.from("Candidate Profile")
+            .select("candidate_id, gross_salary_base_b_mth, name, job_function")
+            .gt("gross_salary_base_b_mth", 0)
+            .limit(5000),
+    ]);
+    const profiles = (profilesRes.data || []) as any[];
+
+    if (profiles.length === 0) return { companyStats: [], details: [], filterOptions: { industries: [], groups: [], companies: [], jobFamilies: [], positions: [], ratings: [] } };
 
     const groupedExps: Record<string, any[]> = {};
     allExps.forEach((exp: any) => {
@@ -251,27 +219,6 @@ export async function getMarketSalaryStats() {
         const primary = getPrimaryJob(groupedExps[cid]);
         if (primary) primaryExpMap[cid] = primary;
     });
-
-    // 3. Get Profiles with salary data
-    let profiles: any[] = [];
-    page = 0;
-    hasMore = true;
-    while (hasMore && page < 50) {
-        const { data, error } = await client
-            .from("Candidate Profile")
-            .select("candidate_id, gross_salary_base_b_mth, name, job_function")
-            .gt("gross_salary_base_b_mth", 0)
-            .range(page * pageSize, (page + 1) * pageSize - 1);
-
-        if (error) break;
-        if (data && data.length > 0) {
-            profiles = profiles.concat(data);
-            page++;
-            if (data.length < pageSize) hasMore = false;
-        } else { hasMore = false; }
-    }
-
-    if (!profiles || profiles.length === 0) return { companyStats: [], details: [], filterOptions: { industries: [], groups: [], companies: [], jobFamilies: [], positions: [], ratings: [] } };
 
     // 4. Build Detailed Records & Metadata for Filters
     const details: any[] = [];
