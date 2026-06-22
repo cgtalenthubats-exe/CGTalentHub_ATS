@@ -37,7 +37,11 @@ export async function fetchOrgChartFlatData(uploadId: string, chartCompanyName =
 
     const flat: OrgNodeV2[] = nodes.map((n) => ({
         id: n.node_id,
-        parentId: n.parent_name ? nameToId.get(n.parent_name) : undefined,
+        // Prefer parent_node_id (FK, immune to duplicate names) over name lookup.
+        // Fall back to name lookup for legacy rows that predate the id column.
+        parentId: n.parent_node_id
+            ? n.parent_node_id
+            : (n.parent_name ? nameToId.get(n.parent_name) : undefined),
         name: n.name,
         title: n.title,
         is_group_node: !!n.is_group_node,

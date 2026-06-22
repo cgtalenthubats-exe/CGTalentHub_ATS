@@ -39,6 +39,7 @@ export type RawOrgNode = {
     name: string
     title: string | null
     parent_name: string | null
+    parent_node_id: string | null
     matched_candidate_id: string | null
     linkedin: string | null
     is_verified: string | null // TRUE, FALSE, NOT_MATCH
@@ -365,6 +366,7 @@ export async function createOrgNode(uploadId: string, node: Omit<RawOrgNode, 'no
             name: node.name,
             title: node.title,
             parent_name: node.parent_name,
+            parent_node_id: node.parent_node_id ?? null,
             matched_candidate_id: node.matched_candidate_id,
             linkedin: node.linkedin,
             is_group_node: node.is_group_node ?? false
@@ -495,6 +497,7 @@ export async function updateOrgNode(nodeId: string, updates: Partial<RawOrgNode>
             name: updates.name,
             title: updates.title,
             parent_name: updates.parent_name,
+            parent_node_id: updates.parent_node_id ?? null,
             matched_candidate_id: updates.matched_candidate_id,
             linkedin: updates.linkedin
         })
@@ -531,7 +534,7 @@ export async function updateOrgNode(nodeId: string, updates: Partial<RawOrgNode>
     revalidatePath('/org-chart')
 }
 
-export async function moveOrgNode(nodeId: string, newParentName: string, hasChildren: boolean) {
+export async function moveOrgNode(nodeId: string, newParentId: string | null, newParentName: string, hasChildren: boolean) {
     try {
         // 1. Fetch current node details
         const { data: node, error: fetchErr } = await supabase
@@ -551,19 +554,21 @@ export async function moveOrgNode(nodeId: string, newParentName: string, hasChil
                     name: '(Vacant)',
                     title: node.title,
                     parent_name: node.parent_name,
+                    parent_node_id: node.parent_node_id ?? null,
                     is_verified: false
                 })
-            
+
             if (insertErr) {
                 console.error('Error creating vacant node during move:', insertErr)
                 throw insertErr
             }
         }
 
-        // 3. Move the target node to the new parent
+        // 3. Move the target node to the new parent — store both id (authoritative)
+        //    and name (fallback for legacy rows / human readability)
         const { error: moveErr } = await supabase
             .from('all_org_nodes')
-            .update({ parent_name: newParentName })
+            .update({ parent_node_id: newParentId, parent_name: newParentName })
             .eq('node_id', nodeId)
 
         if (moveErr) throw moveErr

@@ -56,6 +56,7 @@ export function NodeFormDialog({
         name: '',
         title: '',
         parent_name: '',
+        parent_node_id: '',
         matched_candidate_id: '',
         matched_candidate_name: '',
         linkedin: '',
@@ -66,20 +67,29 @@ export function NodeFormDialog({
     useEffect(() => {
         if (isOpen) {
             if (isAddMode) {
+                const defaultParentNode = defaultParentName
+                    ? nodes.find(n => n.name === defaultParentName)
+                    : null
                 setFormData({
                     name: '',
                     title: '',
                     parent_name: defaultParentName || '',
+                    parent_node_id: defaultParentNode?.node_id || '',
                     matched_candidate_id: '',
                     matched_candidate_name: '',
                     linkedin: '',
                     node_type: 'person'
                 })
             } else if (editingNode) {
+                // Find the parent node — prefer by parent_node_id, fall back to name
+                const parentNode = editingNode.parent_node_id
+                    ? nodes.find(n => n.node_id === editingNode.parent_node_id)
+                    : nodes.find(n => n.name === editingNode.parent_name)
                 setFormData({
                     name: editingNode.name,
                     title: editingNode.title || '',
                     parent_name: editingNode.parent_name || '',
+                    parent_node_id: parentNode?.node_id || '',
                     matched_candidate_id: editingNode.matched_candidate_id || '',
                     matched_candidate_name: editingNode.candidate ? (editingNode.candidate.name || '') : '',
                     linkedin: editingNode.linkedin || '',
@@ -132,7 +142,7 @@ export function NodeFormDialog({
         try {
             if (isMoveMode && editingNode) {
                 // Move logic
-                const res = await moveOrgNode(editingNode.node_id, formData.parent_name, hasChildren)
+                const res = await moveOrgNode(editingNode.node_id, formData.parent_node_id || null, formData.parent_name, hasChildren)
                 if (res.success) {
                     toast.success("Node moved successfully", { id: actionToast })
                 }
@@ -143,6 +153,7 @@ export function NodeFormDialog({
                     name: formData.name,
                     title: formData.title,
                     parent_name: isStandaloneAddMode ? null : formData.parent_name,
+                    parent_node_id: isStandaloneAddMode ? null : (formData.parent_node_id || null),
                     matched_candidate_id: isGroupNode ? null : (formData.matched_candidate_id || null),
                     linkedin: isGroupNode ? null : (formData.linkedin || null),
                     is_verified: editingNode?.is_verified || false,
@@ -265,8 +276,15 @@ export function NodeFormDialog({
                         <div className="space-y-2">
                             <Label htmlFor="node-parent">Reporting To (Manager Name)</Label>
                             <Select
-                                value={formData.parent_name || 'none'}
-                                onValueChange={(val) => setFormData({ ...formData, parent_name: val === 'none' ? '' : val })}
+                                value={formData.parent_node_id || 'none'}
+                                onValueChange={(val) => {
+                                    if (val === 'none') {
+                                        setFormData({ ...formData, parent_node_id: '', parent_name: '' })
+                                    } else {
+                                        const picked = nodes.find(n => n.node_id === val)
+                                        setFormData({ ...formData, parent_node_id: val, parent_name: picked?.name || '' })
+                                    }
+                                }}
                             >
                                 <SelectTrigger id="node-parent" className="w-full bg-white dark:bg-slate-950">
                                     <SelectValue placeholder="Select a manager" />
@@ -274,9 +292,9 @@ export function NodeFormDialog({
                                 <SelectContent className="max-h-[250px]">
                                     <SelectItem value="none" className="italic text-slate-500">None (Root Level)</SelectItem>
                                     {nodes
-                                        .filter(n => !(editingNode && (n.node_id === editingNode.node_id || n.name === editingNode.name))) // Prevent selecting self or same name
+                                        .filter(n => !(editingNode && n.node_id === editingNode.node_id))
                                         .map(node => (
-                                            <SelectItem key={node.node_id || node.name} value={node.name}>
+                                            <SelectItem key={node.node_id} value={node.node_id}>
                                                 {node.name} {node.title ? `— ${node.title}` : ''}
                                             </SelectItem>
                                         ))}

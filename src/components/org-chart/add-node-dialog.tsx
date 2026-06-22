@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Loader2, User, Building2 } from 'lucide-react'
+import { Loader2, User, Building2, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from '@/lib/notifications'
 import { createOrgNode, getOrgChartNodesBrief } from '@/app/actions/org-chart-actions'
@@ -25,6 +25,7 @@ export function AddNodeDialog({ open, onOpenChange, uploadId }: Props) {
     const [name, setName] = useState('')
     const [title, setTitle] = useState('')
     const [parentNodeId, setParentNodeId] = useState<string>('__root__')
+    const [linkedin, setLinkedin] = useState('')
     const [existingNodes, setExistingNodes] = useState<NodeBrief[]>([])
     const [isLoading, setIsLoading] = useState(false)
     const router = useRouter()
@@ -50,14 +51,16 @@ export function AddNodeDialog({ open, onOpenChange, uploadId }: Props) {
                 name: name.trim(),
                 title: title.trim() || null,
                 parent_name: parentName,
+                parent_node_id: parentNodeId === '__root__' ? null : parentNodeId,
                 matched_candidate_id: null,
-                linkedin: null,
+                linkedin: nodeType === 'person' ? (linkedin.trim() || null) : null,
                 is_verified: 'FALSE',
                 is_group_node: nodeType === 'group'
             })
             toast.success(`Node "${name}" added`)
             setName('')
             setTitle('')
+            setLinkedin('')
             setParentNodeId('__root__')
             onOpenChange(false)
             router.refresh()
@@ -115,6 +118,23 @@ export function AddNodeDialog({ open, onOpenChange, uploadId }: Props) {
                                 disabled={isLoading}
                             />
                         </div>
+                        {nodeType === 'person' && (
+                            <div className="grid gap-2">
+                                <Label className="flex items-center gap-2">
+                                    <Search size={13} /> Profile LinkedIn (Independent)
+                                </Label>
+                                <Input
+                                    value={linkedin}
+                                    onChange={(e) => setLinkedin(e.target.value)}
+                                    placeholder="https://www.linkedin.com/in/..."
+                                    disabled={isLoading}
+                                />
+                                <p className="text-[10px] text-slate-500 italic">
+                                    Optional — shows LinkedIn icon without needing a matched candidate profile.
+                                </p>
+                            </div>
+                        )}
+
                         <div className="grid gap-2">
                             <Label>Reports To</Label>
                             <Select value={parentNodeId} onValueChange={setParentNodeId} disabled={isLoading}>

@@ -433,7 +433,7 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
         if (!dragMoveTarget) return
         setIsMovingViaDrag(true)
         try {
-            await moveOrgNode(dragMoveTarget.nodeId, dragMoveTarget.targetName, dragMoveTarget.hasChildren)
+            await moveOrgNode(dragMoveTarget.nodeId, dragMoveTarget.targetId, dragMoveTarget.targetName, dragMoveTarget.hasChildren)
             toast.success(`Moved "${dragMoveTarget.nodeName}" under "${dragMoveTarget.targetName}"`)
             setDragMoveTarget(null)
             router.refresh()
