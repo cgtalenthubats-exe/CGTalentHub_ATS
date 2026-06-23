@@ -134,10 +134,9 @@ export async function processCsvUpload(rows: CsvRow[], uploaderName: string, fil
             continue;
         }
 
-        // Duplicate Check (In-Batch)
+        // Duplicate Check (In-Batch) — require linkedin or email to match, name alone is not sufficient
         const inBatchDuplicate = validRowsToProcess.find(r =>
-            r.normalizedName === nameForComparison ||
-            (r.linkedin && r.linkedin.toLowerCase() === linkedin.toLowerCase()) ||
+            (r.linkedin && linkedin && r.linkedin.toLowerCase() === linkedin.toLowerCase()) ||
             (r.email && r.email === email && email !== "")
         );
 
