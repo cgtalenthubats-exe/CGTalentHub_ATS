@@ -1060,6 +1060,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                             candidateId={c.candidate_id}
                                             gender={c.candidate_gender || ''}
                                             age={c.candidate_age ?? null}
+                                            ageSource={(c as any).candidate_age_source ?? null}
                                             onSaved={async () => {
                                                 const updated = await getJRCandidates(jrId);
                                                 setCandidates(updated);
@@ -1328,10 +1329,11 @@ function RemarkCell({ candidateId, statuses, onSaved }: {
 
 const GENDER_OPTIONS = ['Male', 'Female', 'N/A'];
 
-function SexAgeCell({ candidateId, gender, age, onSaved }: {
+function SexAgeCell({ candidateId, gender, age, ageSource, onSaved }: {
     candidateId: string;
     gender: string;
     age: number | null;
+    ageSource?: string | null;
     onSaved: () => void;
 }) {
     const [open, setOpen] = useState(false);
@@ -1344,7 +1346,7 @@ function SexAgeCell({ candidateId, gender, age, onSaved }: {
         await fetch(`/api/candidates/${candidateId}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ gender: g || null, age: parseInt(a) || null }),
+            body: JSON.stringify({ gender: g || null, age: parseInt(a) || null, age_source: parseInt(a) ? 'manual' : null }),
         });
         setSaving(false);
         setOpen(false);
@@ -1355,7 +1357,7 @@ function SexAgeCell({ candidateId, gender, age, onSaved }: {
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                 <button className="inline-flex items-center gap-2 font-black text-sm text-slate-700 bg-slate-50 hover:bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-100 hover:border-slate-200 whitespace-nowrap transition-all">
-                    {gender || '—'}{age ? `, ${age}` : ''}
+                    {gender || '—'}{age ? <span className={ageSource === 'estimated' ? 'text-red-500 ml-1' : 'ml-1'}>{ageSource === 'estimated' ? `, Est. ${age}` : `, ${age}`}</span> : ''}
                 </button>
             </PopoverTrigger>
             <PopoverContent className="w-52 p-3 rounded-xl shadow-xl border-slate-100 space-y-3" align="start">

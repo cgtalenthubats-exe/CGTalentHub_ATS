@@ -38,8 +38,8 @@ export async function POST(req: Request) {
             profileQuery = adminAuthClient.from('Candidate Profile').select('*');
         }
 
-        // Ensure count is fetched
-        profileQuery = profileQuery.select('*', { count: 'exact' });
+        // Ensure count is fetched — explicitly include age_source (new column, not in schema cache)
+        profileQuery = profileQuery.select('*, age_source', { count: 'exact' });
 
         // --- 3. SMART SEARCH LOGIC (if search keyword present) ---
         if (search) {
@@ -147,7 +147,7 @@ export async function POST(req: Request) {
 
                 adminAuthClient
                     .from('Candidate Profile')
-                    .select('candidate_id, blacklist_note, linkedin, checked, date_of_birth, year_of_bachelor_education')
+                    .select('candidate_id, blacklist_note, linkedin, checked, date_of_birth, year_of_bachelor_education, age_source')
                     .in('candidate_id', pageCandidateIds)
             ]);
 
@@ -169,6 +169,7 @@ export async function POST(req: Request) {
                         date_of_birth: extraData.date_of_birth || p.date_of_birth,
                         year_of_bachelor_education: extraData.year_of_bachelor_education || p.year_of_bachelor_education,
                         age: extraData.age || p.age || getEffectiveAge(extraData.date_of_birth || p.date_of_birth, extraData.year_of_bachelor_education || p.year_of_bachelor_education),
+                        age_source: extraData.age_source ?? p.age_source ?? null,
                         experiences: fullExp.filter((e: any) => e.candidate_id === p.candidate_id)
                     };
                 }
@@ -177,7 +178,8 @@ export async function POST(req: Request) {
                 ...p,
                 blacklist_note: null,
                 experiences: [],
-                age: p.age || getEffectiveAge(p.date_of_birth, p.year_of_bachelor_education)
+                age: p.age || getEffectiveAge(p.date_of_birth, p.year_of_bachelor_education),
+                age_source: p.age_source ?? null,
             };
         });
 

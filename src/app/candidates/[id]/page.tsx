@@ -160,11 +160,9 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                             <div className="flex items-center gap-2 bg-purple-50/50 dark:bg-purple-900/20 px-3 py-1.5 rounded-full border border-purple-100/50 dark:border-purple-800/50 shadow-sm">
                                 <Calendar className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                                 <span className="text-foreground font-bold">
-                                    {candidate.age ? (
-                                        `${candidate.age} Years - ${candidate.date_of_birth ? "DoB" : "Bachelor year"}`
-                                    ) : (
-                                        "Age N/A"
-                                    )}
+                                    <span className={candidate.age_source === 'estimated' ? 'text-red-500' : undefined}>
+                                        {candidate.age ? `${candidate.age} Years${candidate.age_source === 'dob' ? ' - DoB' : candidate.age_source === 'estimated' ? ' - Est.' : candidate.year_of_bachelor_education ? ' - Bachelor year' : ''}` : 'Age N/A'}
+                                    </span>
                                 </span>
                             </div>
                             {(candidate.enhancement?.country || candidate.enhancement?.full_address) && (

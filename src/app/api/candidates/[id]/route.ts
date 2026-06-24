@@ -295,6 +295,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         updateData.year_of_bachelor_education = finalGradYear;
         updateData.age = finalAge;
 
+        // Set age_source based on what provided the age
+        if (body.date_of_birth !== undefined || body.year_of_bachelor_education !== undefined || body.age !== undefined) {
+            if (finalDob) {
+                updateData.age_source = 'dob';
+            } else if (finalAge) {
+                updateData.age_source = 'manual';
+            } else {
+                updateData.age_source = null;
+            }
+        }
+
         // Auto-add Over-aged when age >= 57
         if (finalAge !== null && finalAge >= 57) {
             const existingStatuses: string[] = (profileData.candidate_status as string[] | null) ?? [];

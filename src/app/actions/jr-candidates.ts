@@ -117,7 +117,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         Promise.all(candidateIdChunks.map(chunk => 
             (supabase
                 .from('Candidate Profile' as any)
-                .select('candidate_id, name, email, mobile_phone, job_function, photo, age, gender, nationality, candidate_projects, candidate_status, linkedin, checked, gross_salary_base_b_mth, bonus_mth')
+                .select('candidate_id, name, email, mobile_phone, job_function, photo, age, age_source, year_of_bachelor_education, gender, nationality, candidate_projects, candidate_status, linkedin, checked, gross_salary_base_b_mth, bonus_mth')
                 .in('candidate_id', chunk) as any)
         )),
 
@@ -279,6 +279,8 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
             candidate_country: countryDisplay || undefined,
             candidate_image_url: profile?.photo || undefined,
             candidate_age: profile?.age ?? undefined,
+            candidate_age_source: profile?.age_source ?? undefined,
+            candidate_year_of_bachelor_education: profile?.year_of_bachelor_education ?? undefined,
             candidate_gender: profile?.gender || undefined,
             candidate_status: (profile?.candidate_status as string[] | null | undefined) || undefined,
             candidate_linkedin_url: profile?.linkedin || undefined,

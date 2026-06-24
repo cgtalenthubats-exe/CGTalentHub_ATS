@@ -131,15 +131,15 @@ function CandidateIdBadge({ candidateId, onClick }: { candidateId: string; onCli
 }
 
 // ── Info Chip (age / address / linkedin) ────────
-function InfoChip({ icon: Icon, label, value, href, className }: {
-    icon: typeof MapPin; label: string; value: string; href?: string; className?: string;
+function InfoChip({ icon: Icon, label, value, href, className, valueClassName }: {
+    icon: typeof MapPin; label: string; value: string; href?: string; className?: string; valueClassName?: string;
 }) {
     const inner = (
         <div className={`flex items-center gap-2 bg-slate-50 rounded-lg px-2.5 py-1.5 min-w-0 ${href ? "hover:bg-indigo-50 transition-colors" : ""} ${className ?? ""}`}>
             <Icon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <div className="min-w-0">
                 <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-wide leading-none">{label}</p>
-                <p className="text-xs font-bold text-slate-700 truncate">{value}</p>
+                <p className={`text-xs font-bold truncate ${valueClassName ?? 'text-slate-700'}`}>{value}</p>
             </div>
         </div>
     );
@@ -241,7 +241,7 @@ function TopCard({ r, rank, activeCategory, onOpenProfile, isExpanded, onToggle,
                     {/* Info chips */}
                     {(r.age != null || r.address || r.linkedin) && (
                         <div className="flex flex-wrap gap-1.5">
-                            {r.age != null && <InfoChip icon={Cake} label="Age" value={`${r.age} ปี`} />}
+                            {r.age != null && <InfoChip icon={Cake} label="Age" value={r.age_source === 'estimated' ? `Est. ${r.age}` : `${r.age} ปี`} valueClassName={r.age_source === 'estimated' ? 'text-red-500' : undefined} />}
                             {r.linkedin && <InfoChip icon={Linkedin} label="LinkedIn" value="View Profile" href={r.linkedin} />}
                             {r.address && <InfoChip icon={MapPin} label="Address" value={r.address} />}
                         </div>
@@ -311,7 +311,7 @@ function TopCard({ r, rank, activeCategory, onOpenProfile, isExpanded, onToggle,
 
                     {(r.age != null || r.address || r.linkedin) && (
                         <div className="grid grid-cols-2 gap-1.5">
-                            {r.age != null && <InfoChip icon={Cake} label="Age" value={`${r.age} ปี`} />}
+                            {r.age != null && <InfoChip icon={Cake} label="Age" value={r.age_source === 'estimated' ? `Est. ${r.age}` : `${r.age} ปี`} valueClassName={r.age_source === 'estimated' ? 'text-red-500' : undefined} />}
                             {r.linkedin && <InfoChip icon={Linkedin} label="LinkedIn" value="View Profile" href={r.linkedin} />}
                             {r.address && <InfoChip icon={MapPin} label="Address" value={r.address} className="col-span-2" />}
                         </div>
@@ -384,7 +384,7 @@ function ResultRow({ r, activeCategory, displayRank, onOpenProfile }: { r: Searc
                     )}
                     {(r.age != null || r.address) && (
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[11px] text-slate-400">
-                            {r.age != null && <span>{r.age} ปี</span>}
+                            {r.age != null && <span className={r.age_source === 'estimated' ? 'text-red-500' : undefined}>{r.age_source === 'estimated' ? `Est. ${r.age}` : `${r.age} ปี`}</span>}
                             {r.address && <span className="truncate">{r.address}</span>}
                         </div>
                     )}

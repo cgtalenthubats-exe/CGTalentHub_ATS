@@ -73,6 +73,7 @@ interface Candidate {
     checked?: string;
     date_of_birth?: string;
     year_of_bachelor_education?: string | number;
+    age_source?: string | null;
     created_date: string;
     modify_date: string;
     experiences: Experience[];
@@ -1104,7 +1105,9 @@ function CandidateRichCard({
                         </span>
                         <span className="flex items-center gap-1">{candidate.nationality || "N/A"}</span>
                         <span className="w-1 h-1 rounded-full bg-border" />
-                        <span>{candidate.age ? `${candidate.age} Years - ${candidate.date_of_birth ? "DoB" : "Bachelor year"}` : "Age -"}</span>
+                        <span className={candidate.age_source === 'estimated' ? 'text-red-500' : undefined}>
+    {candidate.age ? `${candidate.age} Years${candidate.age_source === 'dob' ? ' - DoB' : candidate.age_source === 'estimated' ? ' - Est.' : candidate.year_of_bachelor_education ? ' - Bachelor year' : ''}` : 'Age -'}
+</span>
                         <span className="w-1 h-1 rounded-full bg-border" />
                         <span>{candidate.gender || "Gender -"}</span>
                         <span className="w-1 h-1 rounded-full bg-border" />

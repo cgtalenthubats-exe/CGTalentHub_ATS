@@ -140,6 +140,41 @@ export function formatDateForDisplay(date: string | Date | null | undefined): st
 }
 
 /**
+ * Formats age display label based on age_source.
+ * Returns { label, isEstimated } for rendering.
+ */
+export function formatAgeDisplay(
+    age: number | string | null | undefined,
+    ageSource: string | null | undefined,
+    yearOfBachelor: string | null | undefined
+): { text: string; isEstimated: boolean } {
+    if (!age) return { text: 'N/A', isEstimated: false };
+    const suffix =
+        ageSource === 'dob' ? ' - DoB' :
+        ageSource === 'estimated' ? ' - Est.' :
+        (yearOfBachelor && yearOfBachelor !== '') ? ' - Bachelor year' : '';
+    return {
+        text: `${age} Years${suffix}`,
+        isEstimated: ageSource === 'estimated',
+    };
+}
+
+/**
+ * Formats age as short form (e.g. "42 yrs" or "Est. 42").
+ */
+export function formatAgeShort(
+    age: number | string | null | undefined,
+    ageSource: string | null | undefined
+): { text: string; isEstimated: boolean } {
+    if (!age) return { text: '', isEstimated: false };
+    const isEstimated = ageSource === 'estimated';
+    return {
+        text: isEstimated ? `Est. ${age}` : `${age} yrs`,
+        isEstimated,
+    };
+}
+
+/**
  * Calculates Bachelor Year from Age (CurrentYear - Age + 22)
  */
 export function calculateBachelorYearFromAge(age: number | string): number | null {

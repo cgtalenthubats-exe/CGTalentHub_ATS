@@ -26,6 +26,7 @@ export interface ConsolidatedResult {
     linkedin_url?: string;
     sex?: string;
     age?: number | null;
+    age_source?: string | null;
     country?: string;
 
     // New Score Structure

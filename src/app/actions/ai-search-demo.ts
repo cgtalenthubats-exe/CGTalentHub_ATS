@@ -200,7 +200,8 @@ export async function searchDemoCandidates(filters: DemoFilterState) {
         (adminAuthClient as any).rpc("get_search_summary", params),
     ]);
 
-    if (idsResult.error || !idsResult.data || (idsResult.data as any[]).length === 0)
+    if (idsResult.error) throw new Error(`RPC error (pos_search: ${filters.position_search.length}): ${idsResult.error.message} | code: ${idsResult.error.code}`);
+    if (!idsResult.data || (idsResult.data as any[]).length === 0)
         return { candidateIds: [], total: 0, current: 0, past: 0, companies: 0 };
 
     const candidateIds = (idsResult.data as { candidate_id: string }[]).map((r) => r.candidate_id);
@@ -222,7 +223,7 @@ export async function fetchCandidatePage(candidateIds: string[], page: number, p
         adminAuthClient
             .from("Candidate Profile")
             .select(`
-                candidate_id, name, age, gender, nationality,
+                candidate_id, name, age, age_source, gender, nationality,
                 photo, linkedin, checked, candidate_status,
                 job_grouping, job_function, created_date, modify_date,
                 year_of_bachelor_education

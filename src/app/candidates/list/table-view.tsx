@@ -49,6 +49,7 @@ export interface Candidate {
     checked?: string;
     date_of_birth?: string;
     year_of_bachelor_education?: string | number;
+    age_source?: string | null;
     created_date: string;
     modify_date: string;
     experiences: Experience[];
@@ -179,7 +180,7 @@ const CandidateRow = ({
                                 />
                             </div>
                             <span className="text-[11px] text-slate-500 mt-1">
-                                {candidate.nationality} • {candidate.age ? `${candidate.age} yrs - ${candidate.date_of_birth ? "DoB" : "Bachelor year"}` : "Age -"} • {candidate.gender}
+                                {candidate.nationality} • <span className={candidate.age_source === 'estimated' ? 'text-red-500' : undefined}>{candidate.age ? `${candidate.age} yrs${candidate.age_source === 'dob' ? ' - DoB' : candidate.age_source === 'estimated' ? ' - Est.' : candidate.year_of_bachelor_education ? ' - Bachelor year' : ''}` : 'Age -'}</span> • {candidate.gender}
                             </span>
                         </div>
                     </div>

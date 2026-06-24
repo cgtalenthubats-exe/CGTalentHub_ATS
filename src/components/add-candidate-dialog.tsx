@@ -580,7 +580,7 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess, update
                                                     </div>
                                                     <div className="flex items-center gap-2">
                                                         <User className="h-3.5 w-3.5 text-blue-500/50 shrink-0" />
-                                                        <span>{c.age ? `${c.age} yrs` : "Age N/A"} • {c.gender?.charAt(0) || "-"}</span>
+                                                        <span className={c.age_source === 'estimated' ? 'text-red-500' : undefined}>{c.age ? (c.age_source === 'estimated' ? `Est. ${c.age}` : `${c.age} yrs`) : "Age N/A"}</span> • {c.gender?.charAt(0) || "-"}
                                                     </div>
                                                 </div>
                                             </div>

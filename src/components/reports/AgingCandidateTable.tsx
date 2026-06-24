@@ -102,7 +102,7 @@ const CandidateRow = ({ candidate, selected, onSelect }: { candidate: Candidate,
                                 </span>
                             </Link>
                             <span className="text-[11px] text-slate-500">
-                                {candidate.nationality} • {candidate.age} yrs • {candidate.gender}
+                                {candidate.nationality} • <span className={candidate.age_source === 'estimated' ? 'text-red-500' : undefined}>{candidate.age ? (candidate.age_source === 'estimated' ? `Est. ${candidate.age}` : `${candidate.age} yrs`) : '-'}</span> • {candidate.gender}
                             </span>
                         </div>
                     </div>

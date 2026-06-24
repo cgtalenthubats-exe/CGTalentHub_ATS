@@ -23,6 +23,7 @@ export type SearchResult = {
     photo_url: string | null;
     linkedin: string | null;
     age: number | null;
+    age_source: string | null;
     address: string | null;
     position: string | null;
     company: string | null;
@@ -174,7 +175,7 @@ export async function getSearchJobStatus(jobId: string): Promise<SearchJobData |
     const [profilesRes, expRes, enhanceRes] = await Promise.all([
         adminAuthClient
             .from("Candidate Profile")
-            .select("candidate_id, name, photo, linkedin, age")
+            .select("candidate_id, name, photo, linkedin, age, age_source")
             .in("candidate_id", candidateIds),
         adminAuthClient
             .from("candidate_experiences")
@@ -200,6 +201,7 @@ export async function getSearchJobStatus(jobId: string): Promise<SearchJobData |
         photo_url: profile?.photo ?? null,
         linkedin: profile?.linkedin ?? null,
         age: profile?.age ?? null,
+        age_source: profile?.age_source ?? null,
         address: [enhance?.country, enhance?.full_address].filter(Boolean).join(", ") || null,
         position: (expMap.get(r.candidate_id) as any)?.position ?? null,
         company: (expMap.get(r.candidate_id) as any)?.company ?? null,

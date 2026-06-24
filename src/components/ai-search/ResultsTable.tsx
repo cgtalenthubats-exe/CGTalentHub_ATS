@@ -309,7 +309,7 @@ export function ResultsTable({
                                     <td className="px-3 py-3">
                                         {(r.sex || r.age) ? (
                                             <span className="text-xs text-slate-600">
-                                                {[r.sex, r.age].filter(Boolean).join(", ")}
+                                                {[r.sex, r.age_source === 'estimated' ? `Est. ${r.age}` : r.age].filter(Boolean).join(", ")}
                                             </span>
                                         ) : (
                                             <span className="text-slate-300 text-xs">—</span>
