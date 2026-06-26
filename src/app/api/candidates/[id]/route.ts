@@ -256,11 +256,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         // 1. DOB is highest priority
         // 2. Grad Year is second priority
         // 3. Manual Age is third priority
-        
-        // Extract provided or existing values
-        const dobStr = body.date_of_birth !== undefined ? body.date_of_birth : profileData.date_of_birth;
-        const gradStr = body.year_of_bachelor_education !== undefined ? body.year_of_bachelor_education : profileData.year_of_bachelor_education;
-        const manualAgeStr = body.age !== undefined ? body.age : null; // Only use age from body as manual trigger, not profileData.age to avoid loops if only other fields change
+        //
+        // Special case: if only `age` is sent (no date_of_birth, no year_of_bachelor_education),
+        // treat as direct age edit — do NOT pull existing DOB/grad year from DB to override it.
+        const isManualAgeEdit = body.age !== undefined
+            && body.date_of_birth === undefined
+            && body.year_of_bachelor_education === undefined;
+
+        // Extract provided or existing values (don't pull existing DOB when user is directly editing age)
+        const dobStr = body.date_of_birth !== undefined ? body.date_of_birth
+            : (isManualAgeEdit ? null : profileData.date_of_birth);
+        const gradStr = body.year_of_bachelor_education !== undefined ? body.year_of_bachelor_education
+            : (isManualAgeEdit ? null : profileData.year_of_bachelor_education);
+        const manualAgeStr = body.age !== undefined ? body.age : null;
 
         let finalDob = formatDateForInput(dobStr) || null;
         let finalGradYear = extractYear(gradStr) || null;
@@ -290,14 +298,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
             finalGradYear = null;
         }
 
-        // Apply to updateData
-        updateData.date_of_birth = finalDob;
+        // Apply to updateData — when doing a direct age edit, don't overwrite date_of_birth in DB
+        if (!isManualAgeEdit) {
+            updateData.date_of_birth = finalDob;
+        }
         updateData.year_of_bachelor_education = finalGradYear;
         updateData.age = finalAge;
 
         // Set age_source based on what provided the age
         if (body.date_of_birth !== undefined || body.year_of_bachelor_education !== undefined || body.age !== undefined) {
-            if (finalDob) {
+            if (!isManualAgeEdit && finalDob) {
                 updateData.age_source = 'dob';
             } else if (finalAge) {
                 updateData.age_source = 'manual';
