@@ -32,7 +32,8 @@ import {
     BadgeDollarSign,
     Calendar,
     ArrowLeft,
-    Filter
+    Filter,
+    FileDown
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +53,7 @@ export default function PlacementsPage() {
     const [selectedRecord, setSelectedRecord] = useState<any>(null);
     const [isResignDialogOpen, setIsResignDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
 
     // Resignation form state
     const [resignData, setResignData] = useState({
@@ -72,6 +74,38 @@ export default function PlacementsPage() {
     useEffect(() => {
         loadRecords();
     }, []);
+
+    const exportAllRecordsCSV = async () => {
+        setIsExporting(true);
+        try {
+            const allRecords = await getEmploymentRecords(); // no filter = Active + Resigned
+            const header = [
+                'jr_id', 'position', 'candidate_id', 'candidate_name', 'date_of_birth',
+                'bu', 'sub_bu', 'base_salary', 'annual_salary', 'outsource_fee_20_percent',
+                'job_grade', 'employee_id', 'hire_date', 'hiring_status', 'resign_date', 'resignation_reason'
+            ];
+            const rows = allRecords.map((r: any) => [
+                r.jr_id, r.position, r.candidate_id, r.candidate_name, r.date_of_birth || '',
+                r.bu, r.sub_bu, r.base_salary ?? '', r.annual_salary ?? '', r.outsource_fee_20_percent ?? '',
+                r.job_grade || '', r.employee_id || '', r.hire_date || '', r.hiring_status,
+                r.resign_date || '', r.resignation_reason || ''
+            ]);
+
+            const csvContent = [header, ...rows]
+                .map(row => row.map((val: any) => `"${String(val ?? '').replace(/"/g, '""')}"`).join(','))
+                .join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `placements-all-${new Date().toISOString().slice(0, 10)}.csv`;
+            link.click();
+            URL.revokeObjectURL(url);
+        } finally {
+            setIsExporting(false);
+        }
+    };
 
     const handleResign = async () => {
         if (!selectedRecord) return;
@@ -139,6 +173,9 @@ export default function PlacementsPage() {
                             className="pl-10 h-10 bg-white border-slate-200 rounded-xl shadow-sm focus:ring-primary/20 transition-all font-medium text-xs"
                         />
                     </div>
+                    <Button variant="outline" className="h-10" disabled={isExporting} onClick={exportAllRecordsCSV}>
+                        <FileDown className="mr-2 h-4 w-4" /> {isExporting ? "Exporting..." : "Export CSV"}
+                    </Button>
                 </div>
             </div>
 

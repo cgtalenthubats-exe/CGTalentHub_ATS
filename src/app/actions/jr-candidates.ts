@@ -401,6 +401,107 @@ export async function getJRAnalytics(jrId: string): Promise<JRAnalytics> {
 }
 
 /**
+ * Per-candidate breakdown for Activity Transaction & Aging CSV export.
+ * Activity: which statuses each candidate ever passed through (1/0 per status column).
+ * Aging: actual days spent in each status (sum across visits; current status counts until now).
+ */
+export async function getJRActivityAgingExport(jrId: string): Promise<{
+    statuses: string[];
+    rows: {
+        rank: string | null;
+        type: string;
+        currentStatus: string;
+        candidateId: string;
+        name: string;
+        company: string;
+        position: string;
+        visited: Record<string, number>;
+        aging: Record<string, number>;
+    }[];
+}> {
+    const supabase = adminAuthClient;
+
+    const [{ data: masters }, { data: jrCands }] = await Promise.all([
+        supabase.from('status_master').select('status, stage_order').order('stage_order', { ascending: true }),
+        supabase.from('jr_candidates').select('jr_candidate_id, candidate_id, list_type, rank').eq('jr_id', jrId)
+            .returns<{ jr_candidate_id: string; candidate_id: string; list_type: string | null; rank: string | null }[]>()
+    ]);
+
+    const statuses = (masters as any[])?.map(m => m.status) || [];
+
+    if (!jrCands || jrCands.length === 0) {
+        return { statuses, rows: [] };
+    }
+
+    const jrCandIds = jrCands.map(c => c.jr_candidate_id);
+    const candidateIds = jrCands.map(c => c.candidate_id).filter(Boolean);
+
+    const [{ data: logs }, { data: profiles }, { data: experiences }] = await Promise.all([
+        supabase.from('status_log').select('log_id, jr_candidate_id, status, timestamp')
+            .in('jr_candidate_id', jrCandIds)
+            .returns<{ log_id: number; jr_candidate_id: string; status: string; timestamp: string }[]>(),
+        supabase.from('Candidate Profile').select('candidate_id, name').in('candidate_id', candidateIds),
+        supabase.from('candidate_experiences').select('candidate_id, company, position, is_current_job, start_date').in('candidate_id', candidateIds)
+    ]);
+
+    const nameMap = new Map((profiles as any[] || []).map((p: any) => [p.candidate_id, p.name]));
+
+    // Pick current (or most recent) experience per candidate for company/position
+    const expMap = new Map<string, { company: string; position: string }>();
+    (experiences as any[] || []).forEach((e: any) => {
+        const existing = expMap.get(e.candidate_id);
+        const isCurrent = (e.is_current_job || '').toString().trim().toLowerCase() === 'current';
+        if (!existing || isCurrent) {
+            expMap.set(e.candidate_id, { company: e.company || '', position: e.position || '' });
+        }
+    });
+
+    const now = Date.now();
+
+    const rows = jrCands.map(jc => {
+        const candidateLogs = (logs || []).filter(l => String(l.jr_candidate_id) === String(jc.jr_candidate_id));
+        candidateLogs.sort((a, b) => {
+            const dateA = new Date(a.timestamp).getTime();
+            const dateB = new Date(b.timestamp).getTime();
+            if (dateA !== dateB && !isNaN(dateA) && !isNaN(dateB)) return dateA - dateB; // ascending
+            return a.log_id - b.log_id;
+        });
+
+        const visited: Record<string, number> = {};
+        const aging: Record<string, number> = {};
+
+        candidateLogs.forEach((log, i) => {
+            visited[log.status] = 1;
+            const startTime = new Date(log.timestamp).getTime();
+            const endTime = i < candidateLogs.length - 1
+                ? new Date(candidateLogs[i + 1].timestamp).getTime()
+                : now;
+            if (!isNaN(startTime) && !isNaN(endTime) && endTime >= startTime) {
+                const days = Math.floor((endTime - startTime) / (1000 * 3600 * 24));
+                aging[log.status] = (aging[log.status] || 0) + days;
+            }
+        });
+
+        const currentStatus = candidateLogs.length > 0 ? candidateLogs[candidateLogs.length - 1].status : "Pool Candidate";
+        const exp = expMap.get(jc.candidate_id);
+
+        return {
+            rank: jc.rank,
+            type: jc.list_type || '',
+            currentStatus,
+            candidateId: jc.candidate_id,
+            name: nameMap.get(jc.candidate_id) || 'Unknown',
+            company: exp?.company || '',
+            position: exp?.position || '',
+            visited,
+            aging,
+        };
+    });
+
+    return { statuses, rows };
+}
+
+/**
  * Fetch Salary Benchmark data specifically for candidates within a single JR.
  * Reuses the EXACT logic from getMarketSalaryStats for consistency.
  */

@@ -29,7 +29,8 @@ import { getJRAnalytics } from "@/app/actions/jr-candidates";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
     Plus, List, Kanban, MessageSquare, Briefcase, Share2, Loader2,
-    Copy, Trophy, Trash2, Edit, User, Activity, History, Sparkles
+    Copy, Trophy, Trash2, Edit, User, Activity, History, Sparkles, Download,
+    ChevronUp, ChevronDown
 } from "lucide-react";
 import { AiSuggestionTab } from "./ai-suggestion-tab";
 import { useJobRequisitionRealtime } from "@/hooks/use-jr-realtime";
@@ -61,6 +62,20 @@ export default function JRManagePage() {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isAddCandOpen, setIsAddCandOpen] = useState(false);
     const [analytics, setAnalytics] = useState<any>(null);
+    const [showAnalytics, setShowAnalytics] = useState(false);
+    const [isExportingAnalytics, setIsExportingAnalytics] = useState(false);
+
+    // Persist Activity Transaction & Aging panel collapsed/expanded preference
+    useEffect(() => {
+        const saved = localStorage.getItem('jr_manage_show_analytics');
+        if (saved !== null) setShowAnalytics(saved === 'true');
+    }, []);
+    const toggleShowAnalytics = () => {
+        setShowAnalytics(prev => {
+            localStorage.setItem('jr_manage_show_analytics', String(!prev));
+            return !prev;
+        });
+    };
     const [salaryStats, setSalaryStats] = useState<any[]>([]);
     const [isSalaryLoading, setIsSalaryLoading] = useState(false);
     const [isJRLoading, setIsJRLoading] = useState(false); // Track URL-based loading
@@ -228,6 +243,109 @@ export default function JRManagePage() {
     }, [selectedJR?.id, currentTab]);
 
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+    const EXCLUDED_AGING_STATUSES = ['Interview Scheduled - Hiring Manager', 'Interview Scheduled - Recruiter'];
+
+    const LeftAlignedYAxisTick = (props: any) => {
+        const { x, y, payload } = props;
+        return (
+            <text x={10} y={y} dy={4} textAnchor="start" fontSize={13} fill="#475569">
+                {payload.value}
+            </text>
+        );
+    };
+
+    // Wraps long status labels onto 2 lines (split on " - " if present, else by midpoint word)
+    const TwoLineXAxisTick = (props: any) => {
+        const { x, y, payload } = props;
+        const value: string = payload.value;
+        let line1 = value;
+        let line2 = '';
+        if (value.includes(' - ')) {
+            const parts = value.split(' - ');
+            line1 = parts[0];
+            line2 = parts.slice(1).join(' - ');
+        } else {
+            const words = value.split(' ');
+            if (words.length > 1) {
+                const mid = Math.ceil(words.length / 2);
+                line1 = words.slice(0, mid).join(' ');
+                line2 = words.slice(mid).join(' ');
+            }
+        }
+        return (
+            <g transform={`translate(${x},${y})`}>
+                <text x={0} y={0} dy={14} textAnchor="middle" fontSize={13} fill="#475569">{line1}</text>
+                {line2 && <text x={0} y={0} dy={30} textAnchor="middle" fontSize={13} fill="#475569">{line2}</text>}
+            </g>
+        );
+    };
+
+    const csvEscape = (val: any) => `"${String(val ?? '').replace(/"/g, '""')}"`;
+
+    const downloadCSV = (filename: string, lines: string[]) => {
+        const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const exportAnalyticsCSV = async () => {
+        if (!selectedJR) return;
+        setIsExportingAnalytics(true);
+        try {
+            const { getJRActivityAgingExport } = await import("@/app/actions/jr-candidates");
+            const { statuses, rows } = await getJRActivityAgingExport(selectedJR.id);
+            const statusOrderIndex = new Map(statuses.map((s, i) => [s, i]));
+
+            // Sort: 1) Successful Placement first, 2) Top profile then rank asc, 3) status_order
+            const sortedRows = [...rows].sort((a, b) => {
+                const aPlaced = a.currentStatus === 'Successful Placement' ? 0 : 1;
+                const bPlaced = b.currentStatus === 'Successful Placement' ? 0 : 1;
+                if (aPlaced !== bPlaced) return aPlaced - bPlaced;
+
+                const aTop = a.type === 'Top profile' ? 0 : 1;
+                const bTop = b.type === 'Top profile' ? 0 : 1;
+                if (aTop !== bTop) return aTop - bTop;
+
+                const rA = parseInt(a.rank || '999');
+                const rB = parseInt(b.rank || '999');
+                if (rA !== rB) return rA - rB;
+
+                const oA = statusOrderIndex.get(a.currentStatus) ?? 999;
+                const oB = statusOrderIndex.get(b.currentStatus) ?? 999;
+                return oA - oB;
+            });
+
+            const baseHeader = ['Rank', 'Type', 'Current Status', 'Candidate ID', 'Name', 'Company', 'Position'];
+            const header = [...baseHeader, ...statuses];
+
+            const activityLines = [header.map(csvEscape).join(',')];
+            sortedRows.forEach(r => {
+                const line = [
+                    r.rank, r.type, r.currentStatus, r.candidateId, r.name, r.company, r.position,
+                    ...statuses.map(s => r.visited[s] || 0)
+                ];
+                activityLines.push(line.map(csvEscape).join(','));
+            });
+
+            const agingLines = [header.map(csvEscape).join(',')];
+            sortedRows.forEach(r => {
+                const line = [
+                    r.rank, r.type, r.currentStatus, r.candidateId, r.name, r.company, r.position,
+                    ...statuses.map(s => r.aging[s] || 0)
+                ];
+                agingLines.push(line.map(csvEscape).join(','));
+            });
+
+            downloadCSV(`activity-${selectedJR.id}.csv`, activityLines);
+            downloadCSV(`aging-${selectedJR.id}.csv`, agingLines);
+        } finally {
+            setIsExportingAnalytics(false);
+        }
+    };
 
     const handleCreateReport = async () => {
         if (!selectedJR) return;
@@ -464,66 +582,98 @@ export default function JRManagePage() {
                         </div>
                     ) : selectedJR ? (
                         <div className="space-y-6">
-                            {/* ANALYTICS SECTION */}
                             {analytics && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <Card className="h-[250px] overflow-y-auto">
-                                        <CardContent className="pt-4">
-                                            <h3 className="text-sm font-semibold text-muted-foreground mb-4">Activity Transaction</h3>
-                                            {(() => {
-                                                const chartData = analytics.countsByStatus.filter((i: any) => i.count > 0);
-                                                const chartHeight = Math.max(180, chartData.length * 28);
-                                                return (
-                                                    <div style={{ height: chartHeight }}>
-                                                        <ResponsiveContainer width="100%" height="100%">
-                                                            <BarChart
-                                                                data={chartData}
-                                                                layout="vertical"
-                                                                margin={{ left: 10, right: 10, bottom: 5 }}
-                                                            >
-                                                                <XAxis type="number" hide />
-                                                                <YAxis dataKey="status" type="category" width={150} tick={{ fontSize: 9 }} />
-                                                                <Tooltip
-                                                                    cursor={{ fill: 'transparent' }}
-                                                                    content={({ active, payload }) => {
-                                                                        if (active && payload && payload.length) {
-                                                                            const data = payload[0].payload;
-                                                                            return (
-                                                                                <div className="bg-slate-900 text-white text-xs rounded px-2 py-1 shadow-xl">
-                                                                                    <p className="font-semibold">{data.status}</p>
-                                                                                    <p>Count: {data.count}</p>
-                                                                                </div>
-                                                                            );
-                                                                        }
-                                                                        return null;
-                                                                    }}
-                                                                />
-                                                                <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={16}>
-                                                                    {chartData.map((entry: any, index: number) => (
-                                                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                                                    ))}
-                                                                </Bar>
-                                                            </BarChart>
-                                                        </ResponsiveContainer>
-                                                    </div>
-                                                );
-                                            })()}
+                                <Card>
+                                    <button
+                                        onClick={toggleShowAnalytics}
+                                        className="w-full flex items-center justify-between px-5 py-3.5 text-left"
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <Activity className="h-4 w-4 text-slate-500" />
+                                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Activity Transaction & Aging</span>
+                                        </div>
+                                        {showAnalytics ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                                    </button>
+
+                                    {showAnalytics && (
+                                        <CardContent className="pt-0 space-y-4">
+                                            <div className="flex justify-end">
+                                                <Button variant="outline" size="sm" onClick={exportAnalyticsCSV} disabled={isExportingAnalytics} className="gap-2">
+                                                    {isExportingAnalytics ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                                                    {isExportingAnalytics ? "Exporting..." : "Export CSV"}
+                                                </Button>
+                                            </div>
+
+                                            <Card>
+                                                <CardContent className="pt-4">
+                                                    <h3 className="text-base font-bold text-slate-700 dark:text-slate-200 mb-4">Activity Transaction</h3>
+                                                    {(() => {
+                                                        const chartData = analytics.countsByStatus.filter((i: any) => i.count > 0);
+                                                        const chartHeight = Math.max(220, chartData.length * 32);
+                                                        return (
+                                                            <div style={{ height: chartHeight }}>
+                                                                <ResponsiveContainer width="100%" height="100%">
+                                                                    <BarChart
+                                                                        data={chartData}
+                                                                        layout="vertical"
+                                                                        margin={{ left: 10, right: 40, bottom: 5 }}
+                                                                    >
+                                                                        <XAxis type="number" hide />
+                                                                        <YAxis dataKey="status" type="category" width={280} interval={0} tick={LeftAlignedYAxisTick} />
+                                                                        <Tooltip
+                                                                            cursor={{ fill: 'transparent' }}
+                                                                            content={({ active, payload }) => {
+                                                                                if (active && payload && payload.length) {
+                                                                                    const data = payload[0].payload;
+                                                                                    return (
+                                                                                        <div className="bg-slate-900 text-white text-xs rounded px-2 py-1 shadow-xl">
+                                                                                            <p className="font-semibold">{data.status}</p>
+                                                                                            <p>Count: {data.count}</p>
+                                                                                        </div>
+                                                                                    );
+                                                                                }
+                                                                                return null;
+                                                                            }}
+                                                                        />
+                                                                        <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20}>
+                                                                            <LabelList dataKey="count" position="right" style={{ fontSize: 13, fontWeight: 700, fill: '#334155' }} />
+                                                                            {chartData.map((entry: any, index: number) => (
+                                                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                                            ))}
+                                                                        </Bar>
+                                                                    </BarChart>
+                                                                </ResponsiveContainer>
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </CardContent>
+                                            </Card>
+
+                                            <Card>
+                                                <CardContent className="pt-4">
+                                                    <h3 className="text-base font-bold text-slate-700 dark:text-slate-200 mb-4">Avg. Aging (Days)</h3>
+                                                    {(() => {
+                                                        const agingData = analytics.agingByStatus.filter((i: any) => !EXCLUDED_AGING_STATUSES.includes(i.status));
+                                                        return (
+                                                            <div style={{ height: 400 }}>
+                                                                <ResponsiveContainer width="100%" height="100%">
+                                                                    <BarChart data={agingData} margin={{ bottom: 40, top: 20 }}>
+                                                                        <XAxis dataKey="status" interval={0} height={60} tick={TwoLineXAxisTick} />
+                                                                        <YAxis tick={{ fontSize: 13 }} />
+                                                                        <Tooltip />
+                                                                        <Bar dataKey="avgDays" fill="#f97316" radius={[4, 4, 0, 0]} barSize={30}>
+                                                                            <LabelList dataKey="avgDays" position="top" style={{ fontSize: 13, fontWeight: 700, fill: '#334155' }} />
+                                                                        </Bar>
+                                                                    </BarChart>
+                                                                </ResponsiveContainer>
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                </CardContent>
+                                            </Card>
                                         </CardContent>
-                                    </Card>
-                                    <Card className="h-[250px]">
-                                        <CardContent className="h-full pt-4">
-                                            <h3 className="text-sm font-semibold text-muted-foreground mb-4">Avg. Aging (Days)</h3>
-                                            <ResponsiveContainer width="100%" height="80%">
-                                                <BarChart data={analytics.agingByStatus} margin={{ bottom: 20 }}>
-                                                    <XAxis dataKey="status" tick={{ fontSize: 10 }} />
-                                                    <YAxis />
-                                                    <Tooltip />
-                                                    <Bar dataKey="avgDays" fill="#f97316" radius={[4, 4, 0, 0]} barSize={30} />
-                                                </BarChart>
-                                            </ResponsiveContainer>
-                                        </CardContent>
-                                    </Card>
-                                </div>
+                                    )}
+                                </Card>
                             )}
 
                             <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">

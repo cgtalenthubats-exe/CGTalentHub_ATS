@@ -145,32 +145,26 @@ export function formatDateForDisplay(date: string | Date | null | undefined): st
  */
 export function formatAgeDisplay(
     age: number | string | null | undefined,
-    ageSource: string | null | undefined,
-    yearOfBachelor: string | null | undefined
+    ageSource: string | null | undefined
 ): { text: string; isEstimated: boolean } {
     if (!age) return { text: 'N/A', isEstimated: false };
-    const suffix =
-        ageSource === 'dob' ? ' - DoB' :
-        ageSource === 'estimated' ? ' - Est.' :
-        (yearOfBachelor && yearOfBachelor !== '') ? ' - Bachelor year' : '';
     return {
-        text: `${age} Years${suffix}`,
+        text: `${age} Years${ageSource === 'dob' ? ' - DoB' : ''}`,
         isEstimated: ageSource === 'estimated',
     };
 }
 
 /**
- * Formats age as short form (e.g. "42 yrs" or "Est. 42").
+ * Formats age as short form (e.g. "42 yrs"). Red styling driven by isEstimated.
  */
 export function formatAgeShort(
     age: number | string | null | undefined,
     ageSource: string | null | undefined
 ): { text: string; isEstimated: boolean } {
     if (!age) return { text: '', isEstimated: false };
-    const isEstimated = ageSource === 'estimated';
     return {
-        text: isEstimated ? `Est. ${age}` : `${age} yrs`,
-        isEstimated,
+        text: `${age} yrs`,
+        isEstimated: ageSource === 'estimated',
     };
 }
 

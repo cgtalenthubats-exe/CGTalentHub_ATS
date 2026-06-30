@@ -173,6 +173,47 @@ export default function RequisitionsPage() {
         return sorted;
     }, [filteredJrs, sortConfig]);
 
+    const formatDateDDMMYYYY = (dateStr: string | null | undefined): string => {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return '';
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        return `${dd}-${mm}-${yyyy}`;
+    };
+
+    const exportJrTableCSV = () => {
+        const candidateCountByJr: Record<string, number> = {};
+        allCandidates.forEach(c => {
+            candidateCountByJr[c.jr_id] = (candidateCountByJr[c.jr_id] || 0) + 1;
+        });
+
+        const header = ['jr_id', 'position_jr', 'bu', 'sub_bu', 'request_date', 'create_by', 'created_at', 'candidate_count'];
+        const rows = sortedJrs.map(jr => [
+            jr.id,
+            jr.job_title,
+            jr.division,
+            jr.department,
+            jr.opened_date || '',
+            jr.created_by || '',
+            formatDateDDMMYYYY(jr.created_at),
+            candidateCountByJr[jr.id] || 0,
+        ]);
+
+        const csvContent = [header, ...rows]
+            .map(row => row.map(val => `"${String(val ?? '').replace(/"/g, '""')}"`).join(','))
+            .join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `job-requisitions-${new Date().toISOString().slice(0, 10)}.csv`;
+        link.click();
+        URL.revokeObjectURL(url);
+    };
+
     const requestSort = (key: keyof JobRequisition) => {
         let direction: 'asc' | 'desc' = 'asc';
         if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -317,6 +358,9 @@ export default function RequisitionsPage() {
                         onClick={() => router.push('/requisitions/placements')}
                     >
                         <Trophy className="mr-2 h-4 w-4" /> Successful Placements
+                    </Button>
+                    <Button variant="outline" onClick={exportJrTableCSV}>
+                        <FileText className="mr-2 h-4 w-4" /> Export CSV
                     </Button>
                     <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                         <DialogTrigger asChild>

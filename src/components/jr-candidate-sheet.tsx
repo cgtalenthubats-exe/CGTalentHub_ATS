@@ -306,7 +306,7 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
                                                         <div className="flex items-center gap-1.5 border-l border-slate-200 pl-4">
                                                             <span className="text-[11px] font-black text-purple-500 uppercase tracking-tight">Age:</span>
                                                             <span className={`text-sm font-bold ${candidate?.age_source === 'estimated' ? 'text-red-500' : 'text-slate-700'}`}>
-                                                                {candidate?.age ? `${candidate.age} Years${candidate.age_source === 'dob' ? ' - DoB' : candidate.age_source === 'estimated' ? ' - Est.' : candidate.year_of_bachelor_education ? ' - Bachelor year' : ''}` : 'N/A'}
+                                                                {candidate?.age ? `${candidate.age} Years${candidate.age_source === 'dob' ? ' - DoB' : ''}` : 'N/A'}
                                                             </span>
                                                         </div>
                                                     </div>

@@ -3,13 +3,18 @@
 import { adminAuthClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 
-export async function getEmploymentRecords(status: 'Active' | 'Resigned') {
+export async function getEmploymentRecords(status?: 'Active' | 'Resigned') {
     const supabase = adminAuthClient;
-    const { data, error } = await supabase
+    let query = supabase
         .from('employment_record')
         .select('*, resignation_reason')
-        .eq('hiring_status', status)
         .order('er_number', { ascending: false });
+
+    if (status) {
+        query = query.eq('hiring_status', status);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
         console.error(`Error fetching ${status} employment records:`, error);

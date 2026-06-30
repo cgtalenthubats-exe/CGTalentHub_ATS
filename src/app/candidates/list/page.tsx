@@ -1106,7 +1106,7 @@ function CandidateRichCard({
                         <span className="flex items-center gap-1">{candidate.nationality || "N/A"}</span>
                         <span className="w-1 h-1 rounded-full bg-border" />
                         <span className={candidate.age_source === 'estimated' ? 'text-red-500' : undefined}>
-    {candidate.age ? `${candidate.age} Years${candidate.age_source === 'dob' ? ' - DoB' : candidate.age_source === 'estimated' ? ' - Est.' : candidate.year_of_bachelor_education ? ' - Bachelor year' : ''}` : 'Age -'}
+    {candidate.age ? `${candidate.age} Years${candidate.age_source === 'dob' ? ' - DoB' : ''}` : 'Age -'}
 </span>
                         <span className="w-1 h-1 rounded-full bg-border" />
                         <span>{candidate.gender || "Gender -"}</span>

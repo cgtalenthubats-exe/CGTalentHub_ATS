@@ -180,7 +180,7 @@ const CandidateRow = ({
                                 />
                             </div>
                             <span className="text-[11px] text-slate-500 mt-1">
-                                {candidate.nationality} • <span className={candidate.age_source === 'estimated' ? 'text-red-500' : undefined}>{candidate.age ? `${candidate.age} yrs${candidate.age_source === 'dob' ? ' - DoB' : candidate.age_source === 'estimated' ? ' - Est.' : candidate.year_of_bachelor_education ? ' - Bachelor year' : ''}` : 'Age -'}</span> • {candidate.gender}
+                                {candidate.nationality} • <span className={candidate.age_source === 'estimated' ? 'text-red-500' : undefined}>{candidate.age ? `${candidate.age} yrs${candidate.age_source === 'dob' ? ' - DoB' : ''}` : 'Age -'}</span> • {candidate.gender}
                             </span>
                         </div>
                     </div>

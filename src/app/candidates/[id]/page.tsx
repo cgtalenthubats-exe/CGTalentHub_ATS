@@ -161,7 +161,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                                 <Calendar className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                                 <span className="text-foreground font-bold">
                                     <span className={candidate.age_source === 'estimated' ? 'text-red-500' : undefined}>
-                                        {candidate.age ? `${candidate.age} Years${candidate.age_source === 'dob' ? ' - DoB' : candidate.age_source === 'estimated' ? ' - Est.' : candidate.year_of_bachelor_education ? ' - Bachelor year' : ''}` : 'Age N/A'}
+                                        {candidate.age ? `${candidate.age} Years${candidate.age_source === 'dob' ? ' - DoB' : ''}` : 'Age N/A'}
                                     </span>
                                 </span>
                             </div>

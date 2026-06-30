@@ -821,7 +821,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                     ref={virtualScrollRef}
                     style={{ maxHeight: 'calc(100vh - 320px)', overflowY: 'auto' }}
                 >
-                <table className="w-full text-sm border-collapse">
+                <table className="w-full text-sm border-collapse table-fixed">
                     <thead className="sticky top-0 z-10">
                         <tr className="bg-slate-50/80 dark:bg-slate-900/50 border-b border-slate-200 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
                             <th className="px-5 py-4 w-[40px]">
@@ -1357,7 +1357,7 @@ function SexAgeCell({ candidateId, gender, age, ageSource, onSaved }: {
         <Popover open={open} onOpenChange={setOpen}>
             <PopoverTrigger asChild>
                 <button className="inline-flex items-center gap-2 font-black text-sm text-slate-700 bg-slate-50 hover:bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-100 hover:border-slate-200 whitespace-nowrap transition-all">
-                    {gender || '—'}{age ? <span className={ageSource === 'estimated' ? 'text-red-500 ml-1' : 'ml-1'}>{ageSource === 'estimated' ? `, Est. ${age}` : `, ${age}`}</span> : ''}
+                    {gender || '—'}{age ? <span className={ageSource === 'estimated' ? 'text-red-500 ml-1' : 'ml-1'}>, {age}</span> : ''}
                 </button>
             </PopoverTrigger>
             <PopoverContent className="w-52 p-3 rounded-xl shadow-xl border-slate-100 space-y-3" align="start">
