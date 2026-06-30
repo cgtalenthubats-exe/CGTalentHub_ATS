@@ -243,7 +243,7 @@ export default function JRManagePage() {
     }, [selectedJR?.id, currentTab]);
 
     const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
-    const EXCLUDED_AGING_STATUSES = ['Interview Scheduled - Hiring Manager', 'Interview Scheduled - Recruiter'];
+    const EXCLUDED_CHART_STATUSES = ['Interview Scheduled - Hiring Manager', 'Interview Scheduled - Recruiter'];
 
     const LeftAlignedYAxisTick = (props: any) => {
         const { x, y, payload } = props;
@@ -608,7 +608,7 @@ export default function JRManagePage() {
                                                 <CardContent className="pt-4">
                                                     <h3 className="text-base font-bold text-slate-700 dark:text-slate-200 mb-4">Activity Transaction</h3>
                                                     {(() => {
-                                                        const chartData = analytics.countsByStatus.filter((i: any) => i.count > 0);
+                                                        const chartData = analytics.countsByStatus.filter((i: any) => i.count > 0 && !EXCLUDED_CHART_STATUSES.includes(i.status));
                                                         const chartHeight = Math.max(220, chartData.length * 32);
                                                         return (
                                                             <div style={{ height: chartHeight }}>
@@ -653,7 +653,7 @@ export default function JRManagePage() {
                                                 <CardContent className="pt-4">
                                                     <h3 className="text-base font-bold text-slate-700 dark:text-slate-200 mb-4">Avg. Aging (Days)</h3>
                                                     {(() => {
-                                                        const agingData = analytics.agingByStatus.filter((i: any) => !EXCLUDED_AGING_STATUSES.includes(i.status));
+                                                        const agingData = analytics.agingByStatus.filter((i: any) => !EXCLUDED_CHART_STATUSES.includes(i.status));
                                                         return (
                                                             <div style={{ height: 400 }}>
                                                                 <ResponsiveContainer width="100%" height="100%">
