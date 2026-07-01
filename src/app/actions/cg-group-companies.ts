@@ -88,6 +88,22 @@ export async function updateCgGroupCompany(
     return { success: true };
 }
 
+export async function deleteCgGroupCompany(id: number): Promise<{ success: boolean; error?: string }> {
+    const supabase = adminAuthClient as any;
+    // ตรวจก่อนว่ามี company_cg_mapping ใช้ entry นี้อยู่มั้ย
+    const { count } = await supabase
+        .from('company_cg_mapping')
+        .select('*', { count: 'exact', head: true })
+        .eq('cg_company_id', id);
+    if (count && count > 0) {
+        return { success: false, error: `Cannot delete — used by ${count} company mapping(s). Remove mappings first.` };
+    }
+    const { error } = await supabase.from('cg_group_companies').delete().eq('id', id);
+    if (error) return { success: false, error: error.message };
+    revalidatePath('/internal');
+    return { success: true };
+}
+
 // ─── company_cg_mapping ───────────────────────────────────────────────────────
 
 // Map company_id → BU/Sub-BU (cg_company_id)
@@ -235,7 +251,8 @@ export async function saveCandidateCgProfile(
     candidateId: string,
     buAbbr: string | null,
     subBuAbbr: string | null,
-    updatedBy?: string
+    updatedBy?: string,
+    jobGrade?: number | null,
 ): Promise<{ success: boolean; error?: string }> {
     const { error } = await (adminAuthClient.from('candidate_cg_profile') as any).upsert({
         candidate_id: candidateId,
@@ -244,6 +261,7 @@ export async function saveCandidateCgProfile(
         source: 'manual',
         updated_by: updatedBy || 'admin',
         updated_at: new Date().toISOString(),
+        ...(jobGrade !== undefined ? { job_grade: jobGrade } : {}),
     }, { onConflict: 'candidate_id' });
     if (error) return { success: false, error: error.message };
     revalidatePath('/internal');

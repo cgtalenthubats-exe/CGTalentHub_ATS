@@ -26,6 +26,7 @@ export interface InternalCandidate {
     // candidate_cg_profile fields (Group 2 BU/Sub-BU — from mapping or manual)
     cg_bu_abbr: string | null;
     cg_sub_bu_abbr: string | null;
+    cg_job_grade: number | null;
     current_company_id: number | null;
     // linkedin
     linkedin: string | null;
@@ -36,6 +37,8 @@ export interface InternalCandidate {
     // Ex-Central only: บริษัทในประวัติที่อยู่ใน company_cg_mapping
     cg_prev_company: string | null;
     cg_prev_position: string | null;
+    // status mismatch detection (Group 2 only)
+    status_mismatch: 'should_be_ex_central' | 'should_be_active' | null;
 }
 
 export interface InternalFilterOptions {
@@ -117,7 +120,7 @@ export async function getInternalCandidates(filters?: {
     // candidate_cg_profile fallback (manual tag, no company)
     const { data: cgProfiles } = group2Ids.length ? await (supabase as any)
         .from('candidate_cg_profile')
-        .select('candidate_id, bu_abbr, sub_bu_abbr')
+        .select('candidate_id, bu_abbr, sub_bu_abbr, job_grade')
         .in('candidate_id', group2Ids) : { data: [] };
 
     const cgProfileMap = new Map<string, any>((cgProfiles || []).map((c: any) => [c.candidate_id, c]));
@@ -152,6 +155,30 @@ export async function getInternalCandidates(filters?: {
         });
     }
 
+    // ── Mismatch detection: load cg sub_bu names for company name matching ──────
+    const { data: cgNamesList } = await (supabase as any)
+        .from('cg_group_companies')
+        .select('sub_bu_name')
+        .not('sub_bu_name', 'is', null);
+
+    const cgSubBuNames = (cgNamesList || [])
+        .map((c: any) => c.sub_bu_name?.toLowerCase())
+        .filter(Boolean) as string[];
+
+    // Which candidates are currently working at a CG company? (ILIKE on company name)
+    const currentlyAtCgSet = new Set<string>();
+    for (const [cid, exps] of allExpsByCand) {
+        const hasCurrentCgJob = exps.some((e: any) => {
+            if ((e.is_current_job || '').toLowerCase() !== 'current') return false;
+            const compName = (e.company || '').toLowerCase();
+            if (!compName || compName.length < 3) return false;
+            return cgSubBuNames.some(cgName =>
+                compName.includes(cgName) || (compName.length >= 6 && cgName.includes(compName))
+            );
+        });
+        if (hasCurrentCgJob) currentlyAtCgSet.add(cid);
+    }
+
     // CG mapping lookup ของทุก company ที่ candidate เคยทำ (สำหรับ Ex-Central history)
     const allCompanyIds = [...new Set((allExps || []).map((e: any) => e.company_id).filter(Boolean))] as number[];
     const { data: allMappings } = allCompanyIds.length ? await (supabase as any)
@@ -175,18 +202,25 @@ export async function getInternalCandidates(filters?: {
         let cg_sub_bu_abbr: string | null = null;
         let current_company_id: number | null = null;
 
+        let cg_job_grade: number | null = null;
         if (!isGroup1) {
             const companyId = currentCompanyMap.get(p.candidate_id) || null;
             current_company_id = companyId;
-            const mapping = companyId ? mappingByCompany.get(companyId) : null;
-            if (mapping) {
-                cg_bu_abbr = mapping.bu_abbr || null;
-                cg_sub_bu_abbr = mapping.sub_bu_abbr || null;
-            } else {
-                const profile = cgProfileMap.get(p.candidate_id);
-                cg_bu_abbr = profile?.bu_abbr || null;
-                cg_sub_bu_abbr = profile?.sub_bu_abbr || null;
-            }
+            const profile = cgProfileMap.get(p.candidate_id);
+            // candidate_cg_profile is the primary source for Group 2
+            cg_bu_abbr = profile?.bu_abbr || null;
+            cg_sub_bu_abbr = profile?.sub_bu_abbr || null;
+            cg_job_grade = profile?.job_grade || null;
+        }
+
+        // Mismatch detection (Group 2 only — Group 1 uses hiring_status field)
+        let status_mismatch: 'should_be_ex_central' | 'should_be_active' | null = null;
+        if (!isGroup1) {
+            const isCurrentlyAtCg = currentlyAtCgSet.has(p.candidate_id);
+            const isInternal = p.candidate_status?.includes('Internal Candidate');
+            const isExCentral = p.candidate_status?.includes('Ex-Central');
+            if (isInternal && !isCurrentlyAtCg) status_mismatch = 'should_be_ex_central';
+            else if (isExCentral && isCurrentlyAtCg) status_mismatch = 'should_be_active';
         }
 
         return {
@@ -211,12 +245,14 @@ export async function getInternalCandidates(filters?: {
             note: er?.note || null,
             cg_bu_abbr,
             cg_sub_bu_abbr,
+            cg_job_grade,
             current_company_id,
             exp_position: bestExpMap.get(p.candidate_id)?.position || null,
             exp_company: bestExpMap.get(p.candidate_id)?.company || null,
             exp_label: bestExpMap.get(p.candidate_id)?.label || null,
             cg_prev_company: cgPrevMap.get(p.candidate_id)?.company || null,
             cg_prev_position: cgPrevMap.get(p.candidate_id)?.position || null,
+            status_mismatch,
         };
     });
 
@@ -442,6 +478,29 @@ export async function setCandidateInternalStatus(
     }
 
     revalidatePath(`/candidates/${candidateId}`);
+    revalidatePath('/internal');
+    return { success: true };
+}
+
+export async function swapCandidateInternalStatus(
+    candidateId: string,
+    from: 'Internal Candidate' | 'Ex-Central',
+    to: 'Internal Candidate' | 'Ex-Central',
+): Promise<{ success: boolean; error?: string }> {
+    const supabase = adminAuthClient as any;
+    const { data: profile, error: fetchErr } = await supabase
+        .from('Candidate Profile')
+        .select('candidate_status')
+        .eq('candidate_id', candidateId)
+        .single();
+    if (fetchErr) return { success: false, error: fetchErr.message };
+    const current: string[] = profile?.candidate_status || [];
+    const updated = [...current.filter((s: string) => s !== from), ...(current.includes(to) ? [] : [to])];
+    const { error } = await supabase
+        .from('Candidate Profile')
+        .update({ candidate_status: updated })
+        .eq('candidate_id', candidateId);
+    if (error) return { success: false, error: error.message };
     revalidatePath('/internal');
     return { success: true };
 }

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { Plus, X, Building2, Loader2, Check } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import {
     Dialog, DialogContent, DialogHeader, DialogTitle,
@@ -14,7 +15,7 @@ import {
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { getCgBuTree, type CgBuTree } from "@/app/actions/cg-group-companies";
+import { getCgBuTree, addCgGroupCompany, type CgBuTree } from "@/app/actions/cg-group-companies";
 import { setCandidateInternalStatus } from "@/app/actions/internal-candidates";
 import { toast } from "@/lib/notifications";
 
@@ -53,13 +54,56 @@ export function CandidateStatusEditor({ candidateId, currentStatuses, experience
     const [selectedSubBu, setSelectedSubBu] = useState("");
     const [selectedCompanyId, setSelectedCompanyId] = useState<string>("");
     const [saving, setSaving] = useState(false);
+    // Inline create BU
+    const [creatingBu, setCreatingBu] = useState(false);
+    const [newBuAbbr, setNewBuAbbr] = useState("");
+    const [newBuName, setNewBuName] = useState("");
+    // Inline create Sub-BU
+    const [creatingSubBu, setCreatingSubBu] = useState(false);
+    const [newSubBuAbbr, setNewSubBuAbbr] = useState("");
+    const [newSubBuName, setNewSubBuName] = useState("");
+
+    const refreshBuTree = async () => { const t = await getCgBuTree(); setBuTree(t); };
 
     // Load BU tree once
-    useEffect(() => {
-        getCgBuTree().then(setBuTree);
-    }, []);
+    useEffect(() => { refreshBuTree(); }, []);
 
     const subBusForBu = buTree.find(b => b.bu_abbr === selectedBu)?.sub_bus || [];
+
+    const handleCreateBu = async () => {
+        if (!newBuAbbr.trim() || !newBuName.trim()) { toast.error("BU code and name required"); return; }
+        setSaving(true);
+        const abbr = newBuAbbr.toUpperCase().trim();
+        const result = await addCgGroupCompany({
+            bu_abbr: abbr, bu_name: newBuName.trim(),
+            sub_bu_abbr: abbr, sub_bu_name: newBuName.trim(),
+        });
+        setSaving(false);
+        if (result.success) {
+            await refreshBuTree();
+            setSelectedBu(abbr); setSelectedSubBu("");
+            setCreatingBu(false); setNewBuAbbr(""); setNewBuName("");
+            toast.success(`Created BU "${abbr}"`);
+        } else toast.error(result.error || "Failed");
+    };
+
+    const handleCreateSubBu = async () => {
+        if (!newSubBuAbbr.trim() || !selectedBu) { toast.error("Sub-BU code required"); return; }
+        setSaving(true);
+        const buEntry = buTree.find(b => b.bu_abbr === selectedBu);
+        const abbr = newSubBuAbbr.toUpperCase().trim();
+        const result = await addCgGroupCompany({
+            bu_abbr: selectedBu, bu_name: buEntry?.bu_name || selectedBu,
+            sub_bu_abbr: abbr, sub_bu_name: newSubBuName.trim() || undefined,
+        });
+        setSaving(false);
+        if (result.success) {
+            await refreshBuTree();
+            setSelectedSubBu(abbr);
+            setCreatingSubBu(false); setNewSubBuAbbr(""); setNewSubBuName("");
+            toast.success(`Created Sub-BU "${abbr}"`);
+        } else toast.error(result.error || "Failed");
+    };
 
     // Companies from experiences (deduplicated)
     const cgCompanies = React.useMemo(() => {
@@ -222,36 +266,88 @@ export function CandidateStatusEditor({ candidateId, currentStatuses, experience
                     <div className="space-y-3 mt-1">
                         {/* BU */}
                         <div>
-                            <label className="text-xs font-bold text-slate-600 mb-1 block">BU *</label>
-                            <Select value={selectedBu || "_none"} onValueChange={v => { setSelectedBu(v === '_none' ? '' : v); setSelectedSubBu(""); }}>
-                                <SelectTrigger className="rounded-lg">
-                                    <SelectValue placeholder="Select BU" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="_none">— Select BU —</SelectItem>
-                                    {buTree.map(b => (
-                                        <SelectItem key={b.bu_abbr} value={b.bu_abbr}>{b.bu_abbr} — {b.bu_name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="text-xs font-bold text-slate-600">BU *</label>
+                                <button onClick={() => { setCreatingBu(v => !v); setCreatingSubBu(false); }}
+                                    className="text-[10px] font-bold text-indigo-500 hover:text-indigo-700 flex items-center gap-0.5">
+                                    <Plus className="h-3 w-3" /> New BU
+                                </button>
+                            </div>
+                            {creatingBu ? (
+                                <div className="flex gap-1.5 items-center bg-indigo-50 rounded-lg p-2 border border-indigo-100">
+                                    <Input value={newBuAbbr} onChange={e => setNewBuAbbr(e.target.value)}
+                                        placeholder="Abbr" className="h-7 text-xs rounded-md w-20"
+                                        onKeyDown={e => { if (e.key === 'Enter') handleCreateBu(); }} />
+                                    <Input value={newBuName} onChange={e => setNewBuName(e.target.value)}
+                                        placeholder="Full name" className="h-7 text-xs rounded-md flex-1"
+                                        onKeyDown={e => { if (e.key === 'Enter') handleCreateBu(); }} />
+                                    <Button size="sm" className="h-7 px-2 text-xs rounded-md shrink-0"
+                                        onClick={handleCreateBu} disabled={saving}>
+                                        {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                                    </Button>
+                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 rounded-md"
+                                        onClick={() => setCreatingBu(false)}>
+                                        <X className="h-3 w-3" />
+                                    </Button>
+                                </div>
+                            ) : (
+                                <Select value={selectedBu || "_none"} onValueChange={v => { setSelectedBu(v === '_none' ? '' : v); setSelectedSubBu(""); setCreatingSubBu(false); }}>
+                                    <SelectTrigger className="rounded-lg">
+                                        <SelectValue placeholder="Select BU" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="_none">— Select BU —</SelectItem>
+                                        {buTree.map(b => (
+                                            <SelectItem key={b.bu_abbr} value={b.bu_abbr}>{b.bu_abbr} — {b.bu_name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
                         </div>
 
                         {/* Sub-BU */}
                         <div>
-                            <label className="text-xs font-bold text-slate-600 mb-1 block">Sub-BU *</label>
-                            <Select value={selectedSubBu || "_none"} disabled={!selectedBu} onValueChange={v => setSelectedSubBu(v === '_none' ? '' : v)}>
-                                <SelectTrigger className="rounded-lg">
-                                    <SelectValue placeholder="Select Sub-BU" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="_none">— Select Sub-BU —</SelectItem>
-                                    {subBusForBu.map(s => (
-                                        <SelectItem key={s.sub_bu_abbr} value={s.sub_bu_abbr}>
-                                            {s.sub_bu_abbr}{s.sub_bu_name ? ` — ${s.sub_bu_name}` : ''}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <div className="flex items-center justify-between mb-1">
+                                <label className="text-xs font-bold text-slate-600">Sub-BU *</label>
+                                {selectedBu && (
+                                    <button onClick={() => { setCreatingSubBu(v => !v); setCreatingBu(false); }}
+                                        className="text-[10px] font-bold text-indigo-500 hover:text-indigo-700 flex items-center gap-0.5">
+                                        <Plus className="h-3 w-3" /> New Sub-BU
+                                    </button>
+                                )}
+                            </div>
+                            {creatingSubBu && selectedBu ? (
+                                <div className="flex gap-1.5 items-center bg-indigo-50 rounded-lg p-2 border border-indigo-100">
+                                    <Input value={newSubBuAbbr} onChange={e => setNewSubBuAbbr(e.target.value)}
+                                        placeholder="Abbr" className="h-7 text-xs rounded-md w-20"
+                                        onKeyDown={e => { if (e.key === 'Enter') handleCreateSubBu(); }} />
+                                    <Input value={newSubBuName} onChange={e => setNewSubBuName(e.target.value)}
+                                        placeholder="Full name (optional)" className="h-7 text-xs rounded-md flex-1"
+                                        onKeyDown={e => { if (e.key === 'Enter') handleCreateSubBu(); }} />
+                                    <Button size="sm" className="h-7 px-2 text-xs rounded-md shrink-0"
+                                        onClick={handleCreateSubBu} disabled={saving}>
+                                        {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                                    </Button>
+                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 rounded-md"
+                                        onClick={() => setCreatingSubBu(false)}>
+                                        <X className="h-3 w-3" />
+                                    </Button>
+                                </div>
+                            ) : (
+                                <Select value={selectedSubBu || "_none"} disabled={!selectedBu} onValueChange={v => setSelectedSubBu(v === '_none' ? '' : v)}>
+                                    <SelectTrigger className="rounded-lg">
+                                        <SelectValue placeholder="Select Sub-BU" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="_none">— Select Sub-BU —</SelectItem>
+                                        {subBusForBu.map(s => (
+                                            <SelectItem key={s.sub_bu_abbr} value={s.sub_bu_abbr}>
+                                                {s.sub_bu_abbr}{s.sub_bu_name ? ` — ${s.sub_bu_name}` : ''}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
                         </div>
 
                         {/* Company (Ex-Central only) */}

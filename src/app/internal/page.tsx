@@ -4,7 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
     Search, Plus, Pencil, UserX, UserCheck,
     Loader2, AlertTriangle, ExternalLink, X, Download,
-    Building2, Check, ChevronDown,
+    Building2, Check, ChevronDown, ChevronRight,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -14,12 +14,13 @@ import { cn } from "@/lib/utils";
 import {
     getInternalCandidates, getInternalFilterOptions,
     addInternalCandidate, updateInternalEmploymentRecord, markAsResigned,
+    swapCandidateInternalStatus,
     type InternalCandidate, type InternalFilterOptions,
 } from "@/app/actions/internal-candidates";
 import {
-    getCgBuTree, getCgGroupCompanies, getCompanySetupData,
-    saveCompanyMapping, saveCandidateCgProfile, getCompanyMappingImpact,
-    type CgBuTree, type CgGroupCompany, type MappedCompany, type PendingCompany,
+    getCgBuTree, getCgGroupCompanies,
+    saveCandidateCgProfile, addCgGroupCompany,
+    type CgBuTree, type CgGroupCompany,
 } from "@/app/actions/cg-group-companies";
 import { toast } from "@/lib/notifications";
 import {
@@ -51,8 +52,6 @@ export default function InternalCandidatePage() {
 
     const [buTree, setBuTree] = useState<CgBuTree[]>([]);
     const [cgCompanies, setCgCompanies] = useState<CgGroupCompany[]>([]);
-    const [mapped, setMapped] = useState<MappedCompany[]>([]);
-    const [pending, setPending] = useState<PendingCompany[]>([]);
 
     const [addOpen, setAddOpen] = useState(false);
     const [editTarget, setEditTarget] = useState<InternalCandidate | null>(null);
@@ -60,12 +59,12 @@ export default function InternalCandidatePage() {
     const [buEditTarget, setBuEditTarget] = useState<InternalCandidate | null>(null);
     const [sheetCandidateId, setSheetCandidateId] = useState<string | null>(null);
     const [isSheetOpen, setIsSheetOpen] = useState(false);
+    const [mismatchTarget, setMismatchTarget] = useState<InternalCandidate | null>(null);
 
     const loadPeople = useCallback(async () => {
         setLoading(true);
         const [data, opts] = await Promise.all([
             getInternalCandidates({
-                hiring_status: statusTab === 'Active' ? 'Active' : statusTab === 'Ex-Central' ? 'Resigned' : 'All',
                 bu: filterBu || undefined,
                 search: search || undefined,
             }),
@@ -74,18 +73,12 @@ export default function InternalCandidatePage() {
         setCandidates(data);
         setOptions(opts);
         setLoading(false);
-    }, [statusTab, filterBu, search]);
+    }, [filterBu, search]);
 
     const loadSetupData = useCallback(async () => {
-        const [tree, comps, setupData] = await Promise.all([
-            getCgBuTree(),
-            getCgGroupCompanies(),
-            getCompanySetupData(),
-        ]);
+        const [tree, comps] = await Promise.all([getCgBuTree(), getCgGroupCompanies()]);
         setBuTree(tree);
         setCgCompanies(comps);
-        setMapped(setupData.mapped);
-        setPending(setupData.pending);
     }, []);
 
     useEffect(() => { loadSetupData(); }, [loadSetupData]);
@@ -94,13 +87,21 @@ export default function InternalCandidatePage() {
         return () => clearTimeout(t);
     }, [loadPeople]);
 
-    const displayed = candidates.filter(c => sourceFilter === 'all' || c.source === sourceFilter);
-    const activeCount = candidates.filter(c =>
-        c.hiring_status === 'Active' || (!c.hiring_status && c.candidate_status?.includes('Internal Candidate'))
-    ).length;
-    const exCentralCount = candidates.filter(c =>
-        c.hiring_status === 'Resigned' || (!c.hiring_status && c.candidate_status?.includes('Ex-Central'))
-    ).length;
+    const isActive = (c: InternalCandidate) =>
+        c.hiring_status === 'Active' || (!c.hiring_status && c.candidate_status?.includes('Internal Candidate'));
+    const isExCentral = (c: InternalCandidate) =>
+        c.hiring_status === 'Resigned' || (!c.hiring_status && c.candidate_status?.includes('Ex-Central'));
+
+    const activeCount = candidates.filter(isActive).length;
+    const exCentralCount = candidates.filter(isExCentral).length;
+
+    const displayed = candidates
+        .filter(c => {
+            if (statusTab === 'Active') return isActive(c);
+            if (statusTab === 'Ex-Central') return isExCentral(c);
+            return true;
+        })
+        .filter(c => sourceFilter === 'all' || c.source === sourceFilter);
 
     const exportCSV = () => {
         const headers = ["candidate_id", "name", "job_function", "source", "bu", "sub_bu", "position", "job_grade", "hire_date", "resign_date", "status", "linkedin"];
@@ -147,7 +148,7 @@ export default function InternalCandidatePage() {
                 <div className="flex gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-fit">
                     {([
                         { key: 'people', label: 'People' },
-                        { key: 'company-setup', label: 'Company Setup', badge: pending.length || null },
+                        { key: 'company-setup', label: 'Company Setup' },
                     ] as { key: MainTab; label: string; badge?: number | null }[]).map(t => (
                         <button key={t.key} onClick={() => setMainTab(t.key)}
                             className={cn(
@@ -228,8 +229,9 @@ export default function InternalCandidatePage() {
                             <p className="font-bold text-slate-500">No internal candidates found</p>
                         </div>
                     ) : (
-                        <div className="bg-white dark:bg-slate-900 rounded-2xl border overflow-hidden shadow-sm">
-                            <table className="w-full text-sm">
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl border shadow-sm overflow-hidden">
+                            <div className="overflow-x-auto">
+                            <table className="w-full text-sm min-w-[1100px]">
                                 <thead>
                                     <tr className="border-b bg-slate-50 dark:bg-slate-800/50 text-[11px] font-black uppercase tracking-wider text-slate-500">
                                         <th className="text-left px-4 py-3 w-8">#</th>
@@ -249,9 +251,9 @@ export default function InternalCandidatePage() {
                                     {displayed.map((c, i) => {
                                         const bu = getBu(c);
                                         const sub_bu = getSubBu(c);
-                                        const isActive = c.hiring_status === 'Active' || (!c.hiring_status && c.candidate_status?.includes('Internal Candidate'));
                                         const isGroup1 = c.source === 'group1';
-                                        const isExCentral = !isActive;
+                                        const isActiveCand = isActive(c);
+                                        const isExCentralCand = isExCentral(c);
                                         return (
                                             <tr key={c.candidate_id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors">
                                                 <td className="px-4 py-3 text-slate-400 text-xs">{i + 1}</td>
@@ -302,7 +304,7 @@ export default function InternalCandidatePage() {
                                                             : <span className="text-slate-300 text-xs">—</span>}
                                                     </div>
                                                     {/* Ex-Central: previously at CG */}
-                                                    {isExCentral && c.cg_prev_position && (
+                                                    {isExCentralCand && c.cg_prev_position && (
                                                         <p className="text-[11px] text-indigo-500 font-medium mt-0.5 line-clamp-1" title={c.cg_prev_position}>
                                                             ↩ {c.cg_prev_position}
                                                         </p>
@@ -315,7 +317,7 @@ export default function InternalCandidatePage() {
                                                         ? <span className="text-xs text-slate-600 line-clamp-2" title={c.exp_company}>{c.exp_company}</span>
                                                         : <span className="text-slate-300 text-xs">—</span>}
                                                     {/* Ex-Central: formerly at CG company */}
-                                                    {isExCentral && c.cg_prev_company && (
+                                                    {isExCentralCand && c.cg_prev_company && (
                                                         <p className="text-[11px] text-indigo-500 font-medium mt-0.5 line-clamp-1" title={c.cg_prev_company}>
                                                             ↩ {c.cg_prev_company}
                                                         </p>
@@ -329,24 +331,27 @@ export default function InternalCandidatePage() {
                                                             {bu ? <Badge variant="secondary" className="text-[10px] font-bold bg-indigo-50 text-indigo-700 border-indigo-100">{bu}</Badge> : <span className="text-slate-300">—</span>}
                                                             {sub_bu && <span className="text-xs text-slate-500">{sub_bu}</span>}
                                                         </div>
-                                                    ) : bu ? (
-                                                        <button onClick={() => setBuEditTarget(c)}
-                                                            className="flex items-center gap-1.5 flex-wrap group hover:bg-slate-100 rounded-lg px-2 py-1 -mx-2 transition-colors">
-                                                            <Badge variant="secondary" className="text-[10px] font-bold bg-indigo-50 text-indigo-700 border-indigo-100">{bu}</Badge>
-                                                            {sub_bu && <span className="text-xs text-slate-500">{sub_bu}</span>}
-                                                            <Pencil className="h-3 w-3 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                                        </button>
                                                     ) : (
                                                         <button onClick={() => setBuEditTarget(c)}
-                                                            className="flex items-center gap-1 text-amber-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg px-2 py-1 -mx-2 transition-colors text-xs font-bold">
-                                                            <Building2 className="h-3 w-3" /> Assign BU
+                                                            className="flex items-center gap-1.5 flex-wrap group hover:bg-slate-100 rounded-lg px-2 py-1 -mx-2 transition-colors min-w-[80px]">
+                                                            {bu ? (
+                                                                <>
+                                                                    <Badge variant="secondary" className="text-[10px] font-bold bg-indigo-50 text-indigo-700 border-indigo-100">{bu}</Badge>
+                                                                    {sub_bu && <span className="text-xs text-slate-500">{sub_bu}</span>}
+                                                                </>
+                                                            ) : (
+                                                                <span className="text-amber-600 text-xs font-bold flex items-center gap-1">
+                                                                    <Building2 className="h-3 w-3" /> Assign BU
+                                                                </span>
+                                                            )}
+                                                            <Pencil className="h-3 w-3 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity ml-auto" />
                                                         </button>
                                                     )}
                                                 </td>
 
                                                 <td className="px-4 py-3">
-                                                    {c.job_grade != null
-                                                        ? <Badge variant="outline" className="text-[10px] font-black border-slate-200 text-slate-600">JG {c.job_grade}</Badge>
+                                                    {(c.job_grade ?? c.cg_job_grade) != null
+                                                        ? <Badge variant="outline" className="text-[10px] font-black border-slate-200 text-slate-600">JG {c.job_grade ?? c.cg_job_grade}</Badge>
                                                         : <span className="text-slate-300">—</span>}
                                                 </td>
                                                 <td className="px-4 py-3 text-slate-600 text-xs">
@@ -355,9 +360,20 @@ export default function InternalCandidatePage() {
                                                         : <span className="text-slate-300">—</span>}
                                                 </td>
                                                 <td className="px-4 py-3">
-                                                    {isActive
-                                                        ? <Badge className="bg-emerald-100 text-emerald-700 border-none text-[10px] font-bold">Active</Badge>
-                                                        : <Badge className="bg-slate-100 text-slate-500 border-none text-[10px] font-bold">Ex-Central</Badge>}
+                                                    <div className="flex items-center gap-1.5">
+                                                        {isActiveCand
+                                                            ? <Badge className="bg-emerald-100 text-emerald-700 border-none text-[10px] font-bold">Active</Badge>
+                                                            : <Badge className="bg-slate-100 text-slate-500 border-none text-[10px] font-bold">Ex-Central</Badge>}
+                                                        {c.status_mismatch && (
+                                                            <button
+                                                                onClick={() => setMismatchTarget(c)}
+                                                                title={c.status_mismatch === 'should_be_ex_central' ? 'May have left CG — click to review' : 'May be back at CG — click to review'}
+                                                                className="text-amber-500 hover:text-amber-600 transition-colors"
+                                                            >
+                                                                <AlertTriangle className="h-3.5 w-3.5" />
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center gap-1.5 justify-end">
@@ -366,7 +382,7 @@ export default function InternalCandidatePage() {
                                                                 onClick={() => setEditTarget(c)}>
                                                                 <Pencil className="h-3.5 w-3.5" />
                                                             </Button>
-                                                            {isActive && c.employment_record_id && (
+                                                            {isActiveCand && c.employment_record_id && (
                                                                 <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded-lg hover:bg-red-50 hover:text-red-500"
                                                                     onClick={() => setResignTarget(c)}>
                                                                     <UserX className="h-3.5 w-3.5" />
@@ -380,6 +396,7 @@ export default function InternalCandidatePage() {
                                     })}
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -390,8 +407,6 @@ export default function InternalCandidatePage() {
                 <TabCompanySetup
                     companies={cgCompanies}
                     buTree={buTree}
-                    mapped={mapped}
-                    pending={pending}
                     onRefresh={() => { loadSetupData(); loadPeople(); }}
                 />
             )}
@@ -419,6 +434,14 @@ export default function InternalCandidatePage() {
                 />
             )}
 
+            {mismatchTarget && (
+                <StatusMismatchDialog
+                    candidate={mismatchTarget}
+                    onClose={() => setMismatchTarget(null)}
+                    onSuccess={() => { setMismatchTarget(null); refresh(); }}
+                />
+            )}
+
             <CandidatePreviewSheet
                 candidateId={sheetCandidateId}
                 open={isSheetOpen}
@@ -428,131 +451,249 @@ export default function InternalCandidatePage() {
     );
 }
 
-// ─── BU Edit Dialog (Group 2 inline) ─────────────────────────────────────────
+// ─── Status Mismatch Dialog ───────────────────────────────────────────────────
 
-function BuEditDialog({ candidate, buTree, cgCompanies, onClose, onSuccess }: {
+function StatusMismatchDialog({ candidate, onClose, onSuccess }: {
     candidate: InternalCandidate;
-    buTree: CgBuTree[];
-    cgCompanies: CgGroupCompany[];
     onClose: () => void;
     onSuccess: () => void;
 }) {
-    const [selectedCgId, setSelectedCgId] = useState("");
-    const [impact, setImpact] = useState<{ candidate_count: number; candidates: { candidate_id: string; name: string }[] } | null>(null);
-    const [loadingImpact, setLoadingImpact] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [confirmed, setConfirmed] = useState(false);
+    const isToExCentral = candidate.status_mismatch === 'should_be_ex_central';
+    const from = isToExCentral ? 'Internal Candidate' : 'Ex-Central';
+    const to = isToExCentral ? 'Ex-Central' : 'Internal Candidate';
 
-    const hasCompany = !!candidate.current_company_id;
-
-    const handleSelectChange = async (cgId: string) => {
-        setSelectedCgId(cgId);
-        setConfirmed(false);
-        if (hasCompany && candidate.current_company_id) {
-            setLoadingImpact(true);
-            const data = await getCompanyMappingImpact(candidate.current_company_id);
-            setImpact(data);
-            setLoadingImpact(false);
+    const handleConfirm = async () => {
+        setSaving(true);
+        const result = await swapCandidateInternalStatus(candidate.candidate_id, from, to);
+        setSaving(false);
+        if (result.success) {
+            toast.success(`${candidate.name} → ${to}`);
+            onSuccess();
+        } else {
+            toast.error(result.error || "Failed");
         }
+    };
+
+    return (
+        <Dialog open={true} onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-sm rounded-2xl">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 text-amber-600">
+                        <AlertTriangle className="h-5 w-5" /> Status Mismatch Detected
+                    </DialogTitle>
+                </DialogHeader>
+                <div className="p-3 rounded-xl bg-slate-50 border mb-3">
+                    <p className="text-sm font-bold text-slate-800">{candidate.name}</p>
+                    <p className="text-xs text-slate-500">{candidate.candidate_id}</p>
+                    {candidate.exp_company && (
+                        <p className="text-xs text-slate-500 mt-1">
+                            {candidate.exp_label === 'Current' ? 'Currently at' : 'Last at'}: <span className="font-medium">{candidate.exp_company}</span>
+                        </p>
+                    )}
+                </div>
+                <p className="text-sm text-slate-600">
+                    {isToExCentral
+                        ? "ระบบตรวจพบว่า candidate นี้อาจไม่ได้ทำงานที่ CG Group แล้ว ต้องการเปลี่ยนสถานะเป็น Ex-Central?"
+                        : "ระบบตรวจพบว่า candidate นี้อาจกลับมาทำงานที่ CG Group แล้ว ต้องการเปลี่ยนสถานะเป็น Active (Internal Candidate)?"}
+                </p>
+                <div className="flex items-center gap-2 mt-3 p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    ระบบตรวจจากชื่อบริษัทในประวัติ — อาจไม่แม่นยำ 100% ตรวจสอบก่อนยืนยัน
+                </div>
+                <div className="flex gap-3 mt-4">
+                    <Button variant="outline" className="flex-1 rounded-xl" onClick={onClose} disabled={saving}>
+                        ไม่ใช่ ปล่อยไว้
+                    </Button>
+                    <Button className="flex-1 rounded-xl" onClick={handleConfirm} disabled={saving}>
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
+                        เปลี่ยนเป็น {to}
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+// ─── BU Edit Dialog (Group 2) ─────────────────────────────────────────────────
+
+function BuEditDialog({ candidate, buTree, onClose, onSuccess }: {
+    candidate: InternalCandidate;
+    buTree: CgBuTree[];
+    cgCompanies?: CgGroupCompany[];
+    onClose: () => void;
+    onSuccess: () => void;
+}) {
+    const [localTree, setLocalTree] = useState<CgBuTree[]>(buTree);
+    const [selectedBu, setSelectedBu] = useState(candidate.cg_bu_abbr || "");
+    const [selectedSubBu, setSelectedSubBu] = useState(candidate.cg_sub_bu_abbr || "");
+    const [jobGrade, setJobGrade] = useState(candidate.cg_job_grade?.toString() || "");
+    const [saving, setSaving] = useState(false);
+
+    // Inline create BU
+    const [creatingBu, setCreatingBu] = useState(false);
+    const [newBuAbbr, setNewBuAbbr] = useState("");
+    const [newBuName, setNewBuName] = useState("");
+
+    // Inline create Sub-BU
+    const [creatingSubBu, setCreatingSubBu] = useState(false);
+    const [newSubBuAbbr, setNewSubBuAbbr] = useState("");
+    const [newSubBuName, setNewSubBuName] = useState("");
+
+    const subBusForSelected = localTree.find(b => b.bu_abbr === selectedBu)?.sub_bus || [];
+
+    const refreshTree = async () => {
+        const { getCgBuTree: getTree } = await import("@/app/actions/cg-group-companies");
+        const tree = await getTree();
+        setLocalTree(tree);
+    };
+
+    const handleCreateBu = async () => {
+        if (!newBuAbbr.trim()) return;
+        const result = await addCgGroupCompany({
+            bu_abbr: newBuAbbr.trim().toUpperCase(),
+            bu_name: newBuName.trim() || newBuAbbr.trim().toUpperCase(),
+            sub_bu_abbr: newBuAbbr.trim().toUpperCase(),
+            sub_bu_name: newBuName.trim() || undefined,
+        });
+        if (result.success) {
+            await refreshTree();
+            setSelectedBu(newBuAbbr.trim().toUpperCase());
+            setSelectedSubBu(newBuAbbr.trim().toUpperCase());
+            setNewBuAbbr(""); setNewBuName(""); setCreatingBu(false);
+            toast.success("BU created");
+        } else toast.error(result.error || "Failed");
+    };
+
+    const handleCreateSubBu = async () => {
+        if (!selectedBu || !newSubBuAbbr.trim()) return;
+        const buNode = localTree.find(b => b.bu_abbr === selectedBu);
+        const result = await addCgGroupCompany({
+            bu_abbr: selectedBu,
+            bu_name: buNode?.bu_name || selectedBu,
+            sub_bu_abbr: newSubBuAbbr.trim().toUpperCase(),
+            sub_bu_name: newSubBuName.trim() || undefined,
+        });
+        if (result.success) {
+            await refreshTree();
+            setSelectedSubBu(newSubBuAbbr.trim().toUpperCase());
+            setNewSubBuAbbr(""); setNewSubBuName(""); setCreatingSubBu(false);
+            toast.success("Sub-BU created");
+        } else toast.error(result.error || "Failed");
     };
 
     const handleSave = async () => {
-        if (!selectedCgId) return;
         setSaving(true);
-        if (hasCompany && candidate.current_company_id) {
-            const result = await saveCompanyMapping(candidate.current_company_id, parseInt(selectedCgId));
-            setSaving(false);
-            if (result.success) { toast.success("Company mapping saved — all related candidates updated"); onSuccess(); }
-            else toast.error(result.error || "Failed");
-        } else {
-            const cg = cgCompanies.find(c => c.id === parseInt(selectedCgId));
-            const result = await saveCandidateCgProfile(candidate.candidate_id, cg?.bu_abbr || null, cg?.sub_bu_abbr || null);
-            setSaving(false);
-            if (result.success) { toast.success("BU assigned"); onSuccess(); }
-            else toast.error(result.error || "Failed");
-        }
+        const result = await saveCandidateCgProfile(
+            candidate.candidate_id,
+            selectedBu || null,
+            selectedSubBu || null,
+            'recruiter',
+            jobGrade ? parseInt(jobGrade) : null,
+        );
+        setSaving(false);
+        if (result.success) { toast.success("Saved"); onSuccess(); }
+        else toast.error(result.error || "Failed");
     };
-
-    const needsConfirm = hasCompany && impact && impact.candidate_count > 1;
 
     return (
         <Dialog open={true} onOpenChange={onClose}>
             <DialogContent className="sm:max-w-md rounded-2xl">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        <Building2 className="h-5 w-5 text-indigo-600" /> Assign BU / Sub-BU
+                        <Pencil className="h-5 w-5 text-indigo-600" /> Edit — {candidate.name}
                     </DialogTitle>
                 </DialogHeader>
-                <div className="p-3 rounded-xl bg-slate-50 border mb-3">
-                    <p className="text-sm font-bold text-slate-800">{candidate.name}</p>
-                    <p className="text-xs text-slate-500">{candidate.candidate_id}</p>
-                </div>
 
-                {/* BU/Sub-BU selector */}
-                <div>
-                    <label className="text-xs font-bold text-slate-600 mb-1.5 block">BU / Sub-BU</label>
-                    <Select value={selectedCgId || "_none"} onValueChange={v => handleSelectChange(v === '_none' ? '' : v)}>
-                        <SelectTrigger className="rounded-lg">
-                            <SelectValue placeholder="Select BU / Sub-BU" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="_none">— Select —</SelectItem>
-                            {buTree.map(bu => (
-                                <React.Fragment key={bu.bu_abbr}>
-                                    {bu.sub_bus.map(sub => {
-                                        const cgEntry = cgCompanies.find(c => c.bu_abbr === bu.bu_abbr && c.sub_bu_abbr === sub.sub_bu_abbr);
-                                        return cgEntry ? (
-                                            <SelectItem key={cgEntry.id} value={String(cgEntry.id)}>
-                                                {bu.bu_abbr} / {sub.sub_bu_abbr}{sub.sub_bu_name ? ` — ${sub.sub_bu_name}` : ''}
-                                            </SelectItem>
-                                        ) : null;
-                                    })}
-                                </React.Fragment>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-
-                {/* Impact warning */}
-                {loadingImpact && <p className="text-xs text-slate-400 mt-3"><Loader2 className="h-3 w-3 animate-spin inline mr-1" /> Checking impact...</p>}
-                {impact && selectedCgId && (
-                    <div className={cn("mt-3 p-3 rounded-xl border text-sm",
-                        impact.candidate_count > 1 ? "bg-amber-50 border-amber-200 text-amber-800" : "bg-emerald-50 border-emerald-200 text-emerald-800"
-                    )}>
-                        {impact.candidate_count > 1 ? (
-                            <>
-                                <p className="font-bold mb-1">This will update {impact.candidate_count} candidates with this company</p>
-                                <p className="text-xs text-amber-600">
-                                    {impact.candidates.map(c => c.name).join(", ")}
-                                    {impact.candidate_count > 5 ? ` and ${impact.candidate_count - 5} more...` : ""}
-                                </p>
-                                <label className="flex items-center gap-2 mt-2 cursor-pointer">
-                                    <input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} className="rounded" />
-                                    <span className="text-xs font-bold">I understand, proceed</span>
-                                </label>
-                            </>
+                <div className="space-y-4 mt-1">
+                    {/* BU */}
+                    <div>
+                        <label className="text-xs font-bold text-slate-600 mb-1.5 block">BU</label>
+                        {creatingBu ? (
+                            <div className="flex gap-2 items-center">
+                                <Input placeholder="Abbr" value={newBuAbbr} onChange={e => setNewBuAbbr(e.target.value)}
+                                    className="rounded-lg w-24 uppercase" maxLength={10}
+                                    onKeyDown={e => e.key === 'Enter' && handleCreateBu()} autoFocus />
+                                <Input placeholder="Full name" value={newBuName} onChange={e => setNewBuName(e.target.value)}
+                                    className="rounded-lg flex-1"
+                                    onKeyDown={e => e.key === 'Enter' && handleCreateBu()} />
+                                <Button size="sm" variant="ghost" className="px-2 text-emerald-600 hover:bg-emerald-50" onClick={handleCreateBu}><Check className="h-4 w-4" /></Button>
+                                <Button size="sm" variant="ghost" className="px-2 text-slate-400 hover:bg-slate-100" onClick={() => setCreatingBu(false)}><X className="h-4 w-4" /></Button>
+                            </div>
                         ) : (
-                            <p className="font-medium">Only {candidate.name} will be affected.</p>
+                            <div className="flex gap-2">
+                                <Select value={selectedBu || "_none"} onValueChange={v => { setSelectedBu(v === '_none' ? '' : v); setSelectedSubBu(''); }}>
+                                    <SelectTrigger className="rounded-lg flex-1">
+                                        <SelectValue placeholder="Select BU" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="_none">— None —</SelectItem>
+                                        {localTree.map(b => (
+                                            <SelectItem key={b.bu_abbr} value={b.bu_abbr}>{b.bu_abbr}{b.bu_name && b.bu_name !== b.bu_abbr ? ` — ${b.bu_name}` : ''}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <Button size="sm" variant="outline" className="rounded-lg px-2.5 shrink-0 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                                    onClick={() => setCreatingBu(true)} title="New BU">
+                                    <Plus className="h-4 w-4" />
+                                </Button>
+                            </div>
                         )}
                     </div>
-                )}
 
-                {/* No company note */}
-                {!hasCompany && (
-                    <p className="text-xs text-slate-400 mt-2">
-                        No current company found — this will save directly to this candidate's profile only.
-                    </p>
-                )}
+                    {/* Sub-BU */}
+                    <div>
+                        <label className="text-xs font-bold text-slate-600 mb-1.5 block">Sub-BU</label>
+                        {creatingSubBu ? (
+                            <div className="flex gap-2 items-center">
+                                <Input placeholder="Abbr" value={newSubBuAbbr} onChange={e => setNewSubBuAbbr(e.target.value)}
+                                    className="rounded-lg w-24 uppercase" maxLength={10}
+                                    onKeyDown={e => e.key === 'Enter' && handleCreateSubBu()} autoFocus />
+                                <Input placeholder="Full name" value={newSubBuName} onChange={e => setNewSubBuName(e.target.value)}
+                                    className="rounded-lg flex-1"
+                                    onKeyDown={e => e.key === 'Enter' && handleCreateSubBu()} />
+                                <Button size="sm" variant="ghost" className="px-2 text-emerald-600 hover:bg-emerald-50" onClick={handleCreateSubBu}><Check className="h-4 w-4" /></Button>
+                                <Button size="sm" variant="ghost" className="px-2 text-slate-400 hover:bg-slate-100" onClick={() => setCreatingSubBu(false)}><X className="h-4 w-4" /></Button>
+                            </div>
+                        ) : (
+                            <div className="flex gap-2">
+                                <Select value={selectedSubBu || "_none"} onValueChange={v => setSelectedSubBu(v === '_none' ? '' : v)}
+                                    disabled={!selectedBu}>
+                                    <SelectTrigger className="rounded-lg flex-1">
+                                        <SelectValue placeholder={selectedBu ? "Select Sub-BU" : "Select BU first"} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="_none">— None —</SelectItem>
+                                        {subBusForSelected.map(s => (
+                                            <SelectItem key={s.sub_bu_abbr} value={s.sub_bu_abbr}>
+                                                {s.sub_bu_abbr}{s.sub_bu_name ? ` — ${s.sub_bu_name}` : ''}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <Button size="sm" variant="outline" className="rounded-lg px-2.5 shrink-0 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                                    disabled={!selectedBu}
+                                    onClick={() => setCreatingSubBu(true)} title="New Sub-BU">
+                                    <Plus className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        )}
+                    </div>
 
-                <div className="flex gap-3 mt-4">
+                    {/* Job Grade */}
+                    <div>
+                        <label className="text-xs font-bold text-slate-600 mb-1.5 block">Job Grade</label>
+                        <Input type="number" min={1} max={30} placeholder="e.g. 15"
+                            value={jobGrade} onChange={e => setJobGrade(e.target.value)}
+                            className="rounded-lg w-32" />
+                    </div>
+                </div>
+
+                <div className="flex gap-3 mt-5">
                     <Button variant="outline" className="flex-1 rounded-xl" onClick={onClose} disabled={saving}>Cancel</Button>
-                    <Button
-                        className="flex-1 rounded-xl"
-                        onClick={handleSave}
-                        disabled={!selectedCgId || saving || (!!needsConfirm && !confirmed)}
-                    >
+                    <Button className="flex-1 rounded-xl" onClick={handleSave} disabled={saving}>
                         {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
-                        Save
+                        Save Changes
                     </Button>
                 </div>
             </DialogContent>
