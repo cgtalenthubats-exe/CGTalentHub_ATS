@@ -4,8 +4,10 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
     Search, Plus, Pencil, UserX, UserCheck,
     Loader2, AlertTriangle, ExternalLink, X, Download,
-    Building2, Check, ChevronDown, ChevronRight,
+    Building2, Check, ChevronDown, ChevronRight, Filter, ChevronsUpDown,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,7 +45,6 @@ export default function InternalCandidatePage() {
     const [mainTab, setMainTab] = useState<MainTab>("people");
     const [statusTab, setStatusTab] = useState<StatusTab>("Active");
     const [search, setSearch] = useState("");
-    const [filterBu, setFilterBu] = useState("");
     const [sourceFilter, setSourceFilter] = useState<"all" | "group1" | "group2">("all");
 
     const [candidates, setCandidates] = useState<InternalCandidate[]>([]);
@@ -52,6 +53,15 @@ export default function InternalCandidatePage() {
 
     const [buTree, setBuTree] = useState<CgBuTree[]>([]);
     const [cgCompanies, setCgCompanies] = useState<CgGroupCompany[]>([]);
+
+    // column filters (live in filter bar)
+    const [colFilterCompanies, setColFilterCompanies] = useState<string[]>([]);
+    const [colFilterBu, setColFilterBu] = useState<string[]>([]);
+    const [colFilterSubBu, setColFilterSubBu] = useState<string[]>([]);
+
+    // bulk select
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [bulkBuOpen, setBulkBuOpen] = useState(false);
 
     const [addOpen, setAddOpen] = useState(false);
     const [editTarget, setEditTarget] = useState<InternalCandidate | null>(null);
@@ -64,16 +74,13 @@ export default function InternalCandidatePage() {
     const loadPeople = useCallback(async () => {
         setLoading(true);
         const [data, opts] = await Promise.all([
-            getInternalCandidates({
-                bu: filterBu || undefined,
-                search: search || undefined,
-            }),
+            getInternalCandidates({ search: search || undefined }),
             getInternalFilterOptions(),
         ]);
         setCandidates(data);
         setOptions(opts);
         setLoading(false);
-    }, [filterBu, search]);
+    }, [search]);
 
     const loadSetupData = useCallback(async () => {
         const [tree, comps] = await Promise.all([getCgBuTree(), getCgGroupCompanies()]);
@@ -94,6 +101,7 @@ export default function InternalCandidatePage() {
 
     const activeCount = candidates.filter(isActive).length;
     const exCentralCount = candidates.filter(isExCentral).length;
+    const allCount = candidates.length;
 
     const displayed = candidates
         .filter(c => {
@@ -101,7 +109,53 @@ export default function InternalCandidatePage() {
             if (statusTab === 'Ex-Central') return isExCentral(c);
             return true;
         })
+        .filter(c => sourceFilter === 'all' || c.source === sourceFilter)
+        .filter(c => !colFilterCompanies.length || colFilterCompanies.includes(c.exp_company || ''))
+        .filter(c => {
+            if (!colFilterBu.length) return true;
+            if (colFilterBu.includes('__unassigned__')) {
+                const unassignedMatch = c.source !== 'group1' && !getBu(c);
+                const otherSelected = colFilterBu.filter(b => b !== '__unassigned__');
+                return unassignedMatch || (otherSelected.length > 0 && otherSelected.includes(getBu(c) || ''));
+            }
+            return colFilterBu.includes(getBu(c) || '');
+        })
+        .filter(c => !colFilterSubBu.length || colFilterSubBu.includes(getSubBu(c) || ''));
+
+    // base pool for dropdown options — apply status + source filter only (not column filters)
+    const optionPool = candidates
+        .filter(c => {
+            if (statusTab === 'Active') return isActive(c);
+            if (statusTab === 'Ex-Central') return isExCentral(c);
+            return true;
+        })
         .filter(c => sourceFilter === 'all' || c.source === sourceFilter);
+
+    const allCompanyOptions = Array.from(new Set(optionPool.map(c => c.exp_company || '').filter(Boolean))).sort();
+    const allBuOptions = Array.from(new Set(optionPool.map(c => getBu(c) || '').filter(Boolean))).sort();
+    const allSubBuOptions = Array.from(
+        new Set(
+            optionPool
+                .filter(c => !colFilterBu.length || colFilterBu.includes(getBu(c) || ''))
+                .map(c => getSubBu(c) || '')
+                .filter(Boolean)
+        )
+    ).sort();
+
+    // only group2 rows are selectable (group1 BU is read-only)
+    const selectableIds = displayed.filter(c => c.source !== 'group1').map(c => c.candidate_id);
+    const allSelected = selectableIds.length > 0 && selectableIds.every(id => selectedIds.has(id));
+    const someSelected = selectableIds.some(id => selectedIds.has(id));
+    const toggleSelectAll = (checked: boolean) => {
+        const next = new Set(selectedIds);
+        selectableIds.forEach(id => checked ? next.add(id) : next.delete(id));
+        setSelectedIds(next);
+    };
+    const toggleRow = (id: string, checked: boolean) => {
+        const next = new Set(selectedIds);
+        checked ? next.add(id) : next.delete(id);
+        setSelectedIds(next);
+    };
 
     const exportCSV = () => {
         const headers = ["candidate_id", "name", "job_function", "source", "bu", "sub_bu", "position", "job_grade", "hire_date", "resign_date", "status", "linkedin"];
@@ -168,53 +222,70 @@ export default function InternalCandidatePage() {
 
             {/* ── Tab: People ─────────────────────────────────────────────────── */}
             {mainTab === 'people' && (<>
-                {/* Filter bar */}
-                <div className="px-8 py-4 bg-white dark:bg-slate-900 border-b flex items-center gap-3 flex-wrap">
-                    <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
-                        {([
-                            { key: 'Active', label: `Active (${activeCount})`, active: 'bg-emerald-500' },
-                            { key: 'Ex-Central', label: `Ex-Central (${exCentralCount})`, active: 'bg-slate-600' },
-                            { key: 'All', label: 'All', active: 'bg-white' },
-                        ] as { key: StatusTab; label: string; active: string }[]).map(t => (
-                            <button key={t.key} onClick={() => setStatusTab(t.key)}
-                                className={cn("px-4 py-1.5 rounded-lg text-sm font-bold transition-all",
-                                    statusTab === t.key ? `${t.active} text-white shadow-sm` : "text-slate-500 hover:text-slate-700"
-                                )}>
-                                {t.label}
-                            </button>
-                        ))}
+                {/* Filter bar — row 1: status + search + source */}
+                <div className="px-8 pt-4 pb-2 bg-white dark:bg-slate-900 border-b">
+                    <div className="flex items-center gap-3">
+                        <div className="flex gap-1 bg-slate-100 p-1 rounded-xl shrink-0">
+                            {([
+                                { key: 'Active', label: `Active (${activeCount})`, active: 'bg-emerald-500' },
+                                { key: 'Ex-Central', label: `Ex-Central (${exCentralCount})`, active: 'bg-slate-600' },
+                                { key: 'All', label: `All (${allCount})`, active: 'bg-slate-800' },
+                            ] as { key: StatusTab; label: string; active: string }[]).map(t => (
+                                <button key={t.key} onClick={() => setStatusTab(t.key)}
+                                    className={cn("px-4 py-1.5 rounded-lg text-sm font-bold transition-all",
+                                        statusTab === t.key ? `${t.active} text-white shadow-sm` : "text-slate-500 hover:text-slate-700"
+                                    )}>
+                                    {t.label}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="relative min-w-[180px] max-w-xs flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <Input placeholder="Search name or ID..." className="pl-9 h-9 rounded-lg border-slate-200"
+                                value={search} onChange={e => setSearch(e.target.value)} />
+                        </div>
+                        <Select value={sourceFilter} onValueChange={v => setSourceFilter(v as any)}>
+                            <SelectTrigger className="h-9 w-44 rounded-lg border-slate-200 text-sm shrink-0">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Sources</SelectItem>
+                                <SelectItem value="group1">Executive Recruit (ER)</SelectItem>
+                                <SelectItem value="group2">Other (Profile only)</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <span className="ml-auto text-xs font-bold text-slate-400 uppercase tracking-wider shrink-0">{displayed.length} records</span>
                     </div>
-                    <div className="relative min-w-[200px] max-w-sm">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                        <Input placeholder="Search name or ID..." className="pl-9 h-9 rounded-lg border-slate-200"
-                            value={search} onChange={e => setSearch(e.target.value)} />
-                    </div>
-                    <Select value={filterBu || "_all"} onValueChange={v => setFilterBu(v === "_all" ? "" : v)}>
-                        <SelectTrigger className="h-9 w-32 rounded-lg border-slate-200 text-sm">
-                            <SelectValue placeholder="All BU" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="_all">All BU</SelectItem>
-                            {(options as any).bus?.map((b: string) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-                        </SelectContent>
-                    </Select>
-                    <Select value={sourceFilter} onValueChange={v => setSourceFilter(v as any)}>
-                        <SelectTrigger className="h-9 w-44 rounded-lg border-slate-200 text-sm">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All Sources</SelectItem>
-                            <SelectItem value="group1">Executive Recruit (ER)</SelectItem>
-                            <SelectItem value="group2">Other (Profile only)</SelectItem>
-                        </SelectContent>
-                    </Select>
-                    {(filterBu || search || sourceFilter !== 'all') && (
-                        <Button variant="ghost" size="sm" className="h-9 text-xs text-slate-500"
-                            onClick={() => { setFilterBu(""); setSearch(""); setSourceFilter("all"); }}>
-                            <X className="h-3 w-3 mr-1" /> Clear
+
+                    {/* Row 2: column filters — always rendered so layout never shifts */}
+                    <div className="flex items-center gap-2 mt-2">
+                        <MultiSelectFilter
+                            options={allCompanyOptions}
+                            selected={colFilterCompanies}
+                            onChange={setColFilterCompanies}
+                            label="Company"
+                        />
+                        <MultiSelectFilter
+                            options={['⚠ Unassigned', ...allBuOptions]}
+                            selected={colFilterBu.map(b => b === '__unassigned__' ? '⚠ Unassigned' : b)}
+                            onChange={vals => { setColFilterBu(vals.map(v => v === '⚠ Unassigned' ? '__unassigned__' : v)); setColFilterSubBu([]); }}
+                            label="BU"
+                        />
+                        <MultiSelectFilter
+                            options={allSubBuOptions}
+                            selected={colFilterSubBu}
+                            onChange={setColFilterSubBu}
+                            label="Sub-BU"
+                        />
+                        <Button variant="ghost" size="sm"
+                            className={cn("h-8 text-xs gap-1 text-slate-500 transition-opacity",
+                                (search || sourceFilter !== 'all' || colFilterCompanies.length > 0 || colFilterBu.length > 0 || colFilterSubBu.length > 0)
+                                    ? "opacity-100" : "opacity-0 pointer-events-none"
+                            )}
+                            onClick={() => { setSearch(""); setSourceFilter("all"); setColFilterCompanies([]); setColFilterBu([]); setColFilterSubBu([]); }}>
+                            <X className="h-3 w-3" /> Clear all
                         </Button>
-                    )}
-                    <span className="ml-auto text-xs font-bold text-slate-400 uppercase tracking-wider">{displayed.length} records</span>
+                    </div>
                 </div>
 
                 {/* Table */}
@@ -231,9 +302,17 @@ export default function InternalCandidatePage() {
                     ) : (
                         <div className="bg-white dark:bg-slate-900 rounded-2xl border shadow-sm overflow-hidden">
                             <div className="overflow-x-auto">
-                            <table className="w-full text-sm min-w-[1100px]">
+                            <table className="w-full text-sm min-w-[1200px]">
                                 <thead>
                                     <tr className="border-b bg-slate-50 dark:bg-slate-800/50 text-[11px] font-black uppercase tracking-wider text-slate-500">
+                                        <th className="px-3 py-3 w-10">
+                                            <Checkbox
+                                                checked={allSelected}
+                                                ref={el => { if (el) (el as any).indeterminate = someSelected && !allSelected; }}
+                                                onCheckedChange={v => toggleSelectAll(!!v)}
+                                                className="rounded"
+                                            />
+                                        </th>
                                         <th className="text-left px-4 py-3 w-8">#</th>
                                         <th className="px-4 py-3 w-14"></th>
                                         <th className="text-left px-4 py-3 min-w-[120px]">ID</th>
@@ -255,7 +334,17 @@ export default function InternalCandidatePage() {
                                         const isActiveCand = isActive(c);
                                         const isExCentralCand = isExCentral(c);
                                         return (
-                                            <tr key={c.candidate_id} className="hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors">
+                                            <tr key={c.candidate_id} className={cn("hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors", selectedIds.has(c.candidate_id) && "bg-indigo-50/60")}>
+                                                {/* Checkbox — only group2 */}
+                                                <td className="px-3 py-3">
+                                                    {!isGroup1 && (
+                                                        <Checkbox
+                                                            checked={selectedIds.has(c.candidate_id)}
+                                                            onCheckedChange={v => toggleRow(c.candidate_id, !!v)}
+                                                            className="rounded"
+                                                        />
+                                                    )}
+                                                </td>
                                                 <td className="px-4 py-3 text-slate-400 text-xs">{i + 1}</td>
 
                                                 {/* Photo */}
@@ -402,6 +491,40 @@ export default function InternalCandidatePage() {
                 </div>
             </>)}
 
+            {/* Floating bulk action bar */}
+            {selectedIds.size > 0 && (
+                <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 bg-slate-900 text-white rounded-2xl shadow-2xl px-5 py-3">
+                    <span className="text-sm font-bold">{selectedIds.size} คนถูกเลือก</span>
+                    <Button size="sm" className="h-8 px-4 text-xs rounded-xl bg-indigo-500 hover:bg-indigo-400 text-white font-bold gap-1.5"
+                        onClick={() => setBulkBuOpen(true)}>
+                        <Building2 className="h-3.5 w-3.5" /> Assign BU
+                    </Button>
+                    <button onClick={() => setSelectedIds(new Set())} className="text-slate-400 hover:text-white transition-colors ml-1">
+                        <X className="h-4 w-4" />
+                    </button>
+                </div>
+            )}
+
+            {bulkBuOpen && (
+                <BulkBuAssignDialog
+                    count={selectedIds.size}
+                    buTree={buTree}
+                    onClose={() => setBulkBuOpen(false)}
+                    onAssign={async (buAbbr, subBuAbbr) => {
+                        const { bulkAssignCandidateBu } = await import("@/app/actions/cg-group-companies");
+                        const result = await bulkAssignCandidateBu([...selectedIds], buAbbr, subBuAbbr);
+                        if (result.success) {
+                            toast.success(`Assigned ${result.count} คน → ${subBuAbbr}`);
+                            setSelectedIds(new Set());
+                            setBulkBuOpen(false);
+                            refresh();
+                        } else {
+                            toast.error(result.error || "Failed");
+                        }
+                    }}
+                />
+            )}
+
             {/* ── Tab: Company Setup ───────────────────────────────────────────── */}
             {mainTab === 'company-setup' && (
                 <TabCompanySetup
@@ -448,6 +571,202 @@ export default function InternalCandidatePage() {
                 onOpenChange={(open) => { setIsSheetOpen(open); if (!open) setSheetCandidateId(null); }}
             />
         </div>
+    );
+}
+
+// ─── Multi-Select Filter — Excel / Google Sheets style ────────────────────────
+
+function MultiSelectFilter({ options, selected, onChange, label }: {
+    options: string[];
+    selected: string[];
+    onChange: (v: string[]) => void;
+    label?: string;
+}) {
+    const [open, setOpen] = useState(false);
+    const [search, setSearch] = useState("");
+    // pending = draft selection inside the dropdown; committed to parent only on Apply
+    const [pending, setPending] = useState<string[]>(selected);
+
+    // sync pending when dropdown opens
+    const handleOpenChange = (o: boolean) => {
+        if (o) setPending(selected);
+        else setSearch("");
+        setOpen(o);
+    };
+
+    const filtered = options.filter(o => o.toLowerCase().includes(search.toLowerCase()));
+    const allFilteredSelected = filtered.length > 0 && filtered.every(o => pending.includes(o));
+    const someFilteredSelected = filtered.some(o => pending.includes(o));
+
+    const toggleOne = (val: string) =>
+        setPending(p => p.includes(val) ? p.filter(s => s !== val) : [...p, val]);
+
+    const toggleAll = () =>
+        setPending(allFilteredSelected
+            ? pending.filter(p => !filtered.includes(p))   // deselect filtered
+            : [...new Set([...pending, ...filtered])]       // add all filtered
+        );
+
+    const apply = () => { onChange(pending); setOpen(false); setSearch(""); };
+    const cancel = () => { setPending(selected); setOpen(false); setSearch(""); };
+    const isActive = selected.length > 0;
+
+    return (
+        <Popover open={open} onOpenChange={handleOpenChange}>
+            <PopoverTrigger asChild>
+                <Button variant="outline" size="sm"
+                    className={cn(
+                        "h-8 gap-1.5 rounded-lg text-xs font-normal border-slate-200",
+                        isActive && "border-indigo-400 bg-indigo-50 text-indigo-700 font-bold"
+                    )}
+                >
+                    {isActive
+                        ? <><Filter className="h-3 w-3" />{label}: {selected.length}</>
+                        : <><ChevronsUpDown className="h-3 w-3 text-slate-400" />{label || "Filter"}</>
+                    }
+                    {isActive && (
+                        <span onPointerDown={e => { e.preventDefault(); e.stopPropagation(); onChange([]); setPending([]); }}
+                            className="ml-0.5 hover:text-rose-500 transition-colors">
+                            <X className="h-3 w-3" />
+                        </span>
+                    )}
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent
+                className="w-64 p-0 rounded-xl shadow-xl border border-slate-200"
+                align="start" side="bottom"
+                onInteractOutside={cancel}
+            >
+                {/* Search */}
+                <div className="flex items-center gap-2 px-3 py-2 border-b">
+                    <Search className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                    <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
+                        placeholder={`ค้นหา ${label?.toLowerCase() || ''}…`}
+                        className="w-full text-xs outline-none bg-transparent placeholder:text-slate-300" />
+                    {search && (
+                        <button onPointerDown={e => { e.preventDefault(); setSearch(""); }}
+                            className="text-slate-300 hover:text-slate-500">
+                            <X className="h-3 w-3" />
+                        </button>
+                    )}
+                </div>
+
+                {/* Select All row */}
+                <label className="flex items-center gap-2 px-3 py-2 border-b bg-slate-50 cursor-pointer select-none hover:bg-slate-100">
+                    <Checkbox
+                        checked={allFilteredSelected}
+                        ref={el => { if (el) (el as any).indeterminate = someFilteredSelected && !allFilteredSelected; }}
+                        onCheckedChange={toggleAll}
+                        className="rounded h-3.5 w-3.5 shrink-0"
+                    />
+                    <span className="text-xs font-bold text-slate-600">
+                        {allFilteredSelected ? "Deselect All" : "Select All"}
+                        {search && <span className="text-slate-400 font-normal"> ({filtered.length})</span>}
+                    </span>
+                </label>
+
+                {/* List */}
+                <div className="max-h-52 overflow-y-auto py-1">
+                    {filtered.length === 0
+                        ? <p className="text-xs text-slate-400 text-center py-4">ไม่พบ</p>
+                        : filtered.map(opt => (
+                            <label key={opt} className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 cursor-pointer select-none">
+                                <Checkbox
+                                    checked={pending.includes(opt)}
+                                    onCheckedChange={() => toggleOne(opt)}
+                                    className="rounded h-3.5 w-3.5 shrink-0"
+                                />
+                                <span className="text-xs text-slate-700 truncate">{opt}</span>
+                            </label>
+                        ))
+                    }
+                </div>
+
+                {/* Footer */}
+                <div className="border-t px-3 py-2 flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-slate-400">
+                        {pending.length > 0 ? `${pending.length} selected` : "No filter"}
+                    </span>
+                    <div className="flex gap-2">
+                        <button onPointerDown={e => { e.preventDefault(); cancel(); }}
+                            className="text-xs text-slate-500 hover:text-slate-700 font-medium px-2 py-1 rounded-lg hover:bg-slate-100">
+                            Cancel
+                        </button>
+                        <button onPointerDown={e => { e.preventDefault(); apply(); }}
+                            className="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1 rounded-lg">
+                            Apply
+                        </button>
+                    </div>
+                </div>
+            </PopoverContent>
+        </Popover>
+    );
+}
+
+// ─── Bulk BU Assign Dialog ────────────────────────────────────────────────────
+
+function BulkBuAssignDialog({ count, buTree, onClose, onAssign }: {
+    count: number;
+    buTree: CgBuTree[];
+    onClose: () => void;
+    onAssign: (buAbbr: string, subBuAbbr: string) => Promise<void>;
+}) {
+    const [selectedBu, setSelectedBu] = useState("");
+    const [selectedSubBu, setSelectedSubBu] = useState("");
+    const [saving, setSaving] = useState(false);
+    const subBus = buTree.find(b => b.bu_abbr === selectedBu)?.sub_bus || [];
+
+    const handleAssign = async () => {
+        if (!selectedBu || !selectedSubBu) { return; }
+        setSaving(true);
+        await onAssign(selectedBu, selectedSubBu);
+        setSaving(false);
+    };
+
+    return (
+        <Dialog open={true} onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-sm rounded-2xl">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                        <Building2 className="h-5 w-5 text-indigo-600" /> Assign BU — {count} คน
+                    </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3 mt-2">
+                    <div>
+                        <label className="text-xs font-bold text-slate-600 mb-1.5 block">BU</label>
+                        <Select value={selectedBu || "_none"} onValueChange={v => { setSelectedBu(v === '_none' ? '' : v); setSelectedSubBu(''); }}>
+                            <SelectTrigger className="rounded-lg">
+                                <SelectValue placeholder="Select BU" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="_none">— Select —</SelectItem>
+                                {buTree.map(b => <SelectItem key={b.bu_abbr} value={b.bu_abbr}>{b.bu_abbr}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div>
+                        <label className="text-xs font-bold text-slate-600 mb-1.5 block">Sub-BU</label>
+                        <Select value={selectedSubBu || "_none"} onValueChange={v => setSelectedSubBu(v === '_none' ? '' : v)} disabled={!selectedBu}>
+                            <SelectTrigger className="rounded-lg">
+                                <SelectValue placeholder={selectedBu ? "Select Sub-BU" : "Select BU first"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="_none">— Select —</SelectItem>
+                                {subBus.map(s => <SelectItem key={s.sub_bu_abbr} value={s.sub_bu_abbr}>{s.sub_bu_abbr}</SelectItem>)}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+                <div className="flex gap-3 mt-5">
+                    <Button variant="outline" className="flex-1 rounded-xl" onClick={onClose} disabled={saving}>Cancel</Button>
+                    <Button className="flex-1 rounded-xl" onClick={handleAssign}
+                        disabled={saving || !selectedBu || !selectedSubBu}>
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Check className="h-4 w-4 mr-2" />}
+                        Assign {count} คน
+                    </Button>
+                </div>
+            </DialogContent>
+        </Dialog>
     );
 }
 
@@ -629,7 +948,7 @@ function BuEditDialog({ candidate, buTree, onClose, onSuccess }: {
                                     <SelectContent>
                                         <SelectItem value="_none">— None —</SelectItem>
                                         {localTree.map(b => (
-                                            <SelectItem key={b.bu_abbr} value={b.bu_abbr}>{b.bu_abbr}{b.bu_name && b.bu_name !== b.bu_abbr ? ` — ${b.bu_name}` : ''}</SelectItem>
+                                            <SelectItem key={b.bu_abbr} value={b.bu_abbr}>{b.bu_abbr}</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
@@ -666,7 +985,7 @@ function BuEditDialog({ candidate, buTree, onClose, onSuccess }: {
                                         <SelectItem value="_none">— None —</SelectItem>
                                         {subBusForSelected.map(s => (
                                             <SelectItem key={s.sub_bu_abbr} value={s.sub_bu_abbr}>
-                                                {s.sub_bu_abbr}{s.sub_bu_name ? ` — ${s.sub_bu_name}` : ''}
+                                                {s.sub_bu_abbr}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>

@@ -2,6 +2,7 @@
 
 import { adminAuthClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { cgCompanyMatch } from "@/lib/cg-company-match";
 
 export interface InternalCandidate {
     candidate_id: string;
@@ -170,11 +171,9 @@ export async function getInternalCandidates(filters?: {
     for (const [cid, exps] of allExpsByCand) {
         const hasCurrentCgJob = exps.some((e: any) => {
             if ((e.is_current_job || '').toLowerCase() !== 'current') return false;
-            const compName = (e.company || '').toLowerCase();
+            const compName = (e.company || '') as string;
             if (!compName || compName.length < 3) return false;
-            return cgSubBuNames.some(cgName =>
-                compName.includes(cgName) || (compName.length >= 6 && cgName.includes(compName))
-            );
+            return cgSubBuNames.some(cgName => cgCompanyMatch(cgName, compName));
         });
         if (hasCurrentCgJob) currentlyAtCgSet.add(cid);
     }

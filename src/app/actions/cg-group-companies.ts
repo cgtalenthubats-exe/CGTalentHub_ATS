@@ -2,6 +2,7 @@
 
 import { adminAuthClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { cgCompanyMatch } from "@/lib/cg-company-match";
 
 export interface CgGroupCompany {
     id: number;
@@ -266,6 +267,80 @@ export async function saveCandidateCgProfile(
     if (error) return { success: false, error: error.message };
     revalidatePath('/internal');
     return { success: true };
+}
+
+// หา Group 2 candidates ที่ยังไม่มี BU และชื่อบริษัทตรงกับ sub_bu_name
+export async function findCandidatesForSubBu(subBuName: string): Promise<{
+    candidate_id: string;
+    name: string;
+    current_company: string;
+    position: string;
+}[]> {
+    const supabase = adminAuthClient as any;
+
+    const { data: profiles } = await supabase
+        .from('Candidate Profile')
+        .select('candidate_id, name')
+        .or('candidate_status.cs.{"Internal Candidate"},candidate_status.cs.{"Ex-Central"}');
+
+    if (!profiles?.length) return [];
+
+    const candidateIds = profiles.map((p: any) => p.candidate_id);
+
+    const [{ data: ers }, { data: assigned }] = await Promise.all([
+        supabase.from('employment_record').select('candidate_id').in('candidate_id', candidateIds),
+        supabase.from('candidate_cg_profile').select('candidate_id').in('candidate_id', candidateIds).not('bu_abbr', 'is', null),
+    ]);
+
+    const erIds = new Set((ers || []).map((e: any) => e.candidate_id));
+    const assignedIds = new Set((assigned || []).map((a: any) => a.candidate_id));
+    const unassignedIds = candidateIds.filter((id: string) => !erIds.has(id) && !assignedIds.has(id));
+
+    if (!unassignedIds.length) return [];
+
+    const { data: exps } = await supabase
+        .from('candidate_experiences')
+        .select('candidate_id, company, position')
+        .in('candidate_id', unassignedIds)
+        .eq('is_current_job', 'Current');
+
+    const profileMap = new Map<string, string>(profiles.map((p: any) => [p.candidate_id as string, (p.name || '') as string]));
+
+    return ((exps || []) as any[])
+        .filter(e => {
+            const comp = (e.company || '') as string;
+            if (!comp || comp.length < 3) return false;
+            return cgCompanyMatch(subBuName, comp);
+        })
+        .map(e => ({
+            candidate_id: e.candidate_id as string,
+            name: profileMap.get(e.candidate_id) ?? '',
+            current_company: (e.company || '') as string,
+            position: (e.position || '') as string,
+        }));
+}
+
+// Bulk assign BU/Sub-BU ให้หลาย candidates พร้อมกัน
+export async function bulkAssignCandidateBu(
+    candidateIds: string[],
+    buAbbr: string,
+    subBuAbbr: string,
+): Promise<{ success: boolean; count: number; error?: string }> {
+    if (!candidateIds.length) return { success: true, count: 0 };
+    const rows = candidateIds.map(id => ({
+        candidate_id: id,
+        bu_abbr: buAbbr,
+        sub_bu_abbr: subBuAbbr,
+        source: 'manual',
+        updated_by: 'recruiter',
+        updated_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+    }));
+    const { error } = await (adminAuthClient.from('candidate_cg_profile') as any)
+        .upsert(rows, { onConflict: 'candidate_id' });
+    if (error) return { success: false, count: 0, error: error.message };
+    revalidatePath('/internal');
+    return { success: true, count: candidateIds.length };
 }
 
 // BU/Sub-BU ของ candidate จาก company mapping (Group 2)
