@@ -29,6 +29,7 @@ import { formatDateForDisplay } from "@/lib/date-utils";
 import { CandidateOrgChartButton } from "@/components/candidate-org-chart-button";
 import { JRCandidateSheet } from "@/components/jr-candidate-sheet";
 import { AddCandidateDialog } from "@/components/ai-search/AddCandidateDialog";
+import { CandidateStatusEditor } from "@/components/candidate-status-editor";
 
 export default function CandidateDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = React.use(params);
@@ -128,18 +129,19 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
 
                     <div className="flex-1 space-y-3">
                         <div>
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-wrap">
                                 <h1 className="text-3xl font-bold tracking-tight text-foreground">{candidate.name}</h1>
-                                {candidate.candidate_status?.map((s: string) => (
-                                    <Badge key={s} variant="outline" className={cn(
-                                        "uppercase tracking-widest text-[10px]",
-                                        s === 'Blacklist' ? "text-rose-600 border-rose-300 bg-rose-50/50" :
-                                        s === 'Over-aged' ? "text-orange-600 border-orange-300 bg-orange-50/50" :
-                                        "text-emerald-600 border-emerald-500/30 bg-emerald-50/50"
-                                    )}>
-                                        {s}
-                                    </Badge>
-                                ))}
+                                <CandidateStatusEditor
+                                    candidateId={candidate.candidate_id}
+                                    currentStatuses={candidate.candidate_status || []}
+                                    experiences={candidate.experiences?.map((e: any) => ({
+                                        company_id: e.company_id,
+                                        company: e.company,
+                                    }))}
+                                    onStatusChange={(newStatuses) => {
+                                        setCandidate((prev: any) => prev ? { ...prev, candidate_status: newStatuses } : prev);
+                                    }}
+                                />
                             </div>
                             <div className="flex items-center gap-2 mt-2">
                                 <span className="text-xl font-mono font-bold text-muted-foreground/40 tracking-tight">#{candidate.candidate_id}</span>

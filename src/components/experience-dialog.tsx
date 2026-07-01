@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { addExperience, deleteExperience, searchCompanies, getCompanyDetails, getFieldSuggestions, setCurrentExperience, updateExperience, getIndustryGroupMaster, getCountryMaster } from "@/app/actions/candidate";
-import { formatMonthYear, parseMonthYearToInput } from "@/lib/date-utils";
+import { formatMonthYear } from "@/lib/date-utils";
 import { useRouter } from "next/navigation";
 import { Info, Plus, Trash2, Check, ChevronsUpDown, Star, Edit } from "lucide-react";
 import {
@@ -404,8 +404,8 @@ function ExperienceForm({
         formData.set("country", country);
         formData.set("industry", industry);
         formData.set("group", group);
-        formData.set("start_date", parseMonthYearToInput(startDate));
-        formData.set("end_date", isCurrent ? "" : parseMonthYearToInput(endDate));
+        formData.set("start_date", startDate);
+        formData.set("end_date", isCurrent ? "" : endDate);
 
         const expId = experience?.id;
         const res = experience
