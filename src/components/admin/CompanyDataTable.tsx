@@ -1,25 +1,21 @@
 "use client";
 
 import React, { useState } from "react";
-import { 
-    Table, 
-    TableBody, 
-    TableCell, 
-    TableHead, 
-    TableHeader, 
-    TableRow 
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { 
-    ChevronLeft, 
-    ChevronRight, 
-    Edit, 
-    MoreVertical, 
-    Trash2, 
+import {
+    ChevronLeft,
+    ChevronRight,
+    Edit,
     Building2,
-    RefreshCw,
-    CheckCircle2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import CompanyDetailDialog from "./CompanyDetailDialog";
@@ -40,6 +36,8 @@ interface CompanyDataTableProps {
     pageSize: number;
     setPage: (page: number) => void;
     onRefresh: () => void;
+    groups?: string[];
+    industriesByGroup?: Record<string, Record<string, number>>;
 }
 
 export default function CompanyDataTable({
@@ -49,14 +47,16 @@ export default function CompanyDataTable({
     page,
     pageSize,
     setPage,
-    onRefresh
+    onRefresh,
+    groups = [],
+    industriesByGroup = {},
 }: CompanyDataTableProps) {
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [editingCompany, setEditingCompany] = useState<Company | null>(null);
     const [isBulkEditOpen, setIsBulkEditOpen] = useState(false);
 
     const toggleSelect = (id: number) => {
-        setSelectedIds(prev => 
+        setSelectedIds(prev =>
             prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
         );
     };
@@ -77,8 +77,8 @@ export default function CompanyDataTable({
                 <TableHeader className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                     <TableRow>
                         <TableHead className="w-[50px]">
-                            <Checkbox 
-                                checked={selectedIds.length > 0 && selectedIds.length === data.length} 
+                            <Checkbox
+                                checked={selectedIds.length > 0 && selectedIds.length === data.length}
                                 onCheckedChange={toggleSelectAll}
                             />
                         </TableHead>
@@ -108,16 +108,16 @@ export default function CompanyDataTable({
                         </TableRow>
                     ) : (
                         data.map((company) => (
-                            <TableRow 
-                                key={company.company_id} 
+                            <TableRow
+                                key={company.company_id}
                                 className={cn(
                                     "group transition-colors",
                                     selectedIds.includes(company.company_id) ? "bg-indigo-50/30" : "hover:bg-slate-50/50"
                                 )}
                             >
                                 <TableCell>
-                                    <Checkbox 
-                                        checked={selectedIds.includes(company.company_id)} 
+                                    <Checkbox
+                                        checked={selectedIds.includes(company.company_id)}
                                         onCheckedChange={() => toggleSelect(company.company_id)}
                                     />
                                 </TableCell>
@@ -127,9 +127,9 @@ export default function CompanyDataTable({
                                 <TableCell className="text-slate-500 text-sm">{company.industry}</TableCell>
                                 <TableCell className="text-slate-500 text-sm whitespace-nowrap">{company.group}</TableCell>
                                 <TableCell className="text-right">
-                                    <Button 
-                                        variant="ghost" 
-                                        size="icon" 
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
                                         className="h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
                                         onClick={() => setEditingCompany(company)}
                                     >
@@ -147,11 +147,11 @@ export default function CompanyDataTable({
                 <div className="text-sm text-slate-500">
                     Showing <span className="font-bold text-slate-900">{data.length}</span> of <span className="font-bold text-slate-900">{total}</span> companies
                 </div>
-                
+
                 <div className="flex items-center gap-2">
-                    <Button 
-                        variant="outline" 
-                        size="sm" 
+                    <Button
+                        variant="outline"
+                        size="sm"
                         disabled={page === 0 || isLoading}
                         onClick={() => setPage(page - 1)}
                         className="gap-2"
@@ -161,9 +161,9 @@ export default function CompanyDataTable({
                     <div className="flex items-center gap-1 px-4">
                         <span className="text-sm font-medium">Page {page + 1} of {totalPages || 1}</span>
                     </div>
-                    <Button 
-                        variant="outline" 
-                        size="sm" 
+                    <Button
+                        variant="outline"
+                        size="sm"
                         disabled={page >= totalPages - 1 || isLoading}
                         onClick={() => setPage(page + 1)}
                         className="gap-2"
@@ -183,17 +183,17 @@ export default function CompanyDataTable({
                         <span className="text-sm font-semibold tracking-wide">COMPANIES SELECTED</span>
                     </div>
                     <div className="flex items-center gap-3">
-                        <Button 
-                            variant="secondary" 
-                            size="sm" 
+                        <Button
+                            variant="secondary"
+                            size="sm"
                             className="bg-indigo-600 hover:bg-indigo-700 text-white border-none h-9 px-4 rounded-full font-bold"
                             onClick={() => setIsBulkEditOpen(true)}
                         >
                             Bulk Edit Classification
                         </Button>
-                        <Button 
-                            variant="ghost" 
-                            size="sm" 
+                        <Button
+                            variant="ghost"
+                            size="sm"
                             className="text-slate-400 hover:text-white"
                             onClick={() => setSelectedIds([])}
                         >
@@ -203,22 +203,25 @@ export default function CompanyDataTable({
                 </div>
             )}
 
-            {/* Dialogs */}
             {editingCompany && (
-                <CompanyDetailDialog 
-                    company={editingCompany} 
+                <CompanyDetailDialog
+                    company={editingCompany}
                     onClose={() => setEditingCompany(null)}
                     onSuccess={onRefresh}
+                    groups={groups}
+                    industriesByGroup={industriesByGroup}
                 />
             )}
             {isBulkEditOpen && (
-                <BulkEditDialog 
+                <BulkEditDialog
                     ids={selectedIds}
                     onClose={() => {
                         setIsBulkEditOpen(false);
                         setSelectedIds([]);
                     }}
                     onSuccess={onRefresh}
+                    groups={groups}
+                    industriesByGroup={industriesByGroup}
                 />
             )}
         </div>

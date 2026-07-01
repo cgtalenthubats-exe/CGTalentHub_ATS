@@ -60,13 +60,14 @@ export async function getCompanySidebarStats() {
  */
 export async function getCompaniesPaginated(params: {
     group?: string;
+    groups?: string[];
     industry?: string;
     search?: string;
     page: number;
     pageSize: number;
 }) {
     const supabase = adminAuthClient;
-    const { group, industry, search, page, pageSize } = params;
+    const { group, groups, industry, search, page, pageSize } = params;
 
     const from = page * pageSize;
     const to = from + pageSize - 1;
@@ -75,7 +76,9 @@ export async function getCompaniesPaginated(params: {
         .from('company_master')
         .select('*', { count: 'exact' });
 
-    if (group && group !== 'All') {
+    if (groups && groups.length > 0) {
+        query = query.in('group', groups);
+    } else if (group && group !== 'All') {
         query = query.eq('group', group);
     }
     if (industry && industry !== 'All') {
