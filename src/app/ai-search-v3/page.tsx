@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
     Bot, User, Send, Loader2, Sparkles, ChevronDown, ChevronUp,
-    RotateCcw, Search, UserPlus, Trash2, Users, TrendingUp, Building2, Globe, Filter, AlertCircle, X
+    RotateCcw, Search, UserPlus, Trash2, Users, TrendingUp, Building2, Globe, Filter, AlertCircle, X, Download
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -20,6 +20,7 @@ import { CandidateTableView } from "@/app/candidates/list/table-view";
 import { AddCandidateDialog } from "@/components/ai-search/AddCandidateDialog";
 import { Stage3ResultsPanel } from "@/app/ai-search-v3/Stage3ResultsPanel";
 import { getSearchJobHistory, triggerVectorRankAssessment, type SearchJobSummary } from "@/app/actions/ai-search-ranking";
+import { generateSearchPPTX } from "@/app/actions/export-pptx";
 import { Input } from "@/components/ui/input";
 import {
     getDemoFilterOptions,
@@ -247,6 +248,7 @@ export default function AISearchV3Page() {
     const [activeJobId, setActiveJobId] = useState<string | null>(null);
     const [assessingId, setAssessingId] = useState<string | null>(null);
     const [jobHistory, setJobHistory] = useState<SearchJobSummary[]>([]);
+    const [exportLoading, setExportLoading] = useState(false);
 
     const [aiCriteria, setAiCriteria] = useState("");
     const [analysing, setAnalysing] = useState(false);
@@ -944,6 +946,31 @@ export default function AISearchV3Page() {
                                 {activeJobId && (
                                     <Button size="sm" variant="ghost" className="h-8 text-xs text-slate-400 hover:text-red-500" onClick={() => { setActiveJobId(null); setJobIdInput(""); }}>
                                         Clear
+                                    </Button>
+                                )}
+                                {activeJobId && (
+                                    <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={exportLoading}
+                                        className="h-8 text-xs gap-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                                        onClick={async () => {
+                                            setExportLoading(true);
+                                            try {
+                                                const { base64, filename } = await generateSearchPPTX(activeJobId);
+                                                const link = document.createElement("a");
+                                                link.href = `data:application/vnd.openxmlformats-officedocument.presentationml.presentation;base64,${base64}`;
+                                                link.download = filename;
+                                                link.click();
+                                            } catch (e: any) {
+                                                alert(`Export failed: ${e.message}`);
+                                            } finally {
+                                                setExportLoading(false);
+                                            }
+                                        }}
+                                    >
+                                        {exportLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                                        Export PPTX
                                     </Button>
                                 )}
                             </div>

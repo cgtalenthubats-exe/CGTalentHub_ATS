@@ -3,6 +3,7 @@
 import PptxGenJS from "pptxgenjs";
 import { adminAuthClient } from "@/lib/supabase/admin";
 import { getStage3JobStatus, type Stage3Result } from "@/app/actions/ai-ranking";
+import { getSearchJobStatus, type SearchResult } from "@/app/actions/ai-search-ranking";
 
 // ── Colors ──────────────────────────────────────────────────────────────────
 const C = {
@@ -332,4 +333,48 @@ export async function generateAssessmentPPTX(
 
     const base64 = await pptx.write({ outputType: "base64" }) as string;
     return { base64, filename: `${jrId}_assessment_${new Date().toISOString().slice(0, 10)}.pptx` };
+}
+
+// ── AI Search V3 export (reads ai_search_jobs + ai_search_results) ───────────
+// SearchResult and Stage3Result have identical fields so slide functions are reused.
+export async function generateSearchPPTX(
+    jobId: string,
+): Promise<{ base64: string; filename: string }> {
+    const jobData = await getSearchJobStatus(jobId);
+    if (!jobData || jobData.results.length === 0) throw new Error("ไม่มีผลลัพธ์ AI Ranking");
+
+    // Sort by overall score DESC
+    const sorted = [...(jobData.results as unknown as Stage3Result[])].sort((a, b) => b.score - a.score || a.rank - b.rank);
+    const top3  = sorted.slice(0, 3);
+    const top20 = sorted.slice(0, 20);
+
+    // Use query as title (trimmed)
+    const queryTitle = jobData.query ? trunc(jobData.query, 80) : "AI Search Results";
+    const dateStr = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+    const photos = await Promise.all(top3.map(r => fetchImageBase64(r.photo_url)));
+
+    const pptx = new PptxGenJS();
+    pptx.layout  = "LAYOUT_WIDE";
+    pptx.author  = "CG Talent Hub";
+    pptx.company = "CG Talent Hub";
+    pptx.subject = `AI Search — ${queryTitle}`;
+    pptx.title   = `Search Report — ${jobId}`;
+
+    // Cover: use jobId as "JR ID" placeholder, query as title
+    addCoverSlide(pptx, jobId, queryTitle, sorted.length, dateStr);
+    addSummarySlide(pptx, jobData.summary);
+
+    for (let i = 0; i < top3.length; i++) {
+        await addCandidateSlide(pptx, top3[i], photos[i], i + 1);
+    }
+
+    addTableSlide(pptx, top20, `Top ${top20.length} Summary`);
+    if (sorted.length > 20) {
+        addTableSlide(pptx, sorted, `Full Ranking — ${sorted.length} Candidates`);
+    }
+
+    const base64 = await pptx.write({ outputType: "base64" }) as string;
+    const safeName = jobId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40);
+    return { base64, filename: `search_${safeName}_${new Date().toISOString().slice(0, 10)}.pptx` };
 }
