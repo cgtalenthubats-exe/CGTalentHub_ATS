@@ -181,9 +181,11 @@ export default function AISearchV3Page() {
     const [subNationality, setSubNationality] = useState<string[]>([]);
     const [subGender, setSubGender] = useState<string[]>([]);
     const [subHotelRating, setSubHotelRating] = useState<string[]>([]);
+    const [subJobFunction, setSubJobFunction] = useState<string[]>([]);
+    const [subStatus, setSubStatus] = useState<string[]>([]);
     const [subScope, setSubScope] = useState<'latest' | 'current' | 'all'>('latest');
-    const hasSubFilter = !!(subSearch || subPosition.length || subCompany.length || subCountry.length || subNationality.length || subGender.length || subHotelRating.length);
-    const clearSubFilters = () => { setSubSearch(""); setSubPosition([]); setSubCompany([]); setSubCountry([]); setSubNationality([]); setSubGender([]); setSubHotelRating([]); };
+    const hasSubFilter = !!(subSearch || subPosition.length || subCompany.length || subCountry.length || subNationality.length || subGender.length || subHotelRating.length || subJobFunction.length || subStatus.length);
+    const clearSubFilters = () => { setSubSearch(""); setSubPosition([]); setSubCompany([]); setSubCountry([]); setSubNationality([]); setSubGender([]); setSubHotelRating([]); setSubJobFunction([]); setSubStatus([]); };
 
     const getScopedExps = (c: any) => {
         const exps: any[] = c.experiences ?? [];
@@ -211,6 +213,8 @@ export default function AISearchV3Page() {
             nationalities: uniq(src.map(c => c.nationality)),
             genders:       uniq(src.map(c => c.gender)),
             hotelRatings:  uniq(src.flatMap(c => allExpsOf(c).map((e: any) => e.hotel_rating))),
+            jobFunctions:  uniq(src.map(c => c.job_function)),
+            statuses:      uniq(src.flatMap(c => (c.candidate_status ?? []) as string[])),
         };
     }, [allCandidatesData, candidates, subScope]);
 
@@ -228,10 +232,12 @@ export default function AISearchV3Page() {
             if (subNationality.length && !subNationality.includes(c.nationality)) return false;
             if (subGender.length && !subGender.includes(c.gender)) return false;
             if (subHotelRating.length && !scopedExps.some((e: any) => subHotelRating.includes(e.hotel_rating))) return false;
+            if (subJobFunction.length && !subJobFunction.includes(c.job_function)) return false;
+            if (subStatus.length && !((c.candidate_status ?? []) as string[]).some((s: string) => subStatus.includes(s))) return false;
             return true;
         });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [subSearch, subPosition, subCompany, subCountry, subNationality, subGender, subHotelRating, subScope]);
+    }, [subSearch, subPosition, subCompany, subCountry, subNationality, subGender, subHotelRating, subJobFunction, subStatus, subScope]);
 
     const sourceData = hasSubFilter && allCandidatesData.length > 0 ? allCandidatesData : candidates;
     const allFiltered = React.useMemo(() => applySubFilter(sourceData), [applySubFilter, sourceData]);
@@ -523,12 +529,12 @@ export default function AISearchV3Page() {
         }
     }
 
-    async function handleAIAnalyse() {
-        if (!aiCriteria.trim() || !allCandidateIds.length || analysing) return;
+    async function handleAIAnalyse(poolIds: string[]) {
+        if (!aiCriteria.trim() || !poolIds.length || analysing) return;
         setAnalysing(true);
         setAnalyseError(null);
         try {
-            const result = await triggerVectorRankAssessment(allCandidateIds, aiCriteria);
+            const result = await triggerVectorRankAssessment(poolIds, aiCriteria);
             setActiveJobId(result.jobId);
             setJobIdInput(result.jobId);
             setResultTab("ai-analyse");
@@ -809,9 +815,11 @@ export default function AISearchV3Page() {
                                             <SubMSFilter label="Position"     options={subOptions.positions}     selected={subPosition}    setSelected={setSubPosition} />
                                             <SubMSFilter label="Company"      options={subOptions.companies}     selected={subCompany}     setSelected={setSubCompany} />
                                             <SubMSFilter label="Country"      options={subOptions.countries}     selected={subCountry}     setSelected={setSubCountry} />
-                                            <SubMSFilter label="Nationality"  options={subOptions.nationalities} selected={subNationality} setSelected={setSubNationality} />
-                                            <SubMSFilter label="Gender"       options={subOptions.genders}       selected={subGender}      setSelected={setSubGender} />
-                                            <SubMSFilter label="Hotel Rating" options={subOptions.hotelRatings}  selected={subHotelRating} setSelected={setSubHotelRating} />
+                                            <SubMSFilter label="Nationality"   options={subOptions.nationalities} selected={subNationality}  setSelected={setSubNationality} />
+                                            <SubMSFilter label="Gender"        options={subOptions.genders}       selected={subGender}       setSelected={setSubGender} />
+                                            <SubMSFilter label="Hotel Rating"  options={subOptions.hotelRatings}  selected={subHotelRating}  setSelected={setSubHotelRating} />
+                                            <SubMSFilter label="Job Function"  options={subOptions.jobFunctions}  selected={subJobFunction}  setSelected={setSubJobFunction} />
+                                            <SubMSFilter label="Status"        options={subOptions.statuses}      selected={subStatus}       setSelected={setSubStatus} />
                                             {hasSubFilter && (
                                                 <>
                                                     <button onClick={clearSubFilters} className="flex items-center gap-1 text-xs text-slate-400 hover:text-red-500 transition-colors">
@@ -889,31 +897,44 @@ export default function AISearchV3Page() {
 
                         <TabsContent value="ai-analyse" className="flex flex-col gap-3 min-w-0 mt-0">
                             {/* AI Analyse — vector-rank top20 → Stage3 pipeline */}
-                            <div className="bg-white border border-slate-200 rounded-xl shadow-sm px-4 py-3 flex flex-col gap-2">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-semibold text-slate-500">AI Criteria</span>
-                                    <span className="text-xs text-slate-400">{allCandidateIds.length} candidates in pool</span>
+                            {(() => {
+                                const poolIds = hasSubFilter && allCandidatesData.length > 0
+                                    ? allFiltered.map((c: any) => c.candidate_id)
+                                    : allCandidateIds;
+                                const poolCount = poolIds.length;
+                                return (
+                                <div className="bg-white border border-slate-200 rounded-xl shadow-sm px-4 py-3 flex flex-col gap-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-semibold text-slate-500">AI Criteria</span>
+                                        <span className="text-xs text-slate-400">
+                                            {poolCount} candidate{poolCount !== 1 ? "s" : ""} in pool
+                                            {hasSubFilter && allCandidatesData.length > 0 && (
+                                                <span className="text-indigo-400"> (filtered)</span>
+                                            )}
+                                        </span>
+                                    </div>
+                                    <Textarea
+                                        value={aiCriteria}
+                                        onChange={(e) => setAiCriteria(e.target.value)}
+                                        placeholder="Describe the hiring criteria, e.g. position, required skills, experience level..."
+                                        className="min-h-[60px] text-sm rounded-lg border-slate-200 resize-none"
+                                    />
+                                    <div className="flex items-center justify-between gap-2">
+                                        {analyseError && <span className="text-xs text-red-500">⚠️ {analyseError}</span>}
+                                        <Button
+                                            size="sm"
+                                            className="h-8 text-xs gap-1.5 ml-auto bg-indigo-600 hover:bg-indigo-700"
+                                            disabled={!aiCriteria.trim() || !poolCount || analysing}
+                                            onClick={() => handleAIAnalyse(poolIds)}
+                                        >
+                                            {analysing
+                                                ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Analysing...</>
+                                                : <><Sparkles className="h-3.5 w-3.5" />AI Analyse</>}
+                                        </Button>
+                                    </div>
                                 </div>
-                                <Textarea
-                                    value={aiCriteria}
-                                    onChange={(e) => setAiCriteria(e.target.value)}
-                                    placeholder="ระบุเกณฑ์ที่ต้องการให้ AI วิเคราะห์ เช่น ตำแหน่ง, ทักษะ, ประสบการณ์ที่ต้องการ..."
-                                    className="min-h-[60px] text-sm rounded-lg border-slate-200 resize-none"
-                                />
-                                <div className="flex items-center justify-between gap-2">
-                                    {analyseError && <span className="text-xs text-red-500">⚠️ {analyseError}</span>}
-                                    <Button
-                                        size="sm"
-                                        className="h-8 text-xs gap-1.5 ml-auto bg-indigo-600 hover:bg-indigo-700"
-                                        disabled={!aiCriteria.trim() || !allCandidateIds.length || analysing}
-                                        onClick={handleAIAnalyse}
-                                    >
-                                        {analysing
-                                            ? <><Loader2 className="h-3.5 w-3.5 animate-spin" />Analysing...</>
-                                            : <><Sparkles className="h-3.5 w-3.5" />AI Analyse</>}
-                                    </Button>
-                                </div>
-                            </div>
+                                );
+                            })()}
 
                             {/* Temporary: load AI Ranking results by job_id (Stage 2/3 pipeline) */}
                             <div className="bg-white border border-slate-200 rounded-xl shadow-sm px-4 py-2.5 flex items-center gap-2">
@@ -930,7 +951,7 @@ export default function AISearchV3Page() {
                                 {jobHistory.length > 0 && (
                                     <Select onValueChange={(jobId) => { setJobIdInput(jobId); setActiveJobId(jobId); }}>
                                         <SelectTrigger className="h-8 w-56 text-xs">
-                                            <SelectValue placeholder="หรือเลือกจาก job ล่าสุด..." />
+                                            <SelectValue placeholder="or select recent job..." />
                                         </SelectTrigger>
                                         <SelectContent>
                                             {jobHistory.map((job) => (
@@ -981,8 +1002,8 @@ export default function AISearchV3Page() {
                                 <div className="flex-1 flex items-center justify-center text-slate-400 py-24">
                                     <div className="text-center">
                                         <Sparkles className="h-16 w-16 opacity-10 mx-auto mb-3" />
-                                        <p className="font-medium">กรอก AI Criteria แล้วกด "AI Analyse"</p>
-                                        <p className="text-xs mt-1 opacity-60">หรือเลือก job ล่าสุดจาก dropdown ด้านบน</p>
+                                        <p className="font-medium">Enter AI Criteria and click "AI Analyse"</p>
+                                        <p className="text-xs mt-1 opacity-60">or select a recent job from the dropdown above</p>
                                     </div>
                                 </div>
                             )}
