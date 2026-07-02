@@ -3,6 +3,7 @@
 import { adminAuthClient } from "@/lib/supabase/admin";
 
 const N8N_STAGE3_URL = "https://n8n.srv1212906.hstgr.cloud/webhook/demo-stage3";
+const N8N_JR_ASSESS_URL = "https://n8n.srv1212906.hstgr.cloud/webhook/jr-assess";
 
 export async function getLatestJobForJR(jrId: string): Promise<{ jobId: string; status: string; candidateCount: number } | null> {
     const { data } = await adminAuthClient
@@ -35,28 +36,20 @@ export async function triggerStage3RankingDirect(candidateIds: string[], query: 
 }
 
 export async function triggerStage3Ranking(jrId: string, query: string) {
-    // Get all candidate_ids in this JR
-    const { data: jrCandidates, error } = await adminAuthClient
-        .from("jr_candidates")
-        .select("candidate_id")
-        .eq("jr_id", jrId);
-
-    if (error || !jrCandidates?.length)
-        throw new Error("ไม่พบ candidates ใน JR นี้");
-
-    const candidateIds = jrCandidates.map((c: any) => c.candidate_id);
-    const jobId = crypto.randomUUID();
-
-    const response = await fetch(N8N_STAGE3_URL, {
+    const response = await fetch(N8N_JR_ASSESS_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job_id: jobId, candidate_ids: candidateIds, candidate_count: candidateIds.length, query, jr_id: jrId }),
+        body: JSON.stringify({ jr_id: jrId, jd_text: query, query }),
     });
 
     if (!response.ok)
         throw new Error(`n8n webhook failed: ${response.statusText}`);
 
-    return { jobId, candidateCount: candidateIds.length };
+    const data = await response.json();
+    if (!data.job_id)
+        throw new Error("n8n did not return a job_id");
+
+    return { jobId: data.job_id as string, candidateCount: (data.candidate_count ?? 0) as number };
 }
 
 export type Stage3Result = {
