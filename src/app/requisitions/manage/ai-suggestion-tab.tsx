@@ -1076,7 +1076,7 @@ export function AiSuggestionTab({ jrId, jrTitle, jrDescription }: Props) {
                         {pollingStatus === "pending_summary" && "AI กำลังวิเคราะห์เชิงลึก Top 20 + สรุปผล..."}
                         {!pollingStatus && `AI กำลังประเมิน ${candidateCount ? `${candidateCount} candidates` : "candidates"}...`}
                     </p>
-                    <p className="text-xs text-indigo-400">ระบบประมวลผลทุก 3 นาที อาจใช้เวลา 5–15 นาที</p>
+                    <p className="text-xs text-indigo-400">ระบบประมวลผลอัตโนมัติ อาจใช้เวลา 2–5 นาที</p>
                 </div>
             )}
 
