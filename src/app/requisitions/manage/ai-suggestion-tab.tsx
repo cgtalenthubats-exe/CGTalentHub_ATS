@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Sparkles, Loader2, RotateCcw, ChevronDown, ChevronUp, Briefcase, Target, Globe, Wrench, BarChart3, History, Clock, MessageSquare, Send, Bot, User, MapPin, Cake, Linkedin, ExternalLink } from "lucide-react";
+import { Sparkles, Loader2, RotateCcw, ChevronDown, ChevronUp, Briefcase, Target, Globe, Wrench, BarChart3, History, Clock, MessageSquare, Send, Bot, User, MapPin, Cake, Linkedin, ExternalLink, Download } from "lucide-react";
 import { CandidateAvatar } from "@/components/candidate-avatar";
 import { CandidateProfileSheet } from "@/components/candidate-profile-sheet";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { triggerStage3Ranking, getStage3JobStatus, getLatestJobForJR, getJobHistoryForJR, type Stage3JobData, type Stage3Result, type JobHistoryItem } from "@/app/actions/ai-ranking";
 import { sendJrChatMessage, getJrChatHistory } from "@/app/actions/jr-ai-chat";
+import { generateAssessmentPPTX } from "@/app/actions/export-pptx";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -767,6 +768,7 @@ export function AiSuggestionTab({ jrId, jrTitle, jrDescription }: Props) {
     const [history, setHistory] = useState<JobHistoryItem[]>([]);
     const [showHistory, setShowHistory] = useState(false);
     const [activeJobId, setActiveJobId] = useState<string | null>(null);
+    const [exportLoading, setExportLoading] = useState(false);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const jobIdRef = useRef<string | null>(null);
 
@@ -995,6 +997,32 @@ export function AiSuggestionTab({ jrId, jrTitle, jrDescription }: Props) {
                             title="Reset"
                         >
                             <RotateCcw className="w-4 h-4" />
+                        </Button>
+                    )}
+                    {status === "completed" && activeJobId && (
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={exportLoading}
+                            title="Export PPTX"
+                            onClick={async () => {
+                                setExportLoading(true);
+                                try {
+                                    const { base64, filename } = await generateAssessmentPPTX(activeJobId, jrId, jrTitle ?? jrId);
+                                    const link = document.createElement("a");
+                                    link.href = `data:application/vnd.openxmlformats-officedocument.presentationml.presentation;base64,${base64}`;
+                                    link.download = filename;
+                                    link.click();
+                                } catch (e: any) {
+                                    alert(`Export failed: ${e.message}`);
+                                } finally {
+                                    setExportLoading(false);
+                                }
+                            }}
+                            className="gap-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                        >
+                            {exportLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                            Export PPTX
                         </Button>
                     )}
                 </div>
