@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
     Bot, User, Send, Loader2, Sparkles, ChevronDown, ChevronUp,
     RotateCcw, Search, UserPlus, Trash2, Users, TrendingUp, Building2, Globe, Filter, AlertCircle, X
@@ -622,9 +624,14 @@ export default function AISearchV3Page() {
                                     <div className="flex flex-col gap-1.5 max-w-[75%]">
                                         <div className={cn(
                                             "rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
-                                            m.role === "user" ? "bg-indigo-600 text-white rounded-tr-sm" : "bg-slate-100 text-slate-800 rounded-tl-sm"
+                                            m.role === "user"
+                                                ? "bg-indigo-600 text-white rounded-tr-sm whitespace-pre-wrap"
+                                                : "bg-slate-100 text-slate-800 rounded-tl-sm prose prose-sm prose-slate max-w-none prose-p:my-1 prose-headings:mt-2 prose-headings:mb-1 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-table:text-xs prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1 prose-strong:font-bold prose-code:text-xs prose-code:bg-slate-200 prose-code:px-1 prose-code:rounded"
                                         )}>
-                                            <span className="whitespace-pre-wrap">{m.content}</span>
+                                            {m.role === "user"
+                                                ? m.content
+                                                : <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                                            }
                                         </div>
                                         {(m.filters || m.sessionId) && (
                                             <div className="flex gap-1.5">

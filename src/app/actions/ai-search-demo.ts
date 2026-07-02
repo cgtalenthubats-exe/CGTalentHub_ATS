@@ -134,7 +134,7 @@ export async function getCascadingFilterOptions(filters: DemoFilterState) {
 
     const { data, error } = await (adminAuthClient as any).rpc(
         "get_cascading_options",
-        toRpcParams(filters)
+        capPositionSearch(toRpcParams(filters))
     );
 
     if (error || !data) return null;
@@ -157,7 +157,7 @@ export async function getCascadingFilterOptions(filters: DemoFilterState) {
 
 // Filtered chain counts — updates when any non-chain filter changes
 export async function getFilteredChainCounts(filters: DemoFilterState) {
-    const params = toRpcParams(filters);
+    const params = capPositionSearch(toRpcParams(filters));
     // Pass all params except hotel_chains / hotel_sub_brands (self-exclusion)
     const { data, error } = await (adminAuthClient as any).rpc("get_chain_counts_filtered", {
         p_position_keywords:   params.p_position_keywords,
@@ -189,11 +189,24 @@ export async function getFilteredChainCounts(filters: DemoFilterState) {
     }));
 }
 
+// Cap position_search to avoid ILIKE ANY timeout on large arrays.
+// Empirically: ~60 items OK, 998 items → timeout. Cap at 80 to be safe.
+// NOTE: p_positions is a separate AND condition in SQL — do NOT merge overflow there.
+const POSITION_SEARCH_ILIKE_CAP = 80;
+function capPositionSearch(params: ReturnType<typeof toRpcParams>) {
+    const ps = params.p_position_search ?? [];
+    if (ps.length <= POSITION_SEARCH_ILIKE_CAP) return params;
+    return {
+        ...params,
+        p_position_search: ps.slice(0, POSITION_SEARCH_ILIKE_CAP),
+    };
+}
+
 // Search — returns all candidate_ids + summary stats (no profile fetch)
 export async function searchDemoCandidates(filters: DemoFilterState) {
     if (!hasAnyFilter(filters)) return { candidateIds: [], total: 0, current: 0, past: 0, companies: 0 };
 
-    const params = toRpcParams(filters);
+    const params = capPositionSearch(toRpcParams(filters));
 
     const [idsResult, summaryResult] = await Promise.all([
         (adminAuthClient as any).rpc("search_candidate_ids", params).limit(50000),
@@ -289,7 +302,7 @@ export async function searchPositionSuggestions(query: string, filters?: DemoFil
 
     let rawPositions: PositionSuggestion[] = [];
     if (useScope) {
-        const { data: ids } = await (adminAuthClient as any).rpc("search_candidate_ids", toRpcParams(scopedFilters!));
+        const { data: ids } = await (adminAuthClient as any).rpc("search_candidate_ids", capPositionSearch(toRpcParams(scopedFilters!)));
         if (ids && (ids as any[]).length > 0) {
             const candidateIds = (ids as { candidate_id: string }[]).map(r => r.candidate_id);
             const { data } = await (adminAuthClient as any).rpc("suggest_positions", { p_query: q, p_candidate_ids: candidateIds });
@@ -315,7 +328,7 @@ export async function searchCompanySuggestions(query: string, filters?: DemoFilt
     const useScope = scopedFilters && hasAnyFilter(scopedFilters);
 
     if (useScope) {
-        const { data: ids } = await (adminAuthClient as any).rpc("search_candidate_ids", toRpcParams(scopedFilters!));
+        const { data: ids } = await (adminAuthClient as any).rpc("search_candidate_ids", capPositionSearch(toRpcParams(scopedFilters!)));
         if (!ids || (ids as any[]).length === 0) return [];
         const candidateIds = (ids as { candidate_id: string }[]).map(r => r.candidate_id);
         const { data } = await (adminAuthClient as any).rpc("suggest_companies", { p_query: q, p_candidate_ids: candidateIds });
