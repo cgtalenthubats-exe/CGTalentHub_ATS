@@ -62,6 +62,11 @@ export async function triggerStage3Ranking(jrId: string, query: string) {
 export type Stage3Result = {
     candidate_id: string;
     name: string;
+    photo_url: string | null;
+    linkedin: string | null;
+    age: number | null;
+    age_source: string | null;
+    address: string | null;
     position: string | null;
     company: string | null;
     score: number;
@@ -116,20 +121,25 @@ export async function getStage3JobStatus(jobId: string, jrId?: string | null): P
         return { status: jobData.status, summary: jobData.status === "completed" ? jobData.summary : null, results: [], result_count: jobData.result_count };
     }
 
-    const [profilesRes, expRes] = await Promise.all([
+    const [profilesRes, expRes, enhanceRes] = await Promise.all([
         adminAuthClient
             .from("Candidate Profile")
-            .select("candidate_id, name")
+            .select("candidate_id, name, photo, linkedin, age, age_source")
             .in("candidate_id", candidateIds),
         adminAuthClient
             .from("candidate_experiences")
             .select("candidate_id, position, company")
             .in("candidate_id", candidateIds)
             .eq("is_current_job", "Current"),
+        adminAuthClient
+            .from("candidate_profile_enhance")
+            .select("candidate_id, country, full_address")
+            .in("candidate_id", candidateIds),
     ]);
 
     const profileMap = new Map((profilesRes.data ?? []).map((p: any) => [p.candidate_id, p as any]));
     const expMap = new Map((expRes.data ?? []).map((e: any) => [e.candidate_id, e as any]));
+    const enhanceMap = new Map((enhanceRes.data ?? []).map((e: any) => [e.candidate_id, e as any]));
 
     let jrMap = new Map<string, any>();
     if (jrId) {
@@ -141,9 +151,17 @@ export async function getStage3JobStatus(jobId: string, jrId?: string | null): P
         jrMap = new Map((jrRes.data ?? []).map((j: any) => [j.candidate_id, j]));
     }
 
-    const enriched: Stage3Result[] = (results ?? []).map((r: any) => ({
+    const enriched: Stage3Result[] = (results ?? []).map((r: any) => {
+        const profile = profileMap.get(r.candidate_id);
+        const enhance = enhanceMap.get(r.candidate_id);
+        return {
         candidate_id: r.candidate_id,
-        name: profileMap.get(r.candidate_id)?.name ?? r.candidate_id,
+        name: profile?.name ?? r.candidate_id,
+        photo_url: profile?.photo ?? null,
+        linkedin: profile?.linkedin ?? null,
+        age: profile?.age ?? null,
+        age_source: profile?.age_source ?? null,
+        address: [enhance?.country, enhance?.full_address].filter(Boolean).join(", ") || null,
         position: expMap.get(r.candidate_id)?.position ?? null,
         company: expMap.get(r.candidate_id)?.company ?? null,
         score: r.score,
@@ -160,7 +178,8 @@ export async function getStage3JobStatus(jobId: string, jrId?: string | null): P
         market_summary: r.market_summary ?? null,
         skills_score: r.skills_score ?? null,
         skills_summary: r.skills_summary ?? null,
-    }));
+        };
+    });
 
     return {
         status: jobData.status,
