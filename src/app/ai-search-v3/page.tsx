@@ -150,7 +150,6 @@ function SummaryCard({ label, value, icon: Icon, color }: { label: string; value
 }
 
 export default function AISearchV3Page() {
-    const [selectedModel, setSelectedModel] = useState("gemini-2.5-flash");
     const [chatOpen, setChatOpen] = useState(true);
     const [messages, setMessages] = useState<ChatMsg[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -589,16 +588,6 @@ export default function AISearchV3Page() {
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Select value={selectedModel} onValueChange={setSelectedModel}>
-                            <SelectTrigger className="h-8 w-48 text-xs rounded-lg border-slate-200">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {MODELS.map((m) => (
-                                    <SelectItem key={m.id} value={m.id} className="text-xs">{m.label}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
                         <div
                             className="flex items-center gap-1.5 cursor-pointer px-3 py-1.5 rounded-lg hover:bg-slate-100 transition-colors text-sm font-medium text-slate-600"
                             onClick={() => setChatOpen(!chatOpen)}

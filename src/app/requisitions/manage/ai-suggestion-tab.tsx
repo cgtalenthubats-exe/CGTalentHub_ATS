@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Sparkles, Loader2, RotateCcw, ChevronDown, ChevronUp, Briefcase, Target, Globe, Wrench, BarChart3, History, Clock, MessageSquare, Send, Bot, User, MapPin, Cake, Linkedin, ExternalLink, Download } from "lucide-react";
+import { Sparkles, Loader2, RotateCcw, ChevronDown, ChevronUp, Briefcase, Target, Globe, Wrench, BarChart3, History, Clock, MessageSquare, Send, Bot, User, MapPin, Cake, Linkedin, ExternalLink, Download, Maximize2, Minimize2 } from "lucide-react";
 import { CandidateAvatar } from "@/components/candidate-avatar";
 import { CandidateProfileSheet } from "@/components/candidate-profile-sheet";
 import { Button } from "@/components/ui/button";
@@ -590,6 +590,7 @@ function ChatSection({ jrId, jrTitle }: { jrId: string; jrTitle?: string }) {
     const [loading, setLoading] = useState(false);
     const [historyLoading, setHistoryLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [inputExpanded, setInputExpanded] = useState(false);
     const bottomRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const msgIdRef = useRef(0);
@@ -642,7 +643,7 @@ function ChatSection({ jrId, jrTitle }: { jrId: string; jrTitle?: string }) {
     };
 
     return (
-        <div className="flex flex-col h-[520px]">
+        <div className="flex flex-col" style={{ height: 'calc(100vh - 340px)', minHeight: '520px' }}>
             {/* Messages area */}
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
                 {historyLoading && (
@@ -732,18 +733,27 @@ function ChatSection({ jrId, jrTitle }: { jrId: string; jrTitle?: string }) {
                         onChange={e => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder="พิมพ์คำถามเกี่ยวกับ candidates ใน JR นี้... (Enter ส่ง, Shift+Enter ขึ้นบรรทัด)"
-                        rows={2}
-                        className="resize-none text-sm border-slate-200 flex-1"
+                        rows={inputExpanded ? 6 : 2}
+                        className="resize-none text-sm border-slate-200 flex-1 transition-all duration-150"
                         disabled={loading}
                     />
-                    <Button
-                        onClick={handleSend}
-                        disabled={!input.trim() || loading}
-                        size="icon"
-                        className="bg-indigo-600 hover:bg-indigo-700 shrink-0 h-[60px] w-10"
-                    >
-                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    </Button>
+                    <div className="flex flex-col gap-1.5 shrink-0">
+                        <button
+                            onClick={() => setInputExpanded(v => !v)}
+                            className="h-7 w-10 flex items-center justify-center rounded-md border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 transition-colors"
+                            title={inputExpanded ? "Collapse" : "Expand"}
+                        >
+                            {inputExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                        </button>
+                        <Button
+                            onClick={handleSend}
+                            disabled={!input.trim() || loading}
+                            size="icon"
+                            className="bg-indigo-600 hover:bg-indigo-700 h-[calc(100%-2rem)] w-10 min-h-[44px]"
+                        >
+                            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                        </Button>
+                    </div>
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1.5">
                     AI ดึงข้อมูลจากระบบเฉพาะ candidates ใน JR นี้ ({jrId}) • Conversation จะถูกจำไว้ข้ามเซสชัน
