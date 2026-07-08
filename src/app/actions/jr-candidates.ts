@@ -134,9 +134,9 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         Promise.all(jrCandIdChunks.map(chunk => 
             supabase
                 .from('status_log')
-                .select('log_id, jr_candidate_id, status, timestamp')
+                .select('log_id, jr_candidate_id, status, timestamp, updated_by')
                 .in('jr_candidate_id', chunk)
-                .returns<{ log_id: number; jr_candidate_id: string; status: string; timestamp: string }[]>()
+                .returns<{ log_id: number; jr_candidate_id: string; status: string; timestamp: string; updated_by: string | null }[]>()
         )),
 
         // Query 5: Other JR History Count (Surgical Add)
@@ -248,6 +248,20 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         }
     }
 
+    // Build reviewer map: jr_candidate_id → unique human actors (exclude system accounts)
+    const SYSTEM_ACTORS = new Set(['System', 'System (Multi-JR Audit)', 'System (Audit Reconciliation)', 'All Users']);
+    const reviewerMap = new Map<string, string[]>();
+    for (const log of (logs as any[])) {
+        const actor = log.updated_by as string | null;
+        if (!actor || SYSTEM_ACTORS.has(actor)) continue;
+        const existing = reviewerMap.get(log.jr_candidate_id);
+        if (existing) {
+            if (!existing.includes(actor)) existing.push(actor);
+        } else {
+            reviewerMap.set(log.jr_candidate_id, [actor]);
+        }
+    }
+
     const mapped = candidates.map((row) => {
         const profile = profileMap.get(row.candidate_id) as any;
         const exp = expMap.get(row.candidate_id);
@@ -296,6 +310,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
             candidate_salary_base: profile?.gross_salary_base_b_mth || undefined,
             candidate_salary_bonus: profile?.bonus_mth || undefined,
             history_count: historyMap.get(row.candidate_id) || 0,
+            candidate_reviewers: reviewerMap.get(row.jr_candidate_id) || [],
         };
     });
 

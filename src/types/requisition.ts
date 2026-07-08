@@ -55,6 +55,7 @@ export interface JRCandidate {
     candidate_industry?: string;
     candidate_hotel_rating?: string;
     history_count?: number;
+    candidate_reviewers?: string[];
 }
 
 export interface JRAnalytics {
