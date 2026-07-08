@@ -645,8 +645,11 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     const rowVirtualizer = useVirtualizer({
         count: sortedCandidates.length,
         getScrollElement: () => virtualScrollRef.current,
-        estimateSize: () => 88,
+        estimateSize: () => 104,
         overscan: 8,
+        measureElement: typeof window !== 'undefined'
+            ? el => el?.getBoundingClientRect().height ?? 104
+            : undefined,
     });
     const virtualItems = rowVirtualizer.getVirtualItems();
     const totalVirtualSize = rowVirtualizer.getTotalSize();
@@ -864,7 +867,13 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                             const isTopProfile = c.list_type === "Top profile";
 
                             return (
-                                <tr key={c.id} className={getRowClass(c.status, isSelected)} style={getRowStyle(c.status)}>
+                                <tr
+                                    key={c.id}
+                                    data-index={virtualRow.index}
+                                    ref={el => rowVirtualizer.measureElement(el)}
+                                    className={getRowClass(c.status, isSelected)}
+                                    style={getRowStyle(c.status)}
+                                >
                                     <td className="px-4 py-4">
                                         <Checkbox
                                             checked={isSelected}
