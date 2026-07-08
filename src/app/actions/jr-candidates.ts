@@ -3,6 +3,7 @@
 import { adminAuthClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { JRCandidate, JRAnalytics } from "@/types/requisition";
+import { getEffectiveAge } from "@/lib/date-utils";
 import { getCandidateIdsByExperienceFilters } from "@/lib/candidate-service";
 import { onboardExternalCandidate } from "./ai-search";
 
@@ -278,7 +279,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
             candidate_is_current_job: exp ? exp.label : undefined,
             candidate_country: countryDisplay || undefined,
             candidate_image_url: profile?.photo || undefined,
-            candidate_age: profile?.age ?? undefined,
+            candidate_age: profile?.age || (profile?.year_of_bachelor_education ? parseInt(getEffectiveAge(null, profile.year_of_bachelor_education)) || undefined : undefined),
             candidate_age_source: profile?.age_source ?? undefined,
             candidate_year_of_bachelor_education: profile?.year_of_bachelor_education ?? undefined,
             candidate_gender: profile?.gender || undefined,

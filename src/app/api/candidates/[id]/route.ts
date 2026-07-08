@@ -174,9 +174,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         const enhance = enhanceResult as any;
         const profileData = (profile as any) || {};
 
+        // Compute estimated age from bach year when DB age is null (same logic as search API)
+        const computedAge = profileData.age || (profileData.year_of_bachelor_education
+            ? parseInt(getEffectiveAge(null, profileData.year_of_bachelor_education)) || null
+            : null);
+
         // Combine Data
         const responseData = {
             ...profileData,
+            age: computedAge,
             // Map keys if necessary (e.g. if UI expects different names)
             // UI expects 'photo', 'name', 'email', 'mobile_phone', 'candidate_status'. These match DB columns exactly.
             // UI also expects 'experiences' array, 'jobHistory', etc.
