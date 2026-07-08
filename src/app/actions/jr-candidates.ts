@@ -126,7 +126,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         Promise.all(candidateIdChunks.map(chunk => 
             (supabase as any)
                 .from('candidate_experiences')
-                .select('candidate_id, company, company_id, position, is_current_job, start_date, country, note, company_industry')
+                .select('candidate_id, company, company_id, position, is_current_job, start_date, country, note, company_industry, company_group')
                 .in('candidate_id', chunk)
         )),
 
@@ -205,7 +205,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         return 0;
     };
 
-    const expMap = new Map<string, { company: string; company_id: string; position: string; label: string; country: string; region: string; note: string; company_industry: string; industry_master: string; hotel_rating: string | null; }>();
+    const expMap = new Map<string, { company: string; company_id: string; position: string; label: string; country: string; region: string; note: string; company_industry: string; company_group: string; industry_master: string; hotel_rating: string | null; }>();
     if (experiences && (experiences as any[]).length > 0) {
         // Group by candidate_id
         const groupedExp: Record<string, any[]> = {};
@@ -241,6 +241,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
                 region: countryRegionMap.get(best.country || '') || '',
                 note: best.note || '',
                 company_industry: best.company_industry || '',
+                company_group: best.company_group || '',
                 industry_master: masterData?.industry || '',
                 hotel_rating: masterData?.rating || null,
             });
@@ -275,7 +276,9 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
             candidate_mobile: profile?.mobile_phone || undefined,
             candidate_current_position: exp?.position || undefined,
             candidate_current_company: exp?.company || undefined,
+            candidate_current_company_id: exp?.company_id || undefined,
             candidate_current_company_industry: exp?.company_industry || undefined,
+            candidate_current_company_group: exp?.company_group || undefined,
             candidate_is_current_job: exp ? exp.label : undefined,
             candidate_country: countryDisplay || undefined,
             candidate_image_url: profile?.photo || undefined,

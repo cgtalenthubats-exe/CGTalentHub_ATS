@@ -49,6 +49,7 @@ export default function PlacementsPage() {
     const [search, setSearch] = useState("");
     const [buFilter, setBuFilter] = useState("All");
     const [subBuFilter, setSubBuFilter] = useState("All");
+    const [hireYearFilter, setHireYearFilter] = useState("All");
     const [positionFilter, setPositionFilter] = useState("All");
     const [selectedRecord, setSelectedRecord] = useState<any>(null);
     const [isResignDialogOpen, setIsResignDialogOpen] = useState(false);
@@ -132,16 +133,18 @@ export default function PlacementsPage() {
 
         const matchesBU = buFilter === "All" || r.bu === buFilter;
         const matchesSubBU = subBuFilter === "All" || r.sub_bu === subBuFilter;
+        const matchesHireYear = hireYearFilter === "All" || (r.hire_date && new Date(r.hire_date).getFullYear().toString() === hireYearFilter);
         const matchesPosition = positionFilter === "All" || r.position === positionFilter;
 
-        return matchesSearch && matchesBU && matchesSubBU && matchesPosition;
+        return matchesSearch && matchesBU && matchesSubBU && matchesHireYear && matchesPosition;
     });
 
     const uniqueBUs = Array.from(new Set(records.map(r => r.bu).filter(Boolean)));
     const uniqueSubBUs = Array.from(new Set(records.map(r => r.sub_bu).filter(Boolean)));
+    const uniqueHireYears = Array.from(new Set(records.map(r => r.hire_date ? new Date(r.hire_date).getFullYear().toString() : null).filter(Boolean))).sort((a, b) => Number(b) - Number(a));
     const uniquePositions = Array.from(new Set(records.map(r => r.position).filter(Boolean)));
 
-    const isFiltered = search !== "" || buFilter !== "All" || subBuFilter !== "All" || positionFilter !== "All";
+    const isFiltered = search !== "" || buFilter !== "All" || subBuFilter !== "All" || hireYearFilter !== "All" || positionFilter !== "All";
 
     return (
         <div className="mx-auto p-6 space-y-8 max-w-[95%] animate-in fade-in duration-500">
@@ -199,6 +202,14 @@ export default function PlacementsPage() {
                 >
                     <option value="All">All Sub BUs / Depts</option>
                     {uniqueSubBUs.map(sub => <option key={String(sub)} value={String(sub)}>{String(sub)}</option>)}
+                </select>
+                <select
+                    value={hireYearFilter}
+                    onChange={(e) => setHireYearFilter(e.target.value)}
+                    className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 shadow-sm focus:ring-2 focus:ring-primary/20 min-w-[140px]"
+                >
+                    <option value="All">All Hiring Years</option>
+                    {uniqueHireYears.map(y => <option key={String(y)} value={String(y)}>{String(y)}</option>)}
                 </select>
                 <select
                     value={positionFilter}

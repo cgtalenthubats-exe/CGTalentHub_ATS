@@ -39,7 +39,9 @@ export interface JRCandidate {
     candidate_mobile?: string;
     candidate_current_position?: string; // job_function
     candidate_current_company?: string;
+    candidate_current_company_id?: string;
     candidate_current_company_industry?: string;
+    candidate_current_company_group?: string;
     candidate_is_current_job?: string; // 'Current' | 'Latest Experience' | null
     candidate_country?: string; // country(note) formatted
     candidate_image_url?: string; // photo

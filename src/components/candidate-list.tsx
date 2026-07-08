@@ -24,7 +24,8 @@ import {
     UserCircle2,
     Briefcase,
     History,
-    RefreshCw
+    RefreshCw,
+    Pencil,
 } from "lucide-react";
 import { getStatusMaster } from "@/app/actions/status-master";
 import {
@@ -69,6 +70,7 @@ interface CandidateListProps {
 
 import { ConfirmPlacementDialog } from "@/components/confirm-placement-dialog";
 import { CandidateLinkedinButton } from "@/components/candidate-linkedin-button";
+import { CompanyQuickEditDialog } from "@/components/company-quick-edit-dialog";
 
 const UNKNOWN = '(Unknown)';
 
@@ -294,6 +296,9 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     const [pendingStatus, setPendingStatus] = useState<string>("");
     const [pendingCandidateId, setPendingCandidateId] = useState<string | null>(null); // null if batch update
     const [isBatchUpdate, setIsBatchUpdate] = useState(false);
+    const [editCompany, setEditCompany] = useState<{
+        companyId: string; companyName: string; industry: string; group: string;
+    } | null>(null);
     
     // Scroll Synchronization Refs
     const topScrollRef = useRef<HTMLDivElement>(null);
@@ -1026,8 +1031,8 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                             hasHistory={!!c.history_count && c.history_count > 0}
                                         />
                                     </td>
-                                    <td className="px-4 py-4">
-                                        <button 
+                                    <td className="px-4 py-4 overflow-hidden">
+                                        <button
                                             onClick={() => {
                                                 setSheetCandidateId(c.id);
                                                 setIsSheetOpen(true);
@@ -1044,18 +1049,18 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                             candidateId={c.candidate_id}
                                         />
                                     </td>
-                                    <td className="px-4 py-4">
-                                        <div className="flex flex-col">
-                                            <span className="font-black text-xl text-slate-900 hover:text-primary cursor-pointer transition-colors leading-none tracking-tight">
+                                    <td className="px-4 py-4 overflow-hidden">
+                                        <div className="flex flex-col min-w-0">
+                                            <span className="font-black text-xl text-slate-900 hover:text-primary cursor-pointer transition-colors leading-none tracking-tight truncate">
                                                 {c.candidate_name}
                                             </span>
-                                            <span className="text-[13px] font-bold text-slate-400 mt-1 truncate max-w-[280px]">
+                                            <span className="text-[13px] font-bold text-slate-400 mt-1 truncate">
                                                 {c.candidate_email || "No email recorded"}
                                             </span>
                                         </div>
                                     </td>
                                     {/* Gender/Age — inline edit */}
-                                    <td className="px-4 py-4">
+                                    <td className="px-4 py-4 overflow-hidden">
                                         <SexAgeCell
                                             candidateId={c.candidate_id}
                                             gender={c.candidate_gender || ''}
@@ -1068,15 +1073,40 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                         />
                                     </td>
                                     {/* Company column */}
-                                    <td className="px-4 py-4">
-                                        <div className="flex items-start gap-2 text-[13px] font-bold text-slate-700">
+                                    <td className="px-4 py-4 w-[200px] max-w-[200px]">
+                                        <div
+                                            className={cn(
+                                                "flex items-start gap-2 text-[13px] font-bold text-slate-700 group/company min-w-0",
+                                                c.candidate_current_company_id && "cursor-pointer"
+                                            )}
+                                            onClick={() => {
+                                                if (!c.candidate_current_company_id) return;
+                                                setEditCompany({
+                                                    companyId: c.candidate_current_company_id,
+                                                    companyName: c.candidate_current_company || '',
+                                                    industry: c.candidate_current_company_industry || '',
+                                                    group: c.candidate_current_company_group || '',
+                                                });
+                                            }}
+                                            title={c.candidate_current_company_id ? "Click to edit Group & Industry" : undefined}
+                                        >
                                             <Building2 className="h-4 w-4 text-slate-300 shrink-0 mt-0.5" />
-                                            <div className="flex flex-col gap-0.5">
-                                                <span className="whitespace-normal leading-snug">
-                                                    {safeRender(c.candidate_current_company)}
-                                                </span>
+                                            <div className="flex flex-col gap-0.5 min-w-0 overflow-hidden">
+                                                <div className="flex items-center gap-1 min-w-0">
+                                                    <span className="leading-snug line-clamp-2">
+                                                        {safeRender(c.candidate_current_company)}
+                                                    </span>
+                                                    {c.candidate_current_company_id && (
+                                                        <Pencil className="w-3 h-3 text-slate-300 opacity-0 group-hover/company:opacity-100 transition-opacity shrink-0" />
+                                                    )}
+                                                </div>
+                                                {c.candidate_current_company_group && (
+                                                    <span className="text-[11px] text-slate-400 font-medium leading-tight">
+                                                        {c.candidate_current_company_group}
+                                                    </span>
+                                                )}
                                                 {c.candidate_current_company_industry && (
-                                                    <span className="text-[11px] text-slate-400 font-medium leading-tight line-clamp-2" title={c.candidate_current_company_industry}>
+                                                    <span className="text-[11px] text-slate-300 font-medium leading-tight">
                                                         {c.candidate_current_company_industry}
                                                     </span>
                                                 )}
@@ -1193,6 +1223,21 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                 targetStatus={pendingStatus}
                 onConfirm={confirmStatusChange}
             />
+
+            {editCompany && (
+                <CompanyQuickEditDialog
+                    open={!!editCompany}
+                    onOpenChange={v => { if (!v) setEditCompany(null); }}
+                    companyId={editCompany.companyId}
+                    companyName={editCompany.companyName}
+                    currentIndustry={editCompany.industry}
+                    currentGroup={editCompany.group}
+                    onSaved={async () => {
+                        const updated = await getJRCandidates(jrId);
+                        setCandidates(updated);
+                    }}
+                />
+            )}
 
             {/* Slide-over Sheet: Activity Log & Feedback */}
             <JRCandidateSheet

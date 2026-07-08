@@ -70,6 +70,7 @@ export default function ResignationsPage() {
     const [selectedRecord, setSelectedRecord] = useState<any>(null);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
     const [buFilter, setBuFilter] = useState("all");
+    const [resignYearFilter, setResignYearFilter] = useState("all");
     const [reasonFilter, setReasonFilter] = useState("all");
 
     const [counts, setCounts] = useState({ active: 0, resigned: 0 });
@@ -97,13 +98,15 @@ export default function ResignationsPage() {
             r.jr_id?.toLowerCase().includes(search.toLowerCase());
 
         const matchesBU = buFilter === "all" || r.bu === buFilter;
+        const matchesYear = resignYearFilter === "all" || (r.resign_date && new Date(r.resign_date).getFullYear().toString() === resignYearFilter);
         const currentReason = r.resignation_reason || r.resignation_reason_test || "Other";
         const matchesReason = reasonFilter === "all" || currentReason === reasonFilter;
 
-        return matchesSearch && matchesBU && matchesReason;
+        return matchesSearch && matchesBU && matchesYear && matchesReason;
     });
 
     const uniqueBUs = Array.from(new Set(records.map(r => r.bu).filter(Boolean))).sort();
+    const uniqueResignYears = Array.from(new Set(records.map(r => r.resign_date ? new Date(r.resign_date).getFullYear().toString() : null).filter(Boolean) as string[])).sort((a, b) => Number(b) - Number(a));
     const uniqueReasons = Array.from(new Set(records.map(r => r.resignation_reason || r.resignation_reason_test || "Other"))).sort();
 
     return (
@@ -137,6 +140,21 @@ export default function ResignationsPage() {
                                 <SelectItem value="all" className="font-bold text-slate-400">All Business Units</SelectItem>
                                 {uniqueBUs.map(bu => (
                                     <SelectItem key={bu} value={bu} className="font-medium text-slate-700">{bu}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+
+                    {/* Resign Year Filter */}
+                    <div className="w-full md:w-44">
+                        <Select value={resignYearFilter} onValueChange={setResignYearFilter}>
+                            <SelectTrigger className="h-12 bg-white border-slate-200 rounded-2xl shadow-sm font-medium">
+                                <SelectValue placeholder="All Years" />
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl border-slate-100 shadow-xl">
+                                <SelectItem value="all" className="font-bold text-slate-400">All Years</SelectItem>
+                                {uniqueResignYears.map(year => (
+                                    <SelectItem key={year} value={year} className="font-medium text-slate-700">{year}</SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
