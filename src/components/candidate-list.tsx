@@ -74,6 +74,39 @@ import { CompanyQuickEditDialog } from "@/components/company-quick-edit-dialog";
 
 const UNKNOWN = '(Unknown)';
 
+// ─── User Avatar helpers ──────────────────────────────────────────────────────
+const AVATAR_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#14b8a6','#f97316','#0ea5e9'];
+
+function getAvatarColor(s: string): string {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = s.charCodeAt(i) + ((h << 5) - h);
+    return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+}
+
+function getInitials(s: string): string {
+    if (s.includes('@')) {
+        const local = s.split('@')[0];
+        const num = local.match(/(\d+)$/);
+        if (num) return local[0].toUpperCase() + parseInt(num[1]);
+        return (local[0] + (local[1] || '')).toUpperCase();
+    }
+    const words = s.trim().split(/\s+/);
+    if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase();
+    return s.slice(0, 2).toUpperCase();
+}
+
+function UserAvatar({ id }: { id: string }) {
+    return (
+        <div
+            className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black text-white shrink-0 ring-2 ring-white"
+            style={{ backgroundColor: getAvatarColor(id) }}
+            title={id}
+        >
+            {getInitials(id)}
+        </div>
+    );
+}
+
 function buildOptions(vals: (string | null | undefined)[]): string[] {
     const defined = Array.from(new Set(vals.filter(Boolean))).sort() as string[];
     const hasUnknown = vals.some(v => !v);
@@ -275,6 +308,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     const [filterNationality, setFilterNationality] = useState<string[]>([]);
     const [filterIndustry, setFilterIndustry] = useState<string[]>([]);
     const [filterRating, setFilterRating] = useState<string[]>([]);
+    const [filterReviewer, setFilterReviewer] = useState<string[]>([]);
     const [filterAgeMin, setFilterAgeMin] = useState<number | null>(null);
     const [filterAgeMax, setFilterAgeMax] = useState<number | null>(null);
     const [filterAgeIncludeUnknown, setFilterAgeIncludeUnknown] = useState(true);
@@ -535,6 +569,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     const uniqueNationalities = buildOptions(candidates.map(c => c.candidate_nationality));
     const uniqueIndustries = buildOptions(candidates.map(c => c.candidate_industry));
     const uniqueRatings = buildOptions(candidates.map(c => c.candidate_hotel_rating));
+    const uniqueReviewers = Array.from(new Set(candidates.flatMap(c => c.candidate_reviewers || []))).sort();
 
     // Multi-select filter logic (empty array = show all)
     const filteredCandidates = candidates.filter(c => {
@@ -574,7 +609,9 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                 return true;
             })();
 
-            return matchesGlobal && matchesStatus && matchesGender && matchesCompany && matchesPosition && matchesCurrentJob && matchesCountry && matchesRegion && matchesNationality && matchesIndustry && matchesRating && matchesAge;
+            const matchesReviewer = filterReviewer.length === 0 || filterReviewer.some(r => (c.candidate_reviewers || []).includes(r));
+
+            return matchesGlobal && matchesStatus && matchesGender && matchesCompany && matchesPosition && matchesCurrentJob && matchesCountry && matchesRegion && matchesNationality && matchesIndustry && matchesRating && matchesAge && matchesReviewer;
         } catch { return false; }
     });
 
@@ -655,7 +692,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     const totalVirtualSize = rowVirtualizer.getTotalSize();
     const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
     const paddingBottom = virtualItems.length > 0 ? totalVirtualSize - virtualItems[virtualItems.length - 1].end : 0;
-    const COL_SPAN = showSalary ? 16 : 15;
+    const COL_SPAN = showSalary ? 17 : 16;
 
 
 
@@ -781,6 +818,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                         <MSFilter label="Nationality" options={uniqueNationalities} selected={filterNationality} setSelected={setFilterNationality} />
                         <MSFilter label="Industry" options={uniqueIndustries} selected={filterIndustry} setSelected={setFilterIndustry} />
                         <MSFilter label="Hotel Rating" options={uniqueRatings} selected={filterRating} setSelected={setFilterRating} />
+                        <MSFilter label="Reviewed By" options={uniqueReviewers} selected={filterReviewer} setSelected={setFilterReviewer} />
                         <AgeFilter
                             ageMin={filterAgeMin} ageMax={filterAgeMax} includeUnknown={filterAgeIncludeUnknown}
                             onChange={(min, max, inc) => { setFilterAgeMin(min); setFilterAgeMax(max); setFilterAgeIncludeUnknown(inc); }}
@@ -798,13 +836,13 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                         </div>
 
                         {/* Clear all */}
-                        {(filterStatus.length > 0 || filterGender.length > 0 || filterCompany.length > 0 || filterPosition.length > 0 || filterIsCurrentJob.length > 0 || filterCountry.length > 0 || filterRegion.length > 0 || filterNationality.length > 0 || filterIndustry.length > 0 || filterRating.length > 0 || filterAgeMin !== null || filterAgeMax !== null || filterText) && (
+                        {(filterStatus.length > 0 || filterGender.length > 0 || filterCompany.length > 0 || filterPosition.length > 0 || filterIsCurrentJob.length > 0 || filterCountry.length > 0 || filterRegion.length > 0 || filterNationality.length > 0 || filterIndustry.length > 0 || filterRating.length > 0 || filterReviewer.length > 0 || filterAgeMin !== null || filterAgeMax !== null || filterText) && (
                             <Button size="sm" variant="ghost"
                                 className="h-8 px-3 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
                                 onClick={() => {
                                     setFilterStatus([]); setFilterGender([]); setFilterCompany([]);
                                     setFilterPosition([]); setFilterIsCurrentJob([]); setFilterCountry([]);
-                                    setFilterRegion([]); setFilterNationality([]); setFilterIndustry([]); setFilterRating([]);
+                                    setFilterRegion([]); setFilterNationality([]); setFilterIndustry([]); setFilterRating([]); setFilterReviewer([]);
                                     setFilterAgeMin(null); setFilterAgeMax(null); setFilterAgeIncludeUnknown(true);
                                     setFilterText("");
                                 }}>
@@ -853,6 +891,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[160px]">Remark</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[130px]">Is Current Job</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[160px]">Country</th>
+                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[120px]">Reviewed By</th>
                             {showSalary && (
                                 <th className="text-right font-black text-indigo-600 text-xs uppercase tracking-widest px-5 py-4 w-[150px] bg-indigo-50/30">Annual Salary</th>
                             )}
@@ -1172,6 +1211,25 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                         })() : (
                                             <span className="text-slate-300 text-xs">—</span>
                                         )}
+                                    </td>
+                                    {/* Reviewed By — avatar stack */}
+                                    <td className="px-4 py-4">
+                                        {(() => {
+                                            const reviewers = c.candidate_reviewers || [];
+                                            if (reviewers.length === 0) return <span className="text-slate-300 text-xs">—</span>;
+                                            const visible = reviewers.slice(0, 3);
+                                            const overflow = reviewers.length - visible.length;
+                                            return (
+                                                <div className="flex items-center -space-x-1.5">
+                                                    {visible.map(r => <UserAvatar key={r} id={r} />)}
+                                                    {overflow > 0 && (
+                                                        <div className="w-6 h-6 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center text-[9px] font-black text-slate-600 z-10">
+                                                            +{overflow}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })()}
                                     </td>
                                     {showSalary && (
                                         <td className="px-5 py-4 text-right bg-indigo-50/10">
