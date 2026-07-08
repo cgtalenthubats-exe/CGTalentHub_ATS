@@ -9,6 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { triggerStage3Ranking, getStage3JobStatus, getLatestJobForJR, getJobHistoryForJR, type Stage3JobData, type Stage3Result, type JobHistoryItem } from "@/app/actions/ai-ranking";
 import { sendJrChatMessage, getJrChatHistory } from "@/app/actions/jr-ai-chat";
 import { generateAssessmentPPTX } from "@/app/actions/export-pptx";
+import { shareAssessmentReport } from "@/app/actions/share-report";
+import { ShareReportDialog } from "@/components/share-report-dialog";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -778,7 +780,7 @@ export function AiSuggestionTab({ jrId, jrTitle, jrDescription }: Props) {
     const [history, setHistory] = useState<JobHistoryItem[]>([]);
     const [showHistory, setShowHistory] = useState(false);
     const [activeJobId, setActiveJobId] = useState<string | null>(null);
-    const [exportLoading, setExportLoading] = useState(false);
+    const [exportDialogOpen, setExportDialogOpen] = useState(false);
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const jobIdRef = useRef<string | null>(null);
 
@@ -1013,25 +1015,11 @@ export function AiSuggestionTab({ jrId, jrTitle, jrDescription }: Props) {
                         <Button
                             variant="outline"
                             size="sm"
-                            disabled={exportLoading}
                             title="Export PPTX"
-                            onClick={async () => {
-                                setExportLoading(true);
-                                try {
-                                    const { base64, filename } = await generateAssessmentPPTX(activeJobId, jrId, jrTitle ?? jrId);
-                                    const link = document.createElement("a");
-                                    link.href = `data:application/vnd.openxmlformats-officedocument.presentationml.presentation;base64,${base64}`;
-                                    link.download = filename;
-                                    link.click();
-                                } catch (e: any) {
-                                    alert(`Export failed: ${e.message}`);
-                                } finally {
-                                    setExportLoading(false);
-                                }
-                            }}
+                            onClick={() => setExportDialogOpen(true)}
                             className="gap-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
                         >
-                            {exportLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                            <Download className="w-3.5 h-3.5" />
                             Export PPTX
                         </Button>
                     )}
@@ -1201,6 +1189,17 @@ export function AiSuggestionTab({ jrId, jrTitle, jrDescription }: Props) {
                 open={!!openProfileId}
                 onOpenChange={(v) => { if (!v) setOpenProfileId(null); }}
             />
+            {activeJobId && (
+                <ShareReportDialog
+                    open={exportDialogOpen}
+                    onOpenChange={setExportDialogOpen}
+                    generateFn={() => generateAssessmentPPTX(activeJobId, jrId, jrTitle ?? jrId)}
+                    shareAction={(p) =>
+                        shareAssessmentReport({ jobId: activeJobId, jrId, jrTitle: jrTitle ?? jrId, ...p })
+                    }
+                    defaultSubject={`AI Assessment Report — ${jrTitle ?? jrId} (${jrId})`}
+                />
+            )}
         </div>
     );
 }

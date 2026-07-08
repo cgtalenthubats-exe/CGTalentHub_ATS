@@ -21,6 +21,8 @@ import { AddCandidateDialog } from "@/components/ai-search/AddCandidateDialog";
 import { Stage3ResultsPanel } from "@/app/ai-search-v3/Stage3ResultsPanel";
 import { getSearchJobHistory, triggerVectorRankAssessment, type SearchJobSummary } from "@/app/actions/ai-search-ranking";
 import { generateSearchPPTX } from "@/app/actions/export-pptx";
+import { shareSearchReport } from "@/app/actions/share-report";
+import { ShareReportDialog } from "@/components/share-report-dialog";
 import { Input } from "@/components/ui/input";
 import {
     getDemoFilterOptions,
@@ -253,7 +255,7 @@ export default function AISearchV3Page() {
     const [activeJobId, setActiveJobId] = useState<string | null>(null);
     const [assessingId, setAssessingId] = useState<string | null>(null);
     const [jobHistory, setJobHistory] = useState<SearchJobSummary[]>([]);
-    const [exportLoading, setExportLoading] = useState(false);
+    const [exportDialogOpen, setExportDialogOpen] = useState(false);
 
     const [aiCriteria, setAiCriteria] = useState("");
     const [analysing, setAnalysing] = useState(false);
@@ -962,24 +964,10 @@ export default function AISearchV3Page() {
                                     <Button
                                         size="sm"
                                         variant="outline"
-                                        disabled={exportLoading}
                                         className="h-8 text-xs gap-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
-                                        onClick={async () => {
-                                            setExportLoading(true);
-                                            try {
-                                                const { base64, filename } = await generateSearchPPTX(activeJobId);
-                                                const link = document.createElement("a");
-                                                link.href = `data:application/vnd.openxmlformats-officedocument.presentationml.presentation;base64,${base64}`;
-                                                link.download = filename;
-                                                link.click();
-                                            } catch (e: any) {
-                                                alert(`Export failed: ${e.message}`);
-                                            } finally {
-                                                setExportLoading(false);
-                                            }
-                                        }}
+                                        onClick={() => setExportDialogOpen(true)}
                                     >
-                                        {exportLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                                        <Download className="h-3.5 w-3.5" />
                                         Export PPTX
                                     </Button>
                                 )}
@@ -1008,6 +996,21 @@ export default function AISearchV3Page() {
                 candidateNames={selectedIds.map(id => candidates.find((c: any) => c.candidate_id === id)?.name ?? id)}
                 onSuccess={() => { setAddDialogOpen(false); setSelectedIds([]); }}
             />
+            {activeJobId && (
+                <ShareReportDialog
+                    open={exportDialogOpen}
+                    onOpenChange={setExportDialogOpen}
+                    generateFn={() => generateSearchPPTX(activeJobId)}
+                    shareAction={(p) =>
+                        shareSearchReport({ jobId: activeJobId, ...p })
+                    }
+                    defaultSubject={
+                        jobHistory.find((j) => j.job_id === activeJobId)?.query
+                            ? `AI Search Report — ${jobHistory.find((j) => j.job_id === activeJobId)!.query.slice(0, 60)}`
+                            : "AI Search Report"
+                    }
+                />
+            )}
         </div>
     );
 }
