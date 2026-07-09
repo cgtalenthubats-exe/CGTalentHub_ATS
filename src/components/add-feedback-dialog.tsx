@@ -283,7 +283,7 @@ export function AddFeedbackDialog({
                                         <p className="text-xs text-slate-400">{(fileStats.size / 1024).toFixed(1)} KB</p>
                                     </div>
                                 ) : (
-                                    <p className="text-sm font-medium">Click to upload evaluation form or notes</p>
+                                    <p className="text-sm font-medium">Click to upload, or drag and drop evaluation form or notes</p>
                                 )}
                             </div>
                         </div>
