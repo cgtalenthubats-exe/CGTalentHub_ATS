@@ -12,6 +12,7 @@ export type FeedbackData = {
     recommendation: string;
     feedback_text: string;
     feedback_file_url?: string;
+    has_new_file?: boolean;
     feedback_id?: number;
     candidate_name: string;
 };
@@ -51,8 +52,8 @@ export async function submitInterviewFeedback(data: FeedbackData) {
             return { success: false, error: error.message };
         }
 
-        // 3. Trigger n8n Webhook (only if file is attached)
-        if (data.feedback_file_url) {
+        // 3. Trigger n8n Webhook (only if a NEW file was uploaded this submission)
+        if (data.has_new_file && data.feedback_file_url) {
             // Fetch JR ID for context
             const { data: jrCand } = await supabase
                 .from('jr_candidates')

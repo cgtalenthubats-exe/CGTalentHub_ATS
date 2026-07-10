@@ -148,6 +148,7 @@ export function AddFeedbackDialog({
                 recommendation: recommendation,
                 feedback_text: feedbackText,
                 feedback_file_url: fileUrl || initialData?.feedback_file || undefined,
+                has_new_file: !!file,
                 candidate_name: candidateName,
             });
 
