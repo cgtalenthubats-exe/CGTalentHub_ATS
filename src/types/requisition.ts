@@ -57,7 +57,21 @@ export interface JRCandidate {
     history_count?: number;
     candidate_reviewers?: string[];
     candidate_experiences?: JRCandidateExperience[];
+    head_recruit_feedback?: string;
 }
+
+export const HEAD_RECRUIT_FEEDBACK_OPTIONS = [
+    "Can Approach",
+    "Keep in Longlist",
+    "Not fit - Remove",
+    "Not fit - Too Junior",
+    "Not fit - Too Senior",
+    "Not fit - Compensation Gap",
+    "Not fit",
+    "Don't touch",
+] as const;
+
+export type HeadRecruitFeedback = typeof HEAD_RECRUIT_FEEDBACK_OPTIONS[number];
 
 export interface JRCandidateExperience {
     id: number;

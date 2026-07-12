@@ -73,6 +73,123 @@ export async function updateCandidateStatus(
     }
 }
 
+const HEAD_RECRUIT_FEEDBACK_STATUS_MAP: Record<string, string> = {
+    "Can Approach": "Pool Candidate",
+    "Keep in Longlist": "Pool Candidate",
+    "Not fit - Remove": "Not fit",
+    "Not fit - Too Junior": "Not fit",
+    "Not fit - Too Senior": "Not fit",
+    "Not fit - Compensation Gap": "Not fit",
+    "Not fit": "Not fit",
+    "Don't touch": "Pool Candidate",
+};
+
+const HEAD_RECRUIT_FEEDBACK_UPDATED_BY = "Thikamporn";
+
+// Resets the Head Recruit Feedback dropdown back to blank (e.g. picked the wrong option by mistake).
+// Only clears the marker itself — the status_log entry it created stays as history, and any
+// Remark tag (e.g. "Don't touch") it added must be untoggled separately via the Remark cell,
+// since both are shared/global concepts that shouldn't be silently reverted.
+export async function clearHeadRecruitFeedback(jrCandidateId: string) {
+    const supabase = adminAuthClient;
+    try {
+        const { error } = await (supabase
+            .from('jr_candidates') as any)
+            .update({ head_recruit_feedback: null })
+            .eq('jr_candidate_id', jrCandidateId);
+
+        if (error) throw error;
+
+        revalidatePath("/requisitions/manage");
+        return { success: true };
+    } catch (e: any) {
+        console.error("Error clearing head recruit feedback:", e);
+        return { success: false, error: e.message };
+    }
+}
+
+export async function updateHeadRecruitFeedback(jrCandidateId: string, feedback: string) {
+    const supabase = adminAuthClient;
+    const mappedStatus = HEAD_RECRUIT_FEEDBACK_STATUS_MAP[feedback];
+
+    if (!mappedStatus) {
+        return { success: false, error: `Unknown feedback option: ${feedback}` };
+    }
+
+    try {
+        // 1. Persist the selected feedback on jr_candidates, and grab candidate_id for the Remark step below
+        const { data: jrCandRow, error: jrCandError } = await (supabase
+            .from('jr_candidates') as any)
+            .update({ head_recruit_feedback: feedback })
+            .eq('jr_candidate_id', jrCandidateId)
+            .select('candidate_id')
+            .single();
+
+        if (jrCandError) throw jrCandError;
+
+        // 2. Insert a status_log entry (note keeps the full feedback text for traceability)
+        const { data: maxLogResult } = await supabase
+            .from('status_log')
+            .select('log_id')
+            .order('log_id', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        let nextLogId = 1;
+        if (maxLogResult && (maxLogResult as any).log_id) {
+            nextLogId = parseInt((maxLogResult as any).log_id) + 1;
+        }
+
+        const now = new Date();
+        const timestampStr = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()}`;
+
+        const { error: logError } = await supabase
+            .from('status_log')
+            .insert({
+                log_id: nextLogId,
+                jr_candidate_id: jrCandidateId,
+                status: mappedStatus,
+                updated_By: HEAD_RECRUIT_FEEDBACK_UPDATED_BY,
+                updated_by: HEAD_RECRUIT_FEEDBACK_UPDATED_BY,
+                timestamp: timestampStr,
+                note: feedback,
+            } as any);
+
+        if (logError) throw logError;
+
+        // 3. "Don't touch" also tags the candidate globally via the existing Remark schema
+        //    (Candidate Profile.candidate_status is shared across every JR this candidate is in)
+        if (feedback === "Don't touch") {
+            const candidateId = (jrCandRow as any)?.candidate_id;
+            if (candidateId) {
+                const { data: profile, error: profileFetchError } = await supabase
+                    .from('Candidate Profile')
+                    .select('candidate_status')
+                    .eq('candidate_id', candidateId)
+                    .maybeSingle();
+
+                if (profileFetchError) throw profileFetchError;
+
+                const existingStatuses: string[] = ((profile as any)?.candidate_status as string[] | null) || [];
+                if (!existingStatuses.includes("Don't touch")) {
+                    const { error: profileUpdateError } = await (supabase
+                        .from('Candidate Profile') as any)
+                        .update({ candidate_status: [...existingStatuses, "Don't touch"] })
+                        .eq('candidate_id', candidateId);
+
+                    if (profileUpdateError) throw profileUpdateError;
+                }
+            }
+        }
+
+        revalidatePath("/requisitions/manage");
+        return { success: true };
+    } catch (e: any) {
+        console.error("Error updating head recruit feedback:", e);
+        return { success: false, error: e.message };
+    }
+}
+
 export async function batchUpdateCandidateStatus(
     jrCandidateIds: string[],
     newStatus: string,

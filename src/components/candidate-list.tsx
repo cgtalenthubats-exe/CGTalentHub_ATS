@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { JRCandidate, JRCandidateExperience } from "@/types/requisition";
+import { JRCandidate, JRCandidateExperience, HEAD_RECRUIT_FEEDBACK_OPTIONS } from "@/types/requisition";
 import { getJRCandidates } from "@/app/actions/jr-candidates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +34,9 @@ import {
     batchUpdateCandidateStatus,
     updateJRCandidateMetadata,
     removeFromJR,
-    copyCandidatesToJR
+    copyCandidatesToJR,
+    updateHeadRecruitFeedback,
+    clearHeadRecruitFeedback
 } from "@/app/actions/status-updates";
 import { triggerCandidateRefresh } from "@/app/actions/n8n-actions";
 import { getStatuses, addStatus } from "@/app/actions/candidate-filters";
@@ -74,6 +76,7 @@ import { CandidateLinkedinButton } from "@/components/candidate-linkedin-button"
 import { CompanyQuickEditDialog } from "@/components/company-quick-edit-dialog";
 
 const UNKNOWN = '(Unknown)';
+const CLEAR_FEEDBACK_VALUE = '__clear__';
 
 // ─── User Avatar helpers ──────────────────────────────────────────────────────
 const AVATAR_COLORS = ['#6366f1','#8b5cf6','#ec4899','#f59e0b','#10b981','#3b82f6','#ef4444','#14b8a6','#f97316','#0ea5e9'];
@@ -496,6 +499,34 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
         }
     };
 
+    const [feedbackUpdating, setFeedbackUpdating] = useState<string | null>(null);
+    const handleHeadRecruitFeedback = async (jrCandId: string, feedback: string) => {
+        if (feedback === CLEAR_FEEDBACK_VALUE) {
+            setFeedbackUpdating(jrCandId);
+            const { success, error } = await clearHeadRecruitFeedback(jrCandId);
+            if (success) {
+                const updated = await getJRCandidates(jrId);
+                setCandidates(updated);
+                toast.success("Cleared Head Recruit Feedback selection");
+            } else {
+                toast.error("Error: " + error);
+            }
+            setFeedbackUpdating(null);
+            return;
+        }
+
+        setFeedbackUpdating(jrCandId);
+        const { success, error } = await updateHeadRecruitFeedback(jrCandId, feedback);
+        if (success) {
+            const updated = await getJRCandidates(jrId);
+            setCandidates(updated);
+            toast.success(`Updated Head Recruit Feedback to "${feedback}"`);
+        } else {
+            toast.error("Error: " + error);
+        }
+        setFeedbackUpdating(null);
+    };
+
     const handleRefreshData = async (ids: string[]) => {
         const selectedCandidates = ids.map(id => {
             const c = candidates.find(cand => cand.id === id);
@@ -694,7 +725,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     const totalVirtualSize = rowVirtualizer.getTotalSize();
     const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
     const paddingBottom = virtualItems.length > 0 ? totalVirtualSize - virtualItems[virtualItems.length - 1].end : 0;
-    const COL_SPAN = showSalary ? 18 : 17;
+    const COL_SPAN = showSalary ? 19 : 18;
 
 
 
@@ -888,6 +919,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                 />
                             </th>
                             <th className="px-2 py-4 w-[40px]"></th>
+                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[180px]">Head Recruit Feedback</th>
                             <th className="text-right font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[80px]">Action</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[70px]">Rank</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[120px]">Type</th>
@@ -943,6 +975,28 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                         >
                                             {isExpanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
                                         </Button>
+                                    </td>
+                                    <td className="px-4 py-4">
+                                        <div className="relative flex items-center gap-2">
+                                            {feedbackUpdating === c.id ? (
+                                                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                            ) : (
+                                                <select
+                                                    className="text-xs font-semibold h-9 pl-3 pr-8 rounded-xl border border-slate-200 bg-white appearance-none focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer w-full min-w-[160px] text-slate-700"
+                                                    value={c.head_recruit_feedback || ""}
+                                                    onChange={(e) => e.target.value && handleHeadRecruitFeedback(c.id, e.target.value)}
+                                                >
+                                                    <option value="" disabled>— select —</option>
+                                                    {HEAD_RECRUIT_FEEDBACK_OPTIONS.map((opt) => (
+                                                        <option key={opt} value={opt}>{opt}</option>
+                                                    ))}
+                                                    {c.head_recruit_feedback && (
+                                                        <option value={CLEAR_FEEDBACK_VALUE} className="text-red-500">— Clear selection —</option>
+                                                    )}
+                                                </select>
+                                            )}
+                                            {feedbackUpdating !== c.id && <ChevronDown className="absolute right-2.5 h-3 w-3 text-slate-400 pointer-events-none" />}
+                                        </div>
                                     </td>
                                     <td className="px-4 py-4 text-left">
                                         <DropdownMenu>
@@ -1439,6 +1493,11 @@ function RemarkCell({ candidateId, statuses, onSaved }: {
     const [saving, setSaving] = useState(false);
     const [newTag, setNewTag] = useState('');
     const [addingNew, setAddingNew] = useState(false);
+
+    // Keep in sync when the parent refetches candidates (e.g. after Head Recruit Feedback updates this globally)
+    useEffect(() => {
+        setCurrent(statuses);
+    }, [statuses]);
 
     useEffect(() => {
         if (open && options.length === 0) {

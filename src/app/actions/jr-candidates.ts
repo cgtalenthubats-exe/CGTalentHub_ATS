@@ -27,6 +27,7 @@ interface DBJRCandidate {
     list_type: string;
     rank: string;
     time_stamp: string;
+    head_recruit_feedback: string | null;
     candidate?: {
         name: string | null;
         email: string | null;
@@ -71,7 +72,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
     // 1. Fetch Candidates (Raw) — does NOT read temp_status; status is resolved from status_log only
     const { data: candidates, error } = await supabase
         .from('jr_candidates')
-        .select('jr_candidate_id, jr_id, candidate_id, list_type, rank, time_stamp')
+        .select('jr_candidate_id, jr_id, candidate_id, list_type, rank, time_stamp, head_recruit_feedback')
         .eq('jr_id', jrId)
         .returns<DBJRCandidate[]>();
 
@@ -324,6 +325,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
             history_count: historyMap.get(row.candidate_id) || 0,
             candidate_reviewers: reviewerMap.get(row.jr_candidate_id) || [],
             candidate_experiences: fullExpMap.get(row.candidate_id) || [],
+            head_recruit_feedback: row.head_recruit_feedback || undefined,
         };
     });
 
