@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { JRCandidate } from "@/types/requisition";
+import { JRCandidate, JRCandidateExperience } from "@/types/requisition";
 import { getJRCandidates } from "@/app/actions/jr-candidates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +19,7 @@ import {
     Search,
     Filter,
     ChevronDown,
+    ChevronUp,
     Loader2,
     Building2,
     UserCircle2,
@@ -294,6 +295,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
     const [filterText, setFilterText] = useState("");
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
     const [statusOptions, setStatusOptions] = useState<any[]>([]);
     const [allJRs, setAllJRs] = useState<any[]>([]);
 
@@ -692,7 +694,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     const totalVirtualSize = rowVirtualizer.getTotalSize();
     const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
     const paddingBottom = virtualItems.length > 0 ? totalVirtualSize - virtualItems[virtualItems.length - 1].end : 0;
-    const COL_SPAN = showSalary ? 17 : 16;
+    const COL_SPAN = showSalary ? 18 : 17;
 
 
 
@@ -711,6 +713,14 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
         } else {
             setSelectedIds([...selectedIds, id]);
         }
+    };
+
+    const toggleExpand = (id: string) => {
+        setExpandedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
     };
 
     if (loading) return <div className="p-8 text-center text-muted-foreground">Loading candidates...</div>;
@@ -877,6 +887,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                     className="border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                                 />
                             </th>
+                            <th className="px-2 py-4 w-[40px]"></th>
                             <th className="text-right font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[80px]">Action</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[70px]">Rank</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[120px]">Type</th>
@@ -897,19 +908,22 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                             )}
                         </tr>
                     </thead>
-                    <tbody>
-                        {paddingTop > 0 && <tr><td colSpan={COL_SPAN} style={{ height: paddingTop, padding: 0 }} /></tr>}
-                        {virtualItems.map((virtualRow) => {
+                    {paddingTop > 0 && <tbody><tr><td colSpan={COL_SPAN} style={{ height: paddingTop, padding: 0 }} /></tr></tbody>}
+                    {virtualItems.map((virtualRow) => {
                             const c = sortedCandidates[virtualRow.index];
                             const isSelected = selectedIds.includes(c.id);
                             const isUpdating = statusUpdating === c.id;
                             const isTopProfile = c.list_type === "Top profile";
+                            const isExpanded = expandedIds.has(c.id);
+                            const sortedExperiences = sortJRExperiences(c.candidate_experiences || []);
 
                             return (
-                                <tr
+                                <tbody
                                     key={c.id}
                                     data-index={virtualRow.index}
                                     ref={el => rowVirtualizer.measureElement(el)}
+                                >
+                                <tr
                                     className={getRowClass(c.status, isSelected)}
                                     style={getRowStyle(c.status)}
                                 >
@@ -919,6 +933,16 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                             onCheckedChange={() => toggleSelect(c.id)}
                                             className="border-slate-300 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                                         />
+                                    </td>
+                                    <td className="px-2 py-4 text-center">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-7 w-7 rounded-lg hover:bg-slate-100"
+                                            onClick={() => toggleExpand(c.id)}
+                                        >
+                                            {isExpanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                                        </Button>
                                     </td>
                                     <td className="px-4 py-4 text-left">
                                         <DropdownMenu>
@@ -1246,10 +1270,70 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                         </td>
                                     )}
                                 </tr>
+                                {isExpanded && (
+                                    <tr className="bg-slate-50/50 hover:bg-slate-50/50">
+                                        <td colSpan={COL_SPAN} className="p-0">
+                                            <div className="p-4 pl-14">
+                                                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+                                                    <span className="w-2 h-2 rounded-full bg-slate-300"></span>
+                                                    Experience History
+                                                </h4>
+                                                <div className="border rounded-md bg-white overflow-hidden">
+                                                    <table className="w-full text-sm border-collapse table-fixed">
+                                                        <colgroup>
+                                                            <col className="w-[32%]" />
+                                                            <col className="w-[26%]" />
+                                                            <col className="w-[16%]" />
+                                                            <col className="w-[14%]" />
+                                                            <col className="w-[12%]" />
+                                                        </colgroup>
+                                                        <thead className="bg-slate-50">
+                                                            <tr className="hover:bg-slate-50 border-b border-slate-100">
+                                                                <th className="h-8 px-3 text-left text-[11px] font-bold uppercase text-slate-500">Position</th>
+                                                                <th className="h-8 px-3 text-left text-[11px] font-bold uppercase text-slate-500">Company</th>
+                                                                <th className="h-8 px-3 text-left text-[11px] font-bold uppercase text-slate-500">Industry</th>
+                                                                <th className="h-8 px-3 text-left text-[11px] font-bold uppercase text-slate-500">Country</th>
+                                                                <th className="h-8 px-3 text-right text-[11px] font-bold uppercase text-slate-500">Period</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {sortedExperiences.map((exp) => {
+                                                                const isCurrentExp = (exp.is_current_job || '').toLowerCase() === 'current';
+                                                                return (
+                                                                    <tr key={exp.id} className={cn("border-b border-slate-50 last:border-0", isCurrentExp ? "bg-blue-50/50 hover:bg-blue-50/70" : "hover:bg-slate-50")}>
+                                                                        <td className="px-3 py-2 text-xs font-medium text-slate-700 overflow-hidden">
+                                                                            <div className="flex items-center gap-2 min-w-0">
+                                                                                <span className="truncate" title={exp.position}>{exp.position}</span>
+                                                                                {isCurrentExp && <Badge variant="default" className="text-[9px] h-3.5 px-1 bg-blue-600 shrink-0">Current</Badge>}
+                                                                            </div>
+                                                                        </td>
+                                                                        <td className="px-3 py-2 text-xs text-slate-600 truncate" title={exp.company}>{exp.company}</td>
+                                                                        <td className="px-3 py-2 text-xs text-slate-500 truncate" title={exp.company_industry}>{exp.company_industry || '-'}</td>
+                                                                        <td className="px-3 py-2 text-xs text-slate-500 truncate" title={exp.country}>{exp.country}</td>
+                                                                        <td className="px-3 py-2 text-xs text-right font-mono text-slate-500">
+                                                                            <Badge variant={isCurrentExp ? "default" : "secondary"} className="font-mono text-[10px] px-1.5 py-0 h-5 shadow-none border border-border/50">
+                                                                                {exp.start_date} - {isCurrentExp ? 'Present' : exp.end_date}
+                                                                            </Badge>
+                                                                        </td>
+                                                                    </tr>
+                                                                );
+                                                            })}
+                                                            {sortedExperiences.length === 0 && (
+                                                                <tr>
+                                                                    <td colSpan={5} className="text-center py-4 text-xs text-muted-foreground">No experience recorded.</td>
+                                                                </tr>
+                                                            )}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
+                                </tbody>
                             );
                         })}
-                        {paddingBottom > 0 && <tr><td colSpan={COL_SPAN} style={{ height: paddingBottom, padding: 0 }} /></tr>}
-                    </tbody>
+                        {paddingBottom > 0 && <tbody><tr><td colSpan={COL_SPAN} style={{ height: paddingBottom, padding: 0 }} /></tr></tbody>}
                 </table>
                 </div>
             </CardContent>
@@ -1495,6 +1579,29 @@ function SexAgeCell({ candidateId, gender, age, ageSource, onSaved }: {
             </PopoverContent>
         </Popover>
     );
+}
+
+function parseExpMonthYear(dateStr: string | null | undefined): number {
+    if (!dateStr || dateStr.toLowerCase() === 'present') return Infinity;
+    const parts = dateStr.split('-');
+    if (parts.length === 2) {
+        const month = parseInt(parts[0], 10);
+        const year = parseInt(parts[1], 10);
+        if (!isNaN(month) && !isNaN(year)) return year * 100 + month;
+    }
+    const ts = new Date(dateStr).getTime();
+    return isNaN(ts) ? 0 : ts;
+}
+
+function sortJRExperiences(exps: JRCandidateExperience[]): JRCandidateExperience[] {
+    if (!exps) return [];
+    return [...exps].sort((a, b) => {
+        const aCurrent = (a.is_current_job || '').toLowerCase() === 'current';
+        const bCurrent = (b.is_current_job || '').toLowerCase() === 'current';
+        if (aCurrent && !bCurrent) return -1;
+        if (!aCurrent && bCurrent) return 1;
+        return parseExpMonthYear(b.start_date) - parseExpMonthYear(a.start_date);
+    });
 }
 
 function getRowStatusClass(status: string) {

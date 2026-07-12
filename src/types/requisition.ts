@@ -56,6 +56,18 @@ export interface JRCandidate {
     candidate_hotel_rating?: string;
     history_count?: number;
     candidate_reviewers?: string[];
+    candidate_experiences?: JRCandidateExperience[];
+}
+
+export interface JRCandidateExperience {
+    id: number;
+    company: string;
+    position: string;
+    start_date: string;
+    end_date: string;
+    country: string;
+    company_industry?: string;
+    is_current_job?: string;
 }
 
 export interface JRAnalytics {

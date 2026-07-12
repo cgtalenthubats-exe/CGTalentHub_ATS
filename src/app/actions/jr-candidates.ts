@@ -2,7 +2,7 @@
 
 import { adminAuthClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { JRCandidate, JRAnalytics } from "@/types/requisition";
+import { JRCandidate, JRAnalytics, JRCandidateExperience } from "@/types/requisition";
 import { getEffectiveAge } from "@/lib/date-utils";
 import { getCandidateIdsByExperienceFilters } from "@/lib/candidate-service";
 import { onboardExternalCandidate } from "./ai-search";
@@ -123,10 +123,10 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         )),
 
         // Query 3: Candidate Experiences
-        Promise.all(candidateIdChunks.map(chunk => 
+        Promise.all(candidateIdChunks.map(chunk =>
             (supabase as any)
                 .from('candidate_experiences')
-                .select('candidate_id, company, company_id, position, is_current_job, start_date, country, note, company_industry, company_group')
+                .select('id, candidate_id, company, company_id, position, is_current_job, start_date, end_date, country, note, company_industry, company_group')
                 .in('candidate_id', chunk)
         )),
 
@@ -206,6 +206,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
     };
 
     const expMap = new Map<string, { company: string; company_id: string; position: string; label: string; country: string; region: string; note: string; company_industry: string; company_group: string; industry_master: string; hotel_rating: string | null; }>();
+    const fullExpMap = new Map<string, JRCandidateExperience[]>();
     if (experiences && (experiences as any[]).length > 0) {
         // Group by candidate_id
         const groupedExp: Record<string, any[]> = {};
@@ -245,6 +246,17 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
                 industry_master: masterData?.industry || '',
                 hotel_rating: masterData?.rating || null,
             });
+
+            fullExpMap.set(cid, exps.map((e: any) => ({
+                id: e.id,
+                company: e.company || '',
+                position: e.position || '',
+                start_date: e.start_date || '',
+                end_date: e.end_date || '',
+                country: e.country || '',
+                company_industry: e.company_industry || '',
+                is_current_job: e.is_current_job || '',
+            })));
         }
     }
 
@@ -311,6 +323,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
             candidate_salary_bonus: profile?.bonus_mth || undefined,
             history_count: historyMap.get(row.candidate_id) || 0,
             candidate_reviewers: reviewerMap.get(row.jr_candidate_id) || [],
+            candidate_experiences: fullExpMap.get(row.candidate_id) || [],
         };
     });
 
