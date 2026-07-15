@@ -22,7 +22,8 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { Loader2, Upload } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Loader2, Upload, Sparkles } from "lucide-react";
 import { submitInterviewFeedback } from "@/app/actions/interview-feedback";
 import { toast } from "@/lib/notifications";
 import { supabase } from "@/lib/supabase/client";
@@ -65,6 +66,7 @@ export function AddFeedbackDialog({
     const [recommendation, setRecommendation] = useState("");
     const [feedbackText, setFeedbackText] = useState("");
     const [file, setFile] = useState<File | null>(null);
+    const [triggerExtract, setTriggerExtract] = useState(false);
 
     useEffect(() => {
         if (open) {
@@ -91,6 +93,7 @@ export function AddFeedbackDialog({
         setFeedbackText("");
         setFile(null);
         setFileStats(null);
+        setTriggerExtract(false);
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -148,7 +151,7 @@ export function AddFeedbackDialog({
                 recommendation: recommendation,
                 feedback_text: feedbackText,
                 feedback_file_url: fileUrl || initialData?.feedback_file || undefined,
-                has_new_file: !!file,
+                trigger_extract: triggerExtract,
                 candidate_name: candidateName,
             });
 
@@ -283,11 +286,26 @@ export function AddFeedbackDialog({
                                         <p className="text-sm font-semibold text-indigo-600">{fileStats.name}</p>
                                         <p className="text-xs text-slate-400">{(fileStats.size / 1024).toFixed(1)} KB</p>
                                     </div>
+                                ) : initialData?.feedback_file ? (
+                                    <p className="text-sm font-medium text-slate-400">Click to replace existing attachment</p>
                                 ) : (
                                     <p className="text-sm font-medium">Click to upload, or drag and drop evaluation form or notes</p>
                                 )}
                             </div>
                         </div>
+                        {(file || initialData?.feedback_file) && (
+                            <div className="flex items-center gap-3 px-1 pt-1">
+                                <Checkbox
+                                    id="trigger-extract"
+                                    checked={triggerExtract}
+                                    onCheckedChange={(v) => setTriggerExtract(!!v)}
+                                />
+                                <label htmlFor="trigger-extract" className="flex items-center gap-1.5 text-xs font-bold text-slate-600 cursor-pointer select-none">
+                                    <Sparkles className="h-3.5 w-3.5 text-violet-500" />
+                                    Extract data from PDF after submit (AI)
+                                </label>
+                            </div>
+                        )}
                     </div>
                 </div>
 

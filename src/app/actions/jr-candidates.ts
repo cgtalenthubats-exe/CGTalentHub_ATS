@@ -7,12 +7,20 @@ import { getEffectiveAge } from "@/lib/date-utils";
 import { getCandidateIdsByExperienceFilters } from "@/lib/candidate-service";
 import { onboardExternalCandidate } from "./ai-search";
 
-// Get current logged-in user email from session
+// Get current logged-in user's real_name from user_profiles (fallback to email, then 'System')
 async function getCurrentUserEmail(): Promise<string> {
     try {
         const supabase = await createClient();
         const { data: { user } } = await supabase.auth.getUser();
-        return user?.email || 'System';
+        if (!user?.email) return 'System';
+
+        const { data: profile } = await (adminAuthClient as any)
+            .from('user_profiles')
+            .select('real_name')
+            .eq('email', user.email)
+            .single() as { data: { real_name: string } | null };
+
+        return profile?.real_name || user.email;
     } catch {
         return 'System';
     }

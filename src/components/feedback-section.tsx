@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Star, FileText, Plus, Pencil, MoreVertical, Trash2, History as HistoryIcon } from "lucide-react";
+import { MessageSquare, Star, FileText, Plus, Pencil, MoreVertical, Trash2, History as HistoryIcon, Sparkles, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDateForDisplay } from "@/lib/date-utils";
 import { AddFeedbackDialog } from "@/components/add-feedback-dialog";
@@ -16,6 +16,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { deleteInterviewFeedback } from "@/app/actions/jr-candidate-logs";
+import { triggerFeedbackPdfExtract } from "@/app/actions/interview-feedback";
 import { toast } from "@/lib/notifications";
 import { useRouter } from "next/navigation";
 import {
@@ -40,6 +41,7 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback, isRead
     const [selectedFeedback, setSelectedFeedback] = useState<any | null>(null);
     const [isViewOpen, setIsViewOpen] = useState(false);
     const [viewingFeedback, setViewingFeedback] = useState<any | null>(null);
+    const [extractingId, setExtractingId] = useState<number | null>(null);
 
     const handleAdd = () => {
         setSelectedFeedback(null);
@@ -54,6 +56,34 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback, isRead
     const handleView = (item: any) => {
         setViewingFeedback(item);
         setIsViewOpen(true);
+    };
+
+    const handleExtract = async (f: any) => {
+        if (!f.feedback_file) return;
+        setExtractingId(f.feedback_id);
+        try {
+            const res = await triggerFeedbackPdfExtract({
+                feedback_id: f.feedback_id,
+                jr_candidate_id: jrCandidateId,
+                candidate_name: candidateName,
+                interview_date: f.interview_date,
+                interview_type: f.Interviewer_type,
+                interviewer_name: f.Interviewer_name,
+                rating: f.rating_score,
+                recommendation: f.overall_recommendation,
+                feedback_text: f.feedback_text,
+                file_url: f.feedback_file,
+            });
+            if (res.success) {
+                toast.success("Sent to AI for extraction");
+            } else {
+                toast.error(res.error || "Failed to trigger extraction");
+            }
+        } catch {
+            toast.error("An error occurred");
+        } finally {
+            setExtractingId(null);
+        }
     };
 
     const handleDelete = async (feedbackId: number) => {
@@ -157,14 +187,28 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback, isRead
                                     )}
                                 </div>
                                 {f.feedback_file && (
-                                    <a
-                                        href={f.feedback_file}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-2 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 hover:underline bg-indigo-50 w-fit px-2 py-1 rounded-md transition-colors"
-                                    >
-                                        <FileText className="h-3 w-3" /> View Attachment
-                                    </a>
+                                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                                        <a
+                                            href={f.feedback_file}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-2 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 hover:underline bg-indigo-50 w-fit px-2 py-1 rounded-md transition-colors"
+                                        >
+                                            <FileText className="h-3 w-3" /> View Attachment
+                                        </a>
+                                        {!isReadOnly && (
+                                            <button
+                                                onClick={() => handleExtract(f)}
+                                                disabled={extractingId === f.feedback_id}
+                                                className="flex items-center gap-1.5 text-[10px] font-bold text-violet-600 hover:text-violet-700 bg-violet-50 hover:bg-violet-100 w-fit px-2 py-1 rounded-md transition-colors disabled:opacity-50"
+                                            >
+                                                {extractingId === f.feedback_id
+                                                    ? <Loader2 className="h-3 w-3 animate-spin" />
+                                                    : <Sparkles className="h-3 w-3" />}
+                                                Extract from PDF
+                                            </button>
+                                        )}
+                                    </div>
                                 )}
                                 <div className="flex justify-between items-center pt-2">
                                     <span className="text-[10px] font-bold text-slate-400">{formatDateForDisplay(f.interview_date)}</span>
@@ -249,16 +293,30 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback, isRead
                         </div>
 
                         {viewingFeedback?.feedback_file && (
-                            <a
-                                href={viewingFeedback.feedback_file}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-3 text-sm font-bold text-indigo-600 hover:text-indigo-700 hover:underline bg-indigo-50 w-full p-4 rounded-xl transition-colors border border-indigo-100 mt-4"
-                            >
-                                <FileText className="h-5 w-5" /> 
-                                <span className="flex-1">View Full Detailed Document / Attachment</span>
-                                <Plus className="h-4 w-4 rotate-45" />
-                            </a>
+                            <div className="flex flex-col gap-2 mt-4">
+                                <a
+                                    href={viewingFeedback.feedback_file}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-3 text-sm font-bold text-indigo-600 hover:text-indigo-700 hover:underline bg-indigo-50 w-full p-4 rounded-xl transition-colors border border-indigo-100"
+                                >
+                                    <FileText className="h-5 w-5" />
+                                    <span className="flex-1">View Full Detailed Document / Attachment</span>
+                                    <Plus className="h-4 w-4 rotate-45" />
+                                </a>
+                                {!isReadOnly && (
+                                    <button
+                                        onClick={() => handleExtract(viewingFeedback)}
+                                        disabled={extractingId === viewingFeedback?.feedback_id}
+                                        className="flex items-center gap-3 text-sm font-bold text-violet-600 hover:text-violet-700 bg-violet-50 hover:bg-violet-100 w-full p-4 rounded-xl transition-colors border border-violet-100 disabled:opacity-50"
+                                    >
+                                        {extractingId === viewingFeedback?.feedback_id
+                                            ? <Loader2 className="h-5 w-5 animate-spin" />
+                                            : <Sparkles className="h-5 w-5" />}
+                                        <span className="flex-1 text-left">Extract Data from PDF (AI)</span>
+                                    </button>
+                                )}
+                            </div>
                         )}
                     </div>
                 </SheetContent>

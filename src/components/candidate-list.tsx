@@ -345,10 +345,10 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     const virtualScrollRef = useRef<HTMLDivElement>(null);
     const [tableWidth, setTableWidth] = useState(0);
 
-    // Sync scroll between top and bottom
+    // Sync scroll between top dummy scrollbar and actual table container
     useEffect(() => {
         const top = topScrollRef.current;
-        const bottom = tableContainerRef.current;
+        const bottom = virtualScrollRef.current;
         if (!top || !bottom) return;
 
         let isSyncingTop = false;
@@ -903,7 +903,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                 <div style={{ width: tableWidth, height: '1px' }} />
             </div>
 
-            <CardContent ref={tableContainerRef} className="p-0 overflow-x-auto">
+            <CardContent ref={tableContainerRef} className="p-0">
                 <div
                     ref={virtualScrollRef}
                     style={{ maxHeight: 'calc(100vh - 320px)', overflowY: 'auto' }}
