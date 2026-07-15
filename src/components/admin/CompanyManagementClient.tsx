@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Building2, Globe, X, Hotel, Loader2, AlertTriangle } from "lucide-react";
+import { Building2, Globe, X, Hotel, Loader2, AlertTriangle, BarChart2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import CompanyDataTable from "./CompanyDataTable";
 import HotelChainMappingTab from "./HotelChainMappingTab";
+import SetCompaniesTab from "./SetCompaniesTab";
 import { getCompaniesPaginated, globalCompanySearch } from "@/app/actions/company-mgmt";
 import { toast } from "@/lib/notifications";
 
@@ -35,7 +36,7 @@ interface CompanyStats {
 }
 
 export default function CompanyManagementClient({ initialStats }: { initialStats: CompanyStats }) {
-    const [activeTab, setActiveTab] = useState<"companies" | "hotel_mapping">("companies");
+    const [activeTab, setActiveTab] = useState<"companies" | "hotel_mapping" | "set_companies">("companies");
 
     const mainGroups = useMemo(
         () => Object.keys(initialStats.groups)
@@ -165,9 +166,21 @@ export default function CompanyManagementClient({ initialStats }: { initialStats
                     <Hotel className="h-4 w-4" />
                     Hotel Chain Mapping
                 </button>
+                <button
+                    onClick={() => setActiveTab("set_companies")}
+                    className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                        activeTab === "set_companies"
+                            ? "border-indigo-600 text-indigo-600"
+                            : "border-transparent text-slate-500 hover:text-slate-700"
+                    }`}
+                >
+                    <BarChart2 className="h-4 w-4" />
+                    SET Companies
+                </button>
             </div>
 
             {activeTab === "hotel_mapping" && <HotelChainMappingTab />}
+            {activeTab === "set_companies" && <SetCompaniesTab />}
 
             {activeTab === "companies" && (
                 <div className="flex flex-col gap-3 flex-1">

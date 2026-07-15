@@ -207,6 +207,58 @@ export async function globalCompanySearch(term: string) {
     return Object.values(resultsMap);
 }
 
+export async function getSetCompanies() {
+    const supabase = adminAuthClient as any;
+
+    const { data: setList, error } = await supabase
+        .from('company_set_group')
+        .select('id, symbol, company_name, index_group, sector')
+        .order('symbol');
+
+    if (error) throw error;
+
+    // Try to find matching company_master records by company_name (case-insensitive)
+    const names = (setList || []).map((s: any) => s.company_name);
+
+    let masterMatches: any[] = [];
+    if (names.length > 0) {
+        const { data: masters } = await supabase
+            .from('company_master')
+            .select('company_id, company_master, industry, group')
+            .in('company_master', names);
+        masterMatches = masters || [];
+    }
+
+    // Count candidates per company_id via candidate_experiences
+    const masterIds = masterMatches.map((m: any) => m.company_id);
+    let candidateCounts: Record<number, number> = {};
+
+    if (masterIds.length > 0) {
+        const { data: expData } = await supabase
+            .from('candidate_experiences')
+            .select('company_id')
+            .in('company_id', masterIds);
+
+        (expData || []).forEach((e: any) => {
+            if (e.company_id) {
+                candidateCounts[e.company_id] = (candidateCounts[e.company_id] || 0) + 1;
+            }
+        });
+    }
+
+    return (setList || []).map((s: any) => {
+        const match = masterMatches.find((m: any) =>
+            m.company_master?.toLowerCase() === s.company_name?.toLowerCase()
+        );
+        return {
+            ...s,
+            company_master_id: match?.company_id || null,
+            company_master_name: match?.company_master || null,
+            candidate_count: match ? (candidateCounts[match.company_id] || 0) : null,
+        };
+    });
+}
+
 // ─── Hotel Chain Mapping ─────────────────────────────────────────────────────
 
 export interface HotelChainQueueItem {

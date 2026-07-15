@@ -42,6 +42,7 @@ import { Pencil } from "lucide-react";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
 import { formatDateForDisplay } from "@/lib/date-utils";
 import Link from "next/link";
+import { MonthRangePicker } from "@/components/month-range-picker";
 
 export default function PlacementsPage() {
     const [records, setRecords] = useState<any[]>([]);
@@ -50,6 +51,8 @@ export default function PlacementsPage() {
     const [buFilter, setBuFilter] = useState("All");
     const [subBuFilter, setSubBuFilter] = useState("All");
     const [hireYearFilter, setHireYearFilter] = useState("All");
+    const [fromMonth, setFromMonth] = useState("");
+    const [toMonth, setToMonth] = useState("");
     const [positionFilter, setPositionFilter] = useState("All");
     const [selectedRecord, setSelectedRecord] = useState<any>(null);
     const [isResignDialogOpen, setIsResignDialogOpen] = useState(false);
@@ -135,8 +138,10 @@ export default function PlacementsPage() {
         const matchesSubBU = subBuFilter === "All" || r.sub_bu === subBuFilter;
         const matchesHireYear = hireYearFilter === "All" || (r.hire_date && new Date(r.hire_date).getFullYear().toString() === hireYearFilter);
         const matchesPosition = positionFilter === "All" || r.position === positionFilter;
+        const hireMon = r.hire_date ? r.hire_date.slice(0, 7) : "";
+        const matchesPeriod = (!fromMonth && !toMonth) || (hireMon && (!fromMonth || hireMon >= fromMonth) && (!toMonth || hireMon <= toMonth));
 
-        return matchesSearch && matchesBU && matchesSubBU && matchesHireYear && matchesPosition;
+        return matchesSearch && matchesBU && matchesSubBU && matchesHireYear && matchesPosition && matchesPeriod;
     });
 
     const uniqueBUs = Array.from(new Set(records.map(r => r.bu).filter(Boolean)));
@@ -144,7 +149,7 @@ export default function PlacementsPage() {
     const uniqueHireYears = Array.from(new Set(records.map(r => r.hire_date ? new Date(r.hire_date).getFullYear().toString() : null).filter(Boolean))).sort((a, b) => Number(b) - Number(a));
     const uniquePositions = Array.from(new Set(records.map(r => r.position).filter(Boolean)));
 
-    const isFiltered = search !== "" || buFilter !== "All" || subBuFilter !== "All" || hireYearFilter !== "All" || positionFilter !== "All";
+    const isFiltered = search !== "" || buFilter !== "All" || subBuFilter !== "All" || hireYearFilter !== "All" || positionFilter !== "All" || !!fromMonth || !!toMonth;
 
     return (
         <div className="mx-auto p-6 space-y-8 max-w-[95%] animate-in fade-in duration-500">
@@ -219,6 +224,12 @@ export default function PlacementsPage() {
                     <option value="All">All Positions</option>
                     {uniquePositions.map(pos => <option key={String(pos)} value={String(pos)}>{String(pos)}</option>)}
                 </select>
+                <MonthRangePicker
+                    fromMonth={fromMonth}
+                    toMonth={toMonth}
+                    onFromChange={setFromMonth}
+                    onToChange={setToMonth}
+                />
             </div>
 
             {/* Stats Summary */}

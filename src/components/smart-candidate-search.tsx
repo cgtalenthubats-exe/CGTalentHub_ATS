@@ -23,7 +23,7 @@ import { searchCompanies, searchPositions } from "@/app/actions/candidate-filter
 import { useDebounce } from "@/hooks/use-debounce";
 
 interface SmartCandidateSearchProps {
-    onSearch: (term: string, type: 'global' | 'company' | 'position') => void;
+    onSearch: (term: string, type: 'global' | 'company' | 'position' | 'name') => void;
     onRawQueryChange?: (term: string) => void; // Support live updates
     filters?: any;
     placeholder?: string;
@@ -89,7 +89,7 @@ export function SmartCandidateSearch({
     }, [debouncedQuery, filters]);
 
 
-    const handleSelect = (term: string, type: 'global' | 'company' | 'position') => {
+    const handleSelect = (term: string, type: 'global' | 'company' | 'position' | 'name') => {
         onSearch(term, type);
         setOpen(false);
         setQuery(""); // Clear input after selection
@@ -160,6 +160,10 @@ export function SmartCandidateSearch({
                                     {/* Fallback Manual Filters if no suggestions or user wants specific filter */}
                                     {companySuggestions.length === 0 && positionSuggestions.length === 0 && (
                                         <CommandGroup heading="Filters">
+                                            <CommandItem onSelect={() => handleSelect(query, 'name')}>
+                                                <User className="mr-2 h-4 w-4 text-emerald-500" />
+                                                <span>Filter by Name: <strong>&quot;{query}&quot;</strong></span>
+                                            </CommandItem>
                                             <CommandItem onSelect={() => handleSelect(query, 'company')}>
                                                 <Building className="mr-2 h-4 w-4 text-indigo-500" />
                                                 <span>Filter by Company: <strong>&quot;{query}&quot;</strong></span>
@@ -167,6 +171,16 @@ export function SmartCandidateSearch({
                                             <CommandItem onSelect={() => handleSelect(query, 'position')}>
                                                 <Briefcase className="mr-2 h-4 w-4 text-pink-500" />
                                                 <span>Filter by Position: <strong>&quot;{query}&quot;</strong></span>
+                                            </CommandItem>
+                                        </CommandGroup>
+                                    )}
+
+                                    {/* Always show Filter by Name when there are suggestions too */}
+                                    {(companySuggestions.length > 0 || positionSuggestions.length > 0) && (
+                                        <CommandGroup heading="Name Filter">
+                                            <CommandItem onSelect={() => handleSelect(query, 'name')}>
+                                                <User className="mr-2 h-4 w-4 text-emerald-500" />
+                                                <span>Filter by Name only: <strong>&quot;{query}&quot;</strong></span>
                                             </CommandItem>
                                         </CommandGroup>
                                     )}

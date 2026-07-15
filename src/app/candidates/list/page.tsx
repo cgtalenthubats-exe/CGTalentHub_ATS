@@ -113,6 +113,7 @@ export default function CandidateListPage() {
     const [showFilters, setShowFilters] = useState(false);
     const [viewMode, setViewMode] = useState<'list' | 'table'>('list');
     const [searchTerm, setSearchTerm] = useState("");
+    const [nameFilter, setNameFilter] = useState("");
     const [filters, setFilters] = useState({
         countries: [] as string[],
         industries: [] as string[],
@@ -202,6 +203,7 @@ export default function CandidateListPage() {
                         experienceType: filters.experienceType,
                     },
                     search: searchTerm,
+                    nameSearch: nameFilter || undefined,
                     page: currentPage,
                     pageSize: pageSize
                 })
@@ -221,7 +223,7 @@ export default function CandidateListPage() {
     useEffect(() => {
         const timeout = setTimeout(fetchCandidates, 500);
         return () => clearTimeout(timeout);
-    }, [filters, searchTerm, currentPage, pageSize]);
+    }, [filters, searchTerm, nameFilter, currentPage, pageSize]);
 
     // 4. Fetch Org Chart Status in Bulk
     useEffect(() => {
@@ -248,7 +250,7 @@ export default function CandidateListPage() {
         setCurrentPage(1);
         setSelectAllMode(false);
         setSelectedIds([]);
-    }, [filters, searchTerm]);
+    }, [filters, searchTerm, nameFilter]);
 
     // Update selection when Page changes (Looping behavior or preserve? Standard is preserve IDs but SelectAllMode might reset or persist?)
     // Decision: If Global Select All is ON, it persists across pages. 
@@ -269,6 +271,7 @@ export default function CandidateListPage() {
             experienceType: "All"
         });
         setSearchTerm("");
+        setNameFilter("");
     };
 
     // Helper to update filter array directly (for batch updates)
@@ -443,16 +446,22 @@ export default function CandidateListPage() {
                                 onSearch={(term, type) => {
                                     if (type === 'global') {
                                         setSearchTerm(term);
+                                        setNameFilter("");
+                                    } else if (type === 'name') {
+                                        setNameFilter(term);
+                                        setSearchTerm("");
                                     } else if (type === 'company') {
                                         setFilterArray('companies', [...filters.companies, term]);
-                                        setSearchTerm(""); // Clear global search if filter applied
+                                        setSearchTerm("");
+                                        setNameFilter("");
                                     } else if (type === 'position') {
                                         setFilterArray('positions', [...filters.positions, term]);
                                         setSearchTerm("");
+                                        setNameFilter("");
                                     }
                                 }}
                                 filters={filters}
-                                placeholder={searchTerm || "Search Name, Email, ID, Company..."}
+                                placeholder={nameFilter ? `Name: "${nameFilter}"` : searchTerm || "Search Name, Email, ID, Company..."}
                             />
                         </div>
                         <Button

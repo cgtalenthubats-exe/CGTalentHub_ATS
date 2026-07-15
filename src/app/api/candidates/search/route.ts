@@ -5,7 +5,7 @@ import { getEffectiveAge } from '@/lib/date-utils';
 
 export async function POST(req: Request) {
     try {
-        const { filters, page = 1, pageSize = 20, search } = await req.json();
+        const { filters, page = 1, pageSize = 20, search, nameSearch } = await req.json();
         const offset = (page - 1) * pageSize;
 
         // --- 1. PRE-CALCULATE EXPERIENCE FILTERS ---
@@ -101,6 +101,43 @@ export async function POST(req: Request) {
             } else if (filters.agingGroup === '6m+') {
                 profileQuery = profileQuery.lte(field, d180.toISOString());
             }
+        }
+
+        // --- NAME-ONLY SEARCH (bypasses RPC, searches name field only) ---
+        if (nameSearch) {
+            let q = (adminAuthClient as any)
+                .from('Candidate Profile')
+                .select('*, age_source', { count: 'exact' })
+                .ilike('name', `%${nameSearch}%`);
+
+            if (filters?.gender?.length) q = q.in('gender', filters.gender);
+            if (filters?.status?.length) q = q.overlaps('candidate_status', filters.status);
+            if (filters?.jobGrouping?.length) q = q.in('job_grouping', filters.jobGrouping);
+            if (filters?.jobFunction?.length) q = q.in('job_function', filters.jobFunction);
+            if (filters?.ageMin) q = q.gte('age', filters.ageMin);
+            if (filters?.ageMax) q = q.lte('age', filters.ageMax);
+
+            q = q.order('name').range(offset, offset + pageSize - 1);
+            const { data: nameData, error: nameErr, count: nameCount } = await q;
+            if (nameErr) throw nameErr;
+
+            const nameIds = (nameData || []).map((p: any) => p.candidate_id).filter(Boolean);
+            let nameExp: any[] = [];
+            if (nameIds.length > 0) {
+                const { data: expData } = await (adminAuthClient as any)
+                    .from('candidate_experiences')
+                    .select('*')
+                    .in('candidate_id', nameIds)
+                    .order('start_date', { ascending: false });
+                nameExp = expData || [];
+            }
+            const nameResults = (nameData || []).map((p: any) => ({
+                ...p,
+                experiences: nameExp.filter((e: any) => e.candidate_id === p.candidate_id),
+                age: p.age || getEffectiveAge(p.date_of_birth, p.year_of_bachelor_education),
+                age_source: p.age_source ?? null,
+            }));
+            return NextResponse.json({ data: nameResults, total: nameCount || 0 });
         }
 
         // Helper to convert empty arrays to null

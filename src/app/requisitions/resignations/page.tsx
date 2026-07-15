@@ -46,6 +46,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { MonthRangePicker } from "@/components/month-range-picker";
 
 function calculateYoS(hireDate: string, resignDate: string) {
     if (!hireDate || !resignDate) return "N/A";
@@ -72,6 +73,8 @@ export default function ResignationsPage() {
     const [buFilter, setBuFilter] = useState("all");
     const [resignYearFilter, setResignYearFilter] = useState("all");
     const [reasonFilter, setReasonFilter] = useState("all");
+    const [fromMonth, setFromMonth] = useState("");
+    const [toMonth, setToMonth] = useState("");
 
     const [counts, setCounts] = useState({ active: 0, resigned: 0 });
 
@@ -101,8 +104,10 @@ export default function ResignationsPage() {
         const matchesYear = resignYearFilter === "all" || (r.resign_date && new Date(r.resign_date).getFullYear().toString() === resignYearFilter);
         const currentReason = r.resignation_reason || r.resignation_reason_test || "Other";
         const matchesReason = reasonFilter === "all" || currentReason === reasonFilter;
+        const resignMon = r.resign_date ? r.resign_date.slice(0, 7) : "";
+        const matchesPeriod = (!fromMonth && !toMonth) || (resignMon && (!fromMonth || resignMon >= fromMonth) && (!toMonth || resignMon <= toMonth));
 
-        return matchesSearch && matchesBU && matchesYear && matchesReason;
+        return matchesSearch && matchesBU && matchesYear && matchesReason && matchesPeriod;
     });
 
     const uniqueBUs = Array.from(new Set(records.map(r => r.bu).filter(Boolean))).sort();
@@ -174,6 +179,14 @@ export default function ResignationsPage() {
                             </SelectContent>
                         </Select>
                     </div>
+
+                    {/* Period Range Filter */}
+                    <MonthRangePicker
+                        fromMonth={fromMonth}
+                        toMonth={toMonth}
+                        onFromChange={setFromMonth}
+                        onToChange={setToMonth}
+                    />
 
                     <div className="relative w-full md:w-80">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
