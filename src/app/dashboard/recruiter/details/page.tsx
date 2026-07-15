@@ -15,7 +15,7 @@ function KPIDetailContent() {
     const searchParams = useSearchParams();
     const recruiter = searchParams.get('recruiter') || '';
     const fyParam = searchParams.get('fy');
-    const fy = fyParam ? parseInt(fyParam) : undefined;
+    const fys = fyParam ? fyParam.split(',').map(Number).filter(n => !isNaN(n)) : undefined;
 
     const [details, setDetails] = useState<KPIDetailResult | null>(null);
     const [loading, setLoading] = useState(true);
@@ -23,12 +23,12 @@ function KPIDetailContent() {
     useEffect(() => {
         if (recruiter) {
             setLoading(true);
-            getRecruiterKPIDetails(recruiter, fy).then(data => {
+            getRecruiterKPIDetails(recruiter, fys).then(data => {
                 setDetails(data);
                 setLoading(false);
             });
         }
-    }, [recruiter, fy]);
+    }, [recruiter, fyParam]);
 
     if (!recruiter) {
         return <div className="p-8">No recruiter selected.</div>;
@@ -56,7 +56,7 @@ function KPIDetailContent() {
                         {recruiter}'s KPI Details
                     </h1>
                     <p className="text-gray-500 mt-1">
-                        {fy ? `FY${fy} • ` : "All Time • "}Detailed breakdown of performance metrics
+                        {fys?.length ? fys.map(y => `FY${y}`).join(", ") + " • " : "All Time • "}Detailed breakdown of performance metrics
                     </p>
                 </div>
             </div>

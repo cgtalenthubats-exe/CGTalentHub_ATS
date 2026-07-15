@@ -2,10 +2,10 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import { getKPIData, KPIRawData } from "@/app/actions/kpi-actions";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import {
+    ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+} from "recharts";
 import { Loader2, Search, ClipboardCheck, MessageSquare, FolderOpen, RotateCcw, ArrowUpRight, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
@@ -25,14 +25,12 @@ const METRICS = [
     { key: "interviews", label: "Interviews",         color: "#10b981", icon: MessageSquare },
     { key: "jrs",        label: "JRs Created",        color: "#8b5cf6", icon: FolderOpen },
 ] as const;
-type MetricKey = typeof METRICS[number]["key"];
 
 export default function RecruiterPerformanceTab() {
     const [rawData, setRawData] = useState<KPIRawData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [selectedFY, setSelectedFY] = useState<number>(new Date().getFullYear());
+    const [selectedFYs, setSelectedFYs] = useState<number[]>([new Date().getFullYear()]);
     const [selectedRecruiters, setSelectedRecruiters] = useState<string[]>([]);
-    const [activeMetric, setActiveMetric] = useState<MetricKey>("sourced");
 
     useEffect(() => {
         getKPIData().then(data => { setRawData(data); setLoading(false); });
@@ -60,7 +58,7 @@ export default function RecruiterPerformanceTab() {
         return name;
     };
 
-    // ── FY list ─────────────────────────────────────────────────────
+    // ── Available FY list ────────────────────────────────────────────
 
     const availableFYs = useMemo(() => {
         if (!rawData) return [new Date().getFullYear()];
@@ -85,32 +83,36 @@ export default function RecruiterPerformanceTab() {
         return [...s].sort();
     }, [rawData]);
 
+    const toggleFY = (year: number) => {
+        setSelectedFYs(prev =>
+            prev.includes(year)
+                ? prev.length > 1 ? prev.filter(y => y !== year) : prev
+                : [...prev, year].sort((a, b) => a - b)
+        );
+    };
+
     // ── Filtered slices ──────────────────────────────────────────────
 
-    const inFY = (d: string | null) => { const p = parseDate(d); return p !== null && p.getFullYear() === selectedFY; };
+    const inFY = (d: string | null) => {
+        const p = parseDate(d);
+        return p !== null && (selectedFYs.length === 0 || selectedFYs.includes(p.getFullYear()));
+    };
     const matchR = (id: string | null) => selectedRecruiters.length === 0 || selectedRecruiters.includes(resolve(id));
 
-    const fSourcing   = useMemo(() => rawData?.sourcing.filter(s => inFY(s.created_date) && matchR(s.created_by)) || [], [rawData, selectedFY, selectedRecruiters]);
-    const fPrescreens = useMemo(() => rawData?.prescreens.filter(p => inFY(p.screening_date) && matchR(p.screener_Name)) || [], [rawData, selectedFY, selectedRecruiters]);
-    const fInterviews = useMemo(() => rawData?.interviews.filter(i => i.Interviewer_type === "Recruiter" && inFY(i.interview_date) && matchR(i.Interviewer_name)) || [], [rawData, selectedFY, selectedRecruiters]);
-    const fJRs        = useMemo(() => rawData?.jrs.filter(j => inFY(j.created_at) && matchR(j.create_by)) || [], [rawData, selectedFY, selectedRecruiters]);
+    const fSourcing   = useMemo(() => rawData?.sourcing.filter(s => inFY(s.created_date) && matchR(s.created_by)) || [], [rawData, selectedFYs, selectedRecruiters]);
+    const fPrescreens = useMemo(() => rawData?.prescreens.filter(p => inFY(p.screening_date) && matchR(p.screener_Name)) || [], [rawData, selectedFYs, selectedRecruiters]);
+    const fInterviews = useMemo(() => rawData?.interviews.filter(i => i.Interviewer_type === "Recruiter" && inFY(i.interview_date) && matchR(i.Interviewer_name)) || [], [rawData, selectedFYs, selectedRecruiters]);
+    const fJRs        = useMemo(() => rawData?.jrs.filter(j => inFY(j.created_at) && matchR(j.create_by)) || [], [rawData, selectedFYs, selectedRecruiters]);
 
-    // ── Monthly chart data for active metric ────────────────────────
+    // ── Combo chart — Sourced (bar/left) + Pre-Screens + Interviews (lines/right) ──
 
-    const chartData = useMemo(() => {
-        const base = MONTH_NAMES.map(m => ({ label: m, count: 0 }));
-        const [items, dateKey] = activeMetric === "sourced"    ? [fSourcing,   "created_date"]
-                               : activeMetric === "prescreens" ? [fPrescreens, "screening_date"]
-                               : activeMetric === "interviews" ? [fInterviews, "interview_date"]
-                               :                                 [fJRs,        "created_at"];
-        items.forEach((item: any) => {
-            const d = parseDate(item[dateKey]);
-            if (d) base[d.getMonth()].count++;
-        });
+    const comboChartData = useMemo(() => {
+        const base = MONTH_NAMES.map(m => ({ label: m, sourced: 0, prescreens: 0, interviews: 0 }));
+        fSourcing.forEach((s: any) => { const d = parseDate(s.created_date); if (d) base[d.getMonth()].sourced++; });
+        fPrescreens.forEach((p: any) => { const d = parseDate(p.screening_date); if (d) base[d.getMonth()].prescreens++; });
+        fInterviews.forEach((i: any) => { const d = parseDate(i.interview_date); if (d) base[d.getMonth()].interviews++; });
         return base;
-    }, [fSourcing, fPrescreens, fInterviews, fJRs, activeMetric]);
-
-    const activeMetricMeta = METRICS.find(m => m.key === activeMetric)!;
+    }, [fSourcing, fPrescreens, fInterviews]);
 
     // ── Per-recruiter table data ────────────────────────────────────
 
@@ -120,10 +122,10 @@ export default function RecruiterPerformanceTab() {
             if (!map.has(name)) map.set(name, { name, sourced: 0, prescreens: 0, interviews: 0, jrs: 0 });
             return map.get(name)!;
         };
-        fSourcing.forEach(s => ensure(resolve(s.created_by)).sourced++);
-        fPrescreens.forEach(p => ensure(resolve(p.screener_Name)).prescreens++);
-        fInterviews.forEach(i => ensure(resolve(i.Interviewer_name)).interviews++);
-        fJRs.forEach(j => ensure(resolve(j.create_by)).jrs++);
+        fSourcing.forEach((s: any) => ensure(resolve(s.created_by)).sourced++);
+        fPrescreens.forEach((p: any) => ensure(resolve(p.screener_Name)).prescreens++);
+        fInterviews.forEach((i: any) => ensure(resolve(i.Interviewer_name)).interviews++);
+        fJRs.forEach((j: any) => ensure(resolve(j.create_by)).jrs++);
         return [...map.values()]
             .map(r => ({ ...r, total: r.sourced + r.prescreens + r.interviews + r.jrs }))
             .sort((a, b) => b.sourced - a.sourced);
@@ -138,22 +140,30 @@ export default function RecruiterPerformanceTab() {
     );
 
     const totals = { sourced: fSourcing.length, prescreens: fPrescreens.length, interviews: fInterviews.length, jrs: fJRs.length };
-    const topPerformer = tableData[0];
+    const fyLabel = selectedFYs.map(y => `FY${y}`).join(", ");
+    const fyUrlParam = selectedFYs.join(",");
 
     return (
         <div className="space-y-6">
             {/* ── Filters ─────────────────────────────────────────── */}
             <div className="flex flex-wrap items-center gap-3">
-                <Select value={selectedFY.toString()} onValueChange={v => setSelectedFY(parseInt(v))}>
-                    <SelectTrigger className="w-[130px] text-sm font-bold">
-                        <SelectValue placeholder="FY" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {availableFYs.map(y => (
-                            <SelectItem key={y} value={y.toString()}>FY {y}</SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                {/* FY toggle buttons */}
+                <div className="flex items-center gap-1 bg-slate-100 rounded-xl p-1">
+                    {availableFYs.map(year => (
+                        <button
+                            key={year}
+                            onClick={() => toggleFY(year)}
+                            className={cn(
+                                "px-3 py-1.5 rounded-lg text-xs font-black transition-all",
+                                selectedFYs.includes(year)
+                                    ? "bg-white text-indigo-700 shadow-sm"
+                                    : "text-slate-500 hover:text-slate-700"
+                            )}
+                        >
+                            FY{year}
+                        </button>
+                    ))}
+                </div>
 
                 <FilterMultiSelect
                     label="Recruiter"
@@ -162,9 +172,9 @@ export default function RecruiterPerformanceTab() {
                     onChange={val => setSelectedRecruiters(prev => prev.includes(val) ? prev.filter(i => i !== val) : [...prev, val])}
                 />
 
-                {(selectedRecruiters.length > 0 || selectedFY !== new Date().getFullYear()) && (
-                    <Button variant="ghost" size="sm" onClick={() => { setSelectedRecruiters([]); setSelectedFY(new Date().getFullYear()); }} className="gap-1 text-xs">
-                        <RotateCcw className="h-3 w-3" /> Reset
+                {(selectedRecruiters.length > 0) && (
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedRecruiters([])} className="gap-1 text-xs">
+                        <RotateCcw className="h-3 w-3" /> Clear Recruiter
                     </Button>
                 )}
             </div>
@@ -173,76 +183,69 @@ export default function RecruiterPerformanceTab() {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {METRICS.map(m => {
                     const val = totals[m.key];
-                    const isActive = activeMetric === m.key;
                     return (
-                        <button
+                        <div
                             key={m.key}
-                            onClick={() => setActiveMetric(m.key)}
-                            className={cn(
-                                "text-left rounded-2xl p-5 border-2 transition-all",
-                                isActive
-                                    ? "border-indigo-500 bg-indigo-50 shadow-md shadow-indigo-100"
-                                    : "border-slate-100 bg-white hover:border-slate-200 shadow-sm"
-                            )}
+                            className="text-left rounded-2xl p-5 border border-slate-100 bg-white shadow-sm"
                         >
                             <div className="flex items-center justify-between mb-3">
-                                <div className={cn("p-2 rounded-xl", isActive ? "bg-indigo-100" : "bg-slate-100")}>
-                                    <m.icon className={cn("h-4 w-4", isActive ? "text-indigo-600" : "text-slate-500")} />
+                                <div className="p-2 rounded-xl bg-slate-100">
+                                    <m.icon className="h-4 w-4 text-slate-500" />
                                 </div>
-                                {isActive && <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500 bg-indigo-100 px-2 py-0.5 rounded-full">Viewing</span>}
                             </div>
-                            <div className={cn("text-3xl font-black", isActive ? "text-indigo-700" : "text-slate-800")}>{val.toLocaleString()}</div>
+                            <div className="text-3xl font-black text-slate-800">{val.toLocaleString()}</div>
                             <div className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">{m.label}</div>
-                        </button>
+                        </div>
                     );
                 })}
             </div>
 
-            {/* ── Monthly Chart + Top Performer ───────────────────── */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                    <div className="flex items-center justify-between mb-4">
-                        <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest">{activeMetricMeta.label} — Monthly FY{selectedFY}</h3>
+            {/* ── Combo Chart ──────────────────────────────────────── */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest">
+                        Monthly Activity — {fyLabel}
+                    </h3>
+                    <div className="flex items-center gap-4 text-[10px] font-bold text-slate-400">
+                        <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-blue-400 inline-block" />Sourced (left)</span>
+                        <span className="flex items-center gap-1.5"><span className="w-6 border-t-2 border-amber-400 inline-block" />Pre-Screens</span>
+                        <span className="flex items-center gap-1.5"><span className="w-6 border-t-2 border-emerald-400 inline-block" />Interviews</span>
                     </div>
-                    <ResponsiveContainer width="100%" height={220}>
-                        <BarChart data={chartData} barSize={28}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                            <XAxis dataKey="label" tick={{ fontSize: 11, fontWeight: 600, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
-                            <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} allowDecimals={false} axisLine={false} tickLine={false} />
-                            <Tooltip
-                                contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px", fontWeight: 700 }}
-                                formatter={(value: any) => [value.toLocaleString(), activeMetricMeta.label]}
-                            />
-                            <Bar dataKey="count" fill={activeMetricMeta.color} radius={[6, 6, 0, 0]} />
-                        </BarChart>
-                    </ResponsiveContainer>
                 </div>
-
-                {topPerformer && (
-                    <div className="bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl p-6 text-white flex flex-col justify-between shadow-md shadow-amber-100">
-                        <div className="flex items-center gap-2 mb-4">
-                            <Trophy className="h-5 w-5 text-white/80" />
-                            <span className="text-xs font-black uppercase tracking-widest text-white/80">Top Sourcer — FY{selectedFY}</span>
-                        </div>
-                        <div>
-                            <div className="text-2xl font-black leading-tight">{topPerformer.name}</div>
-                            <div className="text-4xl font-black mt-2">{topPerformer.sourced.toLocaleString()}</div>
-                            <div className="text-sm text-white/70 font-bold mt-1">profiles sourced</div>
-                        </div>
-                        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-                            <div><div className="text-lg font-black">{topPerformer.prescreens}</div><div className="text-[10px] text-white/70 font-bold">Pre-screens</div></div>
-                            <div><div className="text-lg font-black">{topPerformer.interviews}</div><div className="text-[10px] text-white/70 font-bold">Interviews</div></div>
-                            <div><div className="text-lg font-black">{topPerformer.jrs}</div><div className="text-[10px] text-white/70 font-bold">JRs</div></div>
-                        </div>
-                    </div>
-                )}
+                <ResponsiveContainer width="100%" height={240}>
+                    <ComposedChart data={comboChartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                        <XAxis
+                            dataKey="label"
+                            tick={{ fontSize: 11, fontWeight: 600, fill: "#94a3b8" }}
+                            axisLine={false} tickLine={false}
+                        />
+                        <YAxis
+                            yAxisId="left"
+                            tick={{ fontSize: 11, fill: "#94a3b8" }}
+                            allowDecimals={false} axisLine={false} tickLine={false}
+                        />
+                        <YAxis
+                            yAxisId="right"
+                            orientation="right"
+                            tick={{ fontSize: 11, fill: "#94a3b8" }}
+                            allowDecimals={false} axisLine={false} tickLine={false}
+                        />
+                        <Tooltip
+                            contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px", fontWeight: 700 }}
+                        />
+                        <Bar yAxisId="left" dataKey="sourced" fill="#3b82f6" radius={[6, 6, 0, 0]} name="Sourced" maxBarSize={32} />
+                        <Line yAxisId="right" dataKey="prescreens" stroke="#f59e0b" strokeWidth={2.5} dot={false} name="Pre-Screens" />
+                        <Line yAxisId="right" dataKey="interviews" stroke="#10b981" strokeWidth={2.5} dot={false} name="Interviews" />
+                    </ComposedChart>
+                </ResponsiveContainer>
             </div>
 
             {/* ── Recruiter Ranking Table ──────────────────────────── */}
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                 <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between">
                     <div>
-                        <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest">Recruiter Activity — FY{selectedFY}</h3>
+                        <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest">Recruiter Activity — {fyLabel}</h3>
                         <p className="text-xs text-slate-400 font-medium mt-0.5">{tableData.length} recruiters · sorted by profiles sourced · click name for drill-down</p>
                     </div>
                 </div>
@@ -261,7 +264,7 @@ export default function RecruiterPerformanceTab() {
                         </thead>
                         <tbody>
                             {tableData.length === 0 ? (
-                                <tr><td colSpan={7} className="text-center py-16 text-slate-400 text-xs font-bold uppercase tracking-widest">No data for FY{selectedFY}</td></tr>
+                                <tr><td colSpan={7} className="text-center py-16 text-slate-400 text-xs font-bold uppercase tracking-widest">No data for {fyLabel}</td></tr>
                             ) : tableData.map((row, idx) => (
                                 <tr key={row.name} className="border-t border-slate-50 hover:bg-slate-50/50 transition-colors group">
                                     <td className="py-4 px-4">
@@ -286,7 +289,7 @@ export default function RecruiterPerformanceTab() {
                                     <td className="py-4 px-4 text-right font-bold text-purple-600">{row.jrs}</td>
                                     <td className="py-4 px-4">
                                         <Link
-                                            href={`/dashboard/recruiter/details?recruiter=${encodeURIComponent(row.name)}&fy=${selectedFY}`}
+                                            href={`/dashboard/recruiter/details?recruiter=${encodeURIComponent(row.name)}&fy=${fyUrlParam}`}
                                             className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 flex items-center"
                                         >
                                             <ArrowUpRight className="h-3.5 w-3.5" />
