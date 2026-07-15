@@ -14,18 +14,21 @@ import { format } from "date-fns";
 function KPIDetailContent() {
     const searchParams = useSearchParams();
     const recruiter = searchParams.get('recruiter') || '';
-    
+    const fyParam = searchParams.get('fy');
+    const fy = fyParam ? parseInt(fyParam) : undefined;
+
     const [details, setDetails] = useState<KPIDetailResult | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         if (recruiter) {
-            getRecruiterKPIDetails(recruiter).then(data => {
+            setLoading(true);
+            getRecruiterKPIDetails(recruiter, fy).then(data => {
                 setDetails(data);
                 setLoading(false);
             });
         }
-    }, [recruiter]);
+    }, [recruiter, fy]);
 
     if (!recruiter) {
         return <div className="p-8">No recruiter selected.</div>;
@@ -44,7 +47,7 @@ function KPIDetailContent() {
         <div className="p-8 space-y-6">
             <div className="flex items-center gap-4">
                 <Button variant="outline" size="icon" asChild>
-                    <Link href="/dashboard">
+                    <Link href="/dashboard?tab=recruiter">
                         <ArrowLeft className="h-4 w-4" />
                     </Link>
                 </Button>
@@ -52,7 +55,9 @@ function KPIDetailContent() {
                     <h1 className="text-3xl font-bold tracking-tight text-gray-900">
                         {recruiter}'s KPI Details
                     </h1>
-                    <p className="text-gray-500 mt-1">Detailed breakdown of performance metrics</p>
+                    <p className="text-gray-500 mt-1">
+                        {fy ? `FY${fy} • ` : "All Time • "}Detailed breakdown of performance metrics
+                    </p>
                 </div>
             </div>
 

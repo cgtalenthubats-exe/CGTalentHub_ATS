@@ -41,7 +41,7 @@ export interface KPIDetailResult {
     jrs: KPIDetailJR[];
 }
 
-export async function getRecruiterKPIDetails(targetRecruiterName: string): Promise<KPIDetailResult> {
+export async function getRecruiterKPIDetails(targetRecruiterName: string, fy?: number): Promise<KPIDetailResult> {
     const supabase = adminAuthClient;
 
     // 1. Build Alias Map (same logic as page.tsx to ensure consistency)
@@ -101,11 +101,16 @@ export async function getRecruiterKPIDetails(targetRecruiterName: string): Promi
         fetchAll('job_requisitions', 'jr_id, create_by, status_jr, created_at, position_jr'),
     ]);
 
-    // 3. Filter for specific recruiter
-    const mySourcing = allProfiles.filter(p => isMatch(p.created_by));
-    const myPreScreens = allPreScreens.filter(p => isMatch(p.screener_Name));
-    const myInterviews = allInterviews.filter(i => i.Interviewer_type === 'Recruiter' && isMatch(i.Interviewer_name));
-    const myJRs = allJRs.filter(j => isMatch(j.create_by));
+    // 3. Filter for specific recruiter + optional FY
+    const inFY = (dateStr: string | null) => {
+        if (!fy || !dateStr) return true;
+        const d = new Date(dateStr);
+        return !isNaN(d.getTime()) && d.getFullYear() === fy;
+    };
+    const mySourcing = allProfiles.filter(p => isMatch(p.created_by) && inFY(p.created_date));
+    const myPreScreens = allPreScreens.filter(p => isMatch(p.screener_Name) && inFY(p.screening_date));
+    const myInterviews = allInterviews.filter(i => i.Interviewer_type === 'Recruiter' && isMatch(i.Interviewer_name) && inFY(i.interview_date));
+    const myJRs = allJRs.filter(j => isMatch(j.create_by) && inFY(j.created_at));
 
     // 4. Enrich PreScreens with Candidate Names
     const myPreScreenEnriched: KPIDetailPreScreen[] = myPreScreens.map(p => {

@@ -3,20 +3,15 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { getKPIData, KPIRawData } from "@/app/actions/kpi-actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { Loader2, Search, ClipboardCheck, MessageSquare, FolderOpen, RotateCcw } from "lucide-react";
+import { Loader2, Search, ClipboardCheck, MessageSquare, FolderOpen, RotateCcw, ArrowUpRight, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-
-// ─── Constants ─────────────────────────────────────────────────────
+import { cn } from "@/lib/utils";
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-
-// ─── Helpers ───────────────────────────────────────────────────────
 
 function parseDate(d: string | null): Date | null {
     if (!d) return null;
@@ -24,129 +19,100 @@ function parseDate(d: string | null): Date | null {
     return isNaN(date.getTime()) ? null : date;
 }
 
-// ─── Main Component ────────────────────────────────────────────────
+const METRICS = [
+    { key: "sourced",    label: "Profiles Sourced", color: "#3b82f6", icon: Search },
+    { key: "prescreens", label: "Pre-Screens",       color: "#f59e0b", icon: ClipboardCheck },
+    { key: "interviews", label: "Interviews",         color: "#10b981", icon: MessageSquare },
+    { key: "jrs",        label: "JRs Created",        color: "#8b5cf6", icon: FolderOpen },
+] as const;
+type MetricKey = typeof METRICS[number]["key"];
 
 export default function RecruiterPerformanceTab() {
     const [rawData, setRawData] = useState<KPIRawData | null>(null);
     const [loading, setLoading] = useState(true);
     const [selectedFY, setSelectedFY] = useState<number>(new Date().getFullYear());
     const [selectedRecruiters, setSelectedRecruiters] = useState<string[]>([]);
-
+    const [activeMetric, setActiveMetric] = useState<MetricKey>("sourced");
 
     useEffect(() => {
-        getKPIData().then(data => {
-            setRawData(data);
-            setLoading(false);
-        });
+        getKPIData().then(data => { setRawData(data); setLoading(false); });
     }, []);
 
-    // ─── Recruiter Name Resolution ─────────────────────────────────
+    // ── Name resolution ─────────────────────────────────────────────
 
     const profileMap = useMemo(() => {
         const map = new Map<string, string>();
-        if (rawData?.profiles) {
-            rawData.profiles.forEach(p => {
-                if (p.email) map.set(p.email.toLowerCase().trim(), p.real_name);
-                if (p.real_name) map.set(p.real_name.toLowerCase().trim(), p.real_name);
-            });
-        }
+        rawData?.profiles?.forEach(p => {
+            if (p.email) map.set(p.email.toLowerCase().trim(), p.real_name);
+            if (p.real_name) map.set(p.real_name.toLowerCase().trim(), p.real_name);
+        });
         return map;
     }, [rawData]);
 
-    const customAliases: Record<string, string> = {
-        "system import": "Admin2",
-        "admin@cgtalent.com": "Admin2",
-        "admin2": "Admin2"
+    const ALIASES: Record<string, string> = { "system import": "Admin2", "admin@cgtalent.com": "Admin2", "admin2": "Admin2" };
+
+    const resolve = (id: string | null): string => {
+        const s = (id || "Unknown").toLowerCase().trim();
+        if (ALIASES[s]) return ALIASES[s];
+        let name = profileMap.get(s) || id || "Unknown";
+        if (!name.includes("@") && name !== "Unknown")
+            name = name.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ");
+        return name;
     };
 
-    const resolveRecruiter = (identifier: string | null): string => {
-        const safe = (identifier || "Unknown").toLowerCase().trim();
-        if (customAliases[safe]) return customAliases[safe];
-        let displayName = profileMap.get(safe) || identifier || "Unknown";
-        if (!displayName.includes('@') && displayName !== "Unknown") {
-            displayName = displayName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-        }
-        return displayName;
-    };
-
-    // ─── Auto-detect FYs ───────────────────────────────────────────
+    // ── FY list ─────────────────────────────────────────────────────
 
     const availableFYs = useMemo(() => {
         if (!rawData) return [new Date().getFullYear()];
-        const dates = [
-            ...rawData.sourcing.map(s => s.created_date),
-            ...rawData.prescreens.map(p => p.screening_date),
-            ...rawData.interviews.map(i => i.interview_date),
-            ...rawData.jrs.map(j => j.created_at),
-        ].filter(Boolean);
-        const years = [...new Set(dates.map(d => {
+        const years = new Set<number>();
+        [...rawData.sourcing.map(s => s.created_date),
+         ...rawData.prescreens.map(p => p.screening_date),
+         ...rawData.interviews.map(i => i.interview_date),
+         ...rawData.jrs.map(j => j.created_at)].forEach(d => {
             const parsed = parseDate(d);
-            return parsed ? parsed.getFullYear() : null;
-        }).filter(Boolean))] as number[];
-        return years.sort((a, b) => b - a);
+            if (parsed) years.add(parsed.getFullYear());
+        });
+        return [...years].sort((a, b) => b - a);
     }, [rawData]);
-
-    // ─── All recruiter names (for filter options) ──────────────────
 
     const allRecruiterNames = useMemo(() => {
         if (!rawData) return [];
-        const names = new Set<string>();
-        rawData.sourcing.forEach(s => names.add(resolveRecruiter(s.created_by)));
-        rawData.prescreens.forEach(p => names.add(resolveRecruiter(p.screener_Name)));
-        rawData.interviews.filter(i => i.Interviewer_type === 'Recruiter').forEach(i => names.add(resolveRecruiter(i.Interviewer_name)));
-        rawData.jrs.forEach(j => names.add(resolveRecruiter(j.create_by)));
-        return Array.from(names).sort();
+        const s = new Set<string>();
+        rawData.sourcing.forEach(x => s.add(resolve(x.created_by)));
+        rawData.prescreens.forEach(x => s.add(resolve(x.screener_Name)));
+        rawData.interviews.filter(i => i.Interviewer_type === "Recruiter").forEach(x => s.add(resolve(x.Interviewer_name)));
+        rawData.jrs.forEach(x => s.add(resolve(x.create_by)));
+        return [...s].sort();
     }, [rawData]);
 
-    // ─── Filter by FY ──────────────────────────────────────────────
+    // ── Filtered slices ──────────────────────────────────────────────
 
-    const isInFY = (dateStr: string | null): boolean => {
-        const d = parseDate(dateStr);
-        return d !== null && d.getFullYear() === selectedFY;
-    };
+    const inFY = (d: string | null) => { const p = parseDate(d); return p !== null && p.getFullYear() === selectedFY; };
+    const matchR = (id: string | null) => selectedRecruiters.length === 0 || selectedRecruiters.includes(resolve(id));
 
-    // ─── Filter by Recruiter ───────────────────────────────────────
+    const fSourcing   = useMemo(() => rawData?.sourcing.filter(s => inFY(s.created_date) && matchR(s.created_by)) || [], [rawData, selectedFY, selectedRecruiters]);
+    const fPrescreens = useMemo(() => rawData?.prescreens.filter(p => inFY(p.screening_date) && matchR(p.screener_Name)) || [], [rawData, selectedFY, selectedRecruiters]);
+    const fInterviews = useMemo(() => rawData?.interviews.filter(i => i.Interviewer_type === "Recruiter" && inFY(i.interview_date) && matchR(i.Interviewer_name)) || [], [rawData, selectedFY, selectedRecruiters]);
+    const fJRs        = useMemo(() => rawData?.jrs.filter(j => inFY(j.created_at) && matchR(j.create_by)) || [], [rawData, selectedFY, selectedRecruiters]);
 
-    const matchRecruiter = (identifier: string | null): boolean => {
-        if (selectedRecruiters.length === 0) return true;
-        return selectedRecruiters.includes(resolveRecruiter(identifier));
-    };
+    // ── Monthly chart data for active metric ────────────────────────
 
-    // ─── Filtered data ─────────────────────────────────────────────
-
-    const filteredSourcing = useMemo(() =>
-        rawData?.sourcing.filter(s => isInFY(s.created_date) && matchRecruiter(s.created_by)) || [],
-        [rawData, selectedFY, selectedRecruiters]);
-
-    const filteredPrescreens = useMemo(() =>
-        rawData?.prescreens.filter(p => isInFY(p.screening_date) && matchRecruiter(p.screener_Name)) || [],
-        [rawData, selectedFY, selectedRecruiters]);
-
-    const filteredInterviews = useMemo(() =>
-        rawData?.interviews.filter(i => i.Interviewer_type === 'Recruiter' && isInFY(i.interview_date) && matchRecruiter(i.Interviewer_name)) || [],
-        [rawData, selectedFY, selectedRecruiters]);
-
-    const filteredJRs = useMemo(() =>
-        rawData?.jrs.filter(j => isInFY(j.created_at) && matchRecruiter(j.create_by)) || [],
-        [rawData, selectedFY, selectedRecruiters]);
-
-    // ─── Build monthly chart data (Jan-Dec) ─────────────────────────
-
-    const buildMonthlyData = (items: any[], dateKey: string): { label: string; count: number }[] => {
-        const data = MONTH_NAMES.map(m => ({ label: m, count: 0 }));
-        items.forEach(item => {
+    const chartData = useMemo(() => {
+        const base = MONTH_NAMES.map(m => ({ label: m, count: 0 }));
+        const [items, dateKey] = activeMetric === "sourced"    ? [fSourcing,   "created_date"]
+                               : activeMetric === "prescreens" ? [fPrescreens, "screening_date"]
+                               : activeMetric === "interviews" ? [fInterviews, "interview_date"]
+                               :                                 [fJRs,        "created_at"];
+        items.forEach((item: any) => {
             const d = parseDate(item[dateKey]);
-            if (d) data[d.getMonth()].count++;
+            if (d) base[d.getMonth()].count++;
         });
-        return data;
-    };
+        return base;
+    }, [fSourcing, fPrescreens, fInterviews, fJRs, activeMetric]);
 
-    const sourcingChart = useMemo(() => buildMonthlyData(filteredSourcing, 'created_date'), [filteredSourcing]);
-    const interviewChart = useMemo(() => buildMonthlyData(filteredInterviews, 'interview_date'), [filteredInterviews]);
-    const prescreenChart = useMemo(() => buildMonthlyData(filteredPrescreens, 'screening_date'), [filteredPrescreens]);
-    const jrChart = useMemo(() => buildMonthlyData(filteredJRs, 'created_at'), [filteredJRs]);
+    const activeMetricMeta = METRICS.find(m => m.key === activeMetric)!;
 
-    // ─── Table data (per recruiter, no ranking) ────────────────────
+    // ── Per-recruiter table data ────────────────────────────────────
 
     const tableData = useMemo(() => {
         const map = new Map<string, { name: string; sourced: number; prescreens: number; interviews: number; jrs: number }>();
@@ -154,29 +120,32 @@ export default function RecruiterPerformanceTab() {
             if (!map.has(name)) map.set(name, { name, sourced: 0, prescreens: 0, interviews: 0, jrs: 0 });
             return map.get(name)!;
         };
-        filteredSourcing.forEach(s => ensure(resolveRecruiter(s.created_by)).sourced++);
-        filteredPrescreens.forEach(p => ensure(resolveRecruiter(p.screener_Name)).prescreens++);
-        filteredInterviews.forEach(i => ensure(resolveRecruiter(i.Interviewer_name)).interviews++);
-        filteredJRs.forEach(j => ensure(resolveRecruiter(j.create_by)).jrs++);
-        return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name)); // Sort alphabetically
-    }, [filteredSourcing, filteredPrescreens, filteredInterviews, filteredJRs]);
+        fSourcing.forEach(s => ensure(resolve(s.created_by)).sourced++);
+        fPrescreens.forEach(p => ensure(resolve(p.screener_Name)).prescreens++);
+        fInterviews.forEach(i => ensure(resolve(i.Interviewer_name)).interviews++);
+        fJRs.forEach(j => ensure(resolve(j.create_by)).jrs++);
+        return [...map.values()]
+            .map(r => ({ ...r, total: r.sourced + r.prescreens + r.interviews + r.jrs }))
+            .sort((a, b) => b.sourced - a.sourced);
+    }, [fSourcing, fPrescreens, fInterviews, fJRs]);
 
-    // ─── Render ────────────────────────────────────────────────────
+    const maxSourced = Math.max(...tableData.map(r => r.sourced), 1);
 
-    if (loading) {
-        return (
-            <div className="flex h-64 items-center justify-center text-gray-500 gap-2">
-                <Loader2 className="h-5 w-5 animate-spin" /> Loading Recruiter Performance Data...
-            </div>
-        );
-    }
+    if (loading) return (
+        <div className="flex h-64 items-center justify-center text-gray-500 gap-2">
+            <Loader2 className="h-5 w-5 animate-spin" /> Loading KPI data...
+        </div>
+    );
+
+    const totals = { sourced: fSourcing.length, prescreens: fPrescreens.length, interviews: fInterviews.length, jrs: fJRs.length };
+    const topPerformer = tableData[0];
 
     return (
         <div className="space-y-6">
             {/* ── Filters ─────────────────────────────────────────── */}
             <div className="flex flex-wrap items-center gap-3">
                 <Select value={selectedFY.toString()} onValueChange={v => setSelectedFY(parseInt(v))}>
-                    <SelectTrigger className="w-[130px] text-sm">
+                    <SelectTrigger className="w-[130px] text-sm font-bold">
                         <SelectValue placeholder="FY" />
                     </SelectTrigger>
                     <SelectContent>
@@ -190,11 +159,7 @@ export default function RecruiterPerformanceTab() {
                     label="Recruiter"
                     options={allRecruiterNames}
                     selected={selectedRecruiters}
-                    onChange={(val) => {
-                        setSelectedRecruiters(prev =>
-                            prev.includes(val) ? prev.filter(i => i !== val) : [...prev, val]
-                        );
-                    }}
+                    onChange={val => setSelectedRecruiters(prev => prev.includes(val) ? prev.filter(i => i !== val) : [...prev, val])}
                 />
 
                 {(selectedRecruiters.length > 0 || selectedFY !== new Date().getFullYear()) && (
@@ -204,118 +169,135 @@ export default function RecruiterPerformanceTab() {
                 )}
             </div>
 
-            {/* ── Summary Cards ────────────────────────────────────── */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <SummaryCard icon={<Search className="h-3.5 w-3.5" />} label="Profiles Sourced" value={filteredSourcing.length} color="blue" />
-                <SummaryCard icon={<ClipboardCheck className="h-3.5 w-3.5" />} label="Pre-Screens" value={filteredPrescreens.length} color="amber" />
-                <SummaryCard icon={<MessageSquare className="h-3.5 w-3.5" />} label="Interviews" value={filteredInterviews.length} color="emerald" />
-                <SummaryCard icon={<FolderOpen className="h-3.5 w-3.5" />} label="JRs Created" value={filteredJRs.length} color="purple" />
+            {/* ── KPI Summary Cards ────────────────────────────────── */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {METRICS.map(m => {
+                    const val = totals[m.key];
+                    const isActive = activeMetric === m.key;
+                    return (
+                        <button
+                            key={m.key}
+                            onClick={() => setActiveMetric(m.key)}
+                            className={cn(
+                                "text-left rounded-2xl p-5 border-2 transition-all",
+                                isActive
+                                    ? "border-indigo-500 bg-indigo-50 shadow-md shadow-indigo-100"
+                                    : "border-slate-100 bg-white hover:border-slate-200 shadow-sm"
+                            )}
+                        >
+                            <div className="flex items-center justify-between mb-3">
+                                <div className={cn("p-2 rounded-xl", isActive ? "bg-indigo-100" : "bg-slate-100")}>
+                                    <m.icon className={cn("h-4 w-4", isActive ? "text-indigo-600" : "text-slate-500")} />
+                                </div>
+                                {isActive && <span className="text-[9px] font-black uppercase tracking-widest text-indigo-500 bg-indigo-100 px-2 py-0.5 rounded-full">Viewing</span>}
+                            </div>
+                            <div className={cn("text-3xl font-black", isActive ? "text-indigo-700" : "text-slate-800")}>{val.toLocaleString()}</div>
+                            <div className="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">{m.label}</div>
+                        </button>
+                    );
+                })}
             </div>
 
-            {/* ── 4 Metric Charts (2x2 grid) ──────────────────────── */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <MetricChart title={`Profiles Sourced — FY${selectedFY}`} data={sourcingChart} color="#3b82f6" />
-                <MetricChart title={`Interviews — FY${selectedFY}`} data={interviewChart} color="#10b981" />
-                <MetricChart title={`Pre-Screens — FY${selectedFY}`} data={prescreenChart} color="#f59e0b" />
-                <MetricChart title={`JRs Created — FY${selectedFY}`} data={jrChart} color="#8b5cf6" />
-            </div>
-
-            {/* ── Recruiter Table ──────────────────────────────────── */}
-            <Card>
-                <CardHeader className="pb-2">
-                    <CardTitle className="text-base">Recruiter Activity — FY{selectedFY}</CardTitle>
-                    <p className="text-xs text-muted-foreground">{tableData.length} recruiters • Click name to view details</p>
-                </CardHeader>
-                <CardContent>
-                    <div className="border rounded-lg overflow-hidden">
-                        <Table>
-                            <TableHeader>
-                                <TableRow className="bg-slate-50">
-                                    <TableHead>Recruiter</TableHead>
-                                    <TableHead className="text-right">Sourced</TableHead>
-                                    <TableHead className="text-right">Pre-Screens</TableHead>
-                                    <TableHead className="text-right">Interviews</TableHead>
-                                    <TableHead className="text-right">JRs</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {tableData.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={5} className="text-center text-gray-500 py-12">
-                                            No data found for FY{selectedFY}
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    tableData.map(row => (
-                                        <TableRow key={row.name} className="hover:bg-slate-50/50">
-                                            <TableCell className="font-medium">
-                                                <Link
-                                                    href={`/dashboard/recruiter/details?recruiter=${encodeURIComponent(row.name)}`}
-                                                    className="text-blue-600 hover:text-blue-800 hover:underline"
-                                                >
-                                                    {row.name}
-                                                </Link>
-                                            </TableCell>
-                                            <TableCell className="text-right font-semibold text-blue-600">{row.sourced.toLocaleString()}</TableCell>
-                                            <TableCell className="text-right font-semibold text-amber-600">{row.prescreens}</TableCell>
-                                            <TableCell className="text-right font-semibold text-emerald-600">{row.interviews}</TableCell>
-                                            <TableCell className="text-right font-semibold text-purple-600">{row.jrs}</TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
+            {/* ── Monthly Chart + Top Performer ───────────────────── */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                    <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest">{activeMetricMeta.label} — Monthly FY{selectedFY}</h3>
                     </div>
-                </CardContent>
-            </Card>
+                    <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={chartData} barSize={28}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                            <XAxis dataKey="label" tick={{ fontSize: 11, fontWeight: 600, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                            <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} allowDecimals={false} axisLine={false} tickLine={false} />
+                            <Tooltip
+                                contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px", fontWeight: 700 }}
+                                formatter={(value: any) => [value.toLocaleString(), activeMetricMeta.label]}
+                            />
+                            <Bar dataKey="count" fill={activeMetricMeta.color} radius={[6, 6, 0, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+
+                {topPerformer && (
+                    <div className="bg-gradient-to-br from-amber-400 to-orange-500 rounded-2xl p-6 text-white flex flex-col justify-between shadow-md shadow-amber-100">
+                        <div className="flex items-center gap-2 mb-4">
+                            <Trophy className="h-5 w-5 text-white/80" />
+                            <span className="text-xs font-black uppercase tracking-widest text-white/80">Top Sourcer — FY{selectedFY}</span>
+                        </div>
+                        <div>
+                            <div className="text-2xl font-black leading-tight">{topPerformer.name}</div>
+                            <div className="text-4xl font-black mt-2">{topPerformer.sourced.toLocaleString()}</div>
+                            <div className="text-sm text-white/70 font-bold mt-1">profiles sourced</div>
+                        </div>
+                        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                            <div><div className="text-lg font-black">{topPerformer.prescreens}</div><div className="text-[10px] text-white/70 font-bold">Pre-screens</div></div>
+                            <div><div className="text-lg font-black">{topPerformer.interviews}</div><div className="text-[10px] text-white/70 font-bold">Interviews</div></div>
+                            <div><div className="text-lg font-black">{topPerformer.jrs}</div><div className="text-[10px] text-white/70 font-bold">JRs</div></div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* ── Recruiter Ranking Table ──────────────────────────── */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-50 flex items-center justify-between">
+                    <div>
+                        <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest">Recruiter Activity — FY{selectedFY}</h3>
+                        <p className="text-xs text-slate-400 font-medium mt-0.5">{tableData.length} recruiters · sorted by profiles sourced · click name for drill-down</p>
+                    </div>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead>
+                            <tr className="bg-slate-50/80">
+                                <th className="text-left text-[10px] font-black uppercase tracking-widest text-slate-400 py-3 px-4 w-10">#</th>
+                                <th className="text-left text-[10px] font-black uppercase tracking-widest text-slate-400 py-3 px-4">Recruiter</th>
+                                <th className="text-[10px] font-black uppercase tracking-widest text-blue-400 py-3 px-4 text-right w-36">Sourced</th>
+                                <th className="text-[10px] font-black uppercase tracking-widest text-amber-400 py-3 px-4 text-right w-28">Pre-Screens</th>
+                                <th className="text-[10px] font-black uppercase tracking-widest text-emerald-400 py-3 px-4 text-right w-28">Interviews</th>
+                                <th className="text-[10px] font-black uppercase tracking-widest text-purple-400 py-3 px-4 text-right w-24">JRs</th>
+                                <th className="w-12 py-3 px-4"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {tableData.length === 0 ? (
+                                <tr><td colSpan={7} className="text-center py-16 text-slate-400 text-xs font-bold uppercase tracking-widest">No data for FY{selectedFY}</td></tr>
+                            ) : tableData.map((row, idx) => (
+                                <tr key={row.name} className="border-t border-slate-50 hover:bg-slate-50/50 transition-colors group">
+                                    <td className="py-4 px-4">
+                                        {idx === 0
+                                            ? <Trophy className="h-4 w-4 text-amber-400" />
+                                            : <span className="text-xs font-black text-slate-300">{idx + 1}</span>
+                                        }
+                                    </td>
+                                    <td className="py-4 px-4">
+                                        <span className="font-bold text-slate-800">{row.name}</span>
+                                    </td>
+                                    <td className="py-4 px-4">
+                                        <div className="flex items-center gap-2 justify-end">
+                                            <div className="flex-1 max-w-[80px] bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                                <div className="h-full bg-blue-400 rounded-full" style={{ width: `${Math.round(row.sourced / maxSourced * 100)}%` }} />
+                                            </div>
+                                            <span className="font-black text-blue-600 w-8 text-right">{row.sourced}</span>
+                                        </div>
+                                    </td>
+                                    <td className="py-4 px-4 text-right font-bold text-amber-600">{row.prescreens}</td>
+                                    <td className="py-4 px-4 text-right font-bold text-emerald-600">{row.interviews}</td>
+                                    <td className="py-4 px-4 text-right font-bold text-purple-600">{row.jrs}</td>
+                                    <td className="py-4 px-4">
+                                        <Link
+                                            href={`/dashboard/recruiter/details?recruiter=${encodeURIComponent(row.name)}&fy=${selectedFY}`}
+                                            className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 flex items-center"
+                                        >
+                                            <ArrowUpRight className="h-3.5 w-3.5" />
+                                        </Link>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
-    );
-}
-
-// ─── Sub-Components ────────────────────────────────────────────────
-
-function SummaryCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: number; color: string }) {
-    const colorMap: Record<string, { border: string; bg: string; text: string; value: string }> = {
-        blue:    { border: "border-l-blue-500",    bg: "from-blue-50/50",    text: "text-blue-600/80",    value: "text-blue-700" },
-        amber:   { border: "border-l-amber-500",   bg: "from-amber-50/50",   text: "text-amber-600/80",   value: "text-amber-700" },
-        emerald: { border: "border-l-emerald-500", bg: "from-emerald-50/50", text: "text-emerald-600/80", value: "text-emerald-700" },
-        purple:  { border: "border-l-purple-500",  bg: "from-purple-50/50",  text: "text-purple-600/80",  value: "text-purple-700" },
-    };
-    const c = colorMap[color] || colorMap.blue;
-    return (
-        <Card className={`border-l-4 ${c.border} bg-gradient-to-r ${c.bg} to-transparent`}>
-            <CardHeader className="pb-1 pt-4 px-5">
-                <CardTitle className={`text-xs font-medium ${c.text} uppercase tracking-wider flex items-center gap-2`}>
-                    {icon} {label}
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="pb-4 px-5">
-                <div className={`text-3xl font-black ${c.value}`}>{value.toLocaleString()}</div>
-            </CardContent>
-        </Card>
-    );
-}
-
-function MetricChart({ title, data, color }: { title: string; data: { label: string; count: number }[]; color: string }) {
-    return (
-        <Card>
-            <CardHeader className="pb-1">
-                <CardTitle className="text-sm font-bold">{title}</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <ResponsiveContainer width="100%" height={220}>
-                    <BarChart data={data}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                        <XAxis dataKey="label" tick={{ fontSize: 11, fontWeight: 600 }} />
-                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                        <Tooltip
-                            contentStyle={{ borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px' }}
-                            formatter={(value: number) => [value.toLocaleString(), "Count"]}
-                        />
-                        <Bar dataKey="count" fill={color} radius={[4, 4, 0, 0]} maxBarSize={40} />
-                    </BarChart>
-                </ResponsiveContainer>
-            </CardContent>
-        </Card>
     );
 }

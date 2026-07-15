@@ -19,6 +19,7 @@ import PipelineTab from "./PipelineTab";
 import PlacementTab from "./PlacementTab";
 import PackageInfoTab from "./PackageInfoTab";
 import RecruiterPerformanceTab from "./RecruiterPerformanceTab";
+import CandidateFunnelTab from "./CandidateFunnelTab";
 
 const geoUrl = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
@@ -309,6 +310,7 @@ export default function DashboardPage() {
                     <TabsTrigger value="placement" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Search & Placement</TabsTrigger>
                     <TabsTrigger value="recruiter" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Recruiter Performance</TabsTrigger>
                     <TabsTrigger value="package" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Package Info</TabsTrigger>
+                    <TabsTrigger value="funnel" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Candidate Funnel</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="global" className="space-y-6 outline-none relative min-h-[400px]">
@@ -615,6 +617,11 @@ export default function DashboardPage() {
                 {/* --- TAB 6: PACKAGE INFO --- */}
                 <TabsContent value="package" className="space-y-6 outline-none">
                     <PackageInfoTab />
+                </TabsContent>
+
+                {/* --- TAB 7: CANDIDATE FUNNEL --- */}
+                <TabsContent value="funnel" className="space-y-6 outline-none">
+                    <CandidateFunnelTab />
                 </TabsContent>
             </Tabs>
             <ReactTooltip id="global-tooltip" style={{ borderRadius: '12px', fontWeight: 'bold' }} />
