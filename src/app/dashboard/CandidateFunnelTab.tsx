@@ -1,86 +1,310 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
-    getCandidatePopulationData, getPopulationFilterOptions,
-    PopulationData, PopulationFilterOptions, PopulationFilters, SetCompany,
+    getCandidatePopulationData, getPopulationFilterOptions, getCascadingPopulationOptions,
+    PopulationData, PopulationFilterOptions, CascadingOptions, PopulationFilters, SetCompany,
 } from "@/app/actions/candidate-population";
-import {
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
-} from "recharts";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
-import { Loader2, Users, Briefcase, MapPin, TrendingUp, RotateCcw, Building2 } from "lucide-react";
+import {
+    Loader2, Briefcase, Building2, ChevronRight, Globe2, Layers, RotateCcw, X, Cake, Flag, Info,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const CHART_COLORS = [
-    "#6366f1", "#3b82f6", "#0ea5e9", "#10b981", "#f59e0b",
-    "#f97316", "#ec4899", "#8b5cf6", "#14b8a6", "#84cc16",
-    "#ef4444", "#a855f7", "#06b6d4", "#d97706", "#65a30d",
-];
+// ── Validated categorical palette ───────────────────────────────────────────
+// 6 hues, checked with the dataviz skill's validator (CVD ΔE 9.2 worst-adjacent,
+// normal-vision floor 15.5 — all pass). Slate is reserved for "Other/Unknown"
+// so it never competes with a real category for a hue.
+const CATEGORICAL = ["#6366f1", "#059669", "#7c3aed", "#0284c7", "#ea580c", "#f59e0b"];
+const OTHER_COLOR = "#94a3b8";
+const OTHER_NAMES = new Set(["other", "others", "unknown", "n/a", "not found", "undetermined", "no match found"]);
+
+// Color follows the entity (name), never its row position — so re-filtering
+// never repaints a category that's still present.
+function colorForName(name: string): string {
+    if (OTHER_NAMES.has(name.trim().toLowerCase())) return OTHER_COLOR;
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+    return CATEGORICAL[hash % CATEGORICAL.length];
+}
 
 const EMPTY_FILTERS: PopulationFilters = {};
+const EMPTY_CASCADE: CascadingOptions = { groups: [], industries: [], countries: [], continents: [], position_keywords: [], hotel_chains: [] };
 
-function KpiCard({
-    label, value, sub, icon: Icon, color,
-}: { label: string; value: number; sub?: string; icon: React.ElementType; color: string }) {
+function pct(n: number, total: number): number {
+    return total > 0 ? Math.round((n / total) * 100) : 0;
+}
+
+function union(a: string[], b: string[]): string[] {
+    return [...new Set([...a, ...b])].sort();
+}
+
+// ── Funnel stage card — connected sequence, % of previous stage ─────────────
+function FunnelStage({
+    label, value, prevValue, color, isFirst, sub,
+}: { label: string; value: number; prevValue: number | null; color: string; isFirst: boolean; sub?: string }) {
+    const dropPct = prevValue && prevValue > 0 ? Math.round((value / prevValue) * 100) : null;
     return (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-3">
-                <div className={cn("p-2 rounded-xl")} style={{ background: `${color}18` }}>
-                    <Icon className="h-4 w-4" style={{ color }} />
+        <div className="flex items-center gap-2 flex-1 min-w-[160px]">
+            {!isFirst && <ChevronRight className="h-5 w-5 text-slate-300 shrink-0 hidden md:block" />}
+            <div className="relative bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex-1 overflow-hidden">
+                <div className="absolute top-0 left-0 right-0 h-1" style={{ background: color }} />
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">{label}</div>
+                <div className="flex items-baseline gap-2">
+                    <span className="text-2xl font-black text-slate-800">{value.toLocaleString()}</span>
+                    {dropPct !== null && (
+                        <span
+                            className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                            style={{ background: `${color}18`, color }}
+                        >
+                            {dropPct}%
+                        </span>
+                    )}
+                </div>
+                {sub && <div className="text-[10px] text-slate-400 font-medium mt-0.5">{sub}</div>}
+            </div>
+        </div>
+    );
+}
+
+// ── Cross-cut metric card — NOT chained into the sequential funnel (its base
+// is "Matching Filters", not the previous funnel stage) ────────────────────
+function CrossCutCard({
+    label, value, base, color, icon: Icon,
+}: { label: string; value: number; base: number; color: string; icon: React.ElementType }) {
+    return (
+        <div className="relative bg-white rounded-2xl border border-slate-200 shadow-sm p-4 min-w-[200px] overflow-hidden">
+            <div className="absolute top-0 left-0 right-0 h-1" style={{ background: color }} />
+            <div className="flex items-center gap-1.5 mb-1.5">
+                <Icon className="h-3 w-3" style={{ color }} />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</span>
+            </div>
+            <div className="flex items-baseline gap-2">
+                <span className="text-2xl font-black text-slate-800">{value.toLocaleString()}</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: `${color}18`, color }}>
+                    {pct(value, base)}% of matching filters
+                </span>
+            </div>
+        </div>
+    );
+}
+
+// ── Donut chart with side legend — used only where categories are few (≤7) ──
+function DonutCard({
+    title, data, icon: Icon, selected, onSelect, interactive = true,
+}: { title: string; data: { name: string; count: number }[]; icon: React.ElementType; selected: string[]; onSelect: (name: string) => void; interactive?: boolean }) {
+    const total = data.reduce((s, d) => s + d.count, 0);
+    if (!data.length) {
+        return (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex items-center justify-center h-64 text-slate-400 text-xs font-bold uppercase tracking-widest">
+                No data
+            </div>
+        );
+    }
+    return (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-4">
+                <Icon className="h-3.5 w-3.5 text-slate-400" />
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">{title}</h3>
+                {interactive && <span className="text-[9px] text-indigo-400 font-semibold ml-auto">click to filter</span>}
+            </div>
+            <div className="flex items-center gap-4">
+                <div className="w-40 h-40 shrink-0 relative">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                            <Pie
+                                data={data} dataKey="count" nameKey="name"
+                                innerRadius={44} outerRadius={68} paddingAngle={2}
+                                strokeWidth={2} stroke="#fff"
+                                onClick={interactive ? (d: any) => onSelect(d.name) : undefined}
+                                cursor={interactive ? "pointer" : "default"}
+                            >
+                                {data.map((d) => (
+                                    <Cell
+                                        key={d.name}
+                                        fill={colorForName(d.name)}
+                                        opacity={!interactive || selected.length === 0 || selected.includes(d.name) ? 1 : 0.3}
+                                    />
+                                ))}
+                            </Pie>
+                            <Tooltip
+                                formatter={(v: any, n: any) => [`${v.toLocaleString()} (${pct(v, total)}%)`, n]}
+                                contentStyle={{ borderRadius: "10px", border: "1px solid #e2e8f0", fontSize: "12px", fontWeight: 700 }}
+                            />
+                        </PieChart>
+                    </ResponsiveContainer>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <span className="text-xl font-black text-slate-800">{total.toLocaleString()}</span>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Total</span>
+                    </div>
+                </div>
+                <div className="flex-1 space-y-1 min-w-0">
+                    {data.map(d => {
+                        const isSelected = selected.includes(d.name);
+                        const Row = interactive ? "button" : "div";
+                        return (
+                            <Row
+                                key={d.name}
+                                onClick={interactive ? () => onSelect(d.name) : undefined}
+                                className={cn(
+                                    "w-full flex items-center gap-2 rounded-lg px-1.5 py-1 transition-colors text-left",
+                                    interactive && "cursor-pointer",
+                                    isSelected ? "bg-indigo-50" : interactive ? "hover:bg-slate-50" : ""
+                                )}
+                            >
+                                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: colorForName(d.name) }} />
+                                <span className={cn("text-xs truncate flex-1", isSelected ? "font-black text-indigo-700" : "font-semibold text-slate-600")}>{d.name}</span>
+                                <span className="text-xs font-black text-slate-700">{d.count.toLocaleString()}</span>
+                                <span className="text-[10px] text-slate-400 w-8 text-right">{pct(d.count, total)}%</span>
+                            </Row>
+                        );
+                    })}
                 </div>
             </div>
-            <div className="text-3xl font-black text-slate-800">{value.toLocaleString()}</div>
-            <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">{label}</div>
-            {sub && <div className="text-[10px] text-slate-300 font-medium mt-0.5">{sub}</div>}
         </div>
     );
 }
 
-function HBarChart({ data, label }: { data: { name: string; count: number }[]; label: string }) {
-    if (!data.length) return (
-        <div className="flex items-center justify-center h-48 text-slate-400 text-xs font-bold uppercase tracking-widest">
-            No data
-        </div>
-    );
-    const height = Math.max(180, data.length * 28 + 40);
+// ── Badge grid — medium-cardinality categories as colored chip cards ────────
+function BadgeGridCard({
+    title, data, icon: Icon, selected, onSelect,
+}: { title: string; data: { name: string; count: number }[]; icon: React.ElementType; selected: string[]; onSelect: (name: string) => void }) {
+    const total = data.reduce((s, d) => s + d.count, 0);
     return (
-        <ResponsiveContainer width="100%" height={height}>
-            <BarChart data={data} layout="vertical" margin={{ top: 4, right: 48, left: 0, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" horizontal={false} />
-                <XAxis
-                    type="number"
-                    tick={{ fontSize: 10, fill: "#94a3b8" }}
-                    axisLine={false} tickLine={false}
-                    allowDecimals={false}
-                />
-                <YAxis
-                    type="category"
-                    dataKey="name"
-                    width={148}
-                    tick={{ fontSize: 10, fill: "#475569", fontWeight: 600 }}
-                    axisLine={false} tickLine={false}
-                />
-                <Tooltip
-                    contentStyle={{ borderRadius: "10px", border: "1px solid #e2e8f0", fontSize: "12px", fontWeight: 700 }}
-                    formatter={(v: any) => [v.toLocaleString(), label]}
-                />
-                <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={20}>
-                    {data.map((_, i) => (
-                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                    ))}
-                </Bar>
-            </BarChart>
-        </ResponsiveContainer>
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-4">
+                <Icon className="h-3.5 w-3.5 text-slate-400" />
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">{title}</h3>
+                <span className="text-[9px] text-indigo-400 font-semibold ml-auto">click to filter</span>
+            </div>
+            {!data.length ? (
+                <div className="flex items-center justify-center h-40 text-slate-400 text-xs font-bold uppercase tracking-widest">
+                    No data
+                </div>
+            ) : (
+                <div className="flex flex-wrap gap-2">
+                    {data.map(d => {
+                        const color = colorForName(d.name);
+                        const isSelected = selected.includes(d.name);
+                        return (
+                            <button
+                                key={d.name}
+                                onClick={() => onSelect(d.name)}
+                                className="flex items-center gap-2 rounded-xl border px-3 py-2 transition-all cursor-pointer"
+                                style={{
+                                    background: isSelected ? `${color}22` : `${color}0d`,
+                                    borderColor: isSelected ? color : `${color}33`,
+                                    borderWidth: isSelected ? 1.5 : 1,
+                                }}
+                            >
+                                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
+                                <span className="text-xs font-bold text-slate-700">{d.name}</span>
+                                <span
+                                    className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
+                                    style={{ background: `${color}22`, color }}
+                                >
+                                    {d.count.toLocaleString()} · {pct(d.count, total)}%
+                                </span>
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
     );
 }
 
-function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+// ── Ranked list — single-hue magnitude bars (not a rainbow per bar) ─────────
+// Color here encodes rank/magnitude, not identity, so per the dataviz "one
+// series → one hue" rule it stays one color; rank position already conveys order.
+const RANK_BADGE: Record<number, string> = { 1: "#f59e0b", 2: "#94a3b8", 3: "#b45309" };
+
+function RankedListCard({
+    title, data, icon: Icon, selected, onSelect,
+}: { title: string; data: { name: string; count: number }[]; icon: React.ElementType; selected?: string[]; onSelect?: (name: string) => void }) {
+    const max = Math.max(...data.map(d => d.count), 1);
+    const clickable = !!onSelect;
     return (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">{title}</h3>
-            {children}
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-4">
+                <Icon className="h-3.5 w-3.5 text-slate-400" />
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">{title}</h3>
+                {clickable && <span className="text-[9px] text-indigo-400 font-semibold ml-auto">click to filter</span>}
+            </div>
+            {!data.length ? (
+                <div className="flex items-center justify-center h-40 text-slate-400 text-xs font-bold uppercase tracking-widest">
+                    No data
+                </div>
+            ) : (
+                <div className="space-y-1">
+                    {data.map((d, i) => {
+                        const isSelected = selected?.includes(d.name);
+                        const Row = clickable ? "button" : "div";
+                        return (
+                            <Row
+                                key={d.name}
+                                onClick={clickable ? () => onSelect!(d.name) : undefined}
+                                className={cn(
+                                    "w-full flex items-center gap-2.5 rounded-lg px-1 py-1 transition-colors",
+                                    clickable && "cursor-pointer",
+                                    isSelected ? "bg-indigo-50" : clickable ? "hover:bg-slate-50" : ""
+                                )}
+                            >
+                                <span
+                                    className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[9px] font-black text-white"
+                                    style={{ background: RANK_BADGE[i + 1] ?? "#c7d2fe", color: i < 3 ? "#fff" : "#4338ca" }}
+                                >
+                                    {i + 1}
+                                </span>
+                                <span className={cn("text-xs w-36 truncate shrink-0 text-left", isSelected ? "font-black text-indigo-700" : "font-semibold text-slate-600")} title={d.name}>{d.name}</span>
+                                <div className="flex-1 bg-slate-100 rounded-full h-2 min-w-[40px]">
+                                    <div
+                                        className="h-full rounded-full bg-indigo-500"
+                                        style={{ width: `${Math.max(4, (d.count / max) * 100)}%` }}
+                                    />
+                                </div>
+                                <span className="text-xs font-black text-slate-700 w-10 text-right shrink-0">{d.count.toLocaleString()}</span>
+                            </Row>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── Active filter chips ──────────────────────────────────────────────────────
+const FILTER_LABELS: Record<keyof PopulationFilters, string> = {
+    groups: "Industry Group",
+    industries: "Industry",
+    countries: "Work Country",
+    continents: "Continent",
+    position_keywords: "Position Keyword",
+    set_symbols: "SET Company",
+    hotel_chains: "Hotel Chain",
+};
+
+function ActiveFilterChips({ filters, onRemove }: { filters: PopulationFilters; onRemove: (key: keyof PopulationFilters, value: string) => void }) {
+    const chips: { key: keyof PopulationFilters; value: string }[] = [];
+    (Object.keys(filters) as (keyof PopulationFilters)[]).forEach(key => {
+        (filters[key] || []).forEach(value => chips.push({ key, value }));
+    });
+    if (!chips.length) return null;
+    return (
+        <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mr-1">Active:</span>
+            {chips.map(c => (
+                <button
+                    key={`${c.key}-${c.value}`}
+                    onClick={() => onRemove(c.key, c.value)}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full pl-2.5 pr-1.5 py-0.5 hover:bg-indigo-100 transition-colors cursor-pointer"
+                >
+                    <span className="text-indigo-400">{FILTER_LABELS[c.key]}:</span> {c.value}
+                    <X className="h-3 w-3" />
+                </button>
+            ))}
         </div>
     );
 }
@@ -91,37 +315,53 @@ function toggleItem<T>(arr: T[], item: T): T[] {
 
 export default function CandidateFunnelTab() {
     const [filterOptions, setFilterOptions] = useState<PopulationFilterOptions | null>(null);
+    const [cascade, setCascade] = useState<CascadingOptions>(EMPTY_CASCADE);
     const [data, setData] = useState<PopulationData | null>(null);
     const [loading, setLoading] = useState(true);
     const [dataLoading, setDataLoading] = useState(false);
 
     const [filters, setFilters] = useState<PopulationFilters>(EMPTY_FILTERS);
+    const requestSeq = useRef(0);
 
     const loadData = useCallback((f: PopulationFilters) => {
         setDataLoading(true);
-        getCandidatePopulationData(f)
-            .then(setData)
-            .catch(console.error)
-            .finally(() => setDataLoading(false));
+        const seq = ++requestSeq.current;
+        Promise.all([
+            getCandidatePopulationData(f),
+            getCascadingPopulationOptions(f),
+        ]).then(([d, c]) => {
+            if (seq !== requestSeq.current) return; // stale response — a newer filter change already superseded this
+            setData(d);
+            setCascade(c);
+        }).catch(console.error).finally(() => {
+            if (seq === requestSeq.current) setDataLoading(false);
+        });
     }, []);
 
     useEffect(() => {
         Promise.all([
             getPopulationFilterOptions(),
             getCandidatePopulationData({}),
-        ]).then(([opts, d]) => {
+            getCascadingPopulationOptions({}),
+        ]).then(([opts, d, c]) => {
             setFilterOptions(opts);
             setData(d);
+            setCascade(c);
         }).catch(console.error).finally(() => setLoading(false));
     }, []);
 
-    const updateFilter = (key: keyof PopulationFilters, value: string) => {
+    // NOTE: setFilters must stay a plain (non-functional) update here — calling
+    // loadData (which itself calls setState) from inside a setState updater
+    // callback triggers React's "Cannot update a component while rendering a
+    // different component" error, since updater functions run during the
+    // render/reconciliation phase, not as a normal event-handler side effect.
+    const updateFilter = useCallback((key: keyof PopulationFilters, value: string) => {
         const current = (filters[key] as string[] | undefined) || [];
         const next = { ...filters, [key]: toggleItem(current, value) };
         if ((next[key] as string[]).length === 0) delete next[key];
         setFilters(next);
         loadData(next);
-    };
+    }, [filters, loadData]);
 
     const resetFilters = () => {
         setFilters(EMPTY_FILTERS);
@@ -149,136 +389,131 @@ export default function CandidateFunnelTab() {
 
     return (
         <div className="space-y-6">
-            {/* ── Filter Bar ──────────────────────────────────────── */}
-            <div className="flex flex-wrap items-center gap-2">
-                <FilterMultiSelect
-                    label="Industry Group"
-                    options={filterOptions?.groups || []}
-                    selected={filters.groups || []}
-                    onChange={v => updateFilter('groups', v)}
-                />
-                <FilterMultiSelect
-                    label="Industry"
-                    options={filterOptions?.industries || []}
-                    selected={filters.industries || []}
-                    onChange={v => updateFilter('industries', v)}
-                />
-                <FilterMultiSelect
-                    label="Continent"
-                    options={filterOptions?.continents || []}
-                    selected={filters.continents || []}
-                    onChange={v => updateFilter('continents', v)}
-                />
-                <FilterMultiSelect
-                    label="Work Country"
-                    options={filterOptions?.countries || []}
-                    selected={filters.countries || []}
-                    onChange={v => updateFilter('countries', v)}
-                />
-                <FilterMultiSelect
-                    label="Position Keyword"
-                    options={filterOptions?.position_keywords || []}
-                    selected={filters.position_keywords || []}
-                    onChange={v => updateFilter('position_keywords', v)}
-                />
-                <FilterMultiSelect
-                    label="SET Company"
-                    options={setSymbols}
-                    selected={setSelected}
-                    onChange={handleSetChange}
-                />
-                {hasFilters && (
-                    <Button
-                        variant="ghost" size="sm"
-                        onClick={resetFilters}
-                        className="gap-1 text-xs text-slate-400 hover:text-red-500"
-                    >
-                        <RotateCcw className="h-3 w-3" />
-                        Reset ({activeFilterCount})
-                    </Button>
-                )}
-                {dataLoading && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
+            {/* ── Filter Bar — options narrow (cascade) as other filters are picked ── */}
+            <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                    <FilterMultiSelect
+                        label="Industry Group"
+                        options={union(cascade.groups, filters.groups || [])}
+                        selected={filters.groups || []}
+                        onChange={v => updateFilter('groups', v)}
+                    />
+                    <FilterMultiSelect
+                        label="Industry"
+                        options={union(cascade.industries, filters.industries || [])}
+                        selected={filters.industries || []}
+                        onChange={v => updateFilter('industries', v)}
+                    />
+                    <FilterMultiSelect
+                        label="Continent"
+                        options={union(cascade.continents, filters.continents || [])}
+                        selected={filters.continents || []}
+                        onChange={v => updateFilter('continents', v)}
+                    />
+                    <FilterMultiSelect
+                        label="Work Country"
+                        options={union(cascade.countries, filters.countries || [])}
+                        selected={filters.countries || []}
+                        onChange={v => updateFilter('countries', v)}
+                    />
+                    <FilterMultiSelect
+                        label="Position Keyword"
+                        options={union(cascade.position_keywords, filters.position_keywords || [])}
+                        selected={filters.position_keywords || []}
+                        onChange={v => updateFilter('position_keywords', v)}
+                    />
+                    <FilterMultiSelect
+                        label="SET Company"
+                        options={setSymbols}
+                        selected={setSelected}
+                        onChange={handleSetChange}
+                    />
+                    <FilterMultiSelect
+                        label="Hotel Chain"
+                        options={union(cascade.hotel_chains, filters.hotel_chains || [])}
+                        selected={filters.hotel_chains || []}
+                        onChange={v => updateFilter('hotel_chains', v)}
+                    />
+                    {hasFilters && (
+                        <Button
+                            variant="ghost" size="sm"
+                            onClick={resetFilters}
+                            className="gap-1 text-xs text-slate-400 hover:text-red-500"
+                        >
+                            <RotateCcw className="h-3 w-3" />
+                            Reset ({activeFilterCount})
+                        </Button>
+                    )}
+                    {dataLoading && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
+                </div>
+                <ActiveFilterChips filters={filters} onRemove={updateFilter} />
             </div>
 
-            {/* ── KPI Cards ────────────────────────────────────────── */}
+            {/* ── Funnel — Total DB → Matching Filters → Currently Employed are   */}
+            {/*    genuine sequential subsets; SET Experience is a separate cut    */}
+            {/*    of "Matching Filters" and is NOT chained after Currently Employed */}
             {data && (
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    <KpiCard
-                        label="Total in Database"
-                        value={data.total_db}
-                        sub="All candidates in system"
-                        icon={Users}
-                        color="#6366f1"
-                    />
-                    <KpiCard
-                        label={hasFilters ? "Matching Filters" : "In Experience Pool"}
-                        value={data.total_filtered}
-                        sub={hasFilters ? "Unique candidates matched" : "Candidates with company data"}
-                        icon={TrendingUp}
-                        color="#3b82f6"
-                    />
-                    <KpiCard
-                        label="Currently Employed"
-                        value={data.currently_employed}
-                        sub="Active in current role"
-                        icon={Briefcase}
-                        color="#10b981"
-                    />
-                    <KpiCard
+                <div className="flex flex-col gap-3">
+                    <div className="flex flex-col md:flex-row gap-2">
+                        <FunnelStage label="Total in Database" value={data.total_db} prevValue={null} color="#6366f1" isFirst />
+                        <FunnelStage
+                            label={hasFilters ? "Matching Filters" : "In Experience Pool"}
+                            value={data.total_filtered} prevValue={data.total_db} color="#0284c7" isFirst={false}
+                        />
+                        <FunnelStage
+                            label="Currently Employed"
+                            value={data.currently_employed} prevValue={data.total_filtered} color="#059669" isFirst={false}
+                            sub="Flagged with a current-job experience row"
+                        />
+                    </div>
+                    <div className="flex items-start gap-2 text-[11px] text-slate-400">
+                        <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                        <span>
+                            The {(data.total_filtered - data.currently_employed).toLocaleString()} not counted as "Currently Employed" aren't
+                            necessarily unemployed — some simply don't have a job experience row flagged "Current" yet (a data-entry gap, not a confirmed status).
+                        </span>
+                    </div>
+                    <CrossCutCard
                         label="SET Experience"
                         value={data.set_experienced}
-                        sub="Exp. at SET-listed companies"
-                        icon={Building2}
+                        base={data.total_filtered}
                         color="#f59e0b"
+                        icon={Building2}
                     />
                 </div>
             )}
 
-            {/* ── Charts (2×2 grid) ────────────────────────────────── */}
+            {/* ── Overview: donut (few categories) + badge grid (medium) ───── */}
             {data && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                    <ChartCard title="By Industry Group">
-                        <HBarChart data={data.by_group} label="Candidates" />
-                    </ChartCard>
-                    <ChartCard title="By Work Country (Top 15)">
-                        <HBarChart data={data.by_country} label="Candidates" />
-                    </ChartCard>
-                    <ChartCard title="By Industry (Top 15)">
-                        <HBarChart data={data.by_industry} label="Candidates" />
-                    </ChartCard>
-                    <ChartCard title="By Position Keyword (Top 15)">
-                        <HBarChart data={data.by_position_keyword} label="Candidates" />
-                    </ChartCard>
+                    <DonutCard title="By Continent" data={data.by_continent} icon={Globe2} selected={filters.continents || []} onSelect={v => updateFilter('continents', v)} />
+                    <BadgeGridCard title="By Industry Group" data={data.by_group} icon={Layers} selected={filters.groups || []} onSelect={v => updateFilter('groups', v)} />
                 </div>
             )}
 
-            {/* ── Continent + Group summary row ────────────────────── */}
+            {/* ── High-cardinality breakdowns: ranked lists ─────────────────── */}
+            {data && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                    <RankedListCard title="By Work Country" data={data.by_country} icon={Globe2} selected={filters.countries || []} onSelect={v => updateFilter('countries', v)} />
+                    <RankedListCard title="By Industry" data={data.by_industry} icon={Building2} selected={filters.industries || []} onSelect={v => updateFilter('industries', v)} />
+                    <RankedListCard title="By Position Keyword" data={data.by_position_keyword} icon={Briefcase} selected={filters.position_keywords || []} onSelect={v => updateFilter('position_keywords', v)} />
+                </div>
+            )}
+
+            {/* ── Hotel Chain — parent-chain names resolved from company_master   */}
+            {/*    .hotel_chain_id via hotel_chain_master (see docs/hotel_chain_system.md) */}
+            {data && (
+                <RankedListCard title="By Hotel Chain" data={data.by_hotel_chain} icon={Building2} selected={filters.hotel_chains || []} onSelect={v => updateFilter('hotel_chains', v)} />
+            )}
+
+            {/* ── Age Range + Nationality — informational only (not filterable yet) ── */}
             {data && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                    <ChartCard title="By Continent">
-                        <HBarChart data={data.by_continent} label="Candidates" />
-                    </ChartCard>
-                    <div className="bg-slate-50 rounded-2xl border border-slate-100 p-5">
-                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Summary</h3>
-                        <div className="space-y-2">
-                            {data.by_group.map((g, i) => {
-                                const pct = data.total_filtered > 0 ? Math.round(g.count / data.total_filtered * 100) : 0;
-                                return (
-                                    <div key={g.name} className="flex items-center gap-3">
-                                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
-                                        <span className="text-xs font-bold text-slate-600 flex-1 truncate">{g.name}</span>
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-20 bg-slate-200 rounded-full h-1.5">
-                                                <div className="h-full rounded-full" style={{ width: `${pct}%`, background: CHART_COLORS[i % CHART_COLORS.length] }} />
-                                            </div>
-                                            <span className="text-xs font-black text-slate-700 w-10 text-right">{g.count.toLocaleString()}</span>
-                                            <span className="text-[10px] text-slate-400 w-8 text-right">{pct}%</span>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
+                    <DonutCard title="By Age Range" data={data.by_age_range} icon={Cake} selected={[]} onSelect={() => {}} interactive={false} />
+                    <RankedListCard
+                        title={`By Nationality${data.nationality_unknown_count > 0 ? ` (${data.nationality_unknown_count.toLocaleString()} Unknown)` : ""}`}
+                        data={data.by_nationality} icon={Flag}
+                    />
                 </div>
             )}
         </div>
