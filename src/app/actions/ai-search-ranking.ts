@@ -1,6 +1,7 @@
 "use server";
 
 import { adminAuthClient } from "@/lib/supabase/admin";
+import { groupExperiencesByCandidate, formatExperienceHistory, formatEducationHeadline, type ExperienceRow } from "@/lib/candidate-experience-utils";
 
 const N8N_SEARCH_STAGE3_URL = "https://n8n.srv1212906.hstgr.cloud/webhook/search-stage3";
 const N8N_VECTOR_RANK_URL = "https://n8n.srv1212906.hstgr.cloud/webhook/vector-rank";
@@ -15,6 +16,9 @@ export type SearchJobData = {
     } | null;
     results: SearchResult[];
     result_count: number | null;
+    candidate_count: number | null;
+    pool_total: number | null;
+    pool_candidate_ids: string[] | null;
 };
 
 export type SearchResult = {
@@ -24,9 +28,14 @@ export type SearchResult = {
     linkedin: string | null;
     age: number | null;
     age_source: string | null;
+    gender: string | null;
+    nationality: string | null;
     address: string | null;
     position: string | null;
     company: string | null;
+    location: string | null;
+    education: string | null;
+    experience_history: string[];
     score: number;
     strengths: string;
     gaps: string;
@@ -150,15 +159,49 @@ export async function getSearchJobHistory(limit = 20): Promise<SearchJobSummary[
     }));
 }
 
+/**
+ * Resolves the Stage 1 pool (200-1000 candidates, before Stage 2 vector-rank
+ * narrows to top20) for a completed search job — via
+ * ai_search_jobs.session_id -> ai_search_sessions.candidate_count +
+ * filter_snapshot.v2_session_id -> v2_search_results.candidate_id list.
+ * Not all jobs have a linked session (older/dormant chat-driven path) —
+ * callers must handle nulls.
+ */
+async function getSearchStage1Pool(sessionId: string | null): Promise<{ total: number | null; candidateIds: string[] | null }> {
+    if (!sessionId) return { total: null, candidateIds: null };
+
+    const { data: session } = await adminAuthClient
+        .from("ai_search_sessions")
+        .select("candidate_count, filter_snapshot")
+        .eq("session_id", sessionId)
+        .single();
+
+    if (!session) return { total: null, candidateIds: null };
+
+    const v2SessionId = (session as any).filter_snapshot?.v2_session_id as string | undefined;
+    let candidateIds: string[] | null = null;
+    if (v2SessionId) {
+        const { data: poolRows } = await adminAuthClient
+            .from("v2_search_results")
+            .select("candidate_id")
+            .eq("session_id", v2SessionId);
+        candidateIds = (poolRows ?? []).map((r: any) => r.candidate_id);
+    }
+
+    return { total: (session as any).candidate_count ?? candidateIds?.length ?? null, candidateIds };
+}
+
 export async function getSearchJobStatus(jobId: string): Promise<SearchJobData | null> {
     const { data: job } = await adminAuthClient
         .from("ai_search_jobs")
-        .select("status, query, summary, result_count")
+        .select("status, query, summary, result_count, candidate_count, session_id")
         .eq("job_id", jobId)
         .single();
 
     if (!job) return null;
     const jobData = job as any;
+
+    const pool = await getSearchStage1Pool(jobData.session_id ?? null);
 
     const { data: results } = await adminAuthClient
         .from("ai_search_results")
@@ -169,32 +212,42 @@ export async function getSearchJobStatus(jobId: string): Promise<SearchJobData |
 
     const candidateIds = (results ?? []).map((r: any) => r.candidate_id);
     if (!candidateIds.length) {
-        return { status: jobData.status, query: jobData.query ?? null, summary: jobData.status === "completed" ? jobData.summary : null, results: [], result_count: jobData.result_count };
+        return {
+            status: jobData.status,
+            query: jobData.query ?? null,
+            summary: jobData.status === "completed" ? jobData.summary : null,
+            results: [],
+            result_count: jobData.result_count,
+            candidate_count: jobData.candidate_count ?? null,
+            pool_total: pool.total,
+            pool_candidate_ids: pool.candidateIds,
+        };
     }
 
     const [profilesRes, expRes, enhanceRes] = await Promise.all([
         adminAuthClient
             .from("Candidate Profile")
-            .select("candidate_id, name, photo, linkedin, age, age_source")
+            .select("candidate_id, name, photo, linkedin, age, age_source, gender, nationality")
             .in("candidate_id", candidateIds),
         adminAuthClient
             .from("candidate_experiences")
-            .select("candidate_id, position, company")
-            .in("candidate_id", candidateIds)
-            .eq("is_current_job", "Current"),
+            .select("candidate_id, position, company, company_id, start_date, end_date, country, is_current_job")
+            .in("candidate_id", candidateIds),
         adminAuthClient
             .from("candidate_profile_enhance")
-            .select("candidate_id, country, full_address")
+            .select("candidate_id, country, full_address, education_summary")
             .in("candidate_id", candidateIds),
     ]);
 
     const profileMap = new Map((profilesRes.data ?? []).map((p: any) => [p.candidate_id, p]));
-    const expMap = new Map((expRes.data ?? []).map((e: any) => [e.candidate_id, e]));
+    const expByCandidate = groupExperiencesByCandidate((expRes.data ?? []) as ExperienceRow[]);
     const enhanceMap = new Map((enhanceRes.data ?? []).map((e: any) => [e.candidate_id, e]));
 
     const enriched: SearchResult[] = (results ?? []).map((r: any) => {
         const profile = profileMap.get(r.candidate_id) as any;
         const enhance = enhanceMap.get(r.candidate_id) as any;
+        const sortedExp = expByCandidate.get(r.candidate_id) ?? [];
+        const latest = sortedExp[0];
         return {
         candidate_id: r.candidate_id,
         name: profile?.name ?? r.candidate_id,
@@ -202,9 +255,14 @@ export async function getSearchJobStatus(jobId: string): Promise<SearchJobData |
         linkedin: profile?.linkedin ?? null,
         age: profile?.age ?? null,
         age_source: profile?.age_source ?? null,
+        gender: profile?.gender ?? null,
+        nationality: profile?.nationality ?? null,
         address: [enhance?.country, enhance?.full_address].filter(Boolean).join(", ") || null,
-        position: (expMap.get(r.candidate_id) as any)?.position ?? null,
-        company: (expMap.get(r.candidate_id) as any)?.company ?? null,
+        position: latest?.position ?? null,
+        company: latest?.company ?? null,
+        location: latest?.country ?? null,
+        education: formatEducationHeadline(enhance?.education_summary) || null,
+        experience_history: formatExperienceHistory(sortedExp, 4),
         score: r.score,
         strengths: r.strengths ?? "",
         gaps: r.gaps ?? "",
@@ -227,5 +285,8 @@ export async function getSearchJobStatus(jobId: string): Promise<SearchJobData |
         summary: jobData.status === "completed" ? jobData.summary : null,
         results: enriched,
         result_count: jobData.result_count,
+        candidate_count: jobData.candidate_count ?? null,
+        pool_total: pool.total,
+        pool_candidate_ids: pool.candidateIds,
     };
 }

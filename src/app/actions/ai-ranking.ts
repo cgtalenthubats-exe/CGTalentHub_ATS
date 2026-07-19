@@ -1,6 +1,7 @@
 "use server";
 
 import { adminAuthClient } from "@/lib/supabase/admin";
+import { groupExperiencesByCandidate, formatExperienceHistory, formatEducationHeadline, type ExperienceRow } from "@/lib/candidate-experience-utils";
 
 const N8N_STAGE3_URL = "https://n8n.srv1212906.hstgr.cloud/webhook/demo-stage3";
 const N8N_JR_ASSESS_URL = "https://n8n.srv1212906.hstgr.cloud/webhook/jr-assess";
@@ -59,9 +60,14 @@ export type Stage3Result = {
     linkedin: string | null;
     age: number | null;
     age_source: string | null;
+    gender: string | null;
+    nationality: string | null;
     address: string | null;
     position: string | null;
     company: string | null;
+    location: string | null;
+    education: string | null;
+    experience_history: string[];
     score: number;
     strengths: string;
     gaps: string;
@@ -88,17 +94,24 @@ export type Stage3JobData = {
     } | null;
     results: Stage3Result[];
     result_count: number | null;
+    candidate_count: number | null;
+    pool_total: number | null;
+    pool_candidate_ids: string[] | null;
 };
 
 export async function getStage3JobStatus(jobId: string, jrId?: string | null): Promise<Stage3JobData | null> {
     const { data: job } = await adminAuthClient
         .from("ai_ranking_jobs")
-        .select("status, summary, result_count")
+        .select("status, summary, result_count, candidate_count")
         .eq("job_id", jobId)
         .single();
 
     if (!job) return null;
     const jobData = job as any;
+
+    const poolTotalPromise = jrId
+        ? adminAuthClient.from("jr_candidates").select("candidate_id").eq("jr_id", jrId)
+        : Promise.resolve({ data: null } as any);
 
     // Fetch done candidates progressively — show results as they arrive
     const { data: results } = await adminAuthClient
@@ -111,27 +124,37 @@ export async function getStage3JobStatus(jobId: string, jrId?: string | null): P
     const candidateIds = (results ?? []).map((r: any) => r.candidate_id);
 
     if (!candidateIds.length) {
-        return { status: jobData.status, summary: jobData.status === "completed" ? jobData.summary : null, results: [], result_count: jobData.result_count };
+        const poolTotalRes = await poolTotalPromise;
+        const poolIds = (poolTotalRes.data ?? []).map((p: any) => p.candidate_id) as string[] | null;
+        return {
+            status: jobData.status,
+            summary: jobData.status === "completed" ? jobData.summary : null,
+            results: [],
+            result_count: jobData.result_count,
+            candidate_count: jobData.candidate_count ?? null,
+            pool_total: poolIds?.length ?? null,
+            pool_candidate_ids: poolIds,
+        };
     }
 
-    const [profilesRes, expRes, enhanceRes] = await Promise.all([
+    const [profilesRes, expRes, enhanceRes, poolTotalRes] = await Promise.all([
         adminAuthClient
             .from("Candidate Profile")
-            .select("candidate_id, name, photo, linkedin, age, age_source")
+            .select("candidate_id, name, photo, linkedin, age, age_source, gender, nationality")
             .in("candidate_id", candidateIds),
         adminAuthClient
             .from("candidate_experiences")
-            .select("candidate_id, position, company")
-            .in("candidate_id", candidateIds)
-            .eq("is_current_job", "Current"),
+            .select("candidate_id, position, company, company_id, start_date, end_date, country, is_current_job")
+            .in("candidate_id", candidateIds),
         adminAuthClient
             .from("candidate_profile_enhance")
-            .select("candidate_id, country, full_address")
+            .select("candidate_id, country, full_address, education_summary")
             .in("candidate_id", candidateIds),
+        poolTotalPromise,
     ]);
 
     const profileMap = new Map((profilesRes.data ?? []).map((p: any) => [p.candidate_id, p as any]));
-    const expMap = new Map((expRes.data ?? []).map((e: any) => [e.candidate_id, e as any]));
+    const expByCandidate = groupExperiencesByCandidate((expRes.data ?? []) as ExperienceRow[]);
     const enhanceMap = new Map((enhanceRes.data ?? []).map((e: any) => [e.candidate_id, e as any]));
 
     let jrMap = new Map<string, any>();
@@ -147,6 +170,8 @@ export async function getStage3JobStatus(jobId: string, jrId?: string | null): P
     const enriched: Stage3Result[] = (results ?? []).map((r: any) => {
         const profile = profileMap.get(r.candidate_id);
         const enhance = enhanceMap.get(r.candidate_id);
+        const sortedExp = expByCandidate.get(r.candidate_id) ?? [];
+        const latest = sortedExp[0];
         return {
         candidate_id: r.candidate_id,
         name: profile?.name ?? r.candidate_id,
@@ -154,9 +179,14 @@ export async function getStage3JobStatus(jobId: string, jrId?: string | null): P
         linkedin: profile?.linkedin ?? null,
         age: profile?.age ?? null,
         age_source: profile?.age_source ?? null,
+        gender: profile?.gender ?? null,
+        nationality: profile?.nationality ?? null,
         address: [enhance?.country, enhance?.full_address].filter(Boolean).join(", ") || null,
-        position: expMap.get(r.candidate_id)?.position ?? null,
-        company: expMap.get(r.candidate_id)?.company ?? null,
+        position: latest?.position ?? null,
+        company: latest?.company ?? null,
+        location: latest?.country ?? null,
+        education: formatEducationHeadline(enhance?.education_summary) || null,
+        experience_history: formatExperienceHistory(sortedExp, 4),
         score: r.score,
         strengths: r.strengths ?? "",
         gaps: r.gaps ?? "",
@@ -174,12 +204,84 @@ export async function getStage3JobStatus(jobId: string, jrId?: string | null): P
         };
     });
 
+    const poolIds = (poolTotalRes.data ?? []).map((p: any) => p.candidate_id) as string[] | null;
     return {
         status: jobData.status,
         summary: jobData.status === "completed" ? jobData.summary : null,
         results: enriched,
         result_count: jobData.result_count,
+        candidate_count: jobData.candidate_count ?? null,
+        pool_total: poolIds?.length ?? null,
+        pool_candidate_ids: poolIds,
     };
+}
+
+/**
+ * Full JR candidate roster (all `jr_candidates` rows for this JR, regardless
+ * of whether they were ever AI-scored) — for the Long List slide. Stage3
+ * results only ever cover the candidates a given assessment job actually
+ * scored (often far fewer than the full pool), so the Long List must be
+ * built from jr_candidates directly rather than from Stage3Result.
+ */
+export async function getJRCandidateRoster(jrId: string): Promise<Stage3Result[]> {
+    const { data: jrRows } = await adminAuthClient
+        .from("jr_candidates")
+        .select("candidate_id, list_type, rank")
+        .eq("jr_id", jrId);
+
+    const candidateIds = (jrRows ?? []).map((r: any) => r.candidate_id);
+    if (!candidateIds.length) return [];
+
+    const [profilesRes, expRes] = await Promise.all([
+        adminAuthClient
+            .from("Candidate Profile")
+            .select("candidate_id, name, photo, linkedin, age, age_source, gender, nationality")
+            .in("candidate_id", candidateIds),
+        adminAuthClient
+            .from("candidate_experiences")
+            .select("candidate_id, position, company, company_id, start_date, end_date, country, is_current_job")
+            .in("candidate_id", candidateIds),
+    ]);
+
+    const profileMap = new Map((profilesRes.data ?? []).map((p: any) => [p.candidate_id, p as any]));
+    const expByCandidate = groupExperiencesByCandidate((expRes.data ?? []) as ExperienceRow[]);
+    const jrMap = new Map((jrRows ?? []).map((j: any) => [j.candidate_id, j]));
+
+    return candidateIds.map((cId: string) => {
+        const profile = profileMap.get(cId);
+        const latest = expByCandidate.get(cId)?.[0];
+        const jrRow = jrMap.get(cId);
+        return {
+            candidate_id: cId,
+            name: profile?.name ?? cId,
+            photo_url: profile?.photo ?? null,
+            linkedin: profile?.linkedin ?? null,
+            age: profile?.age ?? null,
+            age_source: profile?.age_source ?? null,
+            gender: profile?.gender ?? null,
+            nationality: profile?.nationality ?? null,
+            address: null,
+            position: latest?.position ?? null,
+            company: latest?.company ?? null,
+            location: latest?.country ?? null,
+            education: null,
+            experience_history: [],
+            score: 0,
+            strengths: "",
+            gaps: "",
+            tradeoff: "",
+            rank: jrRow?.rank ?? 999,
+            list_type: jrRow?.list_type ?? "Longlist",
+            experience_score: null,
+            experience_summary: null,
+            leadership_score: null,
+            leadership_summary: null,
+            market_score: null,
+            market_summary: null,
+            skills_score: null,
+            skills_summary: null,
+        };
+    }).sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999));
 }
 
 export type JobHistoryItem = {
