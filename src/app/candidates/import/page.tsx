@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Papa from "papaparse";
-import { processCsvUpload } from "@/app/actions/csv-actions";
+import { processCsvUpload, deleteScrapingUploadLogs } from "@/app/actions/csv-actions";
 import { createUploadRecord, handleDuplicateResume, logSkippedResume } from "@/app/actions/resume-actions";
 import { bulkAddCandidatesToJR } from "@/app/actions/jr-candidates";
 import { AddCandidateDialog } from "@/components/ai-search/AddCandidateDialog";
@@ -39,7 +39,8 @@ import {
     Filter as FilterIcon,
     X as XIcon,
     ChevronDown,
-    Check
+    Check,
+    Trash2
 } from "lucide-react";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
 import { format, startOfDay, endOfDay } from "date-fns";
@@ -65,6 +66,16 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
 import { toast } from "@/lib/notifications";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -112,6 +123,8 @@ export default function CandidateImportPage() {
     const [allMetadata, setAllMetadata] = useState<any[]>([]);
     const [availableDates, setAvailableDates] = useState<string[]>([]);
     const [selectedIds, setSelectedIds] = useState<(number | string)[]>([]);
+    const [deleteScrapingDialogOpen, setDeleteScrapingDialogOpen] = useState(false);
+    const [isDeletingScraping, setIsDeletingScraping] = useState(false);
     const [openJrDialog, setOpenJrDialog] = useState(false);
     
     // Pagination State
@@ -629,6 +642,34 @@ export default function CandidateImportPage() {
         return logs.filter(l => selectedIds.includes(l.id) && l.candidate_id?.startsWith('C')).length;
     }, [logs, selectedIds]);
 
+    // Rows selected that are stuck in "Scraping" — the only status deleteScrapingUploadLogs will touch
+    const selectedScrapingIds = React.useMemo(() => {
+        return logs
+            .filter(l => selectedIds.includes(l.id) && l.status === 'Scraping')
+            .map(l => l.id as number);
+    }, [logs, selectedIds]);
+
+    const handleDeleteScrapingConfirm = async () => {
+        if (selectedScrapingIds.length === 0) return;
+        setIsDeletingScraping(true);
+        try {
+            const result = await deleteScrapingUploadLogs(selectedScrapingIds);
+            if (result.success) {
+                toast.success(`Deleted ${result.deletedCount} stuck "Scraping" record(s). They can be re-uploaded now.`);
+                setLogs(prev => prev.filter(l => !selectedScrapingIds.includes(l.id as number)));
+                setSelectedIds(prev => prev.filter(id => !selectedScrapingIds.includes(id as number)));
+            } else {
+                toast.error(result.error || "Failed to delete records");
+            }
+        } catch (error) {
+            console.error("Error deleting scraping logs:", error);
+            toast.error("Failed to delete records");
+        } finally {
+            setIsDeletingScraping(false);
+            setDeleteScrapingDialogOpen(false);
+        }
+    };
+
 
     const isAnyFilterActive = React.useMemo(() => {
         return statusFilters.length > 0 || 
@@ -842,6 +883,17 @@ export default function CandidateImportPage() {
                                     <X className="w-3 h-3" />
                                 </Button>
                             </div>
+                        )}
+
+                        {/* Delete stuck "Scraping" rows — CSV log view only */}
+                        {viewMode === 'csv' && selectedScrapingIds.length > 0 && (
+                            <Button
+                                variant="outline"
+                                className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 animate-in zoom-in fade-in slide-in-from-right-4"
+                                onClick={() => setDeleteScrapingDialogOpen(true)}
+                            >
+                                <Trash2 className="w-4 h-4 mr-2" /> Delete {selectedScrapingIds.length} Stuck (Scraping)
+                            </Button>
                         )}
 
                         {/* Resume Sheet */}
@@ -1205,6 +1257,30 @@ export default function CandidateImportPage() {
                     setOpenJrDialog(false);
                 }}
             />
+
+            {/* Delete Stuck "Scraping" Rows Confirm Dialog */}
+            <AlertDialog open={deleteScrapingDialogOpen} onOpenChange={setDeleteScrapingDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete {selectedScrapingIds.length} stuck "Scraping" record(s)?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This removes the selected rows from the upload log so the same candidate (matched by name/LinkedIn)
+                            can be uploaded again without being blocked as "Duplicate found — Already in processing queue".
+                            <span className="block mt-2 font-semibold text-destructive">This only deletes rows currently in "Scraping" status — nothing else is affected. This action cannot be undone.</span>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeletingScraping}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDeleteScrapingConfirm}
+                            disabled={isDeletingScraping}
+                            className="bg-red-600 hover:bg-red-700"
+                        >
+                            {isDeletingScraping ? 'Deleting...' : 'Confirm Delete'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             {/* Duplicate Handling Dialog */}
             <Dialog open={openDuplicateDialog} onOpenChange={handleDuplicateDialogChange}>

@@ -298,3 +298,27 @@ export async function processCsvUpload(rows: CsvRow[], uploaderName: string, fil
         duplicates: logs.length - newCandidatesForInsert.length
     };
 }
+
+// Deletes stuck "Scraping" rows from csv_upload_logs so the same name/linkedin
+// can be re-uploaded (the active-upload duplicate check in processCsvUpload
+// only looks at rows with status in ['Scraping', 'Processing', 'PENDING']).
+// Scoped to status = 'Scraping' in the query itself so it can never delete
+// Completed/Duplicate/other log rows even if a wrong id slips through.
+export async function deleteScrapingUploadLogs(ids: number[]) {
+    if (!ids || ids.length === 0) {
+        return { success: false, error: "No ids provided" };
+    }
+
+    const { data, error } = await supabase
+        .from('csv_upload_logs')
+        .delete()
+        .in('id', ids)
+        .eq('status', 'Scraping')
+        .select('id');
+
+    if (error) {
+        return { success: false, error: error.message };
+    }
+
+    return { success: true, deletedCount: data?.length || 0 };
+}
