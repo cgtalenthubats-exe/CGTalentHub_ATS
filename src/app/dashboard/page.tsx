@@ -304,14 +304,19 @@ export default function DashboardPage() {
 
             <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
                 <TabsList className="bg-slate-100 p-1 rounded-lg">
+                    <TabsTrigger value="funnel" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Candidate Funnel</TabsTrigger>
                     <TabsTrigger value="global" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Global Candidate Pool</TabsTrigger>
                     <TabsTrigger value="market" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Salary Benchmark</TabsTrigger>
                     <TabsTrigger value="pipeline" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Recruitment Pipeline</TabsTrigger>
                     <TabsTrigger value="placement" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Search & Placement</TabsTrigger>
                     <TabsTrigger value="recruiter" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Recruiter Performance</TabsTrigger>
                     <TabsTrigger value="package" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Package Info</TabsTrigger>
-                    <TabsTrigger value="funnel" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Candidate Funnel</TabsTrigger>
                 </TabsList>
+
+                {/* --- TAB 0: CANDIDATE FUNNEL --- */}
+                <TabsContent value="funnel" className="space-y-6 outline-none">
+                    <CandidateFunnelTab />
+                </TabsContent>
 
                 <TabsContent value="global" className="space-y-6 outline-none relative min-h-[400px]">
                     {globalLoading && (
@@ -617,11 +622,6 @@ export default function DashboardPage() {
                 {/* --- TAB 6: PACKAGE INFO --- */}
                 <TabsContent value="package" className="space-y-6 outline-none">
                     <PackageInfoTab />
-                </TabsContent>
-
-                {/* --- TAB 7: CANDIDATE FUNNEL --- */}
-                <TabsContent value="funnel" className="space-y-6 outline-none">
-                    <CandidateFunnelTab />
                 </TabsContent>
             </Tabs>
             <ReactTooltip id="global-tooltip" style={{ borderRadius: '12px', fontWeight: 'bold' }} />
