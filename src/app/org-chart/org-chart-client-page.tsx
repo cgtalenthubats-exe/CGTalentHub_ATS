@@ -97,6 +97,7 @@ export function OrgChartClientPage({
                                                 companyName={currentUpload?.company_name ?? ''}
                                                 notes={currentUpload?.notes}
                                                 branchName={currentUpload?.branch_name}
+                                                companyId={currentUpload?.company_id ?? currentCompanyId}
                                             />
                                         </div>
                                         {modifyDate && (

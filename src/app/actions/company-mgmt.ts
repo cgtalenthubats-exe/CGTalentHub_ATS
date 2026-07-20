@@ -77,7 +77,20 @@ export async function getCompaniesPaginated(params: {
         .select('*', { count: 'exact' });
 
     if (groups && groups.length > 0) {
-        query = query.in('group', groups);
+        // "Unassigned" represents true NULL group values (coalesced by company_stats_view
+        // for display), but `group IN (...)` never matches NULL rows in SQL — so it must
+        // be filtered separately via `group.is.null`, OR'd together with the rest.
+        const hasUnassigned = groups.includes('Unassigned');
+        const realGroups = groups.filter(g => g !== 'Unassigned');
+        if (hasUnassigned) {
+            const orParts = ['group.is.null'];
+            if (realGroups.length > 0) {
+                orParts.push(`group.in.(${realGroups.map(g => `"${g}"`).join(',')})`);
+            }
+            query = query.or(orParts.join(','));
+        } else {
+            query = query.in('group', groups);
+        }
     } else if (group && group !== 'All') {
         query = query.eq('group', group);
     }
@@ -157,6 +170,25 @@ export async function bulkUpdateCompanies(ids: number[], updates: { group?: stri
     }
 
     return { success: true };
+}
+
+/**
+ * Fetches a single company_master row by id — used to show the currently
+ * mapped company (name/group/industry) in the org-chart "Edit Org Info" dialog.
+ */
+export async function getCompanyMasterById(companyId: number) {
+    const supabase = adminAuthClient;
+    const { data, error } = await supabase
+        .from('company_master')
+        .select('company_id, company_master, group, industry')
+        .eq('company_id', companyId)
+        .maybeSingle();
+
+    if (error) {
+        console.error("Error fetching company by id:", error);
+        return null;
+    }
+    return data;
 }
 
 /**

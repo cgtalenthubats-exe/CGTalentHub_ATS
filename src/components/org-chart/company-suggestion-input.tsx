@@ -130,9 +130,9 @@ export function CompanySuggestionInput({
                             </div>
                         )}
                         <CommandGroup>
-                            {suggestions.map((company) => (
+                            {suggestions.map((company, idx) => (
                                 <CommandItem
-                                    key={company}
+                                    key={`${company}-${idx}`}
                                     value={company}
                                     onSelect={() => handleSelect(company)}
                                     className="text-sm cursor-pointer"

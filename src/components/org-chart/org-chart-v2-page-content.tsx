@@ -46,6 +46,7 @@ export function OrgChartV2PageContent({
                                     companyName={companyName}
                                     notes={notes}
                                     branchName={branchName}
+                                    companyId={companyId}
                                 />
                             </h1>
                         </div>

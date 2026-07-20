@@ -1487,7 +1487,7 @@ export async function verifyOrgNode(nodeId: string, status: 'TRUE' | 'NOT_MATCH'
     return { success: true };
 }
 
-export async function updateOrgUploadMeta(uploadId: string, fields: { company_name?: string; notes?: string; branch_name?: string }) {
+export async function updateOrgUploadMeta(uploadId: string, fields: { company_name?: string; notes?: string; branch_name?: string; company_id?: number | null }) {
     const { error } = await supabase
         .from('org_chart_uploads')
         .update(fields)
