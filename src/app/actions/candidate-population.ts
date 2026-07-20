@@ -1,7 +1,6 @@
 "use server";
 
 import { adminAuthClient } from "@/lib/supabase/admin";
-import { groupExperiencesByCandidate } from "@/lib/candidate-experience-utils";
 
 export interface PopulationFilters {
     groups?: string[];
@@ -59,30 +58,6 @@ export interface CascadingOptions {
 }
 
 const SKIP = new Set(['Unknown', 'N/A', 'Not Found', 'No Match Found', 'Undetermined', 'Unclassified', 'Wait AI Check', 'Unassigned', '', 'null']);
-
-// candidate_experiences.country is only trustworthy when `note` says it came
-// from the candidate's own profile input — "Location from HQ location" means
-// it was AI-guessed from the company's HQ address and is frequently wrong
-// (see docs/country_location_system.md). Same reliability gate ai-search-v3's
-// search_candidate_ids RPC applies to its Work Country filter.
-function isReliableWorkCountry(country: string | null | undefined, note: string | null | undefined): boolean {
-    return !!country && !!note && note.toLowerCase().includes('profile input');
-}
-
-function chunk<T>(arr: T[], size: number): T[][] {
-    const out: T[][] = [];
-    for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-    return out;
-}
-
-function ageRangeBucket(age: number | null | undefined): string {
-    if (age == null || Number.isNaN(age)) return "Unknown";
-    if (age < 30) return "<30";
-    if (age < 40) return "30–39";
-    if (age < 50) return "40–49";
-    if (age < 60) return "50–59";
-    return "60+";
-}
 
 const AGE_BUCKET_ORDER = ["<30", "30–39", "40–49", "50–59", "60+", "Unknown"];
 
@@ -260,242 +235,68 @@ export async function getCascadingPopulationOptions(filters: PopulationFilters):
     return { groups, industries, countries, continents, position_keywords, hotel_chains };
 }
 
+const EMPTY_POPULATION_DATA: PopulationData = {
+    total_db: 0, total_filtered: 0, currently_employed: 0, set_experienced: 0,
+    by_group: [], by_industry: [], by_country: [], by_continent: [], by_position_keyword: [],
+    by_age_range: [], by_nationality: [], nationality_unknown_count: 0,
+    by_hotel_chain: [], by_set_company: [],
+};
+
+/**
+ * Server-side aggregation via the get_candidate_population_data Postgres RPC
+ * (see migration create_get_candidate_population_data_rpc) — replaces an
+ * earlier version that paginated the full candidate_experiences join (~48
+ * sequential round-trips) into Node and aggregated with JS Maps. The RPC does
+ * the same join + "latest experience per candidate" resolution + reliable-
+ * work-country/based-in fallback + hotel-chain/SET-company matching in one
+ * query, returning only the small aggregated result — same correctness,
+ * far fewer round-trips and far less data over the wire.
+ */
 export async function getCandidatePopulationData(filters: PopulationFilters = {}): Promise<PopulationData> {
     const supabase = adminAuthClient as any;
 
-    const [countryRes, totalDbRes, setRes, chainMaps] = await Promise.all([
-        supabase.from('country').select('country, continent'),
-        supabase.from('Candidate Profile').select('candidate_id', { count: 'exact', head: true }),
-        supabase.from('company_set_group').select('symbol, company_name'),
-        loadHotelChainMaps(supabase),
-    ]);
+    const { data, error } = await supabase.rpc('get_candidate_population_data', {
+        p_groups: filters.groups ?? [],
+        p_industries: filters.industries ?? [],
+        p_countries: filters.countries ?? [],
+        p_continents: filters.continents ?? [],
+        p_position_keywords: filters.position_keywords ?? [],
+        p_hotel_chains: filters.hotel_chains ?? [],
+        p_set_symbols: filters.set_symbols ?? [],
+    });
 
-    const countryContinent = new Map<string, string>(
-        (countryRes.data || []).map((r: any) => [r.country, r.continent])
-    );
-    const filterChainBrandIds = resolveChainBrandIds(chainMaps, filters.hotel_chains);
-
-    // All SET company_ids for "set_experienced" count, plus a company_id →
-    // "SYMBOL — Name" label for the By SET Company breakdown (matches the
-    // "SYMBOL — Name" display format already used by the SET Company filter).
-    const allSetNames: string[] = (setRes.data || []).map((r: any) => r.company_name);
-    const setNameToSymbol = new Map<string, string>(
-        (setRes.data || []).map((r: any) => [(r.company_name || '').toLowerCase().trim(), r.symbol])
-    );
-    let allSetIds = new Set<number>();
-    const companyIdToSetLabel = new Map<number, string>();
-    if (allSetNames.length) {
-        const { data: cmData } = await supabase.from('company_master').select('company_id, company_master').in('company_master', allSetNames);
-        allSetIds = new Set((cmData || []).map((r: any) => r.company_id));
-        (cmData || []).forEach((r: any) => {
-            const symbol = setNameToSymbol.get((r.company_master || '').toLowerCase().trim());
-            if (symbol) companyIdToSetLabel.set(r.company_id, `${symbol} — ${r.company_master}`);
-        });
+    if (error || !data) {
+        console.error('get_candidate_population_data RPC error:', error);
+        return EMPTY_POPULATION_DATA;
     }
 
-    // Expand continent filter → country list
-    const countryFilter = [...(filters.countries || [])];
-    if (filters.continents?.length) {
-        (countryRes.data || [])
-            .filter((r: any) => filters.continents!.includes(r.continent))
-            .forEach((r: any) => { if (r.country && !countryFilter.includes(r.country)) countryFilter.push(r.country); });
-    }
-
-    // Expand SET symbol filter → company_id set
-    let filterSetIds: Set<number> | null = null;
-    if (filters.set_symbols?.length) {
-        const { data: filtSetData } = await supabase
-            .from('company_set_group').select('company_name').in('symbol', filters.set_symbols);
-        const filtSetNames = (filtSetData || []).map((r: any) => r.company_name);
-        if (filtSetNames.length) {
-            const { data: filtCmData } = await supabase.from('company_master').select('company_id').in('company_master', filtSetNames);
-            filterSetIds = new Set((filtCmData || []).map((r: any) => r.company_id));
-        } else {
-            filterSetIds = new Set();
-        }
-    }
-
-    // Build experience query (server-side group/industry/country/keyword/chain filters)
-    // start_date/end_date are pulled in so the demographic breakdowns below can
-    // resolve each candidate's LATEST experience only (see groupExperiencesByCandidate).
-    let expQuery = supabase
-        .from('candidate_experiences')
-        .select('candidate_id, country, note, position_keyword, company_id, is_current_job, start_date, end_date, position, company, company_master!inner(industry, group, hotel_chain_id)')
-        .not('company_master.industry', 'is', null);
-
-    if (filters.groups?.length) expQuery = expQuery.in('company_master.group', filters.groups);
-    if (filters.industries?.length) expQuery = expQuery.in('company_master.industry', filters.industries);
-    if (countryFilter.length) expQuery = expQuery.in('country', countryFilter);
-    if (filters.position_keywords?.length) expQuery = expQuery.in('position_keyword', filters.position_keywords);
-    if (filterChainBrandIds.length) expQuery = expQuery.in('company_master.hotel_chain_id', filterChainBrandIds);
-
-    // Paginate through all matching experiences
-    let allExp: any[] = [];
-    const PAGE = 1000;
-    let start = 0;
-    while (true) {
-        const { data, error } = await expQuery.range(start, start + PAGE - 1);
-        if (error) { console.error('Population fetch error:', error); break; }
-        if (data) allExp = [...allExp, ...data];
-        if (!data || data.length < PAGE) break;
-        start += PAGE;
-    }
-
-    // Apply in-memory SET filter if needed
-    const experiences = filterSetIds !== null
-        ? allExp.filter(e => filterSetIds!.has(e.company_id))
-        : allExp;
-
-    // ── Cross-cut signals (any experience across the candidate's whole career) ──
-    // "Currently Employed", SET experience, and Hotel Chain experience are
-    // intentionally historical — e.g. a candidate's CURRENT job needn't be at a
-    // SET-listed or chain company for that experience to still be a relevant
-    // signal — so these scan every matching experience row, not just the latest.
-    const candidateSet = new Set<string>();
-    const currentSet = new Set<string>();
-    const setExpSet = new Set<string>();
-    const chainMap = new Map<string, Set<string>>();
-    const setCompanyMap = new Map<string, Set<string>>();
-
-    for (const e of experiences) {
-        const cid = e.candidate_id;
-        candidateSet.add(cid);
-        if (e.is_current_job === 'Current') currentSet.add(cid);
-
-        if (allSetIds.has(e.company_id)) {
-            setExpSet.add(cid);
-            const setLabel = companyIdToSetLabel.get(e.company_id);
-            if (setLabel) {
-                if (!setCompanyMap.has(setLabel)) setCompanyMap.set(setLabel, new Set());
-                setCompanyMap.get(setLabel)!.add(cid);
-            }
-        }
-
-        const chainBrandId = e.company_master?.hotel_chain_id;
-        const chainName = chainBrandId != null ? chainMaps.parentNameByBrandId.get(chainBrandId) : null;
-        if (chainName) {
-            if (!chainMap.has(chainName)) chainMap.set(chainName, new Set());
-            chainMap.get(chainName)!.add(cid);
-        }
-    }
-
-    // "Based in" country (candidate_profile_enhance) — fallback source when the
-    // candidate's latest work-country isn't reliable (see isReliableWorkCountry
-    // above). Fetched once, chunked to stay under URL length limits.
-    const candidateIds = [...candidateSet];
-    const basedInChunks = await Promise.all(
-        chunk(candidateIds, 500).map(ids =>
-            supabase.from('candidate_profile_enhance').select('candidate_id, country').in('candidate_id', ids)
-        )
-    );
-    const basedInCountryMap = new Map<string, string>();
-    for (const res of basedInChunks) {
-        for (const p of (res.data || [])) {
-            const c = (p.country || '').trim();
-            if (c && !SKIP.has(c)) basedInCountryMap.set(p.candidate_id, c);
-        }
-    }
-
-    // ── Demographic breakdowns (latest experience only, one bucket per candidate) ──
-    // Iterating every experience here (like the cross-cut signals above) would
-    // double-count anyone who has worked in more than one country/industry
-    // across their career — e.g. someone who worked in Thailand then the UK
-    // would land in BOTH the Asia and Europe buckets, making the donut's total
-    // exceed "Matching Filters". Resolving to one (latest) row per candidate
-    // keeps every demographic dimension mutually exclusive, so bucket counts
-    // always sum back to total_filtered.
-    //
-    // Location resolves Work Country (candidate_experiences.country) first,
-    // but ONLY when reliable (not AI-guessed from company HQ) — falling back
-    // to "Based in" (candidate_profile_enhance.country) when the latest job's
-    // country is missing or unreliable. This is why the card is labelled
-    // "By Location" rather than "By Work Country": it's a blended signal.
-    const groupMap = new Map<string, Set<string>>();
-    const industryMap = new Map<string, Set<string>>();
-    const countryMap = new Map<string, Set<string>>();
-    const continentMap = new Map<string, Set<string>>();
-    const kwMap = new Map<string, Set<string>>();
-
-    const latestByCandidate = groupExperiencesByCandidate(experiences);
-    for (const [cid, sortedExps] of latestByCandidate) {
-        const latest = sortedExps[0];
-        const group = latest.company_master?.group;
-        const industry = latest.company_master?.industry;
-        const country = isReliableWorkCountry(latest.country, latest.note) ? latest.country : (basedInCountryMap.get(cid) ?? null);
-        const continent = country ? countryContinent.get(country) : null;
-        const kw = latest.position_keyword;
-
-        if (group && !SKIP.has(group)) {
-            if (!groupMap.has(group)) groupMap.set(group, new Set());
-            groupMap.get(group)!.add(cid);
-        }
-        if (industry && !SKIP.has(industry)) {
-            if (!industryMap.has(industry)) industryMap.set(industry, new Set());
-            industryMap.get(industry)!.add(cid);
-        }
-        if (country && !SKIP.has(country)) {
-            if (!countryMap.has(country)) countryMap.set(country, new Set());
-            countryMap.get(country)!.add(cid);
-        }
-        if (continent) {
-            if (!continentMap.has(continent)) continentMap.set(continent, new Set());
-            continentMap.get(continent)!.add(cid);
-        }
-        if (kw) {
-            if (!kwMap.has(kw)) kwMap.set(kw, new Set());
-            kwMap.get(kw)!.add(cid);
-        }
-    }
-
-    // Age range + Nationality — from Candidate Profile, chunked .in() to stay
-    // under URL length limits for large candidate pools.
-    const profileChunks = await Promise.all(
-        chunk(candidateIds, 500).map(ids =>
-            supabase.from('Candidate Profile').select('candidate_id, age, nationality').in('candidate_id', ids)
-        )
-    );
-    const ageMap = new Map<string, number>();
-    const nationalityMap = new Map<string, number>();
-    let nationalityUnknownCount = 0;
-    for (const res of profileChunks) {
-        for (const p of (res.data || [])) {
-            const bucket = ageRangeBucket(p.age);
-            ageMap.set(bucket, (ageMap.get(bucket) || 0) + 1);
-            const nat = (p.nationality || '').trim();
-            if (nat && !SKIP.has(nat)) nationalityMap.set(nat, (nationalityMap.get(nat) || 0) + 1);
-            else nationalityUnknownCount++;
-        }
-    }
-
-    const toArr = (map: Map<string, Set<string>>, limit = 15) =>
-        [...map.entries()]
-            .map(([name, ids]) => ({ name, count: ids.size }))
-            .sort((a, b) => b.count - a.count)
-            .slice(0, limit);
-
+    // SQL GROUP BY doesn't guarantee bucket order — reorder to the display order.
+    const ageMap = new Map<string, number>((data.by_age_range ?? []).map((b: any) => [b.name, b.count]));
     const by_age_range = AGE_BUCKET_ORDER
-        .map(name => ({ name, count: ageMap.get(name) || 0 }))
+        .map(name => ({ name, count: ageMap.get(name) ?? 0 }))
         .filter(b => b.count > 0);
 
-    const by_nationality = [...nationalityMap.entries()]
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 15);
+    // "SYMBOL — Company Name" matches the display convention already used by
+    // the SET Company filter dropdown.
+    const by_set_company = (data.by_set_company ?? []).map((r: any) => ({
+        name: `${r.symbol} — ${r.name}`,
+        count: r.count,
+    }));
 
     return {
-        total_db: totalDbRes.count || 0,
-        total_filtered: candidateSet.size,
-        currently_employed: currentSet.size,
-        set_experienced: setExpSet.size,
-        by_group: toArr(groupMap, 10),
-        by_industry: toArr(industryMap, 15),
-        by_country: toArr(countryMap, 15),
-        by_continent: toArr(continentMap, 10),
-        by_position_keyword: toArr(kwMap, 15),
+        total_db: data.total_db ?? 0,
+        total_filtered: data.total_filtered ?? 0,
+        currently_employed: data.currently_employed ?? 0,
+        set_experienced: data.set_experienced ?? 0,
+        by_group: data.by_group ?? [],
+        by_industry: data.by_industry ?? [],
+        by_country: data.by_country ?? [],
+        by_continent: data.by_continent ?? [],
+        by_position_keyword: data.by_position_keyword ?? [],
         by_age_range,
-        by_nationality,
-        nationality_unknown_count: nationalityUnknownCount,
-        by_hotel_chain: toArr(chainMap, 15),
-        by_set_company: toArr(setCompanyMap, 15),
+        by_nationality: data.by_nationality ?? [],
+        nationality_unknown_count: data.nationality_unknown_count ?? 0,
+        by_hotel_chain: data.by_hotel_chain ?? [],
+        by_set_company,
     };
 }
