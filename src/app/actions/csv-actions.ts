@@ -284,26 +284,82 @@ export async function processCsvUpload(rows: CsvRow[], uploaderName: string, fil
     };
 }
 
-// Deletes stuck "Scraping" rows from csv_upload_logs so the same name/linkedin
-// can be re-uploaded (the active-upload duplicate check in processCsvUpload
-// only looks at rows with status in ['Scraping', 'Processing', 'PENDING']).
-// Scoped to status = 'Scraping' in the query itself so it can never delete
-// Completed/Duplicate/other log rows even if a wrong id slips through.
+// Statuses that represent a stuck/failed import — never "Completed" or "Duplicate found".
+const STUCK_UPLOAD_STATUSES = ['Scraping', 'Cannot extract data from LinkedIn'];
+
+// Deletes stuck rows (Scraping / Cannot extract data from LinkedIn) from csv_upload_logs
+// so the same name/linkedin can be re-uploaded (the active-upload duplicate check in
+// processCsvUpload only looks at rows with status in ['Scraping', 'Processing', 'PENDING'],
+// but a leftover Candidate Profile shell still gets flagged as a name/linkedin duplicate).
+//
+// Also removes the Candidate Profile shell created up-front at import time (before scraping
+// even runs) — but ONLY when it's still empty (no candidate_experiences, no
+// candidate_profile_enhance row, no jr_candidates). If real work has already been attached to
+// that candidate_id, it's a real candidate that happens to have a stale log status, not a stuck
+// placeholder — we leave the profile alone and only clear the log row for those.
+//
+// Scoped to status IN STUCK_UPLOAD_STATUSES in every query so it can never delete
+// Completed/Duplicate/other log rows or profiles even if a wrong id slips through.
 export async function deleteScrapingUploadLogs(ids: number[]) {
     if (!ids || ids.length === 0) {
         return { success: false, error: "No ids provided" };
     }
 
+    const { data: targetLogs, error: fetchError } = await supabase
+        .from('csv_upload_logs')
+        .select('id, candidate_id')
+        .in('id', ids)
+        .in('status', STUCK_UPLOAD_STATUSES);
+
+    if (fetchError) {
+        return { success: false, error: fetchError.message };
+    }
+    if (!targetLogs || targetLogs.length === 0) {
+        return { success: true, deletedCount: 0, profilesRemoved: 0, profilesKept: 0 };
+    }
+
+    const candidateIds = Array.from(
+        new Set(targetLogs.map((l: any) => l.candidate_id).filter((id: any): id is string => !!id))
+    );
+
+    let emptyShellIds: string[] = [];
+    if (candidateIds.length > 0) {
+        const [{ data: expRows }, { data: enhanceRows }, { data: jrRows }] = await Promise.all([
+            supabase.from('candidate_experiences').select('candidate_id').in('candidate_id', candidateIds),
+            supabase.from('candidate_profile_enhance').select('candidate_id').in('candidate_id', candidateIds),
+            supabase.from('jr_candidates').select('candidate_id').in('candidate_id', candidateIds),
+        ]);
+
+        const candidateIdsWithData = new Set([
+            ...(expRows || []).map((r: any) => r.candidate_id),
+            ...(enhanceRows || []).map((r: any) => r.candidate_id),
+            ...(jrRows || []).map((r: any) => r.candidate_id),
+        ]);
+
+        emptyShellIds = candidateIds.filter(id => !candidateIdsWithData.has(id));
+    }
+
+    if (emptyShellIds.length > 0) {
+        await supabase.from('candidate_profile_enhance').delete().in('candidate_id', emptyShellIds);
+        await supabase.from('candidate_experiences').delete().in('candidate_id', emptyShellIds);
+        await supabase.from('Candidate Profile' as any).delete().in('candidate_id', emptyShellIds);
+    }
+
     const { data, error } = await supabase
         .from('csv_upload_logs')
         .delete()
-        .in('id', ids)
-        .eq('status', 'Scraping')
+        .in('id', targetLogs.map((l: any) => l.id))
+        .in('status', STUCK_UPLOAD_STATUSES)
         .select('id');
 
     if (error) {
         return { success: false, error: error.message };
     }
 
-    return { success: true, deletedCount: data?.length || 0 };
+    return {
+        success: true,
+        deletedCount: data?.length || 0,
+        profilesRemoved: emptyShellIds.length,
+        profilesKept: candidateIds.length - emptyShellIds.length,
+    };
 }

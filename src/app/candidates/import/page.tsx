@@ -642,10 +642,12 @@ export default function CandidateImportPage() {
         return logs.filter(l => selectedIds.includes(l.id) && l.candidate_id?.startsWith('C')).length;
     }, [logs, selectedIds]);
 
-    // Rows selected that are stuck in "Scraping" — the only status deleteScrapingUploadLogs will touch
+    // Rows selected that are stuck (Scraping / Cannot extract data from LinkedIn) —
+    // the only statuses deleteScrapingUploadLogs will touch.
+    const STUCK_STATUSES = ['Scraping', 'Cannot extract data from LinkedIn'];
     const selectedScrapingIds = React.useMemo(() => {
         return logs
-            .filter(l => selectedIds.includes(l.id) && l.status === 'Scraping')
+            .filter(l => selectedIds.includes(l.id) && STUCK_STATUSES.includes(l.status))
             .map(l => l.id as number);
     }, [logs, selectedIds]);
 
@@ -655,7 +657,10 @@ export default function CandidateImportPage() {
         try {
             const result = await deleteScrapingUploadLogs(selectedScrapingIds);
             if (result.success) {
-                toast.success(`Deleted ${result.deletedCount} stuck "Scraping" record(s). They can be re-uploaded now.`);
+                const profileNote = result.profilesKept
+                    ? ` ${result.profilesKept} had existing candidate data and were kept — review manually.`
+                    : "";
+                toast.success(`Deleted ${result.deletedCount} stuck record(s). They can be re-uploaded now.${profileNote}`);
                 setLogs(prev => prev.filter(l => !selectedScrapingIds.includes(l.id as number)));
                 setSelectedIds(prev => prev.filter(id => !selectedScrapingIds.includes(id as number)));
             } else {
@@ -693,13 +698,7 @@ export default function CandidateImportPage() {
 
 
     const handleAddFilteredToJob = () => {
-        if (!filteredSummary || filteredSummary.ready === 0) return;
-        
-        const validIds = logs
-            .filter(l => l.candidate_id?.startsWith('C'))
-            .map(l => l.id);
-            
-        setSelectedIds(validIds);
+        if (validSelectedCount === 0) return;
         setOpenJrDialog(true);
     };
 
@@ -850,52 +849,6 @@ export default function CandidateImportPage() {
                     </div>
 
                     <div className="flex gap-2">
-                        {/* Add to JR Button - Only show if NO filter is active, or if user explicitly selected items */}
-                        {!isAnyFilterActive && selectedIds.length > 0 && (
-                            <Button
-                                className="bg-amber-500 hover:bg-amber-600 text-white animate-in zoom-in fade-in slide-in-from-right-4"
-                                onClick={() => setOpenJrDialog(true)}
-                            >
-                                <PlusCircle className="w-4 h-4 mr-2" /> Add {validSelectedCount} to Job
-                            </Button>
-                        )}
-                        
-                        {/* Hidden standard Add button when filters are active to prioritize the new Matches system */}
-                        {isAnyFilterActive && selectedIds.length > 0 && (
-                            <div className="flex items-center gap-2 px-3 py-1 bg-indigo-50 border border-indigo-100 rounded-xl animate-in fade-in zoom-in">
-                                <span className="text-xs font-bold text-indigo-600 uppercase tracking-tighter">
-                                    {selectedIds.length} Selected
-                                </span>
-                                <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-7 px-2 text-xs text-indigo-600 hover:bg-indigo-100"
-                                    onClick={() => setOpenJrDialog(true)}
-                                >
-                                    Assign to Job
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    className="h-7 w-7 p-0 text-red-400 hover:text-red-600 hover:bg-red-50"
-                                    onClick={() => setSelectedIds([])}
-                                >
-                                    <X className="w-3 h-3" />
-                                </Button>
-                            </div>
-                        )}
-
-                        {/* Delete stuck "Scraping" rows — CSV log view only */}
-                        {viewMode === 'csv' && selectedScrapingIds.length > 0 && (
-                            <Button
-                                variant="outline"
-                                className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 animate-in zoom-in fade-in slide-in-from-right-4"
-                                onClick={() => setDeleteScrapingDialogOpen(true)}
-                            >
-                                <Trash2 className="w-4 h-4 mr-2" /> Delete {selectedScrapingIds.length} Stuck (Scraping)
-                            </Button>
-                        )}
-
                         {/* Resume Sheet */}
                         <Sheet open={openResumeDialog} onOpenChange={setOpenResumeDialog}>
                             <SheetTrigger asChild>
@@ -1125,40 +1078,59 @@ export default function CandidateImportPage() {
                         </div>
                     </div>
 
-                    {/* Filtered Statistics Summary */}
-                    {filteredSummary && (
+                    {/* Statistics Summary (filtered views only) + Selection Actions (always, when relevant) */}
+                    {(filteredSummary || validSelectedCount > 0 || (viewMode === 'csv' && selectedScrapingIds.length > 0)) && (
                         <div className="mt-1 flex items-center justify-between bg-indigo-50/50 border border-indigo-100/50 p-4 rounded-2xl animate-in fade-in slide-in-from-top-2">
                             <div className="flex items-center gap-10">
-                                <div className="flex flex-col">
-                                    <span className="text-[10px] font-black uppercase text-indigo-400 tracking-widest mb-1.5">Matched Records</span>
-                                    <span className="text-2xl font-black text-indigo-900 leading-none">{filteredSummary.total}</span>
-                                </div>
-                                <div className="h-10 w-px bg-indigo-100" />
-                                <div className="flex flex-col">
-                                    <div className="flex items-center gap-2 mb-1.5">
-                                        <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                                        <span className="text-[10px] font-black uppercase text-emerald-600 tracking-widest">Ready to Job (C-ID)</span>
-                                    </div>
-                                    <span className="text-2xl font-black text-emerald-700 leading-none">{filteredSummary.ready}</span>
-                                </div>
-                                <div className="h-10 w-px bg-indigo-100" />
-                                <div className="flex flex-col">
-                                    <div className="flex items-center gap-2 mb-1.5">
-                                        <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                                        <span className="text-[10px] font-black uppercase text-amber-500 tracking-widest">Processing</span>
-                                    </div>
-                                    <span className="text-2xl font-black text-amber-700 leading-none">{filteredSummary.missing}</span>
-                                </div>
+                                {filteredSummary ? (
+                                    <>
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-black uppercase text-indigo-400 tracking-widest mb-1.5">Matched Records</span>
+                                            <span className="text-2xl font-black text-indigo-900 leading-none">{filteredSummary.total}</span>
+                                        </div>
+                                        <div className="h-10 w-px bg-indigo-100" />
+                                        <div className="flex flex-col">
+                                            <div className="flex items-center gap-2 mb-1.5">
+                                                <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                                                <span className="text-[10px] font-black uppercase text-emerald-600 tracking-widest">Ready to Job (C-ID)</span>
+                                            </div>
+                                            <span className="text-2xl font-black text-emerald-700 leading-none">{filteredSummary.ready}</span>
+                                        </div>
+                                        <div className="h-10 w-px bg-indigo-100" />
+                                        <div className="flex flex-col">
+                                            <div className="flex items-center gap-2 mb-1.5">
+                                                <div className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                                                <span className="text-[10px] font-black uppercase text-amber-500 tracking-widest">Processing</span>
+                                            </div>
+                                            <span className="text-2xl font-black text-amber-700 leading-none">{filteredSummary.missing}</span>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest">
+                                        {validSelectedCount} record(s) selected
+                                    </span>
+                                )}
                             </div>
-                            
-                            {filteredSummary.ready > 0 && (
-                                <Button 
-                                    onClick={handleAddFilteredToJob}
-                                    className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-100/50 rounded-2xl font-bold px-8 h-12 text-base transition-all hover:scale-[1.02] active:scale-[0.98]"
-                                >
-                                    <PlusCircle className="mr-2 h-5 w-5" /> Add {filteredSummary.ready} Matches to Job
-                                </Button>
-                            )}
+
+                            <div className="flex items-center gap-2">
+                                {viewMode === 'csv' && selectedScrapingIds.length > 0 && (
+                                    <Button
+                                        variant="outline"
+                                        className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 rounded-2xl font-bold h-12"
+                                        onClick={() => setDeleteScrapingDialogOpen(true)}
+                                    >
+                                        <Trash2 className="w-4 h-4 mr-2" /> Delete {selectedScrapingIds.length} Stuck
+                                    </Button>
+                                )}
+                                {validSelectedCount > 0 && (
+                                    <Button
+                                        onClick={handleAddFilteredToJob}
+                                        className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-100/50 rounded-2xl font-bold px-8 h-12 text-base transition-all hover:scale-[1.02] active:scale-[0.98]"
+                                    >
+                                        <PlusCircle className="mr-2 h-5 w-5" /> Add {validSelectedCount} Selected to Job
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                     )}
                 </CardHeader>
@@ -1258,15 +1230,18 @@ export default function CandidateImportPage() {
                 }}
             />
 
-            {/* Delete Stuck "Scraping" Rows Confirm Dialog */}
+            {/* Delete Stuck Rows Confirm Dialog */}
             <AlertDialog open={deleteScrapingDialogOpen} onOpenChange={setDeleteScrapingDialogOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Delete {selectedScrapingIds.length} stuck "Scraping" record(s)?</AlertDialogTitle>
+                        <AlertDialogTitle>Delete {selectedScrapingIds.length} stuck record(s)?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            This removes the selected rows from the upload log so the same candidate (matched by name/LinkedIn)
-                            can be uploaded again without being blocked as "Duplicate found — Already in processing queue".
-                            <span className="block mt-2 font-semibold text-destructive">This only deletes rows currently in "Scraping" status — nothing else is affected. This action cannot be undone.</span>
+                            This removes the selected rows (status "Scraping" or "Cannot extract data from LinkedIn") from the
+                            upload log so the same candidate (matched by name/LinkedIn) can be uploaded again without being
+                            blocked as a duplicate. Any Candidate Profile shell created for them is removed too, but only if
+                            it&apos;s still empty — profiles that already have experiences, enhance data, or a JR assignment are
+                            left untouched.
+                            <span className="block mt-2 font-semibold text-destructive">This action cannot be undone.</span>
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
