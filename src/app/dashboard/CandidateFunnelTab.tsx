@@ -93,8 +93,8 @@ function CrossCutCard({
 
 // ── Donut chart with side legend — used only where categories are few (≤7) ──
 function DonutCard({
-    title, data, icon: Icon, selected, onSelect, interactive = true,
-}: { title: string; data: { name: string; count: number }[]; icon: React.ElementType; selected: string[]; onSelect: (name: string) => void; interactive?: boolean }) {
+    title, subtitle, data, icon: Icon, selected, onSelect, interactive = true, filterTotal,
+}: { title: string; subtitle?: string; data: { name: string; count: number }[]; icon: React.ElementType; selected: string[]; onSelect: (name: string) => void; interactive?: boolean; filterTotal?: number }) {
     const total = data.reduce((s, d) => s + d.count, 0);
     if (!data.length) {
         return (
@@ -105,11 +105,14 @@ function DonutCard({
     }
     return (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-2 mb-1">
                 <Icon className="h-3.5 w-3.5 text-slate-400" />
                 <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">{title}</h3>
-                {interactive && <span className="text-[9px] text-indigo-400 font-semibold ml-auto">click to filter</span>}
+                {filterTotal != null && <span className="text-xs font-black text-slate-900">· Total: {filterTotal.toLocaleString()}</span>}
+                {interactive && <span className="text-xs text-indigo-500 font-bold ml-auto">click to filter</span>}
             </div>
+            {subtitle && <p className="text-[10px] text-slate-400 mb-3">{subtitle}</p>}
+            {!subtitle && <div className="mb-3" />}
             <div className="flex items-center gap-4">
                 <div className="w-40 h-40 shrink-0 relative">
                     <ResponsiveContainer width="100%" height="100%">
@@ -169,15 +172,16 @@ function DonutCard({
 
 // ── Badge grid — medium-cardinality categories as colored chip cards ────────
 function BadgeGridCard({
-    title, data, icon: Icon, selected, onSelect,
-}: { title: string; data: { name: string; count: number }[]; icon: React.ElementType; selected: string[]; onSelect: (name: string) => void }) {
+    title, data, icon: Icon, selected, onSelect, filterTotal,
+}: { title: string; data: { name: string; count: number }[]; icon: React.ElementType; selected: string[]; onSelect: (name: string) => void; filterTotal?: number }) {
     const total = data.reduce((s, d) => s + d.count, 0);
     return (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
             <div className="flex items-center gap-2 mb-4">
                 <Icon className="h-3.5 w-3.5 text-slate-400" />
                 <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">{title}</h3>
-                <span className="text-[9px] text-indigo-400 font-semibold ml-auto">click to filter</span>
+                {filterTotal != null && <span className="text-xs font-black text-slate-900">· Total: {filterTotal.toLocaleString()}</span>}
+                <span className="text-xs text-indigo-500 font-bold ml-auto">click to filter</span>
             </div>
             {!data.length ? (
                 <div className="flex items-center justify-center h-40 text-slate-400 text-xs font-bold uppercase tracking-widest">
@@ -222,17 +226,20 @@ function BadgeGridCard({
 const RANK_BADGE: Record<number, string> = { 1: "#f59e0b", 2: "#94a3b8", 3: "#b45309" };
 
 function RankedListCard({
-    title, data, icon: Icon, selected, onSelect,
-}: { title: string; data: { name: string; count: number }[]; icon: React.ElementType; selected?: string[]; onSelect?: (name: string) => void }) {
+    title, subtitle, data, icon: Icon, selected, onSelect, filterTotal,
+}: { title: string; subtitle?: string; data: { name: string; count: number }[]; icon: React.ElementType; selected?: string[]; onSelect?: (name: string) => void; filterTotal?: number }) {
     const max = Math.max(...data.map(d => d.count), 1);
     const clickable = !!onSelect;
     return (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-2 mb-1">
                 <Icon className="h-3.5 w-3.5 text-slate-400" />
                 <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">{title}</h3>
-                {clickable && <span className="text-[9px] text-indigo-400 font-semibold ml-auto">click to filter</span>}
+                {filterTotal != null && <span className="text-xs font-black text-slate-900">· Total: {filterTotal.toLocaleString()}</span>}
+                {clickable && <span className="text-xs text-indigo-500 font-bold ml-auto">click to filter</span>}
             </div>
+            {subtitle && <p className="text-[10px] text-slate-400 mb-3">{subtitle}</p>}
+            {!subtitle && <div className="mb-3" />}
             {!data.length ? (
                 <div className="flex items-center justify-center h-40 text-slate-400 text-xs font-bold uppercase tracking-widest">
                     No data
@@ -474,7 +481,7 @@ export default function CandidateFunnelTab() {
                         </span>
                     </div>
                     <CrossCutCard
-                        label="SET Experience"
+                        label="SET Experience (by Candidate)"
                         value={data.set_experienced}
                         base={data.total_filtered}
                         color="#f59e0b"
@@ -486,33 +493,54 @@ export default function CandidateFunnelTab() {
             {/* ── Overview: donut (few categories) + badge grid (medium) ───── */}
             {data && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                    <DonutCard title="By Continent" data={data.by_continent} icon={Globe2} selected={filters.continents || []} onSelect={v => updateFilter('continents', v)} />
-                    <BadgeGridCard title="By Industry Group" data={data.by_group} icon={Layers} selected={filters.groups || []} onSelect={v => updateFilter('groups', v)} />
+                    <DonutCard
+                        title="By Continent"
+                        subtitle="Derived from Location (work country, else based-in)"
+                        data={data.by_continent} icon={Globe2} selected={filters.continents || []} onSelect={v => updateFilter('continents', v)}
+                        filterTotal={data.total_filtered}
+                    />
+                    <BadgeGridCard title="By Industry Group" data={data.by_group} icon={Layers} selected={filters.groups || []} onSelect={v => updateFilter('groups', v)} filterTotal={data.total_filtered} />
                 </div>
             )}
 
             {/* ── High-cardinality breakdowns: ranked lists ─────────────────── */}
             {data && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                    <RankedListCard title="By Work Country" data={data.by_country} icon={Globe2} selected={filters.countries || []} onSelect={v => updateFilter('countries', v)} />
-                    <RankedListCard title="By Industry" data={data.by_industry} icon={Building2} selected={filters.industries || []} onSelect={v => updateFilter('industries', v)} />
-                    <RankedListCard title="By Position Keyword" data={data.by_position_keyword} icon={Briefcase} selected={filters.position_keywords || []} onSelect={v => updateFilter('position_keywords', v)} />
+                    <RankedListCard
+                        title="By Location"
+                        subtitle="Work country when reliably known, else based-in location"
+                        data={data.by_country} icon={Globe2} selected={filters.countries || []} onSelect={v => updateFilter('countries', v)}
+                        filterTotal={data.total_filtered}
+                    />
+                    <RankedListCard title="By Industry" data={data.by_industry} icon={Building2} selected={filters.industries || []} onSelect={v => updateFilter('industries', v)} filterTotal={data.total_filtered} />
+                    <RankedListCard title="By Position Keyword" data={data.by_position_keyword} icon={Briefcase} selected={filters.position_keywords || []} onSelect={v => updateFilter('position_keywords', v)} filterTotal={data.total_filtered} />
                 </div>
             )}
 
-            {/* ── Hotel Chain — parent-chain names resolved from company_master   */}
-            {/*    .hotel_chain_id via hotel_chain_master (see docs/hotel_chain_system.md) */}
+            {/* ── Hotel Chain + SET Company — both "ever worked there" career-history */}
+            {/*    cross-cuts, not mutually-exclusive demographic buckets            */}
             {data && (
-                <RankedListCard title="By Hotel Chain" data={data.by_hotel_chain} icon={Building2} selected={filters.hotel_chains || []} onSelect={v => updateFilter('hotel_chains', v)} />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    <RankedListCard title="By Hotel Chain" data={data.by_hotel_chain} icon={Building2} selected={filters.hotel_chains || []} onSelect={v => updateFilter('hotel_chains', v)} filterTotal={data.total_filtered} />
+                    <RankedListCard
+                        title="By SET Company"
+                        data={data.by_set_company}
+                        icon={Building2}
+                        selected={setSelected}
+                        onSelect={v => updateFilter('set_symbols', v.split(' — ')[0])}
+                        filterTotal={data.total_filtered}
+                    />
+                </div>
             )}
 
             {/* ── Age Range + Nationality — informational only (not filterable yet) ── */}
             {data && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                    <DonutCard title="By Age Range" data={data.by_age_range} icon={Cake} selected={[]} onSelect={() => {}} interactive={false} />
+                    <DonutCard title="By Age Range" data={data.by_age_range} icon={Cake} selected={[]} onSelect={() => {}} interactive={false} filterTotal={data.total_filtered} />
                     <RankedListCard
                         title={`By Nationality${data.nationality_unknown_count > 0 ? ` (${data.nationality_unknown_count.toLocaleString()} Unknown)` : ""}`}
                         data={data.by_nationality} icon={Flag}
+                        filterTotal={data.total_filtered}
                     />
                 </div>
             )}
