@@ -57,35 +57,20 @@ export async function processCsvUpload(rows: CsvRow[], uploaderName: string, fil
         return normalizeEmail(val || "");
     }).filter(e => e.length > 0);
 
-    // Fetch ONLY relevant existing candidates
+    // Fetch ONLY relevant existing candidates.
+    // Uses find_duplicate_candidates RPC instead of .in() so matching is
+    // case-insensitive and ignores a trailing "/" on LinkedIn URLs — a plain
+    // .in() does exact string comparison against the raw DB value, which let
+    // "mongkolrat mahasarinun" / no-trailing-slash slip past "Mongkolrat
+    // Mahasarinun" / trailing-slash already in the DB (C11227 vs C06528).
     let existingCandidates: any[] = [];
     if (allNames.length > 0 || allLinkedIns.length > 0 || allEmails.length > 0) {
-        // Query by Name
-        if (allNames.length > 0) {
-            const { data: nameMatches } = await supabase
-                .from('Candidate Profile' as any)
-                .select('candidate_id, name, linkedin, email')
-                .in('name', allNames);
-            if (nameMatches) existingCandidates.push(...nameMatches);
-        }
-
-        // Query by LinkedIn
-        if (allLinkedIns.length > 0) {
-            const { data: linkedinMatches } = await supabase
-                .from('Candidate Profile' as any)
-                .select('candidate_id, name, linkedin, email')
-                .in('linkedin', allLinkedIns);
-            if (linkedinMatches) existingCandidates.push(...linkedinMatches);
-        }
-
-        // Query by Email
-        if (allEmails.length > 0) {
-            const { data: emailMatches } = await supabase
-                .from('Candidate Profile' as any)
-                .select('candidate_id, name, linkedin, email')
-                .in('email', allEmails);
-            if (emailMatches) existingCandidates.push(...emailMatches);
-        }
+        const { data: matches } = await supabase.rpc('find_duplicate_candidates', {
+            p_names: allNames.map(n => n.toLowerCase()),
+            p_linkedins: allLinkedIns,
+            p_emails: allEmails,
+        });
+        if (matches) existingCandidates.push(...matches);
 
         // Dedup results based on ID and Sort by ID ASC to prioritize oldest candidate
         existingCandidates = Array.from(new Map(existingCandidates.map(c => [c.candidate_id, c])).values());

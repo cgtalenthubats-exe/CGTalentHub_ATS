@@ -52,14 +52,15 @@ export function normalizeEmail(email: string): string {
  * 1. Trim
  * 2. Remove Query Parameters
  * 3. Lowercase
+ * 4. Strip trailing slash (".../foo/" and ".../foo" are the same profile)
  */
 export function normalizeLinkedIn(url: string | null | undefined): string {
     if (!url) return "";
     try {
         const urlObj = new URL(url.trim());
         urlObj.search = ""; // Remove query params
-        return urlObj.toString().toLowerCase();
+        return urlObj.toString().toLowerCase().replace(/\/+$/, "");
     } catch (e) {
-        return url.trim().toLowerCase();
+        return url.trim().toLowerCase().replace(/\/+$/, "");
     }
 }
