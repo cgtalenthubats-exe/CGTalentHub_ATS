@@ -41,7 +41,7 @@ export default function DashboardPage() {
     const loadedTabs = useRef<Set<string>>(new Set());
 
     // Active tab
-    const [activeTab, setActiveTab] = useState("global");
+    const [activeTab, setActiveTab] = useState("funnel");
 
     // Lazy load per tab — only fetch on first visit
     const loadTab = useCallback(async (tab: string) => {
@@ -59,7 +59,7 @@ export default function DashboardPage() {
         // pipeline & placement tabs handle their own data internally
     }, []);
 
-    useEffect(() => { loadTab("global"); }, [loadTab]);
+    useEffect(() => { loadTab("funnel"); }, [loadTab]);
 
     const handleTabChange = (tab: string) => {
         setActiveTab(tab);
