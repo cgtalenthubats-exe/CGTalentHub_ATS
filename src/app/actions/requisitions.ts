@@ -199,6 +199,18 @@ export async function getDistinctFieldValues(field: string): Promise<string[]> {
     return [...new Set(values)];
 }
 
+// Lightweight quick-edit for the Status (is_active) column — no n8n webhook, no other fields touched.
+export async function updateJobRequisitionStatus(jrId: string, isActive: 'Active' | 'Inactive' | 'Closed'): Promise<{ success: boolean; error?: string }> {
+    const supabase = adminAuthClient;
+    const { error } = await (supabase
+        .from('job_requisitions') as any)
+        .update({ is_active: isActive })
+        .eq('jr_id', jrId);
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+}
+
 export async function updateJobRequisition(jrId: string, data: any, isFileUpdated: boolean = false): Promise<{ success: boolean; data?: JobRequisition; error?: string }> {
     const supabase = adminAuthClient;
 
@@ -434,9 +446,23 @@ export async function getAllCandidatesSummary(): Promise<{
             const jr_id = candidateMap[cid];
             const cLogs = logsMap[cid] || [];
 
-            // Sort logs by log_id or timestamp to find current status
+            // Ascending order for the aging (time-between-stages) calculation done by callers.
             const sortedLogs = [...cLogs].sort((a, b) => a.log_id - b.log_id);
-            const currentStatus = sortedLogs.length > 0 ? sortedLogs[sortedLogs.length - 1].status : "Pool Candidate";
+
+            // Current status must match getLatestStatus() in jr-candidates.ts (the source of truth
+            // used by CandidateList/JR Manage) — sort by timestamp desc, log_id desc as tiebreaker.
+            // A plain log_id-ascending "take the last one" can disagree with that when timestamps
+            // aren't perfectly monotonic with log_id, producing mismatched counts vs. the drill-down.
+            let currentStatus = "Pool Candidate";
+            if (sortedLogs.length > 0) {
+                const byRecency = [...sortedLogs].sort((a, b) => {
+                    const dateA = new Date(a.timestamp).getTime();
+                    const dateB = new Date(b.timestamp).getTime();
+                    if (dateA !== dateB && !isNaN(dateA) && !isNaN(dateB)) return dateB - dateA;
+                    return b.log_id - a.log_id;
+                });
+                currentStatus = byRecency[0].status;
+            }
 
             if (jr_id) {
                 results.push({

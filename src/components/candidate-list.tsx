@@ -69,6 +69,7 @@ interface CandidateListProps {
     subBu: string;
     updatedBy?: string;
     showSalary?: boolean;
+    initialStatusFilters?: string[];
 }
 
 import { ConfirmPlacementDialog } from "@/components/confirm-placement-dialog";
@@ -292,7 +293,7 @@ function AgeFilter({ ageMin, ageMax, includeUnknown, onChange }: {
     );
 }
 
-export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary }: CandidateListProps) {
+export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary, initialStatusFilters }: CandidateListProps) {
     const [candidates, setCandidates] = useState<JRCandidate[]>([]);
     const [loading, setLoading] = useState(true);
     const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
@@ -303,7 +304,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     const [allJRs, setAllJRs] = useState<any[]>([]);
 
     // Per-column multi-select filters
-    const [filterStatus, setFilterStatus] = useState<string[]>([]);
+    const [filterStatus, setFilterStatus] = useState<string[]>(initialStatusFilters && initialStatusFilters.length > 0 ? initialStatusFilters : []);
     const [filterGender, setFilterGender] = useState<string[]>([]);
     const [filterCompany, setFilterCompany] = useState<string[]>([]);
     const [filterPosition, setFilterPosition] = useState<string[]>([]);
@@ -651,8 +652,16 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     // Custom Sorting Hierarchy:
     // 1. Successful Placement (Global Top)
     // 2. Type (Top Profile > Longlist)
-    // 3. Status Score (Active=1 > Grey=2 > Red=3)
+    // 3. Pipeline stage via status_master.stage_order:
+    //    - "Positive" statuses (stage_order <= Successful Placement's order, e.g. Pool Candidate..Offer)
+    //      sort HIGH->LOW, so candidates further along (Offer) show above earlier stages (Pool Candidate).
+    //    - "Negative" statuses (stage_order beyond Successful Placement, e.g. Rejected/Not fit/Hold)
+    //      sort LOW->HIGH, so e.g. Rejected shows above Hold within the negative group.
+    //    Statuses not present in status_master (custom/legacy) sink to the end of their bucket.
     // 4. Rank (Ascending)
+    const statusOrderMap = new Map((statusOptions as any[]).map(m => [m.status, m.stage_order]));
+    const placementOrder = statusOrderMap.get('Successful Placement') ?? 6;
+
     const sortedCandidates = [...filteredCandidates].sort((a, b) => {
         // 1. Successful Placement (Global Top)
         const isPlantedA = a.status === 'Successful Placement';
@@ -666,15 +675,19 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
         if (isTopA && !isTopB) return -1;
         if (!isTopA && isTopB) return 1;
 
-        // 3. Status Score (Active > Grey > Red)
-        const getScore = (s: string) => {
-            if (redStatuses.includes(s)) return 3;
-            if (greyStatuses.includes(s)) return 2;
-            return 1;
-        };
-        const scoreA = getScore(a.status);
-        const scoreB = getScore(b.status);
-        if (scoreA !== scoreB) return scoreA - scoreB;
+        // 3. Pipeline stage (status_master.stage_order)
+        const orderA = statusOrderMap.get(a.status);
+        const orderB = statusOrderMap.get(b.status);
+        const isPositiveA = orderA !== undefined && orderA <= placementOrder;
+        const isPositiveB = orderB !== undefined && orderB <= placementOrder;
+
+        if (isPositiveA !== isPositiveB) return isPositiveA ? -1 : 1;
+
+        if (orderA === undefined && orderB !== undefined) return 1;
+        if (orderA !== undefined && orderB === undefined) return -1;
+        if (orderA !== undefined && orderB !== undefined && orderA !== orderB) {
+            return isPositiveA ? (orderB - orderA) : (orderA - orderB);
+        }
 
         // 4. Rank
         const rA = parseInt(a.rank || "999");
@@ -1663,7 +1676,7 @@ function sortJRExperiences(exps: JRCandidateExperience[]): JRCandidateExperience
     });
 }
 
-function getRowStatusClass(status: string) {
+export function getRowStatusClass(status: string) {
     const s = safeLower(status);
     if (s.includes('pool')) return 'bg-slate-100 text-slate-600 border-slate-200 hover:border-slate-300';
     if (s.includes('approached')) return 'bg-blue-50 text-blue-600 border-blue-100 hover:border-blue-200';
