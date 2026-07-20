@@ -109,7 +109,8 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData, sel
         original_jr_id: initialData?.original_jr_id || "",
         job_description: initialData?.job_description || "",
         feedback_file: initialData?.feedback_file || "",
-        create_by: initialData?.created_by || ""
+        create_by: initialData?.created_by || "",
+        is_active: initialData?.is_active || "Active"
     });
     
     // Combined Profiles Logic
@@ -369,6 +370,21 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData, sel
                             {(allProfiles.length === 0 || !allProfiles.some(p => p.real_name === formData.create_by)) && formData.create_by && (
                                 <SelectItem value={formData.create_by}>{formData.create_by}</SelectItem>
                             )}
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                {/* Status */}
+                <div className="space-y-2">
+                    <Label htmlFor="is_active">Status</Label>
+                    <Select onValueChange={(v) => handleChange("is_active", v)} value={formData.is_active}>
+                        <SelectTrigger id="is_active" className="bg-white border-slate-200">
+                            <SelectValue placeholder="Select Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="Active">Active</SelectItem>
+                            <SelectItem value="Inactive">Inactive</SelectItem>
+                            <SelectItem value="Closed">Closed</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>

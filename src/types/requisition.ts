@@ -10,7 +10,7 @@ export interface JobRequisition {
     headcount_hired: number;
     opened_date: string;
     target_date?: string;
-    is_active: boolean;
+    is_active: 'Active' | 'Inactive' | 'Closed' | null;
     location?: string;
     job_description?: string;
     created_at: string;

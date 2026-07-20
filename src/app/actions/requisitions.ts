@@ -32,7 +32,7 @@ function mapRowsToJRs(data: any[]): JobRequisition[] {
         headcount_total: row.headcount || 1,
         headcount_hired: row.hired_count || 0,
         opened_date: row.request_date,
-        is_active: true,
+        is_active: row.is_active || null,
         location: row.location || "Bangkok",
         created_at: row.created_at || new Date().toISOString(),
         updated_at: row.updated_at || new Date().toISOString(),
@@ -84,7 +84,7 @@ export async function getJRSelectionDataLean() {
         division: row.bu || "Corporate",
         status: "Open",
         opened_date: row.request_date,
-        is_active: true,
+        is_active: row.is_active || null,
         created_by: row.create_by || "System",
         hiring_manager_id: "",
         headcount_total: 1,
@@ -138,7 +138,7 @@ export async function getRequisition(id: string): Promise<JobRequisition | null>
         headcount_total: row.headcount || 1,
         headcount_hired: row.hired_count || 0,
         opened_date: row.request_date,
-        is_active: true,
+        is_active: row.is_active || null,
         location: row.location,
         created_at: row.created_at || new Date().toISOString(),
         updated_at: row.updated_at || new Date().toISOString(),
@@ -211,7 +211,8 @@ export async function updateJobRequisition(jrId: string, data: any, isFileUpdate
             original_jr_id: data.original_jr_id || null,
             job_description: data.job_description,
             feedback_file: data.feedback_file,
-            create_by: data.create_by
+            create_by: data.create_by,
+            is_active: data.is_active
             // request_date: data.request_date,
         };
 
@@ -247,7 +248,7 @@ export async function updateJobRequisition(jrId: string, data: any, isFileUpdate
                 headcount_total: updatedData.headcount || 1,
                 headcount_hired: updatedData.hired_count || 0,
                 opened_date: updatedData.request_date,
-                is_active: true,
+                is_active: updatedData.is_active || null,
                 location: updatedData.location || "Bangkok",
                 created_at: updatedData.created_at,
                 updated_at: updatedData.updated_at,
@@ -313,6 +314,7 @@ export async function createJobRequisition(data: any): Promise<JobRequisition | 
             job_description: data.job_description,
             feedback_file: data.feedback_file,
             create_by: data.create_by || await getCurrentUserRealName(),
+            is_active: data.is_active || 'Active',
 
             // Defaults
             created_at: new Date().toISOString()
@@ -348,7 +350,7 @@ export async function createJobRequisition(data: any): Promise<JobRequisition | 
             headcount_total: 1, // Default to 1 as per user implication
             headcount_hired: 0,
             opened_date: insertedData.request_date,
-            is_active: true,
+            is_active: insertedData.is_active || 'Active',
             location: "Bangkok",
             created_at: insertedData.created_at,
             updated_at: insertedData.created_at,

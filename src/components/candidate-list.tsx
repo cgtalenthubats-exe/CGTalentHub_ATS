@@ -909,8 +909,8 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                     style={{ maxHeight: 'calc(100vh - 320px)', overflowY: 'auto' }}
                 >
                 <table className="w-full text-sm border-collapse table-fixed">
-                    <thead className="sticky top-0 z-10">
-                        <tr className="bg-slate-50/80 dark:bg-slate-900/50 border-b border-slate-200 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
+                    <thead className="sticky top-0 z-30">
+                        <tr className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
                             <th className="px-5 py-4 w-[40px]">
                                 <Checkbox
                                     checked={filteredCandidates.length > 0 && selectedIds.length === filteredCandidates.length}
@@ -1228,12 +1228,12 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                                 </div>
                                                 {c.candidate_current_company_group && (
                                                     <span className="text-[11px] text-slate-400 font-medium leading-tight">
-                                                        {c.candidate_current_company_group}
+                                                        Group: {c.candidate_current_company_group}
                                                     </span>
                                                 )}
                                                 {c.candidate_current_company_industry && (
                                                     <span className="text-[11px] text-slate-300 font-medium leading-tight">
-                                                        {c.candidate_current_company_industry}
+                                                        Industry: {c.candidate_current_company_industry}
                                                     </span>
                                                 )}
                                             </div>
@@ -1666,6 +1666,7 @@ function sortJRExperiences(exps: JRCandidateExperience[]): JRCandidateExperience
 function getRowStatusClass(status: string) {
     const s = safeLower(status);
     if (s.includes('pool')) return 'bg-slate-100 text-slate-600 border-slate-200 hover:border-slate-300';
+    if (s.includes('approached')) return 'bg-blue-50 text-blue-600 border-blue-100 hover:border-blue-200';
     if (s.includes('screen')) return 'bg-blue-50 text-blue-600 border-blue-100 hover:border-blue-200';
     if (s.includes('interview')) return 'bg-purple-50 text-purple-600 border-purple-100 hover:border-purple-200';
     if (s.includes('offer')) return 'bg-amber-50 text-amber-600 border-amber-100 hover:border-amber-200';

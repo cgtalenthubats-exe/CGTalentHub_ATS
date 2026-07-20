@@ -413,21 +413,10 @@ export default function JRManagePage() {
                                         <span>BU: <span className="font-semibold text-foreground">{selectedJR.division || '-'}</span></span>
                                         <span className="text-slate-300">·</span>
                                         <span>Sub-BU: <span className="font-semibold text-foreground">{selectedJR.department || '-'}</span></span>
+                                        <span className="text-slate-300">·</span>
+                                        <span>Status: <span className="font-semibold text-foreground">{selectedJR.is_active || '-'}</span></span>
                                     </div>
                                 )}
-                            </div>
-                            <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg border border-indigo-100 dark:border-indigo-800">
-                                <User className="h-4 w-4 text-indigo-600" />
-                                <Select value={selectedCreatedBy} onValueChange={setSelectedCreatedBy}>
-                                    <SelectTrigger className="h-7 border-none bg-transparent shadow-none focus:ring-0 text-xs font-bold text-indigo-700 min-w-[140px] p-0">
-                                        <SelectValue placeholder="Updated by..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {profiles.map((p, idx) => (
-                                            <SelectItem key={`${p.email}-${idx}`} value={p.real_name} className="text-xs">{p.real_name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
                             </div>
                         </div>
                         <div className="flex gap-4 items-center">
@@ -451,8 +440,21 @@ export default function JRManagePage() {
                         </div>
                     </div>
 
-                    <div className="w-full lg:w-auto">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="w-full lg:w-auto flex flex-col items-end gap-3">
+                        <div className="flex items-center gap-2 px-3 h-9 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg border border-indigo-100 dark:border-indigo-800">
+                            <User className="h-4 w-4 text-indigo-600 shrink-0" />
+                            <Select value={selectedCreatedBy} onValueChange={setSelectedCreatedBy}>
+                                <SelectTrigger className="h-7 border-none bg-transparent shadow-none focus:ring-0 text-xs font-bold text-indigo-700 min-w-[140px] p-0">
+                                    <SelectValue placeholder="Updated by..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {profiles.map((p, idx) => (
+                                        <SelectItem key={`${p.email}-${idx}`} value={p.real_name} className="text-xs">{p.real_name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full">
                             {/* Row 1 */}
                             <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
                                 <DialogTrigger asChild>
