@@ -10,6 +10,8 @@ export interface PopulationFilters {
     position_keywords?: string[];
     set_symbols?: string[];
     hotel_chains?: string[];
+    job_groupings?: string[];
+    job_functions?: string[];
 }
 
 export interface PopulationData {
@@ -27,6 +29,8 @@ export interface PopulationData {
     nationality_unknown_count: number;
     by_hotel_chain: { name: string; count: number }[];
     by_set_company: { name: string; count: number }[];
+    by_job_grouping: { name: string; count: number }[];
+    by_job_function: { name: string; count: number }[];
 }
 
 export interface SetCompany {
@@ -240,6 +244,7 @@ const EMPTY_POPULATION_DATA: PopulationData = {
     by_group: [], by_industry: [], by_country: [], by_continent: [], by_position_keyword: [],
     by_age_range: [], by_nationality: [], nationality_unknown_count: 0,
     by_hotel_chain: [], by_set_company: [],
+    by_job_grouping: [], by_job_function: [],
 };
 
 /**
@@ -263,6 +268,8 @@ export async function getCandidatePopulationData(filters: PopulationFilters = {}
         p_position_keywords: filters.position_keywords ?? [],
         p_hotel_chains: filters.hotel_chains ?? [],
         p_set_symbols: filters.set_symbols ?? [],
+        p_job_groupings: filters.job_groupings ?? [],
+        p_job_functions: filters.job_functions ?? [],
     });
 
     if (error || !data) {
@@ -298,5 +305,7 @@ export async function getCandidatePopulationData(filters: PopulationFilters = {}
         nationality_unknown_count: data.nationality_unknown_count ?? 0,
         by_hotel_chain: data.by_hotel_chain ?? [],
         by_set_company,
+        by_job_grouping: data.by_job_grouping ?? [],
+        by_job_function: data.by_job_function ?? [],
     };
 }

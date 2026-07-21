@@ -8,10 +8,11 @@ import {
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
 import {
-    Loader2, Briefcase, Building2, ChevronRight, Globe2, Layers, RotateCcw, X, Cake, Flag, Info,
+    Loader2, Briefcase, Building2, ChevronRight, Globe2, Layers, RotateCcw, X, Cake, Flag, Info, Users, Target,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import FunnelCandidateListSection from "./FunnelCandidateListSection";
 
 // ── Validated categorical palette ───────────────────────────────────────────
 // 6 hues, checked with the dataviz skill's validator (CVD ΔE 9.2 worst-adjacent,
@@ -291,6 +292,8 @@ const FILTER_LABELS: Record<keyof PopulationFilters, string> = {
     position_keywords: "Position Keyword",
     set_symbols: "SET Company",
     hotel_chains: "Hotel Chain",
+    job_groupings: "Job Grouping",
+    job_functions: "Job Function",
 };
 
 function ActiveFilterChips({ filters, onRemove }: { filters: PopulationFilters; onRemove: (key: keyof PopulationFilters, value: string) => void }) {
@@ -328,6 +331,7 @@ export default function CandidateFunnelTab() {
     const [dataLoading, setDataLoading] = useState(false);
 
     const [filters, setFilters] = useState<PopulationFilters>(EMPTY_FILTERS);
+    const [listVisible, setListVisible] = useState(false);
     const requestSeq = useRef(0);
 
     const loadData = useCallback((f: PopulationFilters) => {
@@ -452,6 +456,21 @@ export default function CandidateFunnelTab() {
                         </Button>
                     )}
                     {dataLoading && <Loader2 className="h-4 w-4 animate-spin text-slate-400" />}
+                    {hasFilters && data && (
+                        <Button
+                            size="sm"
+                            className="gap-1.5 bg-indigo-600 hover:bg-indigo-700 ml-auto"
+                            onClick={() => {
+                                setListVisible(true);
+                                requestAnimationFrame(() => {
+                                    document.getElementById('funnel-candidate-list')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                });
+                            }}
+                        >
+                            <Users className="h-3.5 w-3.5" />
+                            View Candidates ({data.total_filtered.toLocaleString()})
+                        </Button>
+                    )}
                 </div>
                 <ActiveFilterChips filters={filters} onRemove={updateFilter} />
             </div>
@@ -503,9 +522,9 @@ export default function CandidateFunnelTab() {
                 </div>
             )}
 
-            {/* ── High-cardinality breakdowns: ranked lists ─────────────────── */}
+            {/* ── High-cardinality breakdowns: 7 ranked lists across two rows (4 + 3) ── */}
             {data && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                     <RankedListCard
                         title="By Location"
                         subtitle="Work country when reliably known, else based-in location"
@@ -514,13 +533,16 @@ export default function CandidateFunnelTab() {
                     />
                     <RankedListCard title="By Industry" data={data.by_industry} icon={Building2} selected={filters.industries || []} onSelect={v => updateFilter('industries', v)} filterTotal={data.total_filtered} />
                     <RankedListCard title="By Position Keyword" data={data.by_position_keyword} icon={Briefcase} selected={filters.position_keywords || []} onSelect={v => updateFilter('position_keywords', v)} filterTotal={data.total_filtered} />
+                    <RankedListCard title="By Job Grouping" data={data.by_job_grouping} icon={Users} selected={filters.job_groupings || []} onSelect={v => updateFilter('job_groupings', v)} filterTotal={data.total_filtered} />
                 </div>
             )}
 
-            {/* ── Hotel Chain + SET Company — both "ever worked there" career-history */}
-            {/*    cross-cuts, not mutually-exclusive demographic buckets            */}
+            {/* ── Job Function + Hotel Chain + SET Company — Hotel Chain/SET Company are */}
+            {/*    both "ever worked there" career-history cross-cuts, not mutually-     */}
+            {/*    exclusive demographic buckets                                         */}
             {data && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                    <RankedListCard title="By Job Function" data={data.by_job_function} icon={Target} selected={filters.job_functions || []} onSelect={v => updateFilter('job_functions', v)} filterTotal={data.total_filtered} />
                     <RankedListCard title="By Hotel Chain" data={data.by_hotel_chain} icon={Building2} selected={filters.hotel_chains || []} onSelect={v => updateFilter('hotel_chains', v)} filterTotal={data.total_filtered} />
                     <RankedListCard
                         title="By SET Company"
@@ -544,6 +566,8 @@ export default function CandidateFunnelTab() {
                     />
                 </div>
             )}
+
+            {listVisible && <FunnelCandidateListSection filters={filters} />}
         </div>
     );
 }
