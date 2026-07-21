@@ -7,33 +7,50 @@ export type MarketBreakdown = {
     totalCandidates: number;
     setCount: number;
     nonSetCount: number;
-    industries: { label: string; count: number }[];
-    regions: { label: string; count: number }[];
     thailandCount: number;
+    companyGroups: { label: string; count: number }[];
+    industries: { label: string; count: number }[];
+    continents: { label: string; count: number }[];
+    positionKeywords: { label: string; count: number }[];
+    ageRanges: { label: string; count: number }[];
 };
 
 const UNKNOWN_GROUP_LABELS = new Set(["Unknown", "N/A", "Not Found", "Undetermined", "No Match Found"]);
+const AGE_BUCKET_ORDER = ["<30", "30–39", "40–49", "50–59", "60+", "Unknown"];
+
+function ageBucket(age: number | null): string {
+    if (age == null) return "Unknown";
+    if (age < 30) return "<30";
+    if (age < 40) return "30–39";
+    if (age < 50) return "40–49";
+    if (age < 60) return "50–59";
+    return "60+";
+}
 
 /**
- * Aggregates SET/Non-SET, industry group, and region breakdown for a pool of
- * candidate_ids using each candidate's latest work experience (current job
- * first, else most recent start_date — see candidate-experience-utils).
+ * Aggregates the "Market" dashboard breakdowns for a pool of candidate_ids,
+ * using each candidate's latest work experience (current job first, else
+ * most recent start_date — see candidate-experience-utils).
  */
 export async function getPoolMarketBreakdown(candidateIds: string[]): Promise<MarketBreakdown> {
-    if (!candidateIds.length) {
-        return { totalCandidates: 0, setCount: 0, nonSetCount: 0, industries: [], regions: [], thailandCount: 0 };
-    }
+    const empty: MarketBreakdown = {
+        totalCandidates: 0, setCount: 0, nonSetCount: 0, thailandCount: 0,
+        companyGroups: [], industries: [], continents: [], positionKeywords: [], ageRanges: [],
+    };
+    if (!candidateIds.length) return empty;
 
-    const [expRes, setGroupRes] = await Promise.all([
+    const [expRes, setGroupRes, profileRes] = await Promise.all([
         adminAuthClient
             .from("candidate_experiences")
-            .select("candidate_id, position, company, company_id, start_date, end_date, country, is_current_job")
+            .select("candidate_id, position, position_keyword, company, company_id, start_date, end_date, country, is_current_job")
             .in("candidate_id", candidateIds),
         adminAuthClient.from("company_set_group").select("company_name"),
+        adminAuthClient.from("Candidate Profile").select("candidate_id, age").in("candidate_id", candidateIds),
     ]);
 
     const experiences = (expRes.data ?? []) as ExperienceRow[];
     const latestByCandidate = groupExperiencesByCandidate(experiences);
+    const ageMap = new Map((profileRes.data ?? []).map((p: any) => [p.candidate_id, p.age as number | null]));
 
     const companyIds = [...new Set(
         [...latestByCandidate.values()].map(list => list[0]?.company_id).filter((id): id is number => id != null)
@@ -41,18 +58,21 @@ export async function getPoolMarketBreakdown(candidateIds: string[]): Promise<Ma
 
     const [companyMasterRes, countryRes] = await Promise.all([
         companyIds.length
-            ? adminAuthClient.from("company_master").select("company_id, company_master, group").in("company_id", companyIds)
+            ? adminAuthClient.from("company_master").select("company_id, company_master, group, industry").in("company_id", companyIds)
             : Promise.resolve({ data: [] as any[] }),
-        adminAuthClient.from("country").select("country, region"),
+        adminAuthClient.from("country").select("country, continent"),
     ]);
 
     const companyMap = new Map((companyMasterRes.data ?? []).map((c: any) => [c.company_id, c]));
-    const regionMap = new Map((countryRes.data ?? []).map((c: any) => [c.country, c.region]));
+    const continentMap = new Map((countryRes.data ?? []).map((c: any) => [c.country, c.continent]));
     const setNames = new Set((setGroupRes.data ?? []).map((s: any) => (s.company_name as string)?.toLowerCase().trim()));
 
     let setCount = 0, nonSetCount = 0, thailandCount = 0;
+    const groupCounts = new Map<string, number>();
     const industryCounts = new Map<string, number>();
-    const regionCounts = new Map<string, number>();
+    const continentCounts = new Map<string, number>();
+    const keywordCounts = new Map<string, number>();
+    const ageCounts = new Map<string, number>();
 
     for (const cId of candidateIds) {
         const latest = latestByCandidate.get(cId)?.[0];
@@ -63,12 +83,21 @@ export async function getPoolMarketBreakdown(candidateIds: string[]): Promise<Ma
         if (isSet) setCount++; else nonSetCount++;
 
         const groupLabel = company?.group && !UNKNOWN_GROUP_LABELS.has(company.group) ? company.group : "Other / Unknown";
-        industryCounts.set(groupLabel, (industryCounts.get(groupLabel) ?? 0) + 1);
+        groupCounts.set(groupLabel, (groupCounts.get(groupLabel) ?? 0) + 1);
+
+        const industryLabel = company?.industry && !UNKNOWN_GROUP_LABELS.has(company.industry) ? company.industry : "Other / Unknown";
+        industryCounts.set(industryLabel, (industryCounts.get(industryLabel) ?? 0) + 1);
 
         const country = latest.country ?? null;
         if (country?.toLowerCase() === "thailand") thailandCount++;
-        const region = country ? regionMap.get(country) ?? "Other" : "Unknown";
-        regionCounts.set(region, (regionCounts.get(region) ?? 0) + 1);
+        const continent = country ? continentMap.get(country) ?? "Other" : "Unknown";
+        continentCounts.set(continent, (continentCounts.get(continent) ?? 0) + 1);
+
+        const keyword = (latest as any).position_keyword;
+        if (keyword) keywordCounts.set(keyword, (keywordCounts.get(keyword) ?? 0) + 1);
+
+        const bucket = ageBucket(ageMap.get(cId) ?? null);
+        ageCounts.set(bucket, (ageCounts.get(bucket) ?? 0) + 1);
     }
 
     const toSortedList = (m: Map<string, number>) =>
@@ -78,8 +107,13 @@ export async function getPoolMarketBreakdown(candidateIds: string[]): Promise<Ma
         totalCandidates: candidateIds.length,
         setCount,
         nonSetCount,
-        industries: toSortedList(industryCounts),
-        regions: toSortedList(regionCounts),
         thailandCount,
+        companyGroups: toSortedList(groupCounts),
+        industries: toSortedList(industryCounts),
+        continents: toSortedList(continentCounts),
+        positionKeywords: toSortedList(keywordCounts),
+        ageRanges: AGE_BUCKET_ORDER
+            .map(label => ({ label, count: ageCounts.get(label) ?? 0 }))
+            .filter(b => b.count > 0),
     };
 }

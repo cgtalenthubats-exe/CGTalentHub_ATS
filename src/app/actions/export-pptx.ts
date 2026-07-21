@@ -133,246 +133,300 @@ function addCoverSlide(pptx: PptxGenJS, jrId: string, jrTitle: string, total: nu
     }
 }
 
-// ── Executive Summary slide (KPI row + funnel) ────────────────────────────────
 type FunnelStage = { label: string; value: number };
 
-function addExecutiveSummarySlide(pptx: PptxGenJS, stages: FunnelStage[]) {
+// ── Page 2 — The Brief ────────────────────────────────────────────────────────
+// What we searched for. JR reports show BU/Sub BU/JR Type (from job_requisitions);
+// ai-search-v3 has none of those — just the natural-language query — so those
+// fields are optional and simply omitted when absent.
+type BriefInfo = {
+    title: string;
+    bu?: string | null;
+    subBu?: string | null;
+    jrType?: string | null;
+    description?: string | null;
+};
+
+function addBriefSlide(pptx: PptxGenJS, info: BriefInfo) {
     const slide = pptx.addSlide();
     slide.background = { color: C.white };
     slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.08, h: "100%", fill: { color: C.indigo } });
-    slide.addText("EXECUTIVE SUMMARY", {
+    slide.addText("THE BRIEF", {
         x: 0.3, y: 0.18, w: 12.75, h: 0.36, fontSize: 10, bold: true, color: C.indigo, charSpacing: 2,
     });
 
-    const poolTotal = stages[0]?.value ?? 0;
-    const shortlisted = stages.find(s => s.label === "Shortlisted")?.value ?? 0;
-    const coverage = poolTotal > 0 ? Math.round((shortlisted / poolTotal) * 1000) / 10 : 0;
-
-    // ── KPI row — white cards, colored accent bar + label only (no solid fill) ─
-    const kpis = [
-        { label: "TOTAL CANDIDATES FOUND", value: `${poolTotal}`, accent: C.indigo },
-        { label: "SHORTLISTED", value: `${shortlisted}`, accent: "059669" },
-        { label: "COVERAGE", value: `${coverage}%`, accent: "0284c7" },
-    ];
-    const KPI_Y = 0.7, KPI_H = 1.3, KPI_W = 4.0, KPI_GAP = 0.25;
-    kpis.forEach((k, i) => {
-        const kx = 0.3 + i * (KPI_W + KPI_GAP);
-        slide.addShape(pptx.ShapeType.roundRect, {
-            x: kx, y: KPI_Y, w: KPI_W, h: KPI_H, fill: { color: C.slate100 }, line: { color: C.slate200, width: 0.75 }, rectRadius: 0.12,
-        });
-        slide.addShape(pptx.ShapeType.rect, { x: kx, y: KPI_Y, w: 0.06, h: KPI_H, fill: { color: k.accent } });
-        slide.addText(k.label, {
-            x: kx + 0.25, y: KPI_Y + 0.18, w: KPI_W - 0.5, h: 0.3,
-            fontSize: 9.5, bold: true, color: k.accent, charSpacing: 1,
-        });
-        slide.addText(k.value, {
-            x: kx + 0.25, y: KPI_Y + 0.5, w: KPI_W - 0.5, h: 0.7,
-            fontSize: 40, bold: true, color: C.slate900,
-        });
+    slide.addText(info.title, {
+        x: 0.3, y: 0.65, w: 12.75, h: 0.8, fontSize: 26, bold: true, color: C.slate900, wrap: true, valign: "top",
     });
 
-    // ── Funnel ───────────────────────────────────────────────────────────────
-    slide.addText("SEARCH → SHORTLIST FUNNEL", {
-        x: 0.3, y: 2.35, w: 12.75, h: 0.3, fontSize: 8.5, bold: true, color: C.slate500, charSpacing: 1.5,
-    });
+    const chips = [
+        info.bu ? { label: "BU", value: info.bu } : null,
+        info.subBu ? { label: "SUB BU", value: info.subBu } : null,
+        info.jrType ? { label: "JR TYPE", value: info.jrType } : null,
+    ].filter((c): c is { label: string; value: string } => c !== null);
 
-    const maxVal = Math.max(...stages.map(s => s.value), 1);
-    const FUNNEL_Y = 2.8, BOX_H = 1.0, GAP = 0.55;
-    const BOX_W = (12.75 - (stages.length - 1) * GAP) / stages.length;
-    stages.forEach((s, i) => {
-        const fx = 0.3 + i * (BOX_W + GAP);
-        const scale = 0.55 + 0.45 * (s.value / maxVal);
-        const boxH = BOX_H * scale;
-        const boxY = FUNNEL_Y + (BOX_H - boxH);
-        slide.addShape(pptx.ShapeType.roundRect, {
-            x: fx, y: boxY, w: BOX_W, h: boxH, fill: { color: i === 0 ? C.indigo50 : "eef2ff" }, line: { color: C.indigo, width: 1 }, rectRadius: 0.1,
-        });
-        slide.addText(`${s.value}`, {
-            x: fx, y: boxY + 0.08, w: BOX_W, h: boxH - 0.4, align: "center", valign: "bottom", fontSize: 24, bold: true, color: C.indigo,
-        });
-        slide.addText(s.label.toUpperCase(), {
-            x: fx, y: FUNNEL_Y + BOX_H + 0.1, w: BOX_W, h: 0.4, align: "center", fontSize: 9, bold: true, color: C.slate600, charSpacing: 0.5,
-        });
-        if (i < stages.length - 1) {
-            slide.addText("→", {
-                x: fx + BOX_W, y: FUNNEL_Y + BOX_H / 2 - 0.25, w: GAP, h: 0.5, align: "center", valign: "middle", fontSize: 20, color: C.slate300,
+    let curY = 1.55;
+    if (chips.length) {
+        const CHIP_W = 4.1, CHIP_H = 0.65, GAP = 0.2;
+        chips.forEach((c, i) => {
+            const cx = 0.3 + i * (CHIP_W + GAP);
+            slide.addShape(pptx.ShapeType.roundRect, {
+                x: cx, y: curY, w: CHIP_W, h: CHIP_H, fill: { color: C.slate100 }, line: { color: C.slate200, width: 0.5 }, rectRadius: 0.08,
             });
-        }
+            slide.addText(c.label, { x: cx + 0.18, y: curY + 0.08, w: CHIP_W - 0.36, h: 0.2, fontSize: 7.5, bold: true, color: C.indigo, charSpacing: 1 });
+            slide.addText(c.value, { x: cx + 0.18, y: curY + 0.3, w: CHIP_W - 0.36, h: 0.3, fontSize: 12, bold: true, color: C.slate900, wrap: true });
+        });
+        curY += CHIP_H + 0.35;
+    }
+
+    if (info.description) {
+        slide.addShape(pptx.ShapeType.line, { x: 0.3, y: curY, w: 12.75, h: 0, line: { color: C.slate200, width: 0.75 } });
+        curY += 0.2;
+        slide.addText(info.bu ? "JOB DESCRIPTION" : "SEARCH QUERY", {
+            x: 0.3, y: curY, w: 12.75, h: 0.24, fontSize: 8, bold: true, color: C.slate500, charSpacing: 1.5,
+        });
+        curY += 0.3;
+        slide.addText(trunc(info.description, 1400), {
+            x: 0.3, y: curY, w: 12.75, h: 7.2 - curY, fontSize: 11, color: C.slate700, wrap: true, valign: "top", lineSpacingMultiple: 1.35,
+        });
+    }
+}
+
+// ── Page 3 — The Market (dashboard: cardinality drives chart form) ───────────
+// Low cardinality (Company Group ~6, Continent ~6) → donut. Ordered (Age Range)
+// or high cardinality (Industry, Position Keyword) → ranked horizontal bar,
+// capped at top-N + "Other" so it stays readable regardless of pool size.
+const GROUP_COLORS: Record<string, string> = {
+    "Hospitality & Real Estate": "6366f1",
+    "Retail / FMCG / F&B": "059669",
+    "Others": "64748b",
+    "Financial Services / Banking / Insurance": "0284c7",
+    "Consulting Firm / Consulting Services": "7c3aed",
+    "Technology / Digital / Telecom": "ea580c",
+};
+const CONTINENT_COLORS: Record<string, string> = {
+    "Asia": "6366f1", "Europe": "059669", "North America": "0284c7",
+    "Africa": "ea580c", "Oceania": "7c3aed", "South America": "f59e0b",
+};
+const FALLBACK_CATEGORY_COLOR = "94a3b8";
+
+function topNWithOther(items: { label: string; count: number }[], n: number): { label: string; count: number }[] {
+    const sorted = [...items].sort((a, b) => b.count - a.count);
+    const top = sorted.slice(0, n);
+    const otherCount = sorted.slice(n).reduce((sum, i) => sum + i.count, 0);
+    return otherCount > 0 ? [...top, { label: "Other", count: otherCount }] : top;
+}
+
+// pptxgenjs horizontal bar charts (barDir:'bar') plot array[0] at the BOTTOM of
+// the axis — so a descending-sorted array renders biggest-at-bottom. Reverse
+// right before charting to get the largest value at the top, as requested.
+function forHorizontalBar(items: { label: string; count: number }[]): { label: string; count: number }[] {
+    return [...items].sort((a, b) => a.count - b.count);
+}
+
+// Card background drawn as a plain shape BEHIND the chart, not via the chart's
+// own `chartArea`/`shadow` options — that combination produced a genuinely
+// corrupt file (PowerPoint's "found a problem with content" repair prompt).
+// Dropped `shadow` entirely (still repro'd with it on plain shapes too) —
+// a plain 2pt border reads as "premium" enough without the added risk.
+function addChartCard(slide: any, pptx: PptxGenJS, x: number, y: number, w: number, h: number) {
+    const pad = 0.08;
+    slide.addShape(pptx.ShapeType.roundRect, {
+        x: x - pad, y: y - pad, w: w + 2 * pad, h: h + 2 * pad,
+        fill: { color: C.white }, line: { color: C.slate300, width: 2 }, rectRadius: 0.08,
     });
 }
 
-// ── Market Overview slide (SET/Non-SET, Thailand vs Overseas, Industry) ───────
-function addMarketOverviewSlide(pptx: PptxGenJS, breakdown: MarketBreakdown) {
+function addMarketDashboardSlide(pptx: PptxGenJS, breakdown: MarketBreakdown) {
     const slide = pptx.addSlide();
     slide.background = { color: C.white };
     slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.08, h: "100%", fill: { color: C.indigo } });
-    slide.addText("MARKET OVERVIEW", {
+    slide.addText("THE MARKET", {
         x: 0.3, y: 0.18, w: 12.75, h: 0.36, fontSize: 10, bold: true, color: C.indigo, charSpacing: 2,
     });
 
     const total = breakdown.totalCandidates || 1;
-    const pct = (n: number) => Math.round((n / total) * 100);
     const overseas = total - breakdown.thailandCount;
 
-    // ── Stat tile row: SET | Non-SET | Thailand | Overseas ────────────────────
+    // ── Row 1: stat tiles — SET/Non-SET, Thailand/Overseas (binary, no chart needed) ─
     const tiles = [
         { label: "SET COMPANY", value: breakdown.setCount, accent: "059669" },
         { label: "NON-SET COMPANY", value: breakdown.nonSetCount, accent: C.slate500 },
         { label: "THAILAND-BASED", value: breakdown.thailandCount, accent: C.indigo },
         { label: "OVERSEAS", value: overseas, accent: "0284c7" },
     ];
-    const TILE_Y = 0.7, TILE_H = 1.15, TILE_W = 2.95, TILE_GAP = 0.2;
+    const TILE_Y = 0.62, TILE_H = 0.8, TILE_W = 2.95, TILE_GAP = 0.2;
     tiles.forEach((t, i) => {
         const tx = 0.3 + i * (TILE_W + TILE_GAP);
         slide.addShape(pptx.ShapeType.roundRect, {
-            x: tx, y: TILE_Y, w: TILE_W, h: TILE_H, fill: { color: C.slate100 }, line: { color: C.slate200, width: 0.75 }, rectRadius: 0.1,
+            x: tx, y: TILE_Y, w: TILE_W, h: TILE_H, fill: { color: C.slate100 }, line: { color: C.slate300, width: 2 }, rectRadius: 0.1,
         });
         slide.addShape(pptx.ShapeType.rect, { x: tx, y: TILE_Y, w: 0.06, h: TILE_H, fill: { color: t.accent } });
-        slide.addText(t.label, { x: tx + 0.18, y: TILE_Y + 0.14, w: TILE_W - 0.36, h: 0.24, fontSize: 8, bold: true, color: t.accent, charSpacing: 0.8 });
-        slide.addText(`${t.value}`, { x: tx + 0.18, y: TILE_Y + 0.38, w: TILE_W - 0.36, h: 0.5, fontSize: 26, bold: true, color: C.slate900 });
-        slide.addText(`${pct(t.value)}%`, { x: tx + 0.18, y: TILE_Y + 0.85, w: TILE_W - 0.36, h: 0.22, fontSize: 9, color: C.slate500 });
+        slide.addText(t.label, { x: tx + 0.18, y: TILE_Y + 0.1, w: TILE_W - 0.36, h: 0.22, fontSize: 8, bold: true, color: t.accent, charSpacing: 0.8 });
+        slide.addText(`${t.value}`, { x: tx + 0.18, y: TILE_Y + 0.3, w: TILE_W - 0.36, h: 0.42, fontSize: 22, bold: true, color: C.slate900 });
+        slide.addText(`${Math.round((t.value / total) * 100)}%`, { x: tx + 2.0, y: TILE_Y + 0.34, w: 0.85, h: 0.32, align: "right", valign: "middle", fontSize: 11, color: C.slate500 });
     });
 
-    // ── Industry Distribution — horizontal bars, fixed categorical order ─────
-    slide.addText("INDUSTRY DISTRIBUTION", {
-        x: 0.3, y: 2.2, w: 12.75, h: 0.3, fontSize: 8.5, bold: true, color: C.slate500, charSpacing: 1.5,
+    // ── Row 2: two donut charts — Company Group | Continent (low cardinality) ─
+    const DONUT_Y = 1.65, DONUT_H = 2.55, DONUT_W = 6.1, DONUT_GAP = 0.2;
+
+    addChartCard(slide, pptx, 0.3, DONUT_Y, DONUT_W, DONUT_H);
+    const groupData = breakdown.companyGroups.length ? breakdown.companyGroups : [{ label: "No data", count: 1 }];
+    slide.addChart(pptx.ChartType.doughnut, [{ name: "Company Group", labels: groupData.map(g => g.label), values: groupData.map(g => g.count) }], {
+        x: 0.3, y: DONUT_Y, w: DONUT_W, h: DONUT_H,
+        chartColors: groupData.map(g => GROUP_COLORS[g.label] ?? FALLBACK_CATEGORY_COLOR),
+        showTitle: true, title: "COMPANY GROUP", titleFontSize: 9, titleColor: C.slate500,
+        showLegend: true, legendPos: "r", legendFontSize: 8,
+        showLabel: true, showValue: true, dataLabelColor: "000000", dataLabelFontSize: 8.5, holeSize: 55,
     });
 
-    const industryColors = ["6366f1", "059669", "7c3aed", "0284c7", "ea580c", "f59e0b", C.slate500];
-    const TOP_N = 6;
-    const sorted = [...breakdown.industries].sort((a, b) => b.count - a.count);
-    const top = sorted.slice(0, TOP_N);
-    const otherCount = sorted.slice(TOP_N).reduce((sum, i) => sum + i.count, 0);
-    const rows = otherCount > 0 ? [...top, { label: "Other", count: otherCount }] : top;
-
-    const maxCount = Math.max(...rows.map(r => r.count), 1);
-    const BAR_Y0 = 2.65, ROW_H = 0.58, LABEL_W = 3.0, BAR_MAX_W = 7.5;
-    rows.forEach((r, i) => {
-        const ry = BAR_Y0 + i * ROW_H;
-        const color = industryColors[i % industryColors.length];
-        slide.addText(r.label, { x: 0.3, y: ry, w: LABEL_W, h: ROW_H - 0.1, fontSize: 10, color: C.slate700, valign: "middle" });
-        slide.addShape(pptx.ShapeType.rect, { x: 0.3 + LABEL_W, y: ry + 0.12, w: BAR_MAX_W, h: 0.24, fill: { color: C.slate100 } });
-        const barW = Math.max(0.15, BAR_MAX_W * (r.count / maxCount));
-        slide.addShape(pptx.ShapeType.rect, { x: 0.3 + LABEL_W, y: ry + 0.12, w: barW, h: 0.24, fill: { color } });
-        slide.addText(`${r.count} (${pct(r.count)}%)`, {
-            x: 0.3 + LABEL_W + BAR_MAX_W + 0.15, y: ry, w: 1.6, h: ROW_H - 0.1, fontSize: 9.5, bold: true, color: C.slate700, valign: "middle",
-        });
+    addChartCard(slide, pptx, 0.3 + DONUT_W + DONUT_GAP, DONUT_Y, DONUT_W, DONUT_H);
+    const continentData = breakdown.continents.length ? breakdown.continents : [{ label: "No data", count: 1 }];
+    slide.addChart(pptx.ChartType.doughnut, [{ name: "Continent", labels: continentData.map(g => g.label), values: continentData.map(g => g.count) }], {
+        x: 0.3 + DONUT_W + DONUT_GAP, y: DONUT_Y, w: DONUT_W, h: DONUT_H,
+        chartColors: continentData.map(g => CONTINENT_COLORS[g.label] ?? FALLBACK_CATEGORY_COLOR),
+        showTitle: true, title: "CONTINENT", titleFontSize: 9, titleColor: C.slate500,
+        showLegend: true, legendPos: "r", legendFontSize: 8,
+        showLabel: true, showValue: true, dataLabelColor: "000000", dataLabelFontSize: 8.5, holeSize: 55,
     });
+
+    // ── Row 3: three ranked bar charts — Industry | Position Keyword | Age Range ─
+    const BAR_Y = 4.4, BAR_H = 2.7, BAR_GAP = 0.2;
+    const BAR_W = (12.7 - 2 * BAR_GAP) / 3;
+    const barOpts = (title: string, x: number) => ({
+        x, y: BAR_Y, w: BAR_W, h: BAR_H,
+        barDir: "bar" as const, chartColors: [C.indigo],
+        showTitle: true, title, titleFontSize: 9, titleColor: C.slate500,
+        showLegend: false, showValue: true, dataLabelFontSize: 7, dataLabelColor: C.slate700,
+        catAxisLabelFontSize: 7.5, valAxisHidden: true, valGridLine: { style: "none" as const }, barGapWidthPct: 40,
+    });
+
+    const industryData = forHorizontalBar(topNWithOther(breakdown.industries, 5));
+    if (industryData.length) {
+        addChartCard(slide, pptx, 0.3, BAR_Y, BAR_W, BAR_H);
+        slide.addChart(pptx.ChartType.bar, [{ name: "Industry", labels: industryData.map(i => i.label), values: industryData.map(i => i.count) }],
+            barOpts("INDUSTRY", 0.3));
+    }
+
+    const keywordData = forHorizontalBar(topNWithOther(breakdown.positionKeywords, 5));
+    if (keywordData.length) {
+        addChartCard(slide, pptx, 0.3 + BAR_W + BAR_GAP, BAR_Y, BAR_W, BAR_H);
+        slide.addChart(pptx.ChartType.bar, [{ name: "Position Keyword", labels: keywordData.map(i => i.label), values: keywordData.map(i => i.count) }],
+            barOpts("POSITION KEYWORD", 0.3 + BAR_W + BAR_GAP));
+    }
+
+    const ageData = forHorizontalBar(breakdown.ageRanges);
+    if (ageData.length) {
+        addChartCard(slide, pptx, 0.3 + 2 * (BAR_W + BAR_GAP), BAR_Y, BAR_W, BAR_H);
+        slide.addChart(pptx.ChartType.bar, [{ name: "Age Range", labels: ageData.map(i => i.label), values: ageData.map(i => i.count) }],
+            barOpts("AGE RANGE", 0.3 + 2 * (BAR_W + BAR_GAP)));
+    }
 }
 
-// ── Summary slide ─────────────────────────────────────────────────────────────
-// Layout order: query box → final_recommendation → key insights bullets → score cards
-function addSummarySlide(
+// ── Page 4 — The Verdict (pool/shortlist/top3 tiles → 4D badges → AI text) ───
+// Dropped the "Assessed" stage and the value-scaled funnel boxes per feedback —
+// Assessed ≈ Total Pool always (AI scores everyone), so it added a 4th box with
+// no real signal, and scaling box height by value made some boxes look broken
+// small. Kept exactly the two numbers that differ meaningfully: how big the
+// pool was, and how many made the cut. Radar chart also swapped for plain
+// score badges — a single-series radar with only 4 axes read as "hard to
+// parse," not as a profile shape.
+function addVerdictSlide(
     pptx: PptxGenJS,
+    stages: FunnelStage[],
+    avgScores: AvgScores | null,
     summary: { final_recommendation?: string; highlights?: string[] } | null,
-    query?: string | null,
-    avgScores?: AvgScores | null,
 ) {
-    if (!summary?.final_recommendation && !summary?.highlights?.length && !query) return;
-
     const slide = pptx.addSlide();
     slide.background = { color: C.white };
     slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.08, h: "100%", fill: { color: C.indigo } });
-
-    slide.addText("AI ASSESSMENT SUMMARY", {
+    slide.addText("THE VERDICT", {
         x: 0.3, y: 0.18, w: 12.75, h: 0.36, fontSize: 10, bold: true, color: C.indigo, charSpacing: 2,
     });
 
-    let curY = 0.65;
-
-    // ① Origin query box
-    if (query) {
+    // ── Row 1: flat stat tiles — Total Pool | Shortlisted | Top 3 ────────────
+    const keep = stages.filter(s => s.label !== "Assessed");
+    const TILE_Y = 0.62, TILE_H = 0.95, TILE_GAP = 0.25;
+    const TILE_W = (12.75 - (keep.length - 1) * TILE_GAP) / keep.length;
+    keep.forEach((s, i) => {
+        const tx = 0.3 + i * (TILE_W + TILE_GAP);
         slide.addShape(pptx.ShapeType.roundRect, {
-            x: 0.3, y: curY, w: 12.75, h: 0.72, fill: { color: C.slate100 }, rectRadius: 0.08,
+            x: tx, y: TILE_Y, w: TILE_W, h: TILE_H, fill: { color: C.slate100 }, line: { color: C.slate300, width: 2 }, rectRadius: 0.1,
         });
-        slide.addText("SEARCH CRITERIA", {
-            x: 0.5, y: curY + 0.08, w: 12.3, h: 0.2,
-            fontSize: 7, bold: true, color: C.indigo, charSpacing: 1.5,
+        slide.addShape(pptx.ShapeType.rect, { x: tx, y: TILE_Y, w: 0.06, h: TILE_H, fill: { color: C.indigo } });
+        slide.addText(s.label.toUpperCase(), {
+            x: tx + 0.25, y: TILE_Y + 0.16, w: TILE_W - 0.5, h: 0.24, fontSize: 9, bold: true, color: C.indigo, charSpacing: 1,
         });
-        slide.addText(trunc(query, 340), {
-            x: 0.5, y: curY + 0.3, w: 12.3, h: 0.34,
-            fontSize: 9.5, color: C.slate600, italic: true, wrap: true,
+        slide.addText(`${s.value}`, {
+            x: tx + 0.25, y: TILE_Y + 0.4, w: TILE_W - 0.5, h: 0.5, fontSize: 32, bold: true, color: C.slate900,
         });
-        curY += 0.9;
+    });
+
+    // ── Row 2: score badges — Overall + 4D (replaces the radar chart) ─────────
+    let curY = TILE_Y + TILE_H + 0.3;
+    const has4D = avgScores && (avgScores.experience || avgScores.leadership || avgScores.market || avgScores.skills);
+    if (avgScores) {
+        const badges = [
+            { label: "OVERALL", value: avgScores.overall, max: 100, accent: C.indigo },
+            ...(has4D ? [
+                { label: "EXPERIENCE", value: avgScores.experience, max: 25, accent: "059669" },
+                { label: "LEADERSHIP", value: avgScores.leadership, max: 25, accent: "7c3aed" },
+                { label: "MARKET", value: avgScores.market, max: 25, accent: "0284c7" },
+                { label: "SKILLS", value: avgScores.skills, max: 25, accent: "ea580c" },
+            ] : []),
+        ];
+        const B_H = 0.95, B_GAP = 0.2;
+        const B_W = (12.75 - (badges.length - 1) * B_GAP) / badges.length;
+        badges.forEach((b, i) => {
+            const bx = 0.3 + i * (B_W + B_GAP);
+            slide.addShape(pptx.ShapeType.roundRect, {
+                x: bx, y: curY, w: B_W, h: B_H, fill: { color: C.slate100 }, line: { color: C.slate300, width: 2 }, rectRadius: 0.1,
+            });
+            slide.addShape(pptx.ShapeType.rect, { x: bx, y: curY, w: B_W, h: 0.05, fill: { color: b.accent } });
+            slide.addText(b.label, {
+                x: bx, y: curY + 0.14, w: B_W, h: 0.22, align: "center", fontSize: 8, bold: true, color: b.accent, charSpacing: 0.8,
+            });
+            slide.addText(`${b.value}`, {
+                x: bx, y: curY + 0.34, w: B_W, h: 0.4, align: "center", fontSize: 24, bold: true, color: C.slate900,
+            });
+            slide.addText(`/ ${b.max}`, {
+                x: bx, y: curY + 0.74, w: B_W, h: 0.18, align: "center", fontSize: 8, color: C.slate500,
+            });
+        });
+        curY += B_H + 0.3;
     }
 
-    // ② Final recommendation
+    // ── AI final recommendation + key insights (full width) ──────────────────
     if (summary?.final_recommendation) {
         const rec = summary.final_recommendation.replace(/^✦\s*/, "").trim();
-        const estLines = Math.max(2, Math.ceil(rec.length / 95));
-        const recH = Math.min(2.4, estLines * 0.32 + 0.1);
-        slide.addShape(pptx.ShapeType.ellipse, {
-            x: 0.3, y: curY + 0.11, w: 0.11, h: 0.11, fill: { color: C.indigo },
-        });
+        const estLines = Math.max(2, Math.ceil(rec.length / 100));
+        const recH = Math.min(1.4, estLines * 0.28 + 0.1);
+        slide.addShape(pptx.ShapeType.ellipse, { x: 0.3, y: curY + 0.11, w: 0.11, h: 0.11, fill: { color: C.indigo } });
         slide.addText(rec, {
             x: 0.5, y: curY, w: 12.55, h: recH,
-            fontSize: 12, color: C.slate900, wrap: true, valign: "top",
-            lineSpacingMultiple: 1.4,
+            fontSize: 11, color: C.slate900, wrap: true, valign: "top", lineSpacingMultiple: 1.3,
         });
-        curY += recH + 0.25;
+        curY += recH + 0.2;
     }
 
-    // ③ Key insights
     if (summary?.highlights?.length) {
-        slide.addShape(pptx.ShapeType.line, {
-            x: 0.3, y: curY, w: 12.75, h: 0, line: { color: C.slate200, width: 0.75 },
-        });
-        curY += 0.24;
-
+        slide.addShape(pptx.ShapeType.line, { x: 0.3, y: curY, w: 12.75, h: 0, line: { color: C.slate200, width: 0.75 } });
+        curY += 0.2;
         slide.addText("KEY INSIGHTS", {
-            x: 0.3, y: curY, w: 12.75, h: 0.28,
-            fontSize: 8, bold: true, color: C.indigo, charSpacing: 2,
+            x: 0.3, y: curY, w: 12.75, h: 0.24, fontSize: 7.5, bold: true, color: C.indigo, charSpacing: 1.5,
         });
-        curY += 0.38;
-
+        curY += 0.3;
         for (const bullet of summary.highlights.slice(0, 5)) {
             const text = bullet.replace(/^[•\-]\s*/, "").trim();
-            const estH = Math.min(0.7, Math.max(0.32, Math.ceil(text.length / 130) * 0.3 + 0.05));
-            slide.addShape(pptx.ShapeType.ellipse, {
-                x: 0.35, y: curY + 0.1, w: 0.11, h: 0.11, fill: { color: C.indigo },
-            });
+            const estH = Math.min(0.6, Math.max(0.26, Math.ceil(text.length / 130) * 0.24 + 0.05));
+            slide.addShape(pptx.ShapeType.ellipse, { x: 0.35, y: curY + 0.09, w: 0.09, h: 0.09, fill: { color: C.indigo } });
             slide.addText(text, {
-                x: 0.56, y: curY, w: 12.5, h: estH,
-                fontSize: 10.5, color: C.slate700, wrap: true, valign: "top",
-                lineSpacingMultiple: 1.35,
+                x: 0.54, y: curY, w: 12.5, h: estH,
+                fontSize: 9.5, color: C.slate700, wrap: true, valign: "top", lineSpacingMultiple: 1.3,
             });
-            curY += estH + 0.12;
-            if (curY > 5.7) break;
+            curY += estH + 0.1;
+            if (curY > 7.2) break;
         }
-    }
-
-    // ④ Score cards row (bottom fixed)
-    if (avgScores) {
-        const CARD_Y = 6.35;
-        const CARD_H = 0.82;
-        const CARD_W = 2.45;
-        const GAP    = 0.1;
-        const cards = [
-            { label: "OVERALL",    value: avgScores.overall,    max: 100, accent: C.indigo },
-            { label: "EXPERIENCE", value: avgScores.experience, max: 25,  accent: "059669" },
-            { label: "LEADERSHIP", value: avgScores.leadership, max: 25,  accent: "7c3aed" },
-            { label: "MARKET",     value: avgScores.market,     max: 25,  accent: "0284c7" },
-            { label: "SKILLS",     value: avgScores.skills,     max: 25,  accent: "ea580c" },
-        ];
-        cards.forEach((card, i) => {
-            const cx = 0.3 + i * (CARD_W + GAP);
-            slide.addShape(pptx.ShapeType.roundRect, {
-                x: cx, y: CARD_Y, w: CARD_W, h: CARD_H, fill: { color: C.slate100 }, line: { color: C.slate200, width: 0.5 }, rectRadius: 0.1,
-            });
-            slide.addShape(pptx.ShapeType.rect, { x: cx, y: CARD_Y, w: CARD_W, h: 0.05, fill: { color: card.accent } });
-            slide.addText(card.label, {
-                x: cx, y: CARD_Y + 0.14, w: CARD_W, h: 0.22,
-                align: "center", fontSize: 7, bold: true, color: card.accent, charSpacing: 0.8,
-            });
-            slide.addText(`${card.value}`, {
-                x: cx, y: CARD_Y + 0.33, w: CARD_W, h: 0.38,
-                align: "center", fontSize: 22, bold: true, color: C.slate900,
-            });
-            slide.addText(`/ ${card.max}`, {
-                x: cx, y: CARD_Y + 0.67, w: CARD_W, h: 0.18,
-                align: "center", fontSize: 8, color: C.slate500,
-            });
-        });
     }
 }
 
@@ -1047,12 +1101,10 @@ export async function generateAssessmentPPTX(
     const top20  = sorted.slice(0, 20);
     const avgScores = computeAvgScores(sorted);
 
-    let title = jrTitle;
-    if (!title) {
-        const { data: jr } = await adminAuthClient
-            .from("job_requisitions").select("position_jr").eq("jr_id", jrId).single();
-        title = (jr as any)?.position_jr ?? jrId;
-    }
+    const { data: jrRow } = await adminAuthClient
+        .from("job_requisitions").select("position_jr, bu, sub_bu, jr_type, job_description").eq("jr_id", jrId).single();
+    const jr = jrRow as any;
+    const title = jrTitle || jr?.position_jr || jrId;
 
     const dateStr = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
     const photos  = await Promise.all(top3.map(r => fetchImageBase64(r.photo_url)));
@@ -1060,7 +1112,6 @@ export async function generateAssessmentPPTX(
     const poolCandidateIds = jobData.pool_candidate_ids ?? sorted.map(r => r.candidate_id);
     const marketBreakdown = await getPoolMarketBreakdown(poolCandidateIds);
     const poolTotal = jobData.pool_total ?? sorted.length;
-    const assessedCount = jobData.candidate_count ?? sorted.length;
     const shortlisted = jobData.result_count ?? Math.min(20, sorted.length);
 
     const pptx = new PptxGenJS();
@@ -1071,14 +1122,13 @@ export async function generateAssessmentPPTX(
     pptx.title   = `${jrId} Assessment Report`;
 
     addCoverSlide(pptx, jrId, title, sorted.length, dateStr);
-    addExecutiveSummarySlide(pptx, [
+    addBriefSlide(pptx, { title, bu: jr?.bu, subBu: jr?.sub_bu, jrType: jr?.jr_type, description: jr?.job_description });
+    addMarketDashboardSlide(pptx, marketBreakdown);
+    addVerdictSlide(pptx, [
         { label: "Total Pool", value: poolTotal },
-        { label: "Assessed", value: assessedCount },
         { label: "Shortlisted", value: shortlisted },
         { label: "Top 3", value: Math.min(3, sorted.length) },
-    ]);
-    addMarketOverviewSlide(pptx, marketBreakdown);
-    addSummarySlide(pptx, jobData.summary, null, avgScores);
+    ], avgScores, jobData.summary);
 
     // Recruiter-curated Top Profile shortlist (jr_candidates.list_type) — independent
     // of this AI job, shown first, matching the reference template's page order.
@@ -1163,7 +1213,6 @@ export async function generateSearchPPTX(
     const poolCandidateIds = jobData.pool_candidate_ids ?? sorted.map(r => r.candidate_id);
     const marketBreakdown = await getPoolMarketBreakdown(poolCandidateIds);
     const poolTotal = jobData.pool_total ?? sorted.length;
-    const assessedCount = jobData.candidate_count ?? sorted.length;
     const shortlisted = jobData.result_count ?? Math.min(20, sorted.length);
 
     const pptx = new PptxGenJS();
@@ -1174,15 +1223,14 @@ export async function generateSearchPPTX(
     pptx.title   = `Search Report — ${jobId}`;
 
     addCoverSlide(pptx, jobId, queryTitle, sorted.length, dateStr);
-    addExecutiveSummarySlide(pptx, [
+    // No BU/Sub BU/JR Type for a search session — just the natural-language query.
+    addBriefSlide(pptx, { title: queryTitle, description: jobData.query });
+    addMarketDashboardSlide(pptx, marketBreakdown);
+    addVerdictSlide(pptx, [
         { label: "Total Pool", value: poolTotal },
-        { label: "Assessed", value: assessedCount },
         { label: "Shortlisted", value: shortlisted },
         { label: "Top 3", value: Math.min(3, sorted.length) },
-    ]);
-    addMarketOverviewSlide(pptx, marketBreakdown);
-    // Pass full query (not truncated) and avg scores to summary slide
-    addSummarySlide(pptx, jobData.summary, jobData.query, avgScores);
+    ], avgScores, jobData.summary);
 
     // Same "Short Profile" card layout as the JR Assessment report — there's no
     // jr_candidates-based user shortlist for a search session, so this is just
