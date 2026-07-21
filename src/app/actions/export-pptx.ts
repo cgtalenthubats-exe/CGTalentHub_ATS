@@ -1,8 +1,10 @@
 "use server";
 
 import PptxGenJS from "pptxgenjs";
+import fs from "fs";
+import path from "path";
 import { adminAuthClient } from "@/lib/supabase/admin";
-import { getStage3JobStatus, getJRCandidateRoster, type Stage3Result } from "@/app/actions/ai-ranking";
+import { getStage3JobStatus, getJRCandidateRoster, getJRTopProfileShortlist, type Stage3Result, type ShortProfileCandidate } from "@/app/actions/ai-ranking";
 import { getSearchJobStatus } from "@/app/actions/ai-search-ranking";
 import { getPoolMarketBreakdown, type MarketBreakdown } from "@/app/actions/market-breakdown";
 
@@ -23,6 +25,7 @@ const C = {
     amber:    "f59e0b",
     amber50:  "fffbeb",
     red:      "ef4444",
+    red50:    "fef2f2",
 };
 
 // ── 4D dimension definitions ─────────────────────────────────────────────────
@@ -704,13 +707,182 @@ function addBackgroundBox(
         curY += 0.32;
     }
     if (history.length) {
-        const lineH = Math.min(0.32, (y + h - curY) / history.length);
-        history.forEach(line => {
-            slide.addText(trunc(line, 110), {
-                x: x + padX, y: curY, w: w - padX * 2, h: lineH,
-                fontSize: 7.5, color: C.slate600, wrap: true, valign: "top", lineSpacingMultiple: 1.05,
+        // One text box for the whole history, joined by real newlines — matches the
+        // reference n8n template's single-placeholder approach. Rendering each line as
+        // its own fixed-height box (previous approach) let long position/company names
+        // wrap to 2 lines and overlap the box below it.
+        slide.addText(history.map(line => trunc(line, 110)).join("\n"), {
+            x: x + padX, y: curY, w: w - padX * 2, h: y + h - curY,
+            fontSize: 7.5, color: C.slate600, wrap: true, valign: "top", lineSpacingMultiple: 1.15,
+        });
+    }
+}
+
+// ── LinkedIn icon ──────────────────────────────────────────────────────────────
+// Real logo asset (public/linkedin-logo.png), read once and cached as a data URI.
+// Checked into the repo rather than referenced from a local machine path, so it
+// works the same regardless of where this runs.
+const LINKEDIN_ICON_URI = `data:image/png;base64,${fs.readFileSync(
+    path.join(process.cwd(), "public", "linkedin-logo.png")
+).toString("base64")}`;
+
+// ── Short Profile card slides (JR only) ───────────────────────────────────────
+// Two sections reuse this same card layout, matching the reference n8n
+// template's "Short Profile potential candidates" pages:
+//   1. User picks   — recruiter-curated Top Profile shortlist (jr_candidates.list_type),
+//                      independent of any AI ranking job.
+//   2. AI Suggestion — Top 20 AI-ranked results for this job, same card format,
+//                      with a Score/4D badge (AI-only data — not shown for user picks).
+// `badge` marks a candidate that appears in BOTH lists (shown only on the AI
+// Suggestion cards) rather than de-duplicating — recruiter and AI agreement is
+// itself a useful signal, not noise to collapse away.
+type ProfileCardItem = {
+    candidate_id: string;
+    rank: number;
+    name: string;
+    photo_url: string | null;
+    linkedin: string | null;
+    age: number | null;
+    nationality: string | null;
+    position: string | null;
+    company: string | null;
+    location: string | null;
+    education: string | null;
+    experience_history: string[];
+    rating: string | null;
+    latest_status: string | null;
+    badge?: string | null;
+    score?: number | null;
+    dims?: { label: string; score: number | null }[] | null;
+};
+
+const SHORT_PROFILE_PAGE_SIZE = 6;
+// Rough estimate of characters-per-inch at 7pt — used only to guess how many
+// wrapped lines a field will take so the elements below it don't overlap.
+// (n8n doesn't truncate these fields either — Google Slides just lets the
+// placeholder grow/wrap; pptxgenjs has no auto-shrink, so we estimate instead.)
+const CHARS_PER_INCH_7PT = 20;
+
+async function addShortProfileCardsSlides(pptx: PptxGenJS, candidates: ProfileCardItem[], titleBase: string) {
+    const totalPages = Math.max(1, Math.ceil(candidates.length / SHORT_PROFILE_PAGE_SIZE));
+    const photos = await Promise.all(candidates.map(c => fetchImageBase64(c.photo_url)));
+
+    for (let page = 0; page < totalPages; page++) {
+        const pageItems = candidates.slice(page * SHORT_PROFILE_PAGE_SIZE, (page + 1) * SHORT_PROFILE_PAGE_SIZE);
+        const photoOffset = page * SHORT_PROFILE_PAGE_SIZE;
+
+        const slide = pptx.addSlide();
+        slide.background = { color: C.white };
+        const title = totalPages > 1 ? `${titleBase} (${page + 1}/${totalPages})` : titleBase;
+        slide.addText(title, { x: 0.3, y: 0.18, w: 12.75, h: 0.45, fontSize: 20, bold: true, color: C.slate900 });
+
+        const GRID_X = 0.3, GRID_Y = 0.78, GAP = 0.2;
+        const CARD_W = (12.7 - 2 * GAP) / 3, CARD_H = (6.5 - GAP) / 2;
+
+        pageItems.forEach((c, i) => {
+            const col = i % 3, row = Math.floor(i / 3);
+            const cx = GRID_X + col * (CARD_W + GAP), cy = GRID_Y + row * (CARD_H + GAP);
+            const photo = photos[photoOffset + i];
+            const displayRank = page * SHORT_PROFILE_PAGE_SIZE + i + 1;
+
+            slide.addShape(pptx.ShapeType.roundRect, {
+                x: cx, y: cy, w: CARD_W, h: CARD_H, fill: { color: C.slate100 }, line: { color: C.slate200, width: 0.5 }, rectRadius: 0.08,
             });
-            curY += lineH;
+
+            // Header: rank + name (left, wraps up to 2 lines — not truncated, matches n8n)
+            slide.addText(`${displayRank}. ${c.name}`, {
+                x: cx + 0.15, y: cy + 0.08, w: CARD_W - 1.6, h: 0.4, fontSize: 12, bold: true, color: C.slate900, wrap: true, valign: "top",
+            });
+
+            // Right-side stack: Status → "also on other list" badge
+            const rightStack: { text: string; color: string }[] = [];
+            if (c.latest_status) {
+                const isGray = GRAY_STATUSES.includes(c.latest_status);
+                const isRejected = c.latest_status === "Rejected";
+                rightStack.push({ text: c.latest_status, color: isRejected ? C.red : isGray ? C.slate500 : C.slate600 });
+            }
+            if (c.badge) rightStack.push({ text: c.badge, color: C.green });
+            rightStack.forEach((item, idx) => {
+                slide.addText(item.text, {
+                    x: cx + CARD_W - 1.45, y: cy + 0.08 + idx * 0.18, w: 1.3, h: 0.18,
+                    fontSize: 6.5, bold: true, color: item.color, align: "right",
+                });
+            });
+
+            // Photo
+            const photoX = cx + 0.15, photoY = cy + 0.5, photoS = 0.85;
+            if (photo) {
+                slide.addImage({ data: photo, x: photoX, y: photoY, w: photoS, h: photoS, rounding: true });
+            } else {
+                slide.addShape(pptx.ShapeType.roundRect, { x: photoX, y: photoY, w: photoS, h: photoS, fill: { color: "dde1f0" }, rectRadius: photoS / 2 });
+                slide.addText(c.name.charAt(0).toUpperCase(), {
+                    x: photoX, y: photoY, w: photoS, h: photoS, align: "center", valign: "middle", fontSize: 22, bold: true, color: C.indigo,
+                });
+            }
+
+            // Info lines — bold label + value per line, single text box (real line
+            // breaks via `breakLine`, not separate boxes) so PowerPoint wraps each
+            // value naturally instead of us pre-cutting it with "…".
+            const infoW = CARD_W - photoS - 0.45;
+            const fields: { label: string; value: string }[] = [
+                { label: "Position", value: c.position || "-" },
+                { label: "Company", value: c.company || "-" },
+                { label: "Nationality", value: c.nationality || "-" },
+                { label: "Location", value: c.location || "-" },
+                { label: "Age", value: c.age != null ? `${c.age}` : "-" },
+                { label: "Education", value: c.education || "-" },
+            ];
+            const charsPerLine = Math.max(10, Math.floor(infoW * CHARS_PER_INCH_7PT));
+            let estLines = 0;
+            const infoRuns: { text: string; options: any }[] = [];
+            fields.forEach(f => {
+                infoRuns.push({ text: `${f.label}: `, options: { bold: true } });
+                infoRuns.push({ text: f.value, options: { breakLine: true } });
+                estLines += Math.max(1, Math.ceil((f.label.length + 2 + f.value.length) / charsPerLine));
+            });
+            const infoH = estLines * 0.13;
+            slide.addText(infoRuns, {
+                x: photoX + photoS + 0.15, y: photoY, w: infoW, h: Math.max(photoS, infoH),
+                fontSize: 7, color: C.slate600, wrap: true, valign: "top", lineSpacingMultiple: 1.15,
+            });
+
+            // LinkedIn logo + Rating row
+            const contentBottom = photoY + Math.max(photoS, infoH);
+            const badgeY = contentBottom + 0.1;
+            if (c.linkedin) {
+                slide.addImage({ data: LINKEDIN_ICON_URI, x: cx + 0.15, y: badgeY, w: 0.26, h: 0.26, hyperlink: { url: c.linkedin } });
+            }
+            if (c.rating) {
+                const ratingX = cx + (c.linkedin ? 0.48 : 0.15);
+                slide.addShape(pptx.ShapeType.roundRect, { x: ratingX, y: badgeY, w: 0.95, h: 0.26, fill: { color: C.amber50 }, rectRadius: 0.05 });
+                slide.addText(`★ ${c.rating}`, { x: ratingX, y: badgeY, w: 0.95, h: 0.26, align: "center", valign: "middle", fontSize: 7, bold: true, color: C.amber });
+            }
+
+            // Score + 4D footer (AI only) — bottom-left corner, per feedback
+            const hasFooter = c.score != null;
+            const footerH = hasFooter ? (c.dims?.length ? 0.36 : 0.2) : 0;
+            if (hasFooter) {
+                const footerY = cy + CARD_H - footerH - 0.06;
+                slide.addText(`Score ${c.score}`, {
+                    x: cx + 0.15, y: footerY, w: CARD_W - 0.3, h: 0.18, fontSize: 8, bold: true, color: C.indigo,
+                });
+                if (c.dims?.length) {
+                    const dimLine = c.dims.map(d => `${d.label} ${d.score ?? "-"}`).join(" · ");
+                    slide.addText(dimLine, {
+                        x: cx + 0.15, y: footerY + 0.17, w: CARD_W - 0.3, h: 0.16, fontSize: 6, color: C.slate500,
+                    });
+                }
+            }
+
+            // Experience history — single joined text block, no per-line truncation
+            if (c.experience_history.length) {
+                const expY = badgeY + 0.34;
+                slide.addText("EXPERIENCE", { x: cx + 0.15, y: expY, w: CARD_W - 0.3, h: 0.18, fontSize: 6.5, bold: true, color: C.slate500, charSpacing: 0.5 });
+                slide.addText(c.experience_history.slice(0, 3).join("\n"), {
+                    x: cx + 0.15, y: expY + 0.2, w: CARD_W - 0.3, h: Math.max(0.3, cy + CARD_H - footerH - 0.1 - (expY + 0.24)),
+                    fontSize: 6.5, color: C.slate600, wrap: true, valign: "top", lineSpacingMultiple: 1.15,
+                });
+            }
         });
     }
 }
@@ -782,11 +954,22 @@ function addTopTableSlide(pptx: PptxGenJS, results: Stage3Result[], title: strin
 }
 
 // ── Long List slide (JR only — no scores, Central Group Long List format) ────
-// Ordering matches the reference n8n Long List workflow: AI-scored/ranked
-// candidates first (already sorted by score/rank by the caller), then the
-// rest of the JR pool. Manually paginated at a fixed 20 rows/slide instead of
-// pptxgenjs's height-based autoPage, so every page shows a predictable count.
+// Ordering + row coloring matches the reference n8n Long List workflow:
+// Top Profile (by rank) → Standard → Gray-status → Rejected. Manually paginated
+// at a fixed 20 rows/slide instead of pptxgenjs's height-based autoPage, so
+// every page shows a predictable count.
 const LONGLIST_PAGE_SIZE = 20;
+const GRAY_STATUSES = ["Not Open", "Not fit", "Too Senior"];
+const isTopProfile = (r: Stage3Result) => (r.list_type ?? "").toLowerCase().includes("top");
+
+function bucketLongList(pool: Stage3Result[]): Stage3Result[] {
+    const top = pool.filter(isTopProfile).sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999));
+    const rest = pool.filter(r => !isTopProfile(r));
+    const standard = rest.filter(r => !GRAY_STATUSES.includes(r.latest_status ?? "") && r.latest_status !== "Rejected");
+    const gray = rest.filter(r => GRAY_STATUSES.includes(r.latest_status ?? ""));
+    const rejected = rest.filter(r => r.latest_status === "Rejected");
+    return [...top, ...standard, ...gray, ...rejected];
+}
 
 function addLongListSlide(pptx: PptxGenJS, results: Stage3Result[], titleBase: string) {
     const totalPages = Math.max(1, Math.ceil(results.length / LONGLIST_PAGE_SIZE));
@@ -799,7 +982,13 @@ function addLongListSlide(pptx: PptxGenJS, results: Stage3Result[], titleBase: s
         slide.background = { color: C.white };
         slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.08, h: "100%", fill: { color: C.indigo } });
         const title = totalPages > 1 ? `${titleBase} (${page + 1}/${totalPages})` : titleBase;
-        slide.addText(title, { x: 0.3, y: 0.18, w: 12.75, h: 0.55, fontSize: 20, bold: true, color: C.slate900 });
+        slide.addText(title, { x: 0.3, y: 0.18, w: 6.5, h: 0.55, fontSize: 20, bold: true, color: C.slate900 });
+
+        // Legend (matches the reference Central Group template)
+        slide.addShape(pptx.ShapeType.rect, { x: 9.5, y: 0.2, w: 0.22, h: 0.16, fill: { color: C.slate200 } });
+        slide.addText("= Not Fit, Not Open, Too Senior", { x: 9.78, y: 0.16, w: 3.3, h: 0.24, fontSize: 8, color: C.slate600, valign: "middle" });
+        slide.addShape(pptx.ShapeType.rect, { x: 9.5, y: 0.42, w: 0.22, h: 0.16, fill: { color: C.red50 }, line: { color: C.red, width: 0.5 } });
+        slide.addText("= Rejected", { x: 9.78, y: 0.38, w: 3.3, h: 0.24, fontSize: 8, color: C.slate600, valign: "middle" });
 
         const hOpts = { bold: true, color: C.white, fill: { color: C.indigo }, valign: "middle" as const };
         const headerRow = [
@@ -812,10 +1001,13 @@ function addLongListSlide(pptx: PptxGenJS, results: Stage3Result[], titleBase: s
             { text: "Location",    options: hOpts },
             { text: "Nationality", options: hOpts },
             { text: "LinkedIn",    options: { ...hOpts, align: "center" as const } },
+            { text: "Remark",      options: hOpts },
         ];
 
         const dataRows = pageResults.map((r, idx) => {
-            const rowFill = idx % 2 === 0 ? { color: C.white } : { color: C.slate100 };
+            const isGray = GRAY_STATUSES.includes(r.latest_status ?? "");
+            const isRejected = r.latest_status === "Rejected";
+            const rowFill = isRejected ? { color: C.red50 } : isGray ? { color: C.slate200 } : idx % 2 === 0 ? { color: C.white } : { color: C.slate100 };
             const base    = { fill: rowFill, valign: "middle" as const };
             return [
                 { text: `${rowOffset + idx + 1}`,            options: { ...base, align: "center" as const, bold: true, color: C.slate500 } },
@@ -827,6 +1019,7 @@ function addLongListSlide(pptx: PptxGenJS, results: Stage3Result[], titleBase: s
                 { text: trunc(r.location, 20) || "-",        options: { ...base, color: C.slate600 } },
                 { text: trunc(r.nationality, 18) || "-",     options: { ...base, color: C.slate600 } },
                 { text: r.linkedin ? "View" : "-",           options: r.linkedin ? { ...base, align: "center" as const, color: C.indigo, hyperlink: { url: r.linkedin } } : { ...base, align: "center" as const, color: C.slate300 } },
+                { text: r.latest_status ?? "-",              options: { ...base, color: isRejected ? C.red : C.slate600 } },
             ];
         });
 
@@ -835,7 +1028,7 @@ function addLongListSlide(pptx: PptxGenJS, results: Stage3Result[], titleBase: s
             fontSize: 8,
             rowH: 0.3,
             border: { type: "solid", pt: 0.5, color: C.slate200 },
-            colW: [0.5, 2.2, 2.0, 2.4, 0.55, 0.7, 1.4, 1.4, 0.85], // total ≈ 12.0
+            colW: [0.45, 1.9, 1.8, 2.2, 0.5, 0.65, 1.15, 1.15, 0.7, 1.6], // total ≈ 12.1
         });
     }
 }
@@ -887,17 +1080,64 @@ export async function generateAssessmentPPTX(
     addMarketOverviewSlide(pptx, marketBreakdown);
     addSummarySlide(pptx, jobData.summary, null, avgScores);
 
+    // Recruiter-curated Top Profile shortlist (jr_candidates.list_type) — independent
+    // of this AI job, shown first, matching the reference template's page order.
+    const shortProfileCandidates = await getJRTopProfileShortlist(jrId);
+    const userPickIds = new Set(shortProfileCandidates.map(c => c.candidate_id));
+    if (shortProfileCandidates.length > 0) {
+        await addShortProfileCardsSlides(
+            pptx,
+            shortProfileCandidates.map((c): ProfileCardItem => ({ ...c })),
+            "Short Profile Potential Candidates",
+        );
+    }
+
+    // Same card layout, sourced from the AI-ranked Top 20 instead. Candidates that
+    // are ALSO on the recruiter's own shortlist above are flagged (not de-duplicated —
+    // human/AI agreement is a useful signal, not noise to collapse away).
+    if (top20.length > 0) {
+        await addShortProfileCardsSlides(
+            pptx,
+            top20.map((r, i): ProfileCardItem => ({
+                candidate_id: r.candidate_id,
+                rank: i + 1,
+                name: r.name,
+                photo_url: r.photo_url,
+                linkedin: r.linkedin,
+                age: r.age,
+                nationality: r.nationality,
+                position: r.position,
+                company: r.company,
+                location: r.location,
+                education: r.education,
+                experience_history: r.experience_history,
+                rating: r.rating,
+                latest_status: r.latest_status,
+                badge: userPickIds.has(r.candidate_id) ? "✓ User Pick" : null,
+                score: r.score,
+                dims: r.experience_score !== null ? [
+                    { label: "Exp", score: r.experience_score },
+                    { label: "Lead", score: r.leadership_score },
+                    { label: "Mkt", score: r.market_score },
+                    { label: "Skills", score: r.skills_score },
+                ] : null,
+            })),
+            "Short Profile — AI Suggestion",
+        );
+    }
+
     for (let i = 0; i < top3.length; i++) {
         await addCandidateSlide(pptx, top3[i], photos[i], i + 1);
     }
 
     addTopTableSlide(pptx, top20, `Top ${top20.length} Summary`);
 
-    // Long List order matches the reference workflow: AI-scored candidates
-    // first (already sorted by score), then the rest of the JR pool.
+    // Long List order matches the reference workflow: Top Profile (by rank) →
+    // Standard → Gray-status (Not Open / Not fit / Too Senior) → Rejected.
     const roster = await getJRCandidateRoster(jrId);
     const scoredIds = new Set(sorted.map(r => r.candidate_id));
-    const longList = [...sorted, ...roster.filter(r => !scoredIds.has(r.candidate_id))];
+    const pool = [...sorted, ...roster.filter(r => !scoredIds.has(r.candidate_id))];
+    const longList = bucketLongList(pool);
     if (longList.length > 0) addLongListSlide(pptx, longList, `Long List — ${longList.length} Candidates`);
 
     const base64 = await pptx.write({ outputType: "base64" }) as string;
@@ -943,6 +1183,39 @@ export async function generateSearchPPTX(
     addMarketOverviewSlide(pptx, marketBreakdown);
     // Pass full query (not truncated) and avg scores to summary slide
     addSummarySlide(pptx, jobData.summary, jobData.query, avgScores);
+
+    // Same "Short Profile" card layout as the JR Assessment report — there's no
+    // jr_candidates-based user shortlist for a search session, so this is just
+    // the AI-ranked Top 20 (no "User Pick" badge, since no such list exists here).
+    if (top20.length > 0) {
+        await addShortProfileCardsSlides(
+            pptx,
+            top20.map((r, i): ProfileCardItem => ({
+                candidate_id: r.candidate_id,
+                rank: i + 1,
+                name: r.name,
+                photo_url: r.photo_url,
+                linkedin: r.linkedin,
+                age: r.age,
+                nationality: r.nationality,
+                position: r.position,
+                company: r.company,
+                location: r.location,
+                education: r.education,
+                experience_history: r.experience_history,
+                rating: r.rating,
+                latest_status: null,
+                score: r.score,
+                dims: r.experience_score !== null ? [
+                    { label: "Exp", score: r.experience_score },
+                    { label: "Lead", score: r.leadership_score },
+                    { label: "Mkt", score: r.market_score },
+                    { label: "Skills", score: r.skills_score },
+                ] : null,
+            })),
+            "Short Profile — AI Suggestion",
+        );
+    }
 
     for (let i = 0; i < top3.length; i++) {
         await addCandidateSlide(pptx, top3[i], photos[i], i + 1);

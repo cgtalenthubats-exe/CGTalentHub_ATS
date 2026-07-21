@@ -74,6 +74,11 @@ export type Stage3Result = {
     tradeoff: string;
     rank: number;
     list_type: string;
+    // Most recent status_log entry for this candidate on this JR (e.g. "Not fit",
+    // "Not Open", "Rejected") — drives Long List row grouping/coloring.
+    latest_status: string | null;
+    // company_master.rating of the candidate's current/latest employer (e.g. "3 Star").
+    rating: string | null;
     // 4-Dimension scoring (Top 20 only, null for others)
     experience_score: number | null;
     experience_summary: string | null;
@@ -98,6 +103,22 @@ export type Stage3JobData = {
     pool_total: number | null;
     pool_candidate_ids: string[] | null;
 };
+
+/** Latest status_log.status per jr_candidate_id, keyed by jr_candidate_id (bigint, as string). */
+async function getLatestStatusByJrCandidateId(jrCandidateIds: (string | number)[]): Promise<Map<string, string>> {
+    if (!jrCandidateIds.length) return new Map();
+    const { data } = await adminAuthClient
+        .from("status_log")
+        .select("jr_candidate_id, status, log_id")
+        .in("jr_candidate_id", jrCandidateIds)
+        .order("log_id", { ascending: true });
+
+    const map = new Map<string, string>();
+    for (const row of (data ?? []) as any[]) {
+        if (row.status) map.set(String(row.jr_candidate_id), row.status);
+    }
+    return map;
+}
 
 export async function getStage3JobStatus(jobId: string, jrId?: string | null): Promise<Stage3JobData | null> {
     const { data: job } = await adminAuthClient
@@ -157,14 +178,25 @@ export async function getStage3JobStatus(jobId: string, jrId?: string | null): P
     const expByCandidate = groupExperiencesByCandidate((expRes.data ?? []) as ExperienceRow[]);
     const enhanceMap = new Map((enhanceRes.data ?? []).map((e: any) => [e.candidate_id, e as any]));
 
+    const companyIds = [...new Set(
+        candidateIds.map((cId: string) => expByCandidate.get(cId)?.[0]?.company_id).filter((id): id is number => id != null)
+    )];
+    const companyMasterRes = companyIds.length
+        ? await adminAuthClient.from("company_master").select("company_id, rating").in("company_id", companyIds)
+        : { data: [] as any[] };
+    const ratingByCompanyId = new Map((companyMasterRes.data ?? []).map((c: any) => [c.company_id, c.rating]));
+
     let jrMap = new Map<string, any>();
+    let statusByJrCandidateId = new Map<string, string>();
     if (jrId) {
         const jrRes = await adminAuthClient
             .from("jr_candidates")
-            .select("candidate_id, list_type")
+            .select("candidate_id, jr_candidate_id, list_type")
             .eq("jr_id", jrId)
             .in("candidate_id", candidateIds);
         jrMap = new Map((jrRes.data ?? []).map((j: any) => [j.candidate_id, j]));
+        const jrCandidateIds = (jrRes.data ?? []).map((j: any) => j.jr_candidate_id);
+        statusByJrCandidateId = await getLatestStatusByJrCandidateId(jrCandidateIds);
     }
 
     const enriched: Stage3Result[] = (results ?? []).map((r: any) => {
@@ -193,6 +225,8 @@ export async function getStage3JobStatus(jobId: string, jrId?: string | null): P
         tradeoff: r.tradeoff ?? "",
         rank: r.rank ?? null,
         list_type: jrId ? (jrMap.get(r.candidate_id)?.list_type ?? "Longlist") : "Search Result",
+        latest_status: jrId ? (statusByJrCandidateId.get(String(jrMap.get(r.candidate_id)?.jr_candidate_id)) ?? null) : null,
+        rating: latest?.company_id != null ? (ratingByCompanyId.get(latest.company_id) ?? null) : null,
         experience_score: r.experience_score ?? null,
         experience_summary: r.experience_summary ?? null,
         leadership_score: r.leadership_score ?? null,
@@ -226,13 +260,13 @@ export async function getStage3JobStatus(jobId: string, jrId?: string | null): P
 export async function getJRCandidateRoster(jrId: string): Promise<Stage3Result[]> {
     const { data: jrRows } = await adminAuthClient
         .from("jr_candidates")
-        .select("candidate_id, list_type, rank")
+        .select("candidate_id, jr_candidate_id, list_type, rank")
         .eq("jr_id", jrId);
 
     const candidateIds = (jrRows ?? []).map((r: any) => r.candidate_id);
     if (!candidateIds.length) return [];
 
-    const [profilesRes, expRes] = await Promise.all([
+    const [profilesRes, expRes, statusByJrCandidateId] = await Promise.all([
         adminAuthClient
             .from("Candidate Profile")
             .select("candidate_id, name, photo, linkedin, age, age_source, gender, nationality")
@@ -241,6 +275,7 @@ export async function getJRCandidateRoster(jrId: string): Promise<Stage3Result[]
             .from("candidate_experiences")
             .select("candidate_id, position, company, company_id, start_date, end_date, country, is_current_job")
             .in("candidate_id", candidateIds),
+        getLatestStatusByJrCandidateId((jrRows ?? []).map((j: any) => j.jr_candidate_id)),
     ]);
 
     const profileMap = new Map((profilesRes.data ?? []).map((p: any) => [p.candidate_id, p as any]));
@@ -272,6 +307,8 @@ export async function getJRCandidateRoster(jrId: string): Promise<Stage3Result[]
             tradeoff: "",
             rank: jrRow?.rank ?? 999,
             list_type: jrRow?.list_type ?? "Longlist",
+            latest_status: statusByJrCandidateId.get(String(jrRow?.jr_candidate_id)) ?? null,
+            rating: null, // Long List doesn't show rating; avoids an extra company_master round-trip here
             experience_score: null,
             experience_summary: null,
             leadership_score: null,
@@ -282,6 +319,97 @@ export async function getJRCandidateRoster(jrId: string): Promise<Stage3Result[]
             skills_summary: null,
         };
     }).sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999));
+}
+
+export type ShortProfileCandidate = {
+    candidate_id: string;
+    rank: number;
+    name: string;
+    photo_url: string | null;
+    linkedin: string | null;
+    age: number | null;
+    age_source: string | null;
+    nationality: string | null;
+    position: string | null;
+    company: string | null;
+    location: string | null;
+    education: string | null;
+    experience_history: string[];
+    rating: string | null;
+    latest_status: string | null;
+};
+
+/**
+ * Recruiter-curated "Top Profile" shortlist for a JR — sourced from
+ * jr_candidates.list_type directly, independent of any AI ranking job (a JR
+ * can have Top Profile picks long before anyone ever runs an AI Assessment).
+ * Mirrors the reference n8n workflow's "Short Profile potential candidates"
+ * cards, including using the candidate's current company's star rating
+ * (company_master.rating) as the Rating Box — not an AI score.
+ */
+export async function getJRTopProfileShortlist(jrId: string): Promise<ShortProfileCandidate[]> {
+    const { data: jrRows } = await adminAuthClient
+        .from("jr_candidates")
+        .select("candidate_id, jr_candidate_id, rank")
+        .eq("jr_id", jrId)
+        .ilike("list_type", "%top%");
+
+    const candidateIds = (jrRows ?? []).map((r: any) => r.candidate_id);
+    if (!candidateIds.length) return [];
+
+    const [profilesRes, expRes, enhanceRes, statusByJrCandidateId] = await Promise.all([
+        adminAuthClient
+            .from("Candidate Profile")
+            .select("candidate_id, name, photo, linkedin, age, age_source, nationality")
+            .in("candidate_id", candidateIds),
+        adminAuthClient
+            .from("candidate_experiences")
+            .select("candidate_id, position, company, company_id, start_date, end_date, country, is_current_job")
+            .in("candidate_id", candidateIds),
+        adminAuthClient
+            .from("candidate_profile_enhance")
+            .select("candidate_id, education_summary")
+            .in("candidate_id", candidateIds),
+        getLatestStatusByJrCandidateId((jrRows ?? []).map((j: any) => j.jr_candidate_id)),
+    ]);
+
+    const profileMap = new Map((profilesRes.data ?? []).map((p: any) => [p.candidate_id, p as any]));
+    const expByCandidate = groupExperiencesByCandidate((expRes.data ?? []) as ExperienceRow[]);
+    const enhanceMap = new Map((enhanceRes.data ?? []).map((e: any) => [e.candidate_id, e as any]));
+    const jrMap = new Map((jrRows ?? []).map((j: any) => [j.candidate_id, j]));
+
+    const companyIds = [...new Set(
+        candidateIds.map((cId: string) => expByCandidate.get(cId)?.[0]?.company_id).filter((id): id is number => id != null)
+    )];
+    const companyMasterRes = companyIds.length
+        ? await adminAuthClient.from("company_master").select("company_id, rating").in("company_id", companyIds)
+        : { data: [] as any[] };
+    const ratingByCompanyId = new Map((companyMasterRes.data ?? []).map((c: any) => [c.company_id, c.rating]));
+
+    return candidateIds.map((cId: string) => {
+        const profile = profileMap.get(cId);
+        const sortedExp = expByCandidate.get(cId) ?? [];
+        const latest = sortedExp[0];
+        const enhance = enhanceMap.get(cId);
+        const jrRow = jrMap.get(cId);
+        return {
+            candidate_id: cId,
+            rank: jrRow?.rank ?? 999,
+            name: profile?.name ?? cId,
+            photo_url: profile?.photo ?? null,
+            linkedin: profile?.linkedin ?? null,
+            age: profile?.age ?? null,
+            age_source: profile?.age_source ?? null,
+            nationality: profile?.nationality ?? null,
+            position: latest?.position ?? null,
+            company: latest?.company ?? null,
+            location: latest?.country ?? null,
+            education: formatEducationHeadline(enhance?.education_summary) || null,
+            experience_history: formatExperienceHistory(sortedExp, 4),
+            rating: latest?.company_id != null ? (ratingByCompanyId.get(latest.company_id) ?? null) : null,
+            latest_status: statusByJrCandidateId.get(String(jrRow?.jr_candidate_id)) ?? null,
+        };
+    }).sort((a, b) => a.rank - b.rank);
 }
 
 export type JobHistoryItem = {
