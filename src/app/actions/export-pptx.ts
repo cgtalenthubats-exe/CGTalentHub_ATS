@@ -192,7 +192,137 @@ function addBriefSlide(pptx: PptxGenJS, info: BriefInfo) {
     }
 }
 
-// ── Page 3 — The Market (dashboard: cardinality drives chart form) ───────────
+// ── Page 3 — The Funnel (narrative, not a dashboard) ──────────────────────────
+// The Market page (next) is a "read it yourself" dashboard; this page exists
+// to be READ — a short story that walks Total Pool → Market Spread → (JR only)
+// Recruiter's Shortlist → AI Suggestion, each step closing with a concrete
+// "so what" (the dominant group/company), not just raw counts. Mirrors the
+// spirit of the reference n8n template's auto-generated Summary Mapping text,
+// but written as connected narrative rather than terse template fragments.
+type TextRun = { text: string; options?: any };
+
+function narrativeRuns(parts: (string | { bold: string })[]): TextRun[] {
+    return parts.map(p => (typeof p === "string" ? { text: p } : { text: p.bold, options: { bold: true, color: C.indigo } }));
+}
+
+const plural = (n: number, singular: string, pluralForm = `${singular}s`) => (n === 1 ? singular : pluralForm);
+
+function poolIntroRuns(b: MarketBreakdown): TextRun[] {
+    return narrativeRuns([
+        "We searched the market and found ", { bold: `${b.totalCandidates} ${plural(b.totalCandidates, "candidate")}` }, " matching the base criteria for this role.",
+    ]);
+}
+
+function spreadRuns(b: MarketBreakdown): TextRun[] {
+    const parts: (string | { bold: string })[] = [
+        "This pool spans ", { bold: `${b.countries.length} ${plural(b.countries.length, "country", "countries")}` }, ", ",
+        { bold: `${b.companyGroups.length} industry ${plural(b.companyGroups.length, "group")}` }, ", and ",
+        { bold: `${b.companies.length} ${plural(b.companies.length, "company", "companies")}` },
+    ];
+    if (b.companyGroups[0] && b.totalCandidates) {
+        const pct = Math.round((b.companyGroups[0].count / b.totalCandidates) * 100);
+        parts.push(" — the largest concentration sitting in ", { bold: b.companyGroups[0].label }, ` (${pct}%).`);
+    } else {
+        parts.push(".");
+    }
+    return narrativeRuns(parts);
+}
+
+function pickRuns(introVerb: string, b: MarketBreakdown): TextRun[] {
+    const parts: (string | { bold: string })[] = [
+        introVerb + " ", { bold: `${b.totalCandidates} ${plural(b.totalCandidates, "candidate")}` }, " — drawn from ",
+        { bold: `${b.countries.length} ${plural(b.countries.length, "country", "countries")}` }, " and ",
+        { bold: `${b.companies.length} ${plural(b.companies.length, "company", "companies")}` },
+    ];
+    if (b.companies[0]) {
+        const p = b.companies[0];
+        parts.push(", most frequently from ", { bold: p.label }, ` (${p.count} ${plural(p.count, "person", "people")}).`);
+    } else {
+        parts.push(".");
+    }
+    return narrativeRuns(parts);
+}
+
+function overlapRuns(overlapCount: number): TextRun[] {
+    return overlapCount > 0
+        ? narrativeRuns([{ bold: `${overlapCount} of these candidates` }, " also appear on the recruiter's shortlist above — a signal of alignment between human judgment and the algorithm."])
+        : narrativeRuns(["None of these overlap with the recruiter's shortlist above — two independent reads on the same market."]);
+}
+
+// Compact "Top 3" drill-down line under a layer's headline sentence — concrete
+// enough to answer "top 3 of country/industry/company are what" without
+// turning the page into a dashboard (that's what The Market page is for).
+function topNLabel(items: { label: string; count: number }[], n = 3): string {
+    return items.slice(0, n).map(i => `${i.label} (${i.count})`).join(", ");
+}
+
+function drillDownRuns(b: MarketBreakdown): TextRun[] {
+    const runs: TextRun[] = [];
+    const addSection = (label: string, items: { label: string; count: number }[]) => {
+        if (!items.length) return;
+        if (runs.length) runs.push({ text: "   ·   ", options: { color: C.slate300 } });
+        runs.push({ text: `${label}: `, options: { bold: true, color: C.slate500 } });
+        runs.push({ text: topNLabel(items), options: { color: C.slate600 } });
+    };
+    addSection("Top countries", b.countries);
+    addSection("Top groups", b.companyGroups);
+    addSection("Top companies", b.companies);
+    return runs;
+}
+
+type FunnelStep = { num: string; title: string; runs: TextRun[]; drillRuns?: TextRun[]; extraRuns?: TextRun[] };
+
+function addFunnelSlide(pptx: PptxGenJS, steps: FunnelStep[]) {
+    const slide = pptx.addSlide();
+    slide.background = { color: C.white };
+    slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.08, h: "100%", fill: { color: C.indigo } });
+    slide.addText("THE FUNNEL", {
+        x: 0.3, y: 0.18, w: 12.75, h: 0.36, fontSize: 10, bold: true, color: C.indigo, charSpacing: 2,
+    });
+
+    const startY = 0.75, endY = 7.2, lineX = 0.65;
+    const stepH = (endY - startY) / steps.length;
+
+    slide.addShape(pptx.ShapeType.line, {
+        x: lineX, y: startY + 0.25, w: 0, h: (endY - startY) - 0.5, line: { color: C.slate200, width: 1.5 },
+    });
+
+    steps.forEach((step, i) => {
+        const y = startY + i * stepH;
+        slide.addShape(pptx.ShapeType.ellipse, {
+            x: lineX - 0.24, y: y + 0.05, w: 0.48, h: 0.48, fill: { color: C.indigo }, line: { color: C.white, width: 2 },
+        });
+        slide.addText(step.num, {
+            x: lineX - 0.24, y: y + 0.05, w: 0.48, h: 0.48, align: "center", valign: "middle", fontSize: 9, bold: true, color: C.white,
+        });
+        slide.addText(step.title, {
+            x: lineX + 0.45, y: y, w: 11.5, h: 0.22, fontSize: 8.5, bold: true, color: C.slate500, charSpacing: 1.2,
+        });
+
+        let cy = y + 0.26;
+        const sentenceH = Math.min(0.5, stepH * 0.32);
+        slide.addText(step.runs, {
+            x: lineX + 0.45, y: cy, w: 11.5, h: sentenceH, fontSize: 12.5, color: C.slate900, wrap: true, valign: "top", lineSpacingMultiple: 1.25,
+        });
+        cy += sentenceH + 0.06;
+
+        if (step.drillRuns?.length) {
+            const drillH = Math.min(0.5, stepH - (cy - y) - (step.extraRuns ? 0.4 : 0.08));
+            slide.addText(step.drillRuns, {
+                x: lineX + 0.45, y: cy, w: 11.5, h: drillH, fontSize: 9, wrap: true, valign: "top", lineSpacingMultiple: 1.25,
+            });
+            cy += drillH + 0.04;
+        }
+
+        if (step.extraRuns) {
+            slide.addText(step.extraRuns, {
+                x: lineX + 0.45, y: cy, w: 11.5, h: Math.max(0.3, stepH - (cy - y) - 0.05), fontSize: 10.5, color: C.slate600, wrap: true, valign: "top", lineSpacingMultiple: 1.25, italic: true,
+            });
+        }
+    });
+}
+
+// ── Page 4 — The Market (dashboard: cardinality drives chart form) ───────────
 // Low cardinality (Company Group ~6, Continent ~6) → donut. Ordered (Age Range)
 // or high cardinality (Industry, Position Keyword) → ranked horizontal bar,
 // capped at top-N + "Other" so it stays readable regardless of pool size.
@@ -1128,6 +1258,17 @@ export async function generateAssessmentPPTX(
     const poolTotal = jobData.pool_total ?? sorted.length;
     const shortlisted = jobData.result_count ?? Math.min(20, sorted.length);
 
+    // Recruiter-curated Top Profile shortlist (jr_candidates.list_type) — independent
+    // of this AI job. Fetched early: both The Funnel (Layer 3/3.1) and the Short
+    // Profile card sections further down need it.
+    const shortProfileCandidates = await getJRTopProfileShortlist(jrId);
+    const userPickIds = new Set(shortProfileCandidates.map(c => c.candidate_id));
+    const [userPickBreakdown, aiBreakdown] = await Promise.all([
+        getPoolMarketBreakdown(shortProfileCandidates.map(c => c.candidate_id)),
+        getPoolMarketBreakdown(top20.map(r => r.candidate_id)),
+    ]);
+    const overlapCount = top20.filter(r => userPickIds.has(r.candidate_id)).length;
+
     const pptx = new PptxGenJS();
     pptx.layout  = "LAYOUT_WIDE";
     pptx.author  = "CG Talent Hub";
@@ -1137,6 +1278,28 @@ export async function generateAssessmentPPTX(
 
     addCoverSlide(pptx, jrId, title, sorted.length, dateStr);
     addBriefSlide(pptx, { title, bu: jr?.bu, subBu: jr?.sub_bu, jrType: jr?.jr_type, description: jr?.job_description });
+
+    const funnelSteps: FunnelStep[] = [
+        { num: "01", title: "TOTAL POOL", runs: poolIntroRuns(marketBreakdown) },
+        { num: "02", title: "MARKET SPREAD", runs: spreadRuns(marketBreakdown), drillRuns: drillDownRuns(marketBreakdown) },
+    ];
+    if (shortProfileCandidates.length > 0) {
+        funnelSteps.push({
+            num: "03", title: "RECRUITER'S SHORTLIST",
+            runs: pickRuns("The team hand-picked", userPickBreakdown), drillRuns: drillDownRuns(userPickBreakdown),
+        });
+    }
+    if (top20.length > 0) {
+        const hasUserPick = shortProfileCandidates.length > 0;
+        funnelSteps.push({
+            num: hasUserPick ? "03.1" : "03", title: "AI SUGGESTION",
+            runs: pickRuns(hasUserPick ? "Separately, the AI shortlisted its own" : "The AI shortlisted its own", aiBreakdown),
+            drillRuns: drillDownRuns(aiBreakdown),
+            extraRuns: hasUserPick ? overlapRuns(overlapCount) : undefined,
+        });
+    }
+    addFunnelSlide(pptx, funnelSteps);
+
     addMarketDashboardSlide(pptx, marketBreakdown);
     addVerdictSlide(pptx, [
         { label: "Total Pool", value: poolTotal },
@@ -1144,10 +1307,6 @@ export async function generateAssessmentPPTX(
         { label: "Top 3", value: Math.min(3, sorted.length) },
     ], avgScores, jobData.summary);
 
-    // Recruiter-curated Top Profile shortlist (jr_candidates.list_type) — independent
-    // of this AI job, shown first, matching the reference template's page order.
-    const shortProfileCandidates = await getJRTopProfileShortlist(jrId);
-    const userPickIds = new Set(shortProfileCandidates.map(c => c.candidate_id));
     if (shortProfileCandidates.length > 0) {
         await addShortProfileCardsSlides(
             pptx,
@@ -1226,6 +1385,7 @@ export async function generateSearchPPTX(
 
     const poolCandidateIds = jobData.pool_candidate_ids ?? sorted.map(r => r.candidate_id);
     const marketBreakdown = await getPoolMarketBreakdown(poolCandidateIds);
+    const aiBreakdown = await getPoolMarketBreakdown(top20.map(r => r.candidate_id));
     const poolTotal = jobData.pool_total ?? sorted.length;
     const shortlisted = jobData.result_count ?? Math.min(20, sorted.length);
 
@@ -1239,6 +1399,21 @@ export async function generateSearchPPTX(
     addCoverSlide(pptx, jobId, queryTitle, sorted.length, dateStr);
     // No BU/Sub BU/JR Type for a search session — just the natural-language query.
     addBriefSlide(pptx, { title: queryTitle, description: jobData.query });
+
+    // No jr_candidates-based user shortlist for a search session, so Layer 3 is
+    // just the system's Top 20 — no 03.1 sub-layer, no overlap sentence.
+    const funnelSteps: FunnelStep[] = [
+        { num: "01", title: "TOTAL POOL", runs: poolIntroRuns(marketBreakdown) },
+        { num: "02", title: "MARKET SPREAD", runs: spreadRuns(marketBreakdown), drillRuns: drillDownRuns(marketBreakdown) },
+    ];
+    if (top20.length > 0) {
+        funnelSteps.push({
+            num: "03", title: "AI SHORTLIST",
+            runs: pickRuns("The algorithm narrowed this down to", aiBreakdown), drillRuns: drillDownRuns(aiBreakdown),
+        });
+    }
+    addFunnelSlide(pptx, funnelSteps);
+
     addMarketDashboardSlide(pptx, marketBreakdown);
     addVerdictSlide(pptx, [
         { label: "Total Pool", value: poolTotal },

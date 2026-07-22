@@ -11,6 +11,8 @@ export type MarketBreakdown = {
     companyGroups: { label: string; count: number }[];
     industries: { label: string; count: number }[];
     continents: { label: string; count: number }[];
+    countries: { label: string; count: number }[];
+    companies: { label: string; count: number }[];
     positionKeywords: { label: string; count: number }[];
     ageRanges: { label: string; count: number }[];
 };
@@ -35,7 +37,8 @@ function ageBucket(age: number | null): string {
 export async function getPoolMarketBreakdown(candidateIds: string[]): Promise<MarketBreakdown> {
     const empty: MarketBreakdown = {
         totalCandidates: 0, setCount: 0, nonSetCount: 0, thailandCount: 0,
-        companyGroups: [], industries: [], continents: [], positionKeywords: [], ageRanges: [],
+        companyGroups: [], industries: [], continents: [], countries: [], companies: [],
+        positionKeywords: [], ageRanges: [],
     };
     if (!candidateIds.length) return empty;
 
@@ -71,6 +74,8 @@ export async function getPoolMarketBreakdown(candidateIds: string[]): Promise<Ma
     const groupCounts = new Map<string, number>();
     const industryCounts = new Map<string, number>();
     const continentCounts = new Map<string, number>();
+    const countryCounts = new Map<string, number>();
+    const companyCounts = new Map<string, number>();
     const keywordCounts = new Map<string, number>();
     const ageCounts = new Map<string, number>();
 
@@ -88,8 +93,15 @@ export async function getPoolMarketBreakdown(candidateIds: string[]): Promise<Ma
         const industryLabel = company?.industry && !UNKNOWN_GROUP_LABELS.has(company.industry) ? company.industry : "Other / Unknown";
         industryCounts.set(industryLabel, (industryCounts.get(industryLabel) ?? 0) + 1);
 
+        if (company?.company_master) {
+            companyCounts.set(company.company_master, (companyCounts.get(company.company_master) ?? 0) + 1);
+        }
+
         const country = latest.country ?? null;
         if (country?.toLowerCase() === "thailand") thailandCount++;
+        if (country && !UNKNOWN_GROUP_LABELS.has(country)) {
+            countryCounts.set(country, (countryCounts.get(country) ?? 0) + 1);
+        }
         const continent = country ? continentMap.get(country) ?? "Other" : "Unknown";
         continentCounts.set(continent, (continentCounts.get(continent) ?? 0) + 1);
 
@@ -111,6 +123,8 @@ export async function getPoolMarketBreakdown(candidateIds: string[]): Promise<Ma
         companyGroups: toSortedList(groupCounts),
         industries: toSortedList(industryCounts),
         continents: toSortedList(continentCounts),
+        countries: toSortedList(countryCounts),
+        companies: toSortedList(companyCounts),
         positionKeywords: toSortedList(keywordCounts),
         ageRanges: AGE_BUCKET_ORDER
             .map(label => ({ label, count: ageCounts.get(label) ?? 0 }))
