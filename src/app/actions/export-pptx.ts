@@ -773,12 +773,25 @@ function addBackgroundBox(
 }
 
 // ── LinkedIn icon ──────────────────────────────────────────────────────────────
-// Real logo asset (public/linkedin-logo.png), read once and cached as a data URI.
-// Checked into the repo rather than referenced from a local machine path, so it
-// works the same regardless of where this runs.
-const LINKEDIN_ICON_URI = `data:image/png;base64,${fs.readFileSync(
-    path.join(process.cwd(), "public", "linkedin-logo.png")
-).toString("base64")}`;
+// Real logo asset (public/linkedin-logo.png), read lazily (only when a PPTX is
+// actually generated) and cached as a data URI. Must NOT run at module load —
+// this file's exports are pulled in by pages that never touch PPTX export, and
+// `public/` assets aren't guaranteed to exist in the serverless function's
+// bundled filesystem, so a top-level readFileSync here crashed every page that
+// imports this module (e.g. requisitions/manage, ai-search-v3) with ENOENT.
+let _linkedinIconUri: string | null = null;
+function getLinkedinIconUri(): string | null {
+    if (_linkedinIconUri !== null) return _linkedinIconUri;
+    try {
+        _linkedinIconUri = `data:image/png;base64,${fs.readFileSync(
+            path.join(process.cwd(), "public", "linkedin-logo.png")
+        ).toString("base64")}`;
+    } catch (e) {
+        console.error("Failed to load LinkedIn icon asset for PPTX export", e);
+        _linkedinIconUri = "";
+    }
+    return _linkedinIconUri;
+}
 
 // ── Short Profile card slides (JR only) ───────────────────────────────────────
 // Two sections reuse this same card layout, matching the reference n8n
@@ -903,8 +916,9 @@ async function addShortProfileCardsSlides(pptx: PptxGenJS, candidates: ProfileCa
             // LinkedIn logo + Rating row
             const contentBottom = photoY + Math.max(photoS, infoH);
             const badgeY = contentBottom + 0.1;
-            if (c.linkedin) {
-                slide.addImage({ data: LINKEDIN_ICON_URI, x: cx + 0.15, y: badgeY, w: 0.26, h: 0.26, hyperlink: { url: c.linkedin } });
+            const linkedinIconUri = c.linkedin ? getLinkedinIconUri() : null;
+            if (c.linkedin && linkedinIconUri) {
+                slide.addImage({ data: linkedinIconUri, x: cx + 0.15, y: badgeY, w: 0.26, h: 0.26, hyperlink: { url: c.linkedin } });
             }
             if (c.rating) {
                 const ratingX = cx + (c.linkedin ? 0.48 : 0.15);

@@ -2,6 +2,13 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  // export-pptx.ts reads public/linkedin-logo.png via fs at runtime to embed it in
+  // generated PPTX files. Files under public/ aren't traced into the serverless
+  // function bundle by default, so without this the read 404s in production
+  // (ENOENT) for every route that imports export-pptx.ts.
+  outputFileTracingIncludes: {
+    '/**': ['./public/linkedin-logo.png'],
+  },
   transpilePackages: [
     'react-d3-tree',
     'd3-selection',
