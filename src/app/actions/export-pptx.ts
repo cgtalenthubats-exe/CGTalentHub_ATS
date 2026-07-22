@@ -3,6 +3,7 @@
 import PptxGenJS from "pptxgenjs";
 import fs from "fs";
 import path from "path";
+import sharp from "sharp";
 import { adminAuthClient } from "@/lib/supabase/admin";
 import { getStage3JobStatus, getJRCandidateRoster, getJRTopProfileShortlist, type Stage3Result, type ShortProfileCandidate } from "@/app/actions/ai-ranking";
 import { getSearchJobStatus } from "@/app/actions/ai-search-ranking";
@@ -81,14 +82,26 @@ function parseBullets(s: string | null): string[] {
     return s.split("|").map(b => b.trim()).filter(Boolean);
 }
 
+// Candidate photos render at most 1.5" (Top 3 hero) — 500px covers that at
+// print-quality 300dpi with headroom. Source photos (LinkedIn CDN etc.) are
+// routinely 1-2MB+ at full resolution; a report with ~30 candidate cards was
+// pulling in that many uncompressed originals, ballooning the exported file
+// to 10MB+ (risking Vercel's serverless response size limit). Re-encoding as
+// a resized JPEG here cuts each photo to tens of KB instead.
 async function fetchImageBase64(url: string | null): Promise<string | null> {
     if (!url) return null;
     try {
         const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
         if (!res.ok) return null;
-        const buf = await res.arrayBuffer();
-        const mime = res.headers.get("content-type") ?? "image/jpeg";
-        return `data:${mime};base64,${Buffer.from(buf).toString("base64")}`;
+        const buf = Buffer.from(await res.arrayBuffer());
+        try {
+            const resized = await sharp(buf).resize(500, 500, { fit: "cover" }).jpeg({ quality: 78 }).toBuffer();
+            return `data:image/jpeg;base64,${resized.toString("base64")}`;
+        } catch {
+            // Not a decodable raster image (e.g. an SVG avatar) — fall back to the original.
+            const mime = res.headers.get("content-type") ?? "image/jpeg";
+            return `data:${mime};base64,${buf.toString("base64")}`;
+        }
     } catch { return null; }
 }
 
