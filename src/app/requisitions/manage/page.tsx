@@ -115,13 +115,17 @@ export default function JRManagePage() {
         loadAuditData();
     }, []);
 
+    const [loadError, setLoadError] = useState<string | null>(null);
+
     // Handle URL/History Sync
     useEffect(() => {
         const jrId = searchParams.get('jr_id');
-        
+
         const loadSelectedJR = async (id: string) => {
             // If already loaded, skip
             if (selectedJR?.id === id) return;
+
+            setLoadError(null);
 
             // Check cache for instant feel
             if (jrCache[id]) {
@@ -145,7 +149,7 @@ export default function JRManagePage() {
                     const tabs = stored ? JSON.parse(stored) : [];
                     const existingIndex = tabs.findIndex((t: any) => t.id === jr.id);
                     const desiredTitle = `${jr.id} — ${jr.job_title}`;
-                    
+
                     if (existingIndex === -1) {
                         tabs.push({ id: jr.id, title: desiredTitle });
                         localStorage.setItem("ats_jr_tabs", JSON.stringify(tabs));
@@ -155,9 +159,23 @@ export default function JRManagePage() {
                         localStorage.setItem("ats_jr_tabs", JSON.stringify(tabs));
                         window.dispatchEvent(new Event("storage"));
                     }
+                } else {
+                    // getRequisition() swallows its own DB error and returns null either
+                    // way — surface it instead of silently falling back to the empty state,
+                    // since that looked identical to "no JR selected" with no explanation.
+                    const msg = `ไม่พบข้อมูล ${id} หรือโหลดไม่สำเร็จ`;
+                    setLoadError(msg);
+                    toast.error(msg, {
+                        action: { label: "ลองใหม่", onClick: () => loadSelectedJR(id) },
+                    });
                 }
             } catch (e) {
                 console.error("Failed to load JR from URL", e);
+                const msg = "โหลดข้อมูล JR ไม่สำเร็จ (session อาจหมดอายุ หรือแอปเพิ่ง deploy ใหม่ — ลอง refresh หน้า)";
+                setLoadError(msg);
+                toast.error(msg, {
+                    action: { label: "ลองใหม่", onClick: () => loadSelectedJR(id) },
+                });
             } finally {
                 setIsJRLoading(false);
             }
@@ -167,6 +185,7 @@ export default function JRManagePage() {
             loadSelectedJR(jrId);
         } else {
             setSelectedJR(null);
+            setLoadError(null);
             setIsJRLoading(false);
         }
 
@@ -858,15 +877,30 @@ export default function JRManagePage() {
                             </Tabs>
                         </div>
                     ) : (
-                        // Empty State if no JR selected
+                        // Empty State if no JR selected (or the load for jr_id in the URL failed)
                         <div className="flex flex-col items-center justify-center h-[400px] text-center space-y-4 border-2 border-dashed rounded-xl bg-white/50 dark:bg-slate-900/50">
                             <div className="p-4 rounded-full bg-slate-100 dark:bg-slate-800">
                                 <Briefcase className="h-8 w-8 text-slate-400" />
                             </div>
-                            <div>
-                                <h3 className="text-lg font-semibold">No Job Requisition Selected</h3>
-                                <p className="text-muted-foreground max-w-sm mt-1">Please select an ongoing requisition from the top menu to view candidates and manage the pipeline.</p>
-                            </div>
+                            {loadError ? (
+                                <div>
+                                    <h3 className="text-lg font-semibold text-destructive">Failed to load Job Requisition</h3>
+                                    <p className="text-muted-foreground max-w-sm mt-1">{loadError}</p>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="mt-3"
+                                        onClick={() => router.refresh()}
+                                    >
+                                        Reload page
+                                    </Button>
+                                </div>
+                            ) : (
+                                <div>
+                                    <h3 className="text-lg font-semibold">No Job Requisition Selected</h3>
+                                    <p className="text-muted-foreground max-w-sm mt-1">Please select an ongoing requisition from the top menu to view candidates and manage the pipeline.</p>
+                                </div>
+                            )}
                         </div>
                     )
                 }
