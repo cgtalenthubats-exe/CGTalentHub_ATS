@@ -42,18 +42,43 @@ export async function getPoolMarketBreakdown(candidateIds: string[]): Promise<Ma
     };
     if (!candidateIds.length) return empty;
 
-    const [expRes, setGroupRes, profileRes] = await Promise.all([
-        adminAuthClient
-            .from("candidate_experiences")
-            .select("candidate_id, position, position_keyword, company, company_id, start_date, end_date, country, is_current_job")
-            .in("candidate_id", candidateIds),
+    // PostgREST caps responses at 1000 rows by default. A 1000-candidate pool
+    // averages ~5 experience rows each (5,000+ rows) and would get silently
+    // truncated to whatever candidates happened to sort into the first 1000
+    // rows — which is exactly why every "Market" breakdown undercounted
+    // against the pool total shown elsewhere. Page through with .range()
+    // the same way getCandidateFunnelData() already does.
+    const fetchAllPaged = async (
+        query: any,
+    ): Promise<any[]> => {
+        let all: any[] = [];
+        const PAGE = 1000;
+        let start = 0;
+        while (true) {
+            const { data, error } = await query.range(start, start + PAGE - 1);
+            if (error) { console.error("Market breakdown pagination error:", error); break; }
+            if (data) all = [...all, ...data];
+            if (!data || data.length < PAGE) break;
+            start += PAGE;
+        }
+        return all;
+    };
+
+    const [experiences, setGroupRes, profileRows] = await Promise.all([
+        fetchAllPaged(
+            adminAuthClient
+                .from("candidate_experiences")
+                .select("candidate_id, position, position_keyword, company, company_id, start_date, end_date, country, is_current_job")
+                .in("candidate_id", candidateIds)
+        ) as Promise<ExperienceRow[]>,
         adminAuthClient.from("company_set_group").select("company_name"),
-        adminAuthClient.from("Candidate Profile").select("candidate_id, age").in("candidate_id", candidateIds),
+        fetchAllPaged(
+            adminAuthClient.from("Candidate Profile").select("candidate_id, age").in("candidate_id", candidateIds)
+        ),
     ]);
 
-    const experiences = (expRes.data ?? []) as ExperienceRow[];
     const latestByCandidate = groupExperiencesByCandidate(experiences);
-    const ageMap = new Map((profileRes.data ?? []).map((p: any) => [p.candidate_id, p.age as number | null]));
+    const ageMap = new Map(profileRows.map((p: any) => [p.candidate_id, p.age as number | null]));
 
     const companyIds = [...new Set(
         [...latestByCandidate.values()].map(list => list[0]?.company_id).filter((id): id is number => id != null)
