@@ -146,6 +146,28 @@ function addCoverSlide(pptx: PptxGenJS, jrId: string, jrTitle: string, total: nu
     }
 }
 
+// ── Section cover (chapter divider) slide ─────────────────────────────────────
+// A quiet break between major sections of the report (Funnel/Market data →
+// shortlist reveal → AI reasoning → reference tables) — same dark theme as the
+// main Cover so it reads as "new chapter", not another data page. `eyebrow` is
+// a short index label ("SECTION 02"), `title` the chapter name, `subtitle` one
+// line on what the reader is about to see.
+function addSectionCoverSlide(pptx: PptxGenJS, eyebrow: string, title: string, subtitle: string) {
+    const slide = pptx.addSlide();
+    slide.background = { color: C.slate900 };
+    slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.1, h: "100%", fill: { color: C.indigo } });
+
+    slide.addText(eyebrow.toUpperCase(), {
+        x: 0.9, y: 2.55, w: 11.5, h: 0.35, fontSize: 10, bold: true, color: C.indigo, charSpacing: 4,
+    });
+    slide.addText(title, {
+        x: 0.9, y: 2.95, w: 11.5, h: 1.1, fontSize: 34, bold: true, color: C.white, wrap: true, valign: "top",
+    });
+    slide.addText(subtitle, {
+        x: 0.9, y: 3.95, w: 11.5, h: 0.5, fontSize: 13, italic: true, color: "94a3b8", wrap: true, valign: "top",
+    });
+}
+
 type FunnelStage = { label: string; value: number };
 
 // ── Page 2 — The Brief ────────────────────────────────────────────────────────
@@ -1354,6 +1376,9 @@ export async function generateAssessmentPPTX(
     addCoverSlide(pptx, jrId, title, sorted.length, dateStr);
     addBriefSlide(pptx, { title, bu: jr?.bu, subBu: jr?.sub_bu, jrType: jr?.jr_type, description: jr?.job_description });
 
+    addSectionCoverSlide(pptx, "Section 01", "The Funnel & The Market",
+        "How we narrowed the market down to this shortlist.");
+
     const funnelSteps: FunnelStep[] = [
         { num: "01", title: "TOTAL POOL", runs: poolIntroRuns(marketBreakdown) },
         { num: "02", title: "MARKET SPREAD", runs: spreadRuns(marketBreakdown), drillRuns: drillDownRuns(marketBreakdown) },
@@ -1378,6 +1403,8 @@ export async function generateAssessmentPPTX(
     addMarketDashboardSlide(pptx, marketBreakdown);
 
     if (shortProfileCandidates.length > 0) {
+        addSectionCoverSlide(pptx, "Section 02", "The Recruiter's Shortlist",
+            "Candidates hand-picked by the recruiting team.");
         await addShortProfileCardsSlides(
             pptx,
             shortProfileCandidates.map((c): ProfileCardItem => ({ ...c })),
@@ -1389,6 +1416,9 @@ export async function generateAssessmentPPTX(
     // are ALSO on the recruiter's own shortlist above are flagged (not de-duplicated —
     // human/AI agreement is a useful signal, not noise to collapse away).
     if (top20.length > 0) {
+        addSectionCoverSlide(pptx, shortProfileCandidates.length > 0 ? "Section 03" : "Section 02",
+            "The AI Suggestion & Top 3",
+            "The algorithm's own shortlist, and its Top 3 picks.");
         await addShortProfileCardsSlides(
             pptx,
             top20.map((r, i): ProfileCardItem => ({
@@ -1440,7 +1470,11 @@ export async function generateAssessmentPPTX(
     const scoredIds = new Set(sorted.map(r => r.candidate_id));
     const pool = [...sorted, ...roster.filter(r => !scoredIds.has(r.candidate_id))];
     const longList = bucketLongList(pool);
-    if (longList.length > 0) addLongListSlide(pptx, longList, `Long List — ${longList.length} Candidates`);
+    if (longList.length > 0) {
+        addSectionCoverSlide(pptx, "Appendix", "The Long List",
+            "Every candidate considered for this role.");
+        addLongListSlide(pptx, longList, `Long List — ${longList.length} Candidates`);
+    }
 
     const base64 = await pptx.write({ outputType: "base64" }) as string;
     return { base64, filename: `${jrId}_assessment_${new Date().toISOString().slice(0, 10)}.pptx` };
@@ -1479,6 +1513,9 @@ export async function generateSearchPPTX(
     // No BU/Sub BU/JR Type for a search session — just the natural-language query.
     addBriefSlide(pptx, { title: queryTitle, description: jobData.query });
 
+    addSectionCoverSlide(pptx, "Section 01", "The Funnel & The Market",
+        "How we narrowed the market down to this shortlist.");
+
     // No jr_candidates-based user shortlist for a search session, so Layer 3 is
     // just the system's Top 20 — no 03.1 sub-layer, no overlap sentence.
     const funnelSteps: FunnelStep[] = [
@@ -1499,6 +1536,8 @@ export async function generateSearchPPTX(
     // jr_candidates-based user shortlist for a search session, so this is just
     // the AI-ranked Top 20 (no "User Pick" badge, since no such list exists here).
     if (top20.length > 0) {
+        addSectionCoverSlide(pptx, "Section 02", "The AI Suggestion & Top 3",
+            "The algorithm's own shortlist, and its Top 3 picks.");
         await addShortProfileCardsSlides(
             pptx,
             top20.map((r, i): ProfileCardItem => ({
