@@ -41,6 +41,8 @@ function mapRowsToJRs(data: any[]): JobRequisition[] {
         original_jr_id: row.original_jr_id || "",
         job_description: row.job_description || "",
         feedback_file: row.feedback_file || "",
+        closed_date: row.closed_date || null,
+        jr_note: row.jr_note || null,
     }));
 }
 
@@ -91,7 +93,8 @@ export async function getJRSelectionDataLean() {
         headcount_hired: 0,
         created_at: row.created_at,
         updated_at: row.updated_at,
-        jr_type: row.jr_type || "New"
+        jr_type: row.jr_type || "New",
+        closed_date: row.closed_date || null,
     }));
 
     const positions = [...new Set(jrs.map(j => j.title).filter(Boolean))].sort();
@@ -146,6 +149,8 @@ export async function getRequisition(id: string): Promise<JobRequisition | null>
         original_jr_id: row.original_jr_id || "",
         job_description: row.job_description || "",
         feedback_file: row.feedback_file || "",
+        closed_date: row.closed_date || null,
+        jr_note: row.jr_note || null,
     };
 }
 
@@ -199,12 +204,50 @@ export async function getDistinctFieldValues(field: string): Promise<string[]> {
     return [...new Set(values)];
 }
 
+// Resolves what closed_date should become when is_active changes to/from 'Closed'.
+// Returns undefined when the caller shouldn't touch closed_date at all (no relevant transition).
+async function resolveClosedDateOnStatusChange(supabase: any, jrId: string, newIsActive: string | null | undefined): Promise<string | null | undefined> {
+    if (!newIsActive) return undefined;
+
+    const { data: current } = await supabase
+        .from('job_requisitions')
+        .select('is_active')
+        .eq('jr_id', jrId)
+        .single();
+
+    const prevActive = current?.is_active || 'Active';
+    if (newIsActive === 'Closed' && prevActive !== 'Closed') {
+        return new Date().toISOString(); // Freeze aging as of now
+    }
+    if (newIsActive !== 'Closed' && prevActive === 'Closed') {
+        return null; // Reopened — aging resumes counting to `now` again
+    }
+    return undefined; // No relevant transition, leave closed_date as-is
+}
+
 // Lightweight quick-edit for the Status (is_active) column — no n8n webhook, no other fields touched.
 export async function updateJobRequisitionStatus(jrId: string, isActive: 'Active' | 'Inactive' | 'Closed'): Promise<{ success: boolean; error?: string }> {
     const supabase = adminAuthClient;
+
+    const closedDate = await resolveClosedDateOnStatusChange(supabase, jrId, isActive);
+    const updatePayload: any = { is_active: isActive };
+    if (closedDate !== undefined) updatePayload.closed_date = closedDate;
+
     const { error } = await (supabase
         .from('job_requisitions') as any)
-        .update({ is_active: isActive })
+        .update(updatePayload)
+        .eq('jr_id', jrId);
+
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+}
+
+// Simple standalone note field per JR (jr_note) — used by the Note column/dialog on JR Table + Manage pages.
+export async function updateJRNote(jrId: string, note: string): Promise<{ success: boolean; error?: string }> {
+    const supabase = adminAuthClient;
+    const { error } = await (supabase
+        .from('job_requisitions') as any)
+        .update({ jr_note: note })
         .eq('jr_id', jrId);
 
     if (error) return { success: false, error: error.message };
@@ -215,6 +258,8 @@ export async function updateJobRequisition(jrId: string, data: any, isFileUpdate
     const supabase = adminAuthClient;
 
     try {
+        const closedDate = await resolveClosedDateOnStatusChange(supabase, jrId, data.is_active);
+
         const updatePayload: any = {
             position_jr: data.position_jr,
             bu: data.bu,
@@ -224,9 +269,10 @@ export async function updateJobRequisition(jrId: string, data: any, isFileUpdate
             job_description: data.job_description,
             feedback_file: data.feedback_file,
             create_by: data.create_by,
-            is_active: data.is_active
-            // request_date: data.request_date,
+            is_active: data.is_active,
+            request_date: data.request_date,
         };
+        if (closedDate !== undefined) updatePayload.closed_date = closedDate;
 
         const { data: updated, error: updateError } = await (supabase
             .from('job_requisitions') as any)
@@ -268,6 +314,8 @@ export async function updateJobRequisition(jrId: string, data: any, isFileUpdate
                 original_jr_id: updatedData.original_jr_id || "",
                 job_description: updatedData.job_description || "",
                 feedback_file: updatedData.feedback_file || "",
+                closed_date: updatedData.closed_date || null,
+                jr_note: updatedData.jr_note || null,
             }
         };
     } catch (e: any) {
@@ -516,8 +564,13 @@ export async function getAgingSummary(): Promise<number> {
 }
 
 
-export async function copyJobRequisition(sourceJrId: string, newJrData: Partial<JobRequisition>): Promise<{ success: boolean; newJrId?: string; error?: string }> {
+export async function copyJobRequisition(
+    sourceJrId: string,
+    newJrData: Partial<JobRequisition>,
+    options?: { preserveDates?: boolean }
+): Promise<{ success: boolean; newJrId?: string; error?: string }> {
     const supabase = adminAuthClient;
+    const preserveDates = options?.preserveDates ?? false;
 
     try {
         // 1. Get Next JR ID
@@ -543,6 +596,18 @@ export async function copyJobRequisition(sourceJrId: string, newJrData: Partial<
         const nextNum = maxNumFound + 1;
         const newJrId = `JR${nextNum.toString().padStart(6, '0')}`;
 
+        // 2. When preserving dates, the new JR opens on the same request_date as the source
+        // (instead of today) — so its JR-level aging reflects the original timeline.
+        let sourceRequestDate: string | null = null;
+        if (preserveDates) {
+            const { data: sourceJrRow } = await supabase
+                .from('job_requisitions')
+                .select('request_date')
+                .eq('jr_id', sourceJrId)
+                .single();
+            sourceRequestDate = (sourceJrRow as any)?.request_date || null;
+        }
+
         // 3. Insert New JR
         const insertPayload = {
             jr_id: newJrId,
@@ -551,7 +616,7 @@ export async function copyJobRequisition(sourceJrId: string, newJrData: Partial<
             bu: newJrData.division,
             sub_bu: newJrData.department,
             jr_type: 'New',
-            request_date: new Date().toISOString().split('T')[0],
+            request_date: (preserveDates && sourceRequestDate) ? sourceRequestDate : new Date().toISOString().split('T')[0],
             create_by: newJrData.created_by || "System (Copy)",
             created_at: new Date().toISOString()
         };
@@ -565,7 +630,7 @@ export async function copyJobRequisition(sourceJrId: string, newJrData: Partial<
         // B. Copy Candidates
         const { data: sourceCandidates } = await supabase
             .from('jr_candidates')
-            .select('candidate_id')
+            .select('candidate_id, jr_candidate_id')
             .eq('jr_id', sourceJrId);
 
         if (sourceCandidates && sourceCandidates.length > 0) {
@@ -592,14 +657,76 @@ export async function copyJobRequisition(sourceJrId: string, newJrData: Partial<
 
             const now = new Date();
             const timestampStr = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()}`;
+            const actor = newJrData.created_by || 'System (Copy)';
 
             const jrcInserts: any[] = [];
             const logInserts: any[] = [];
             const cands = sourceCandidates as any[];
 
+            // When preserving dates, fetch the FULL original status_log history for these
+            // candidates so it can be cloned as-is (same statuses, same timestamps).
+            let sourceLogsByCand: Record<string, { status: string; timestamp: string }[]> = {};
+            if (preserveDates) {
+                const sourceJrcIds = cands.map(c => c.jr_candidate_id);
+                const { data: sourceLogs } = await supabase
+                    .from('status_log')
+                    .select('jr_candidate_id, status, timestamp, log_id')
+                    .in('jr_candidate_id', sourceJrcIds);
+
+                (sourceLogs as any[] || []).forEach(log => {
+                    const cid = String(log.jr_candidate_id);
+                    if (!sourceLogsByCand[cid]) sourceLogsByCand[cid] = [];
+                    sourceLogsByCand[cid].push({ status: log.status, timestamp: log.timestamp });
+                });
+            }
+
             for (const cand of cands) {
+                const newJrcId = nextJrcId;
+
+                if (preserveDates) {
+                    const originalLogs = sourceLogsByCand[String(cand.jr_candidate_id)] || [];
+
+                    if (originalLogs.length > 0) {
+                        // Clone every original log entry verbatim under the new jr_candidate_id.
+                        originalLogs.forEach(log => {
+                            logInserts.push({
+                                log_id: nextLogId,
+                                jr_candidate_id: newJrcId,
+                                status: log.status,
+                                updated_By: actor,
+                                updated_by: actor,
+                                timestamp: log.timestamp
+                            });
+                            nextLogId++;
+                        });
+
+                        // Latest status = whatever the candidate had reached in the source JR
+                        // (same recency-then-log_id tiebreak used elsewhere for "current status").
+                        const byRecency = [...originalLogs].sort((a, b) => {
+                            const dateA = new Date(a.timestamp).getTime();
+                            const dateB = new Date(b.timestamp).getTime();
+                            if (dateA !== dateB && !isNaN(dateA) && !isNaN(dateB)) return dateB - dateA;
+                            return 0; // original log_id ordering already preserved insertion order above
+                        });
+                        const currentStatus = byRecency[0]?.status || 'Pool Candidate';
+
+                        jrcInserts.push({
+                            jr_candidate_id: newJrcId,
+                            jr_id: newJrId,
+                            candidate_id: cand.candidate_id,
+                            temp_status: currentStatus,
+                            list_type: 'Longlist',
+                            time_stamp: now.toISOString()
+                        });
+
+                        nextJrcId++;
+                        continue;
+                    }
+                    // No original logs found — fall through to the fresh-start path below.
+                }
+
                 jrcInserts.push({
-                    jr_candidate_id: nextJrcId,
+                    jr_candidate_id: newJrcId,
                     jr_id: newJrId,
                     candidate_id: cand.candidate_id,
                     temp_status: 'Pool Candidate',
@@ -609,15 +736,15 @@ export async function copyJobRequisition(sourceJrId: string, newJrData: Partial<
 
                 logInserts.push({
                     log_id: nextLogId,
-                    jr_candidate_id: nextJrcId,
+                    jr_candidate_id: newJrcId,
                     status: 'Pool Candidate',
-                    updated_By: newJrData.created_by || 'System (Copy)',
-                    updated_by: newJrData.created_by || 'System (Copy)',
+                    updated_By: actor,
+                    updated_by: actor,
                     timestamp: timestampStr
                 });
+                nextLogId++;
 
                 nextJrcId++;
-                nextLogId++;
             }
 
             const chunkSize = 100;

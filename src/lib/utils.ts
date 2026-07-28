@@ -29,3 +29,18 @@ export function formatNumberWithCommas(value: string | number | null | undefined
 export function parseNumberFromCommas(value: string): string {
     return value.replace(/[^0-9.]/g, "");
 }
+
+/**
+ * JR aging in days: request_date -> closed_date (if the JR is closed) or now.
+ * Once closed_date is set, aging is frozen at that point instead of continuing to grow.
+ */
+export function getJRAgingDays(requestDate: string | null | undefined, closedDate?: string | null): number | null {
+    if (!requestDate) return null;
+    const start = new Date(requestDate).getTime();
+    if (isNaN(start)) return null;
+
+    const endCandidate = closedDate ? new Date(closedDate).getTime() : NaN;
+    const end = closedDate && !isNaN(endCandidate) ? endCandidate : Date.now();
+
+    return Math.max(0, Math.floor((end - start) / (1000 * 3600 * 24)));
+}

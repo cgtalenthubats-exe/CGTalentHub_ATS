@@ -20,6 +20,8 @@ export interface JobRequisition {
     created_by?: string;
     original_jr_id?: string;
     feedback_file?: string;
+    closed_date?: string | null; // Set automatically when is_active transitions to 'Closed'; freezes JR aging
+    jr_note?: string | null;
 }
 
 export interface JRCandidate {

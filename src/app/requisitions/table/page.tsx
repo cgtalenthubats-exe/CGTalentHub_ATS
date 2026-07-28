@@ -8,13 +8,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Search, Plus, Users, Clock, Briefcase, Filter, TrendingUp, ArrowUpDown, Copy, MoreHorizontal, FileText, CheckSquare, Square, Trophy, Trash2, Edit, Activity, ChevronDown, ChevronUp, ChevronRight, Loader2 } from "lucide-react";
+import { Search, Plus, Users, Clock, Briefcase, Filter, TrendingUp, ArrowUpDown, Copy, MoreHorizontal, FileText, CheckSquare, Square, Trophy, Trash2, Edit, Activity, ChevronDown, ChevronUp, ChevronRight, Loader2, StickyNote } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { cn } from "@/lib/utils";
+import { cn, getJRAgingDays } from "@/lib/utils";
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList
 } from 'recharts';
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
+import { JRNoteDialog } from "@/components/jr-note-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { CreateJobRequisitionForm } from "@/components/create-jr-form";
 import { CandidateList, getRowStatusClass } from "@/components/candidate-list";
@@ -114,6 +116,9 @@ export default function RequisitionsPage() {
     // Quick-edit Status state
     const [updatingStatusJrId, setUpdatingStatusJrId] = useState<string | null>(null);
 
+    // Note Dialog State
+    const [noteDialogJr, setNoteDialogJr] = useState<JobRequisition | null>(null);
+
     // Row expansion state: which JRs show the status breakdown, and which status (if any) is drilled into per JR
     const [expandedJrIds, setExpandedJrIds] = useState<Set<string>>(new Set());
     const [drilldownByJr, setDrilldownByJr] = useState<Record<string, string[]>>({});
@@ -130,6 +135,20 @@ export default function RequisitionsPage() {
             return !prev;
         });
     };
+
+    // JR Aging Analysis panel collapsed/expanded preference (separate section, kept independent of the chart above)
+    const [showAgingAnalysis, setShowAgingAnalysis] = useState(true);
+    useEffect(() => {
+        const saved = localStorage.getItem('jr_table_show_aging_analysis');
+        if (saved !== null) setShowAgingAnalysis(saved === 'true');
+    }, []);
+    const toggleShowAgingAnalysis = () => {
+        setShowAgingAnalysis(prev => {
+            localStorage.setItem('jr_table_show_aging_analysis', String(!prev));
+            return !prev;
+        });
+    };
+    const [agingTab, setAgingTab] = useState<'Active' | 'Inactive' | 'Closed'>('Active');
 
     // Filters
     const [search, setSearch] = useState("");
@@ -340,13 +359,13 @@ export default function RequisitionsPage() {
         setSortConfig({ key, direction });
     };
 
+    // Selected JRs (if any), otherwise whatever the filters currently show — shared by both stat blocks below.
+    const targetJrs = useMemo(() => (
+        selectedJrIds.size > 0 ? jrs.filter(j => selectedJrIds.has(j.id)) : filteredJrs
+    ), [selectedJrIds, jrs, filteredJrs]);
+
     // --- Dynamic Stats Computation ---
     const stats = useMemo(() => {
-        // 1. Identify IDs of Target JRs (Selected OR Filtered)
-        const targetJrs = selectedJrIds.size > 0
-            ? jrs.filter(j => selectedJrIds.has(j.id))
-            : filteredJrs;
-
         const targetJrIds = new Set(targetJrs.map(j => j.id));
 
         // 2. Filter Candidates based on JRs
@@ -411,7 +430,7 @@ export default function RequisitionsPage() {
             candidates_by_status: candidatesByStatus,
             aging_by_stage: agingByStage
         };
-    }, [filteredJrs, selectedJrIds, allCandidates, avgAging, jrs, statusOrderMap]);
+    }, [targetJrs, allCandidates, avgAging, statusOrderMap]);
 
     // Per-JR status breakdown for the row-expand drilldown (level 1)
     const statusBreakdownByJr = useMemo(() => {
@@ -429,6 +448,92 @@ export default function RequisitionsPage() {
         });
         return map;
     }, [allCandidates, statusOrderMap]);
+
+    // JR Aging Analysis — separate view from the candidate-count chart above: grouped by is_active,
+    // shows JR-level aging health (avg/min/max) plus, per status, the average number of days a
+    // candidate in that JR spends there. Per candidate, days-per-status sum to that candidate's own
+    // total tracked time (<= the JR's aging — less if they joined the pipeline after the JR opened),
+    // so by linearity the averaged bars sum to the average candidate's tracked time for that bucket.
+    const jrAgingAnalysis = useMemo(() => {
+        const jrById = new Map(targetJrs.map(j => [j.id, j]));
+
+        type Bucket = { jrs: JobRequisition[]; candidateStatusDays: Record<string, number>[] };
+        const buckets: Record<'Active' | 'Inactive' | 'Closed', Bucket> = {
+            Active: { jrs: [], candidateStatusDays: [] },
+            Inactive: { jrs: [], candidateStatusDays: [] },
+            Closed: { jrs: [], candidateStatusDays: [] },
+        };
+
+        targetJrs.forEach(jr => {
+            const bucket = (jr.is_active || 'Active') as 'Active' | 'Inactive' | 'Closed';
+            (buckets[bucket] || buckets.Active).jrs.push(jr);
+        });
+
+        allCandidates.forEach(cand => {
+            const jr = jrById.get(cand.jr_id);
+            if (!jr) return;
+            const bucket = (jr.is_active || 'Active') as 'Active' | 'Inactive' | 'Closed';
+            const target = buckets[bucket];
+            if (!target) return;
+
+            const logs = [...(cand.logs || [])].sort((a, b) => a.log_id - b.log_id);
+            if (logs.length === 0) return;
+
+            // Freeze at closed_date for closed JRs, same rule as JR-level aging.
+            const freezeAt = jr.closed_date ? new Date(jr.closed_date) : new Date();
+            const statusDays: Record<string, number> = {};
+
+            for (let i = 0; i < logs.length; i++) {
+                const currentLog = logs[i];
+                const nextLog = logs[i + 1];
+                const startTime = new Date(currentLog.timestamp);
+                const endTime = nextLog ? new Date(nextLog.timestamp) : freezeAt;
+                if (isNaN(startTime.getTime()) || isNaN(endTime.getTime())) continue;
+
+                const diffDays = Math.max(0, (endTime.getTime() - startTime.getTime()) / (1000 * 3600 * 24));
+                const stage = currentLog.status || "Pool Candidate";
+                statusDays[stage] = (statusDays[stage] || 0) + diffDays;
+            }
+
+            target.candidateStatusDays.push(statusDays);
+        });
+
+        const result: Record<'Active' | 'Inactive' | 'Closed', {
+            jrCount: number;
+            avgAging: number | null;
+            minAging: number | null;
+            maxAging: number | null;
+            avgDaysByStatus: { status: string; days: number }[];
+        }> = {} as any;
+
+        (['Active', 'Inactive', 'Closed'] as const).forEach(bucketKey => {
+            const b = buckets[bucketKey];
+            const agingValues = b.jrs
+                .map(jr => getJRAgingDays(jr.opened_date, jr.closed_date))
+                .filter((d): d is number => d !== null);
+
+            const avgAging = agingValues.length ? Math.floor(agingValues.reduce((a, c) => a + c, 0) / agingValues.length) : null;
+            const minAging = agingValues.length ? Math.min(...agingValues) : null;
+            const maxAging = agingValues.length ? Math.max(...agingValues) : null;
+
+            const statusTotals: Record<string, number> = {};
+            b.candidateStatusDays.forEach(statusDays => {
+                Object.keys(statusDays).forEach(s => {
+                    statusTotals[s] = (statusTotals[s] || 0) + statusDays[s];
+                });
+            });
+
+            const candCount = b.candidateStatusDays.length;
+            const avgDaysByStatus = Object.keys(statusTotals)
+                .filter(s => !EXCLUDED_CHART_STATUSES.includes(s))
+                .sort((a, b2) => (statusOrderMap.get(a) ?? 999) - (statusOrderMap.get(b2) ?? 999))
+                .map(s => ({ status: s, days: candCount ? Math.floor(statusTotals[s] / candCount) : 0 }));
+
+            result[bucketKey] = { jrCount: b.jrs.length, avgAging, minAging, maxAging, avgDaysByStatus };
+        });
+
+        return result;
+    }, [targetJrs, allCandidates, statusOrderMap]);
 
     // Unique Options
     const optPosition = Array.from(new Set(jrs.map(j => j.job_title).filter(v => v && v.trim() !== ""))).sort();
@@ -473,7 +578,7 @@ export default function RequisitionsPage() {
         }
     };
 
-    const COL_SPAN = 11;
+    const COL_SPAN = 13;
 
     return (
         <div className="mx-auto p-6 space-y-8 min-h-screen bg-slate-50/50 w-full max-w-[95%]">
@@ -621,6 +726,71 @@ export default function RequisitionsPage() {
                 )}
             </Card>
 
+            {/* --- JR AGING ANALYSIS (separate from the candidate chart above — grouped by is_active) --- */}
+            <Card>
+                <button
+                    onClick={toggleShowAgingAnalysis}
+                    className="w-full flex items-center justify-between px-5 py-3.5 text-left"
+                >
+                    <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-slate-500" />
+                        <span className="text-sm font-semibold text-slate-700">JR Aging Analysis</span>
+                    </div>
+                    {showAgingAnalysis ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                </button>
+
+                {showAgingAnalysis && (
+                    <CardContent className="pt-0">
+                        <Tabs value={agingTab} onValueChange={(v) => setAgingTab(v as any)}>
+                            <TabsList>
+                                {IS_ACTIVE_OPTIONS.map(opt => (
+                                    <TabsTrigger key={opt} value={opt}>
+                                        {opt} <span className="ml-1.5 text-xs opacity-60">({jrAgingAnalysis[opt].jrCount})</span>
+                                    </TabsTrigger>
+                                ))}
+                            </TabsList>
+
+                            {IS_ACTIVE_OPTIONS.map(opt => {
+                                const bucket = jrAgingAnalysis[opt];
+                                return (
+                                    <TabsContent key={opt} value={opt} className="space-y-4 pt-2">
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                            <AgingStatTile label="JRs" value={bucket.jrCount} />
+                                            <AgingStatTile label="Avg Aging" value={bucket.avgAging} suffix="d" />
+                                            <AgingStatTile label="Min Aging" value={bucket.minAging} suffix="d" />
+                                            <AgingStatTile label="Max Aging" value={bucket.maxAging} suffix="d" />
+                                        </div>
+
+                                        {bucket.avgDaysByStatus.length === 0 ? (
+                                            <div className="text-sm text-muted-foreground py-8 text-center">No candidate data for {opt} JRs.</div>
+                                        ) : (
+                                            <div>
+                                                <p className="text-xs text-muted-foreground mb-2">
+                                                    Avg days a candidate spends per status (per-candidate totals sum to ≤ that candidate's tracked time — less if they joined the pipeline after the JR opened)
+                                                </p>
+                                                <div style={{ height: 320 }}>
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <BarChart data={bucket.avgDaysByStatus} margin={{ bottom: 30, top: 20 }}>
+                                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                            <XAxis dataKey="status" interval={0} height={50} tick={TwoLineXAxisTick} />
+                                                            <YAxis tick={{ fontSize: 12 }} />
+                                                            <Tooltip />
+                                                            <Bar dataKey="days" fill="#f97316" radius={[4, 4, 0, 0]} barSize={40}>
+                                                                <LabelList dataKey="days" position="top" style={{ fontSize: 12, fontWeight: 700, fill: '#334155' }} />
+                                                            </Bar>
+                                                        </BarChart>
+                                                    </ResponsiveContainer>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </TabsContent>
+                                );
+                            })}
+                        </Tabs>
+                    </CardContent>
+                )}
+            </Card>
+
             {/* --- LIST SECTION --- */}
             <Card>
                 <CardHeader>
@@ -717,6 +887,8 @@ export default function RequisitionsPage() {
                                     <th className="h-14 px-4 text-left align-middle font-medium text-muted-foreground">Candidates</th>
                                     <SortableHeader label="Type" sortKey="jr_type" currentSort={sortConfig} onSort={requestSort} />
                                     <SortableHeader label="Status" sortKey="is_active" currentSort={sortConfig} onSort={requestSort} />
+                                    <th className="h-14 px-4 text-left align-middle font-medium text-muted-foreground">Aging</th>
+                                    <th className="h-14 px-4 text-left align-middle font-medium text-muted-foreground">Note</th>
                                     <th className="h-14 px-4 text-right align-middle font-medium text-muted-foreground">Action</th>
                                 </tr>
                             </thead>
@@ -799,6 +971,32 @@ export default function RequisitionsPage() {
                                                                 ))}
                                                             </select>
                                                         )}
+                                                    </td>
+                                                    <td className="p-4">
+                                                        {(() => {
+                                                            const days = getJRAgingDays(jr.opened_date, jr.closed_date);
+                                                            if (days === null) return <span className="text-muted-foreground">-</span>;
+                                                            return (
+                                                                <span className={cn(
+                                                                    "text-sm font-medium",
+                                                                    jr.closed_date ? "text-emerald-600" : "text-slate-700"
+                                                                )}>
+                                                                    {days}d{jr.closed_date && <span className="ml-1 text-xs text-muted-foreground">(closed)</span>}
+                                                                </span>
+                                                            );
+                                                        })()}
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <button
+                                                            onClick={() => setNoteDialogJr(jr)}
+                                                            className="flex items-center gap-1.5 text-left text-sm text-muted-foreground hover:text-foreground max-w-[180px]"
+                                                            title={jr.jr_note || "Add a note"}
+                                                        >
+                                                            <StickyNote className={cn("h-3.5 w-3.5 shrink-0", jr.jr_note && "text-amber-500")} />
+                                                            <span className="truncate">
+                                                                {jr.jr_note ? jr.jr_note : <span className="italic">Add note</span>}
+                                                            </span>
+                                                        </button>
                                                     </td>
                                                     <td className="p-4 text-right">
                                                         <DropdownMenu>
@@ -891,6 +1089,20 @@ export default function RequisitionsPage() {
                 </CardContent>
             </Card>
 
+            {/* Note Dialog */}
+            {noteDialogJr && (
+                <JRNoteDialog
+                    open={!!noteDialogJr}
+                    onOpenChange={(open) => { if (!open) setNoteDialogJr(null); }}
+                    jrId={noteDialogJr.id}
+                    note={noteDialogJr.jr_note}
+                    onSaved={(note) => {
+                        setJrs(prev => prev.map(j => j.id === noteDialogJr.id ? { ...j, jr_note: note } : j));
+                        setNoteDialogJr(null);
+                    }}
+                />
+            )}
+
             {/* Copy Dialog */}
             {copyDialogOpen && jrToCopy && (
                 <CopyJRDialog
@@ -965,6 +1177,17 @@ function SummaryCard({ title, value, icon: Icon, color }: any) {
                 <div className="text-2xl font-bold">{value?.toLocaleString()}</div>
             </CardContent>
         </Card>
+    );
+}
+
+function AgingStatTile({ label, value, suffix = "" }: { label: string; value: number | null; suffix?: string }) {
+    return (
+        <div className="rounded-lg border bg-slate-50/50 px-3 py-2.5">
+            <div className="text-xs text-muted-foreground">{label}</div>
+            <div className="text-lg font-bold text-slate-800">
+                {value === null ? "-" : `${value}${suffix}`}
+            </div>
+        </div>
     );
 }
 

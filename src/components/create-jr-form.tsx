@@ -21,6 +21,18 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// job_requisitions.request_date is stored as free-form text (mixed "M/D/YYYY" and ISO formats
+// across legacy rows) — normalize to YYYY-MM-DD so <input type="date"> can actually display it.
+// Uses local date parts (not toISOString/UTC) to avoid an off-by-one-day shift in timezones ahead of UTC.
+function toDateInputValue(value: string | null | undefined): string {
+    const parsed = value ? new Date(value) : new Date();
+    const source = isNaN(parsed.getTime()) ? new Date() : parsed;
+    const yyyy = source.getFullYear();
+    const mm = String(source.getMonth() + 1).padStart(2, '0');
+    const dd = String(source.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
+
 interface CreateJobRequisitionFormProps {
     onCancel: () => void;
     onSuccess: (updatedJR: any) => void;
@@ -104,7 +116,7 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData, sel
         position_jr: initialData?.job_title || "",
         bu: initialData?.division || "",
         sub_bu: initialData?.department || "",
-        request_date: initialData?.opened_date || new Date().toISOString().split('T')[0],
+        request_date: toDateInputValue(initialData?.opened_date),
         jr_type: initialData?.jr_type || "New",
         original_jr_id: initialData?.original_jr_id || "",
         job_description: initialData?.job_description || "",
@@ -305,15 +317,15 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData, sel
                     />
                 </div>
 
-                {/* Request Date - REMOVED from UI but kept in state for action */}
-                {/* <div className="space-y-2">
+                {/* Request Date */}
+                <div className="space-y-2">
                     <Label htmlFor="request_date">Request Date <span className="text-red-500">*</span></Label>
                     <Input
                         type="date"
                         value={formData.request_date}
                         onChange={(e) => handleChange("request_date", e.target.value)}
                     />
-                </div> */}
+                </div>
 
                 {/* JR Type: New / Replacement */}
                 <div className="space-y-2">

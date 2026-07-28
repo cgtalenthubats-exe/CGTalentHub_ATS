@@ -30,9 +30,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
     Plus, List, Kanban, MessageSquare, Briefcase, Share2, Loader2,
     Copy, Trophy, Trash2, Edit, User, Activity, History, Sparkles, Download,
-    ChevronUp, ChevronDown
+    ChevronUp, ChevronDown, StickyNote
 } from "lucide-react";
 import { AiSuggestionTab } from "./ai-suggestion-tab";
+import { JRNoteDialog } from "@/components/jr-note-dialog";
+import { getJRAgingDays, cn } from "@/lib/utils";
 import { useJobRequisitionRealtime } from "@/hooks/use-jr-realtime";
 import {
     AlertDialog,
@@ -64,6 +66,7 @@ export default function JRManagePage() {
     const [analytics, setAnalytics] = useState<any>(null);
     const [showAnalytics, setShowAnalytics] = useState(false);
     const [isExportingAnalytics, setIsExportingAnalytics] = useState(false);
+    const [isNoteOpen, setIsNoteOpen] = useState(false);
 
     // Persist Activity Transaction & Aging panel collapsed/expanded preference
     useEffect(() => {
@@ -434,6 +437,29 @@ export default function JRManagePage() {
                                         <span>Sub-BU: <span className="font-semibold text-foreground">{selectedJR.department || '-'}</span></span>
                                         <span className="text-slate-300">·</span>
                                         <span>Status: <span className="font-semibold text-foreground">{selectedJR.is_active || '-'}</span></span>
+                                        <span className="text-slate-300">·</span>
+                                        <span>
+                                            Aging: <span className="font-semibold text-foreground">
+                                                {(() => {
+                                                    const days = getJRAgingDays(selectedJR.opened_date, selectedJR.closed_date);
+                                                    if (days === null) return '-';
+                                                    return `${days}d${selectedJR.closed_date ? ' (closed)' : ''}`;
+                                                })()}
+                                            </span>
+                                        </span>
+                                        <button
+                                            onClick={() => setIsNoteOpen(true)}
+                                            className={cn(
+                                                "flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border transition-colors",
+                                                selectedJR.jr_note
+                                                    ? "border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100"
+                                                    : "border-slate-200 text-slate-500 hover:bg-slate-50"
+                                            )}
+                                            title={selectedJR.jr_note || "Add a note"}
+                                        >
+                                            <StickyNote className="h-3 w-3" />
+                                            {selectedJR.jr_note ? "Note" : "Add note"}
+                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -905,6 +931,21 @@ export default function JRManagePage() {
                     )
                 }
             </div >
+
+            {/* Note Dialog */}
+            {
+                selectedJR && (
+                    <JRNoteDialog
+                        open={isNoteOpen}
+                        onOpenChange={setIsNoteOpen}
+                        jrId={selectedJR.id}
+                        note={selectedJR.jr_note}
+                        onSaved={(note) => {
+                            setSelectedJR(prev => prev ? { ...prev, jr_note: note } : prev);
+                        }}
+                    />
+                )
+            }
 
             {/* Add Candidate Dialog */}
             {

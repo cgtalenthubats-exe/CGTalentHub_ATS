@@ -18,6 +18,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Copy, Loader2, AlertCircle } from "lucide-react";
 import { JobRequisition } from "@/types/requisition";
 import { copyJobRequisition, getDistinctFieldValues } from "@/app/actions/requisitions";
@@ -33,6 +34,7 @@ interface CopyJRDialogProps {
 
 export function CopyJRDialog({ open, onOpenChange, sourceJR, onSuccess, updatedBy }: CopyJRDialogProps) {
     const [isLoading, setIsLoading] = useState(false);
+    const [dateMode, setDateMode] = useState<'reset' | 'preserve'>('reset');
     const [formData, setFormData] = useState({
         job_title: `${sourceJR.job_title} (Copy)`,
         division: sourceJR.division || "",
@@ -70,12 +72,16 @@ export function CopyJRDialog({ open, onOpenChange, sourceJR, onSuccess, updatedB
     const handleCopy = async () => {
         setIsLoading(true);
         try {
-            const result = await copyJobRequisition(sourceJR.id, {
-                job_title: formData.job_title,
-                division: formData.division,
-                department: formData.department,
-                created_by: updatedBy
-            });
+            const result = await copyJobRequisition(
+                sourceJR.id,
+                {
+                    job_title: formData.job_title,
+                    division: formData.division,
+                    department: formData.department,
+                    created_by: updatedBy
+                },
+                { preserveDates: dateMode === 'preserve' }
+            );
 
             if (result.success && result.newJrId) {
                 toast.success("Job Requisition copied successfully!");
@@ -110,11 +116,40 @@ export function CopyJRDialog({ open, onOpenChange, sourceJR, onSuccess, updatedB
                 </DialogHeader>
 
                 <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                        <Label>Dates & Candidate History</Label>
+                        <RadioGroup value={dateMode} onValueChange={(v) => setDateMode(v as 'reset' | 'preserve')} className="gap-3">
+                            <label className="flex items-start gap-2.5 cursor-pointer">
+                                <RadioGroupItem value="reset" id="date-reset" className="mt-0.5" />
+                                <div>
+                                    <span className="text-sm font-medium">Reset dates (default)</span>
+                                    <p className="text-xs text-muted-foreground">Request date = today. All candidates come in fresh as <strong>Pool Candidate</strong>, no history carried over.</p>
+                                </div>
+                            </label>
+                            <label className="flex items-start gap-2.5 cursor-pointer">
+                                <RadioGroupItem value="preserve" id="date-preserve" className="mt-0.5" />
+                                <div>
+                                    <span className="text-sm font-medium">Preserve original dates</span>
+                                    <p className="text-xs text-muted-foreground">Request date and every candidate's full status history are copied exactly as-is from {sourceJR.id}.</p>
+                                </div>
+                            </label>
+                        </RadioGroup>
+                    </div>
+
                     <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900 p-3 rounded-lg flex gap-3">
                         <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
                         <div className="text-sm text-amber-800 dark:text-amber-200">
-                            <p className="font-semibold mb-1">Candidate Auto-Clone</p>
-                            <p>ผู้สมัครทุกคนจาก JR เดิมจะถูกก๊อปปี้ตามมาด้วย โดยจะตั้งสถานะเริ่มต้นเป็น <strong>Pool Candidate</strong> ทั้งหมดครับ</p>
+                            {dateMode === 'reset' ? (
+                                <>
+                                    <p className="font-semibold mb-1">Candidate Auto-Clone</p>
+                                    <p>ผู้สมัครทุกคนจาก JR เดิมจะถูกก๊อปปี้ตามมาด้วย โดยจะตั้งสถานะเริ่มต้นเป็น <strong>Pool Candidate</strong> ทั้งหมดครับ</p>
+                                </>
+                            ) : (
+                                <>
+                                    <p className="font-semibold mb-1">Preserving History</p>
+                                    <p>ผู้สมัครทุกคนจะถูกก๊อปปี้พร้อม <strong>สถานะปัจจุบันและประวัติ status_log เดิมทั้งหมด</strong> — Aging ของ JR ใหม่จะนับต่อเนื่องจาก request date เดิม ไม่เริ่มนับใหม่</p>
+                                </>
+                            )}
                         </div>
                     </div>
 

@@ -2,6 +2,7 @@
 
 import { adminAuthClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
+import { getCurrentUserEmail } from "./status-updates";
 
 export type PlacementData = {
     jr_candidate_id: string;
@@ -39,6 +40,7 @@ export async function confirmPlacement(data: PlacementData) {
             .single() as any);
 
         const candidateName = profile?.name || "Unknown";
+        const actor = await getCurrentUserEmail();
 
         // Use provided values or fallback
         const position = data.position || "Unknown";
@@ -81,18 +83,16 @@ export async function confirmPlacement(data: PlacementData) {
             throw new Error("Failed to update candidate timestamp: " + updateError.message);
         }
 
-        /* 
-        // 6. Update Job Requisition Status -> Inactive (REMOVED AS PER USER REQUEST)
+        // 6. Update Job Requisition Status -> Closed (JR aging freezes as of this timestamp)
         const { error: jrUpdateError } = await (supabase
             .from('job_requisitions' as any)
             .update({
-                is_active: 'Inactive',
-                updated_at: new Date().toISOString()
+                is_active: 'Closed',
+                closed_date: new Date().toISOString()
             })
             .eq('jr_id', jrCand.jr_id) as any);
 
-        if (jrUpdateError) console.error("Failed to deactivate JR:", jrUpdateError);
-        */
+        if (jrUpdateError) console.error("Failed to close JR:", jrUpdateError);
 
         // 7. Create Employment Record
         const { error: insertError } = await (supabase
@@ -114,7 +114,7 @@ export async function confirmPlacement(data: PlacementData) {
                 employee_id: data.employee_id || null,
                 hiring_manager: data.hiring_manager || null,
                 note: data.note || null,
-                create_by: 'System'
+                create_by: actor
             }) as any);
 
         if (insertError) {
@@ -142,13 +142,14 @@ export async function confirmPlacement(data: PlacementData) {
             log_id: nextLogId,
             jr_candidate_id: data.jr_candidate_id,
             status: 'Successful Placement', // 'status' col in log
-            updated_By: 'System', // 'updated_By' in log
-            updated_by: 'System', // also update lowercase col
+            updated_By: actor, // 'updated_By' in log
+            updated_by: actor, // also update lowercase col
             timestamp: timestampStr
         }) as any);
 
         revalidatePath('/requisitions/placements');
         revalidatePath(`/requisitions/manage`);
+        revalidatePath('/requisitions/table');
 
         return { success: true };
 
