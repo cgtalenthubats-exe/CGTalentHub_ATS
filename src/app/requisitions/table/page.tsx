@@ -23,6 +23,7 @@ import { CandidateList, getRowStatusClass } from "@/components/candidate-list";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CopyJRDialog } from "@/components/copy-jr-dialog";
+import { MonthRangePicker } from "@/components/month-range-picker";
 import { toast } from "@/lib/notifications";
 import { useRouter } from "next/navigation";
 import { deleteJobRequisition } from "@/app/actions/requisitions";
@@ -158,6 +159,8 @@ export default function RequisitionsPage() {
     const [filterJrType, setFilterJrType] = useState<string[]>([]);
     const [filterIsActive, setFilterIsActive] = useState<string[]>([]);
     const [filterCreatedBy, setFilterCreatedBy] = useState<string[]>([]); // New Filter
+    const [fromMonth, setFromMonth] = useState<string>(""); // YYYY-MM
+    const [toMonth, setToMonth] = useState<string>("");     // YYYY-MM
 
     // Selection
     const [selectedJrIds, setSelectedJrIds] = useState<Set<string>>(new Set());
@@ -278,9 +281,13 @@ export default function RequisitionsPage() {
             const creatorName = userProfiles[jr.created_by || ""] || jr.created_by || "System";
             const mCreator = filterCreatedBy.length === 0 || filterCreatedBy.includes(creatorName);
 
-            return mSearch && mPosition && mBu && mSubBu && mType && mActive && mCreator;
+            // Request Date Filter (jr.opened_date maps to job_requisitions.request_date), compared by month
+            const requestMon = jr.opened_date ? jr.opened_date.slice(0, 7) : "";
+            const mPeriod = (!fromMonth && !toMonth) || (requestMon && (!fromMonth || requestMon >= fromMonth) && (!toMonth || requestMon <= toMonth));
+
+            return mSearch && mPosition && mBu && mSubBu && mType && mActive && mCreator && mPeriod;
         });
-    }, [jrs, search, filterPosition, filterBu, filterSubBu, filterJrType, filterIsActive, filterCreatedBy, userProfiles]);
+    }, [jrs, search, filterPosition, filterBu, filterSubBu, filterJrType, filterIsActive, filterCreatedBy, fromMonth, toMonth, userProfiles]);
 
     // Sorting Logic
     const sortedJrs = useMemo(() => {
@@ -578,7 +585,7 @@ export default function RequisitionsPage() {
         }
     };
 
-    const COL_SPAN = 13;
+    const COL_SPAN = 14;
 
     return (
         <div className="mx-auto p-6 space-y-8 min-h-screen bg-slate-50/50 w-full max-w-[95%]">
@@ -852,12 +859,20 @@ export default function RequisitionsPage() {
                                 onChange={(v: string) => toggle(filterIsActive, v, setFilterIsActive)}
                                 icon={TrendingUp}
                             />
+                            <MonthRangePicker
+                                fromMonth={fromMonth}
+                                toMonth={toMonth}
+                                onFromChange={setFromMonth}
+                                onToChange={setToMonth}
+                                className="h-10 min-w-0 w-full"
+                            />
                         </div>
                         {/* Clear Filters Button */}
-                        {(filterPosition.length > 0 || filterBu.length > 0 || filterSubBu.length > 0 || filterJrType.length > 0 || filterIsActive.length > 0 || filterCreatedBy.length > 0) && (
+                        {(filterPosition.length > 0 || filterBu.length > 0 || filterSubBu.length > 0 || filterJrType.length > 0 || filterIsActive.length > 0 || filterCreatedBy.length > 0 || fromMonth || toMonth) && (
                             <div className="flex justify-end">
                                 <Button variant="ghost" size="sm" onClick={() => {
                                     setFilterPosition([]); setFilterBu([]); setFilterSubBu([]); setFilterJrType([]); setFilterIsActive([]); setFilterCreatedBy([]); setSearch("");
+                                    setFromMonth(""); setToMonth("");
                                     setSelectedJrIds(new Set());
                                 }} className="text-destructive h-8 px-2">
                                     Clear All Filters
@@ -884,6 +899,7 @@ export default function RequisitionsPage() {
                                     <SortableHeader label="BU" sortKey="division" currentSort={sortConfig} onSort={requestSort} />
                                     <SortableHeader label="Sub BU" sortKey="department" currentSort={sortConfig} onSort={requestSort} />
                                     <SortableHeader label="Created By" sortKey="created_by" currentSort={sortConfig} onSort={requestSort} />
+                                    <SortableHeader label="Request Date" sortKey="opened_date" currentSort={sortConfig} onSort={requestSort} />
                                     <th className="h-14 px-4 text-left align-middle font-medium text-muted-foreground">Candidates</th>
                                     <SortableHeader label="Type" sortKey="jr_type" currentSort={sortConfig} onSort={requestSort} />
                                     <SortableHeader label="Status" sortKey="is_active" currentSort={sortConfig} onSort={requestSort} />
@@ -942,6 +958,9 @@ export default function RequisitionsPage() {
                                                     <td className="p-4 text-muted-foreground">{jr.department}</td>
                                                     <td className="p-4 text-base text-muted-foreground">
                                                         {userProfiles[jr.created_by || ""] || jr.created_by || "-"}
+                                                    </td>
+                                                    <td className="p-4 text-base text-muted-foreground whitespace-nowrap">
+                                                        {formatDateDDMMYYYY(jr.opened_date) || "-"}
                                                     </td>
                                                     <td className="p-4">
                                                         <div className="flex items-center gap-2">

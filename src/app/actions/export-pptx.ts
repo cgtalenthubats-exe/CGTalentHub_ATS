@@ -146,6 +146,28 @@ function addCoverSlide(pptx: PptxGenJS, jrId: string, jrTitle: string, total: nu
     }
 }
 
+// ── Section cover (chapter divider) slide ─────────────────────────────────────
+// A quiet break between major sections of the report (Funnel/Market data →
+// shortlist reveal → AI reasoning → reference tables) — same dark theme as the
+// main Cover so it reads as "new chapter", not another data page. `eyebrow` is
+// a short index label ("SECTION 02"), `title` the chapter name, `subtitle` one
+// line on what the reader is about to see.
+function addSectionCoverSlide(pptx: PptxGenJS, eyebrow: string, title: string, subtitle: string) {
+    const slide = pptx.addSlide();
+    slide.background = { color: C.slate900 };
+    slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.1, h: "100%", fill: { color: C.indigo } });
+
+    slide.addText(eyebrow.toUpperCase(), {
+        x: 0.9, y: 2.55, w: 11.5, h: 0.35, fontSize: 10, bold: true, color: C.indigo, charSpacing: 4,
+    });
+    slide.addText(title, {
+        x: 0.9, y: 2.95, w: 11.5, h: 1.1, fontSize: 34, bold: true, color: C.white, wrap: true, valign: "top",
+    });
+    slide.addText(subtitle, {
+        x: 0.9, y: 3.95, w: 11.5, h: 0.5, fontSize: 13, italic: true, color: "94a3b8", wrap: true, valign: "top",
+    });
+}
+
 type FunnelStage = { label: string; value: number };
 
 // ── Page 2 — The Brief ────────────────────────────────────────────────────────
@@ -266,16 +288,19 @@ function overlapRuns(overlapCount: number): TextRun[] {
 // enough to answer "top 3 of country/industry/company are what" without
 // turning the page into a dashboard (that's what The Market page is for).
 function topNLabel(items: { label: string; count: number }[], n = 3): string {
-    return items.slice(0, n).map(i => `${i.label} (${i.count})`).join(", ");
+    return items.slice(0, n).map(i => `${i.label} (${i.count} ppl)`).join(", ");
 }
 
+// One line per section (countries / groups / companies) — used to render as a
+// single run of "· "-joined text, which packed all three onto one row and
+// forced tiny font/wrapping on wider pools. `breakLine` on the last run of
+// each section forces the next section onto its own line instead.
 function drillDownRuns(b: MarketBreakdown): TextRun[] {
     const runs: TextRun[] = [];
     const addSection = (label: string, items: { label: string; count: number }[]) => {
         if (!items.length) return;
-        if (runs.length) runs.push({ text: "   ·   ", options: { color: C.slate300 } });
         runs.push({ text: `${label}: `, options: { bold: true, color: C.slate500 } });
-        runs.push({ text: topNLabel(items), options: { color: C.slate600 } });
+        runs.push({ text: topNLabel(items), options: { color: C.slate600, breakLine: true } });
     };
     addSection("Top countries", b.countries);
     addSection("Top groups", b.companyGroups);
@@ -294,14 +319,32 @@ function addFunnelSlide(pptx: PptxGenJS, steps: FunnelStep[]) {
     });
 
     const startY = 0.75, endY = 7.2, lineX = 0.65;
-    const stepH = (endY - startY) / steps.length;
+
+    // Step height now reflects actual content instead of an even split across
+    // however many steps there are — a step with no drill-down (e.g. "TOTAL
+    // POOL") doesn't need nearly as much room as one with 3 drill-down lines
+    // underneath it, which used to leave a big empty gap before the next dot.
+    const TITLE_H = 0.28, SENTENCE_H = 0.42, DRILL_LINE_H = 0.19, EXTRA_H = 0.34, STEP_PAD = 0.3;
+    const rawHeights = steps.map(step => {
+        let h = TITLE_H + SENTENCE_H + STEP_PAD;
+        if (step.drillRuns?.length) h += DRILL_LINE_H * 3 + 0.05;
+        if (step.extraRuns) h += EXTRA_H;
+        return h;
+    });
+    const rawTotal = rawHeights.reduce((a, b) => a + b, 0);
+    const available = endY - startY;
+    // Stretch to fill the available vertical space so the timeline still
+    // reaches the bottom of the slide instead of stopping short.
+    const scale = rawTotal > 0 ? available / rawTotal : 1;
+    const stepHeights = rawHeights.map(h => h * scale);
 
     slide.addShape(pptx.ShapeType.line, {
-        x: lineX, y: startY + 0.25, w: 0, h: (endY - startY) - 0.5, line: { color: C.slate200, width: 1.5 },
+        x: lineX, y: startY + 0.25, w: 0, h: available - 0.5, line: { color: C.slate200, width: 1.5 },
     });
 
+    let y = startY;
     steps.forEach((step, i) => {
-        const y = startY + i * stepH;
+        const stepH = stepHeights[i];
         slide.addShape(pptx.ShapeType.ellipse, {
             x: lineX - 0.24, y: y + 0.05, w: 0.48, h: 0.48, fill: { color: C.indigo }, line: { color: C.white, width: 2 },
         });
@@ -320,9 +363,9 @@ function addFunnelSlide(pptx: PptxGenJS, steps: FunnelStep[]) {
         cy += sentenceH + 0.06;
 
         if (step.drillRuns?.length) {
-            const drillH = Math.min(0.5, stepH - (cy - y) - (step.extraRuns ? 0.4 : 0.08));
+            const drillH = Math.min(DRILL_LINE_H * 3 + 0.1, stepH - (cy - y) - (step.extraRuns ? 0.4 : 0.08));
             slide.addText(step.drillRuns, {
-                x: lineX + 0.45, y: cy, w: 11.5, h: drillH, fontSize: 9, wrap: true, valign: "top", lineSpacingMultiple: 1.25,
+                x: lineX + 0.45, y: cy, w: 11.5, h: drillH, fontSize: 9, wrap: true, valign: "top", lineSpacingMultiple: 1.3,
             });
             cy += drillH + 0.04;
         }
@@ -332,6 +375,8 @@ function addFunnelSlide(pptx: PptxGenJS, steps: FunnelStep[]) {
                 x: lineX + 0.45, y: cy, w: 11.5, h: Math.max(0.3, stepH - (cy - y) - 0.05), fontSize: 10.5, color: C.slate600, wrap: true, valign: "top", lineSpacingMultiple: 1.25, italic: true,
             });
         }
+
+        y += stepH;
     });
 }
 
@@ -360,6 +405,33 @@ function topNWithOther(items: { label: string; count: number }[], n: number): { 
     return otherCount > 0 ? [...top, { label: "Other", count: otherCount }] : top;
 }
 
+// Same idea as topNWithOther, but for donut/pie charts specifically: labels in
+// ALWAYS_FOLD_LABELS get folded into the overflow slice regardless of rank or
+// size, never competing with real categories for pie real estate — either
+// because there's genuinely no data ("Unknown"), or because the label is a
+// catch-all bucket that's indistinguishable from the synthetic "Other" slice
+// once both are on the same chart ("Others" from company_master.group; "Other"
+// is this codebase's own fallback in getPoolMarketBreakdown for a country that
+// has data but doesn't map to a known continent — see market-breakdown.ts).
+// `otherLabel` is caller-supplied precisely to avoid that collision: the
+// synthetic bucket needs a name distinct from any of the folded ones.
+const ALWAYS_FOLD_LABELS = new Set(["Unknown", "Other", "Others"]);
+
+function topNPieFolding(
+    items: { label: string; count: number }[],
+    n: number,
+    otherLabel: string,
+): { chartData: { label: string; count: number }[]; unknownCount: number } {
+    const unknownCount = items.find(i => i.label === "Unknown")?.count ?? 0;
+    const foldedCount = items.filter(i => ALWAYS_FOLD_LABELS.has(i.label)).reduce((sum, i) => sum + i.count, 0);
+    const known = items.filter(i => !ALWAYS_FOLD_LABELS.has(i.label));
+    const sorted = [...known].sort((a, b) => b.count - a.count);
+    const top = sorted.slice(0, n);
+    const overflowCount = sorted.slice(n).reduce((sum, i) => sum + i.count, 0) + foldedCount;
+    const chartData = overflowCount > 0 ? [...top, { label: otherLabel, count: overflowCount }] : top;
+    return { chartData, unknownCount };
+}
+
 // pptxgenjs horizontal bar charts (barDir:'bar') plot array[0] at the BOTTOM of
 // the axis — so a descending-sorted array renders biggest-at-bottom. Reverse
 // right before charting to get the largest value at the top, as requested.
@@ -384,7 +456,7 @@ function addMarketDashboardSlide(pptx: PptxGenJS, breakdown: MarketBreakdown) {
     const slide = pptx.addSlide();
     slide.background = { color: C.white };
     slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.08, h: "100%", fill: { color: C.indigo } });
-    slide.addText("THE MARKET", {
+    slide.addText("THE MARKET — BY CANDIDATE COUNT", {
         x: 0.3, y: 0.18, w: 12.75, h: 0.36, fontSize: 10, bold: true, color: C.indigo, charSpacing: 2,
     });
 
@@ -413,25 +485,37 @@ function addMarketDashboardSlide(pptx: PptxGenJS, breakdown: MarketBreakdown) {
     // ── Row 2: two donut charts — Company Group | Continent (low cardinality) ─
     const DONUT_Y = 1.65, DONUT_H = 2.55, DONUT_W = 6.1, DONUT_GAP = 0.2;
 
-    addChartCard(slide, pptx, 0.3, DONUT_Y, DONUT_W, DONUT_H);
-    const groupData = breakdown.companyGroups.length ? breakdown.companyGroups : [{ label: "No data", count: 1 }];
+    const groupX = 0.3;
+    addChartCard(slide, pptx, groupX, DONUT_Y, DONUT_W, DONUT_H);
+    const { chartData: groupData } = breakdown.companyGroups.length
+        ? topNPieFolding(breakdown.companyGroups, 3, "Other groups")
+        : { chartData: [{ label: "No data", count: 1 }] };
     slide.addChart(pptx.ChartType.doughnut, [{ name: "Company Group", labels: groupData.map(g => g.label), values: groupData.map(g => g.count) }], {
-        x: 0.3, y: DONUT_Y, w: DONUT_W, h: DONUT_H,
+        x: groupX, y: DONUT_Y, w: DONUT_W, h: DONUT_H,
         chartColors: groupData.map(g => GROUP_COLORS[g.label] ?? FALLBACK_CATEGORY_COLOR),
-        showTitle: true, title: "COMPANY GROUP", titleFontSize: 9, titleColor: C.slate500,
+        showTitle: true, title: `COMPANY GROUP  —  ${total.toLocaleString()} candidates`, titleFontSize: 9, titleColor: C.slate500,
         showLegend: true, legendPos: "r", legendFontSize: 8,
         showLabel: true, showValue: true, dataLabelColor: "000000", dataLabelFontSize: 8.5, holeSize: 55,
     });
 
-    addChartCard(slide, pptx, 0.3 + DONUT_W + DONUT_GAP, DONUT_Y, DONUT_W, DONUT_H);
-    const continentData = breakdown.continents.length ? breakdown.continents : [{ label: "No data", count: 1 }];
+    const contX = 0.3 + DONUT_W + DONUT_GAP;
+    addChartCard(slide, pptx, contX, DONUT_Y, DONUT_W, DONUT_H);
+    const { chartData: continentData, unknownCount } = breakdown.continents.length
+        ? topNPieFolding(breakdown.continents, 3, "Other regions")
+        : { chartData: [{ label: "No data", count: 1 }], unknownCount: 0 };
     slide.addChart(pptx.ChartType.doughnut, [{ name: "Continent", labels: continentData.map(g => g.label), values: continentData.map(g => g.count) }], {
-        x: 0.3 + DONUT_W + DONUT_GAP, y: DONUT_Y, w: DONUT_W, h: DONUT_H,
+        x: contX, y: DONUT_Y, w: DONUT_W, h: DONUT_H,
         chartColors: continentData.map(g => CONTINENT_COLORS[g.label] ?? FALLBACK_CATEGORY_COLOR),
-        showTitle: true, title: "CONTINENT", titleFontSize: 9, titleColor: C.slate500,
+        showTitle: true, title: `CONTINENT  —  ${total.toLocaleString()} candidates`, titleFontSize: 9, titleColor: C.slate500,
         showLegend: true, legendPos: "r", legendFontSize: 8,
         showLabel: true, showValue: true, dataLabelColor: "000000", dataLabelFontSize: 8.5, holeSize: 55,
     });
+    if (unknownCount > 0) {
+        slide.addText(`${unknownCount} with unknown location`, {
+            x: contX + 0.12, y: DONUT_Y + 0.12, w: DONUT_W * 0.4, h: 0.28,
+            fontSize: 7, italic: true, color: C.slate500,
+        });
+    }
 
     // ── Row 3: three ranked bar charts — Industry | Position Keyword | Age Range ─
     const BAR_Y = 4.4, BAR_H = 2.7, BAR_GAP = 0.2;
@@ -1292,6 +1376,9 @@ export async function generateAssessmentPPTX(
     addCoverSlide(pptx, jrId, title, sorted.length, dateStr);
     addBriefSlide(pptx, { title, bu: jr?.bu, subBu: jr?.sub_bu, jrType: jr?.jr_type, description: jr?.job_description });
 
+    addSectionCoverSlide(pptx, "Section 01", "The Funnel & The Market",
+        "How we narrowed the market down to this shortlist.");
+
     const funnelSteps: FunnelStep[] = [
         { num: "01", title: "TOTAL POOL", runs: poolIntroRuns(marketBreakdown) },
         { num: "02", title: "MARKET SPREAD", runs: spreadRuns(marketBreakdown), drillRuns: drillDownRuns(marketBreakdown) },
@@ -1314,13 +1401,10 @@ export async function generateAssessmentPPTX(
     addFunnelSlide(pptx, funnelSteps);
 
     addMarketDashboardSlide(pptx, marketBreakdown);
-    addVerdictSlide(pptx, [
-        { label: "Total Pool", value: poolTotal },
-        { label: "Shortlisted", value: shortlisted },
-        { label: "Top 3", value: Math.min(3, sorted.length) },
-    ], avgScores, jobData.summary);
 
     if (shortProfileCandidates.length > 0) {
+        addSectionCoverSlide(pptx, "Section 02", "The Recruiter's Shortlist",
+            "Candidates hand-picked by the recruiting team.");
         await addShortProfileCardsSlides(
             pptx,
             shortProfileCandidates.map((c): ProfileCardItem => ({ ...c })),
@@ -1332,6 +1416,9 @@ export async function generateAssessmentPPTX(
     // are ALSO on the recruiter's own shortlist above are flagged (not de-duplicated —
     // human/AI agreement is a useful signal, not noise to collapse away).
     if (top20.length > 0) {
+        addSectionCoverSlide(pptx, shortProfileCandidates.length > 0 ? "Section 03" : "Section 02",
+            "The AI Suggestion & Top 3",
+            "The algorithm's own shortlist, and its Top 3 picks.");
         await addShortProfileCardsSlides(
             pptx,
             top20.map((r, i): ProfileCardItem => ({
@@ -1366,6 +1453,15 @@ export async function generateAssessmentPPTX(
         await addCandidateSlide(pptx, top3[i], photos[i], i + 1);
     }
 
+    // Verdict comes right after the Top 3 hero pages — it's the closing argument for
+    // *why* the AI Suggestion (Top 20 avg scores + summary) landed on these picks, so
+    // it reads better once the reader has actually seen who those picks are.
+    addVerdictSlide(pptx, [
+        { label: "Total Pool", value: poolTotal },
+        { label: "Shortlisted", value: shortlisted },
+        { label: "Top 3", value: Math.min(3, sorted.length) },
+    ], avgScores, jobData.summary);
+
     addTopTableSlide(pptx, top20, `Top ${top20.length} Summary`);
 
     // Long List order matches the reference workflow: Top Profile (by rank) →
@@ -1374,7 +1470,11 @@ export async function generateAssessmentPPTX(
     const scoredIds = new Set(sorted.map(r => r.candidate_id));
     const pool = [...sorted, ...roster.filter(r => !scoredIds.has(r.candidate_id))];
     const longList = bucketLongList(pool);
-    if (longList.length > 0) addLongListSlide(pptx, longList, `Long List — ${longList.length} Candidates`);
+    if (longList.length > 0) {
+        addSectionCoverSlide(pptx, "Appendix", "The Long List",
+            "Every candidate considered for this role.");
+        addLongListSlide(pptx, longList, `Long List — ${longList.length} Candidates`);
+    }
 
     const base64 = await pptx.write({ outputType: "base64" }) as string;
     return { base64, filename: `${jrId}_assessment_${new Date().toISOString().slice(0, 10)}.pptx` };
@@ -1413,6 +1513,9 @@ export async function generateSearchPPTX(
     // No BU/Sub BU/JR Type for a search session — just the natural-language query.
     addBriefSlide(pptx, { title: queryTitle, description: jobData.query });
 
+    addSectionCoverSlide(pptx, "Section 01", "The Funnel & The Market",
+        "How we narrowed the market down to this shortlist.");
+
     // No jr_candidates-based user shortlist for a search session, so Layer 3 is
     // just the system's Top 20 — no 03.1 sub-layer, no overlap sentence.
     const funnelSteps: FunnelStep[] = [
@@ -1428,16 +1531,13 @@ export async function generateSearchPPTX(
     addFunnelSlide(pptx, funnelSteps);
 
     addMarketDashboardSlide(pptx, marketBreakdown);
-    addVerdictSlide(pptx, [
-        { label: "Total Pool", value: poolTotal },
-        { label: "Shortlisted", value: shortlisted },
-        { label: "Top 3", value: Math.min(3, sorted.length) },
-    ], avgScores, jobData.summary);
 
     // Same "Short Profile" card layout as the JR Assessment report — there's no
     // jr_candidates-based user shortlist for a search session, so this is just
     // the AI-ranked Top 20 (no "User Pick" badge, since no such list exists here).
     if (top20.length > 0) {
+        addSectionCoverSlide(pptx, "Section 02", "The AI Suggestion & Top 3",
+            "The algorithm's own shortlist, and its Top 3 picks.");
         await addShortProfileCardsSlides(
             pptx,
             top20.map((r, i): ProfileCardItem => ({
@@ -1470,6 +1570,15 @@ export async function generateSearchPPTX(
     for (let i = 0; i < top3.length; i++) {
         await addCandidateSlide(pptx, top3[i], photos[i], i + 1);
     }
+
+    // Verdict comes right after the Top 3 hero pages — it's the closing argument for
+    // *why* the AI Suggestion (Top 20 avg scores + summary) landed on these picks, so
+    // it reads better once the reader has actually seen who those picks are.
+    addVerdictSlide(pptx, [
+        { label: "Total Pool", value: poolTotal },
+        { label: "Shortlisted", value: shortlisted },
+        { label: "Top 3", value: Math.min(3, sorted.length) },
+    ], avgScores, jobData.summary);
 
     addTopTableSlide(pptx, top20, `Top ${top20.length} Summary`);
     if (sorted.length > 20) addTopTableSlide(pptx, sorted, `Full Ranking — ${sorted.length} Candidates`);
