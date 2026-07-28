@@ -9,6 +9,7 @@ import {
 const MARGIN = 0.5
 const HEADER_H = 0.5 // extra space at the top for the company logo/name
 const MAX_DIM = 50 // inches — stay safely under PowerPoint's ~56in slide size cap
+const MAX_VISIBLE_DEPTH = 3 // shows n / n-1 / n-2 (depth 1-3 below the root wrapper); deeper nodes collapse into their n-2 ancestor
 
 /**
  * Builds a single-slide "Overview" PPTX: every group node (except the root) is
@@ -22,10 +23,11 @@ export async function buildOverviewPptx(data: OrgNodeV2[], companyName: string, 
     const fullRoot = await buildHierarchy(data)
     const subCounts = computeSubCounts(fullRoot)
 
-    // Collapse every group node (except the root itself) — its descendants are
-    // dropped from this view since the node already shows a subordinate count.
+    // Show only the top MAX_VISIBLE_DEPTH levels below the root wrapper (n, n-1, n-2) —
+    // group and individual nodes alike. Anything deeper is dropped; the node at the
+    // cutoff depth shows a "+N" count instead (see renderNodesToSlide's isTruncated).
     fullRoot.descendants().forEach((n) => {
-        if (n !== fullRoot && n.data.is_group_node) {
+        if (n.depth === MAX_VISIBLE_DEPTH) {
             n.children = undefined
         }
     })

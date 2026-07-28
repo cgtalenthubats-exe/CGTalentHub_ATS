@@ -166,9 +166,14 @@ export async function renderNodesToSlide(
         const isGroup = !!d.is_group_node
         const isMatch = !!d.candidate_id
         const totalSub = subCounts.total.get(d.id) || 0
-        const idLabel = isGroup
+        // Non-group node whose children were cut by a depth cutoff (e.g. Overview's n-2 limit) —
+        // group nodes already always show their total via idLabel below, so this only adds the
+        // hidden-descendant count for individual nodes.
+        const isTruncated = !isGroup && totalSub > 0 && !n.children
+        const baseLabel = isGroup
             ? `GROUP${totalSub > 0 ? ` (${totalSub})` : ''}`
             : (isMatch ? (d.candidate_id || '') : 'UNMATCHED')
+        const idLabel = isTruncated ? `${baseLabel} (+${totalSub})` : baseLabel
 
         const photoData = photoByNode.get(n)
         const photoSize = PHOTO_SIZE * scale
