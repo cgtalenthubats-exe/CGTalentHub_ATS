@@ -15,6 +15,26 @@ export async function getCurrentUserEmail(): Promise<string> {
     }
 }
 
+// Resolves the current session to a display name (user_profiles.real_name) rather than the raw
+// email — used as the fallback actor whenever a caller doesn't supply `updatedBy` explicitly, so
+// status_log never ends up showing a bare email address (e.g. a status dialog submitted before
+// its own name lookup finished loading).
+async function resolveActorName(): Promise<string> {
+    const email = await getCurrentUserEmail();
+    if (email === 'System') return 'System';
+
+    try {
+        const { data } = await adminAuthClient
+            .from('user_profiles')
+            .select('real_name')
+            .eq('email', email)
+            .single();
+        return (data as any)?.real_name || email;
+    } catch {
+        return email;
+    }
+}
+
 export async function updateCandidateStatus(
     jrCandidateId: string,
     newStatus: string,
@@ -23,7 +43,7 @@ export async function updateCandidateStatus(
     customTimestamp?: string
 ) {
     const supabase = adminAuthClient;
-    const resolvedUpdatedBy = updatedBy || await getCurrentUserEmail();
+    const resolvedUpdatedBy = updatedBy || await resolveActorName();
     
     if (newStatus === 'Successful Placement') {
         return { success: false, error: "Please use 'Confirm Placement' button for Successful Placement to ensure employment records are created correctly." };
@@ -198,7 +218,7 @@ export async function batchUpdateCandidateStatus(
     customTimestamp?: string
 ) {
     const supabase = adminAuthClient;
-    const resolvedUpdatedBy = updatedBy || await getCurrentUserEmail();
+    const resolvedUpdatedBy = updatedBy || await resolveActorName();
     
     if (newStatus === 'Successful Placement') {
         return { success: false, error: "Successful Placement cannot be set via batch update. Please use the individual 'Confirm Placement' flow." };

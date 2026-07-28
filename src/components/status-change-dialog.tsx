@@ -155,7 +155,8 @@ export function StatusChangeDialog({ open, onOpenChange, targetStatus, onConfirm
                         </Button>
                         <Button
                             type="submit"
-                            disabled={loading}
+                            disabled={loading || !formData.updatedBy}
+                            title={!formData.updatedBy ? "Still loading who's making this change..." : undefined}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold min-w-[100px]"
                         >
                             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Update Status"}

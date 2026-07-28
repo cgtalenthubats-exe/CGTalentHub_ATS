@@ -25,6 +25,11 @@ interface CandidateActivityLogProps {
     isReadOnly?: boolean;
 }
 
+// End states — a candidate isn't "sitting in" these waiting for something to happen next, so
+// showing "(34 Days)" for the current/latest entry would just be days-since-placed-or-rejected,
+// not a meaningful in-progress duration. Skip the day count only for these when they're the latest entry.
+const TERMINAL_STATUSES = new Set(['Successful Placement', 'Rejected', 'Not fit', 'Not Open', 'Not Pass Interview']);
+
 export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }: CandidateActivityLogProps) {
     const router = useRouter();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -122,7 +127,7 @@ export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }
     };
 
     return (
-        <Card className="rounded-2xl border-none shadow-sm shadow-indigo-100 h-fit sticky top-24">
+        <Card className="rounded-2xl border-none shadow-sm shadow-indigo-100">
             <CardHeader className="pb-4 border-b border-slate-50 flex flex-row items-center justify-between">
                 <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-500 flex items-center gap-2">
                     <History className="h-4 w-4" /> Activity Log
@@ -141,7 +146,17 @@ export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }
             <CardContent className="pt-6 relative">
                 <div className="absolute left-[35px] top-6 bottom-6 w-0.5 bg-slate-100" />
                 <div className="space-y-8">
-                    {logs.map((log, idx) => (
+                    {logs.map((log, idx) => {
+                        // logs are newest-first: the entry right before this one (idx - 1) is the
+                        // next status chronologically; the newest entry (idx 0) runs until now.
+                        const isCurrentTerminal = idx === 0 && TERMINAL_STATUSES.has(log.status);
+                        const start = new Date(log.timestamp);
+                        const end = idx === 0 ? new Date() : new Date(logs[idx - 1].timestamp);
+                        const days = !isCurrentTerminal && !isNaN(start.getTime()) && !isNaN(end.getTime())
+                            ? Math.max(0, Math.floor((end.getTime() - start.getTime()) / (1000 * 3600 * 24)))
+                            : null;
+
+                        return (
                         <div key={log.log_id} className="relative flex gap-4 pr-2 group">
                             <div className={cn(
                                 "z-10 h-3 w-3 rounded-full shrink-0 mt-1 border-2 border-white ring-2 ring-slate-50",
@@ -154,6 +169,7 @@ export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }
                                         idx === 0 ? "text-indigo-700" : "text-slate-800"
                                     )}>
                                         {log.status}
+                                        {days !== null && <span className="font-bold opacity-60"> ({days} {days === 1 ? "Day" : "Days"})</span>}
                                     </span>
                                     {!isReadOnly && (
                                         <div className="flex gap-1">
@@ -184,7 +200,8 @@ export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }
                                 )}
                             </div>
                         </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </CardContent>
 

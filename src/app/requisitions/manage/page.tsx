@@ -34,7 +34,8 @@ import {
 } from "lucide-react";
 import { AiSuggestionTab } from "./ai-suggestion-tab";
 import { JRNoteDialog } from "@/components/jr-note-dialog";
-import { getJRAgingDays } from "@/lib/utils";
+import { getJRAgingDays, cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge";
 import { useJobRequisitionRealtime } from "@/hooks/use-jr-realtime";
 import {
     AlertDialog,
@@ -438,15 +439,22 @@ export default function JRManagePage() {
                                         <span className="text-slate-300">·</span>
                                         <span>Status: <span className="font-semibold text-foreground">{selectedJR.is_active || '-'}</span></span>
                                         <span className="text-slate-300">·</span>
-                                        <span>
-                                            Aging: <span className="font-semibold text-foreground">
-                                                {(() => {
-                                                    const days = getJRAgingDays(selectedJR.opened_date, selectedJR.closed_date);
-                                                    if (days === null) return '-';
-                                                    return `${days}d${selectedJR.closed_date ? ' (closed)' : ''}`;
-                                                })()}
-                                            </span>
-                                        </span>
+                                        {(() => {
+                                            const days = getJRAgingDays(selectedJR.opened_date, selectedJR.closed_date);
+                                            const isClosed = selectedJR.is_active === 'Closed';
+                                            const label = isClosed ? "Days to Successful Placement" : "Days to Pending";
+                                            return (
+                                                <Badge
+                                                    variant="outline"
+                                                    className={cn(
+                                                        "font-semibold",
+                                                        isClosed ? "border-emerald-200 text-emerald-700 bg-emerald-50" : "border-amber-200 text-amber-700 bg-amber-50"
+                                                    )}
+                                                >
+                                                    {label}: {days === null ? '-' : `${days}d`}
+                                                </Badge>
+                                            );
+                                        })()}
                                     </div>
                                 )}
                             </div>

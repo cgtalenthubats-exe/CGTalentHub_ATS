@@ -217,54 +217,48 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
                         <div className="p-8">
                             {activeTab === "recruitment" && (
                                 <div className="space-y-8">
-                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                        {/* Left: Summary + Feedback */}
-                                        <div className="lg:col-span-2 space-y-8">
-                                            <Card className="rounded-2xl border-none shadow-sm overflow-hidden bg-white ring-1 ring-slate-100">
-                                                <div className="h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
-                                                <CardHeader className="pb-4 pt-6">
-                                                    <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-3">
-                                                        <span className="p-1.5 bg-indigo-50 rounded-lg text-indigo-600"><MessageSquare className="h-3.5 w-3.5" /></span> Recruitment Recap
-                                                    </CardTitle>
-                                                </CardHeader>
-                                                <CardContent className="space-y-6">
-                                                    <div className="bg-slate-50/80 rounded-2xl p-5 border border-slate-100/50">
-                                                        <span className="text-[10px] font-black uppercase text-indigo-500 mb-3 block tracking-[0.1em]">Hiring Manager Notes</span>
-                                                        <p className="text-[15px] text-slate-700 font-medium leading-relaxed italic">
-                                                            "{meta?.temp_note || "No requisition-specific notes available."}"
-                                                        </p>
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-8 items-center px-2">
-                                                        <div className="flex flex-col gap-1">
-                                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Candidate Rank</span>
-                                                            <span className="text-2xl font-black text-slate-900">{meta?.rank || "Unranked"}</span>
-                                                        </div>
-                                                        <div className="h-10 w-px bg-slate-100" />
-                                                        <div className="flex flex-col gap-1">
-                                                            <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Sourcing Channel</span>
-                                                            <Badge className="w-fit bg-slate-100 text-slate-600 hover:bg-slate-200 border-none font-bold uppercase py-1 px-3 mt-1 rounded-full">
-                                                                {meta?.list_type || "Standard Sourcing"}
-                                                            </Badge>
-                                                        </div>
-                                                    </div>
-                                                </CardContent>
-                                            </Card>
+                                    {/* Section 1: Recruitment Recap + Feedback */}
+                                    <Card className="rounded-2xl border-none shadow-sm overflow-hidden bg-white ring-1 ring-slate-100">
+                                        <div className="h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500" />
+                                        <CardHeader className="pb-4 pt-6">
+                                            <CardTitle className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-3">
+                                                <span className="p-1.5 bg-indigo-50 rounded-lg text-indigo-600"><MessageSquare className="h-3.5 w-3.5" /></span> Recruitment Recap
+                                            </CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="space-y-6">
+                                            <div className="bg-slate-50/80 rounded-2xl p-5 border border-slate-100/50">
+                                                <span className="text-[10px] font-black uppercase text-indigo-500 mb-3 block tracking-[0.1em]">Hiring Manager Notes</span>
+                                                <p className="text-[15px] text-slate-700 font-medium leading-relaxed italic">
+                                                    "{meta?.temp_note || "No requisition-specific notes available."}"
+                                                </p>
+                                            </div>
+                                            <div className="flex flex-wrap gap-8 items-center px-2">
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Candidate Rank</span>
+                                                    <span className="text-2xl font-black text-slate-900">{meta?.rank || "Unranked"}</span>
+                                                </div>
+                                                <div className="h-10 w-px bg-slate-100" />
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Sourcing Channel</span>
+                                                    <Badge className="w-fit bg-slate-100 text-slate-600 hover:bg-slate-200 border-none font-bold uppercase py-1 px-3 mt-1 rounded-full">
+                                                        {meta?.list_type || "Standard Sourcing"}
+                                                    </Badge>
+                                                </div>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
 
-                                            <FeedbackSection
-                                                jrCandidateId={meta?.jr_candidate_id || jrCandidateId!}
-                                                candidateName={candidate?.name}
-                                                feedback={feedback}
-                                            />
-                                        </div>
+                                    <FeedbackSection
+                                        jrCandidateId={meta?.jr_candidate_id || jrCandidateId!}
+                                        candidateName={candidate?.name}
+                                        feedback={feedback}
+                                    />
 
-                                        {/* Right: Activity Log */}
-                                        <div className="lg:col-span-1">
-                                            <CandidateActivityLog
-                                                logs={logs}
-                                                jrCandidateId={jrCandidateId!}
-                                            />
-                                        </div>
-                                    </div>
+                                    {/* Section 2: Activity Log (full width) */}
+                                    <CandidateActivityLog
+                                        logs={logs}
+                                        jrCandidateId={jrCandidateId!}
+                                    />
                                 </div>
                             )}
 

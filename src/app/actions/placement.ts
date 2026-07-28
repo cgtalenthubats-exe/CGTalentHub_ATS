@@ -2,7 +2,7 @@
 
 import { adminAuthClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
-import { getCurrentUserEmail } from "./status-updates";
+import { getCurrentUserRealName } from "./user-actions";
 
 export type PlacementData = {
     jr_candidate_id: string;
@@ -40,7 +40,7 @@ export async function confirmPlacement(data: PlacementData) {
             .single() as any);
 
         const candidateName = profile?.name || "Unknown";
-        const actor = await getCurrentUserEmail();
+        const actor = await getCurrentUserRealName();
 
         // Use provided values or fallback
         const position = data.position || "Unknown";
