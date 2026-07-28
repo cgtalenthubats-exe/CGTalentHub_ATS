@@ -8,6 +8,7 @@ export type StatusMasterRow = {
     stage_order: number;
     font_color: string | null;
     bg_color: string | null;
+    row_color_enabled: boolean;
 };
 
 export async function getStatusMaster() {
@@ -42,6 +43,35 @@ export async function updateStatusColors(status: string, font_color: string | nu
         .eq('status', status) as any);
 
     if (error) return { success: false, error: error.message };
+    revalidatePath('/settings');
+    return { success: true };
+}
+
+// Toggles whether this status also tints the whole candidate-list row (vs. just the status chip).
+export async function updateRowColorEnabled(status: string, enabled: boolean) {
+    const { error } = await (adminAuthClient
+        .from('status_master' as any)
+        .update({ row_color_enabled: enabled })
+        .eq('status', status) as any);
+
+    if (error) return { success: false, error: error.message };
+    revalidatePath('/settings');
+    return { success: true };
+}
+
+// Persists a full drag-reordered sequence in one go — stage_order becomes 1..N in array order.
+export async function reorderStatusMaster(orderedStatuses: string[]) {
+    const supabase = adminAuthClient;
+
+    for (let i = 0; i < orderedStatuses.length; i++) {
+        const { error } = await (supabase
+            .from('status_master' as any)
+            .update({ stage_order: i + 1 })
+            .eq('status', orderedStatuses[i]) as any);
+
+        if (error) return { success: false, error: error.message };
+    }
+
     revalidatePath('/settings');
     return { success: true };
 }

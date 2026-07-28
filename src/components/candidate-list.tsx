@@ -320,7 +320,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     const [filterAgeIncludeUnknown, setFilterAgeIncludeUnknown] = useState(true);
 
     // Status color map from DB
-    const [statusColorMap, setStatusColorMap] = useState<Record<string, { font_color: string | null; bg_color: string | null }>>({});
+    const [statusColorMap, setStatusColorMap] = useState<Record<string, { font_color: string | null; bg_color: string | null; row_color_enabled: boolean }>>({});
 
     // Feedback Dialog State
     const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
@@ -412,9 +412,9 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                 setAllJRs(jrs.filter(j => j.id !== jrId));
 
                 // Build color map from status master
-                const colorMap: Record<string, { font_color: string | null; bg_color: string | null }> = {};
+                const colorMap: Record<string, { font_color: string | null; bg_color: string | null; row_color_enabled: boolean }> = {};
                 (masters as any[]).forEach((m: any) => {
-                    colorMap[m.status] = { font_color: m.font_color ?? null, bg_color: m.bg_color ?? null };
+                    colorMap[m.status] = { font_color: m.font_color ?? null, bg_color: m.bg_color ?? null, row_color_enabled: !!m.row_color_enabled };
                 });
                 setStatusColorMap(colorMap);
             } catch (error) {
@@ -696,10 +696,12 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     });
 
 
-    // Row Style Helper — uses DB colors if configured, else falls back to status groups
+    // Row Style Helper — uses DB colors only when explicitly opted into row coloring
+    // (row_color_enabled), else falls back to status groups. font_color/bg_color alone just
+    // drive the status chip/badge — a status can be chip-colored without tinting the whole row.
     const getRowClass = (status: string, isSelected: boolean) => {
         const dbColor = statusColorMap[status];
-        if (dbColor?.bg_color) {
+        if (dbColor?.bg_color && dbColor?.row_color_enabled) {
             // DB-configured color: apply via inline style (handled at <tr> level)
             return cn(
                 "border-b last:border-0 transition-all",
@@ -715,10 +717,10 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
         );
     };
 
-    // Inline row style — for DB-driven bg_color on the whole row
+    // Inline row style — for DB-driven bg_color on the whole row (only when row_color_enabled)
     const getRowStyle = (status: string): React.CSSProperties => {
         const dbColor = statusColorMap[status];
-        if (dbColor?.bg_color) {
+        if (dbColor?.bg_color && dbColor?.row_color_enabled) {
             return { backgroundColor: dbColor.bg_color };
         }
         return {};

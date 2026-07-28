@@ -34,7 +34,7 @@ import {
 } from "lucide-react";
 import { AiSuggestionTab } from "./ai-suggestion-tab";
 import { JRNoteDialog } from "@/components/jr-note-dialog";
-import { getJRAgingDays, cn } from "@/lib/utils";
+import { getJRAgingDays } from "@/lib/utils";
 import { useJobRequisitionRealtime } from "@/hooks/use-jr-realtime";
 import {
     AlertDialog,
@@ -447,19 +447,6 @@ export default function JRManagePage() {
                                                 })()}
                                             </span>
                                         </span>
-                                        <button
-                                            onClick={() => setIsNoteOpen(true)}
-                                            className={cn(
-                                                "flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border transition-colors",
-                                                selectedJR.jr_note
-                                                    ? "border-amber-200 text-amber-700 bg-amber-50 hover:bg-amber-100"
-                                                    : "border-slate-200 text-slate-500 hover:bg-slate-50"
-                                            )}
-                                            title={selectedJR.jr_note || "Add a note"}
-                                        >
-                                            <StickyNote className="h-3 w-3" />
-                                            {selectedJR.jr_note ? "Note" : "Add note"}
-                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -476,6 +463,30 @@ export default function JRManagePage() {
                                     onSelect={(jr) => handleJRSelect(jr.id)}
                                 />
                             )}
+
+                            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                                <DialogTrigger asChild>
+                                    <Button className="bg-primary text-primary-foreground shrink-0">
+                                        <Plus className="mr-2 h-4 w-4" /> Create New JR
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+                                    <DialogHeader className="mb-6">
+                                        <DialogTitle className="text-2xl font-bold text-center">Create New Requisition</DialogTitle>
+                                        <DialogDescription className="text-center">Drafting a new job requisition. ID will be generated automatically.</DialogDescription>
+                                    </DialogHeader>
+                                    <CreateJobRequisitionForm
+                                        onCancel={() => setIsCreateOpen(false)}
+                                        selectedCreatedBy={selectedCreatedBy}
+                                        profiles={profiles}
+                                        onSuccess={(newJR) => {
+                                            setIsCreateOpen(false);
+                                            handleJRSelect(newJR.id);
+                                        }}
+                                    />
+                                </DialogContent>
+                            </Dialog>
+
                             {selectedJR && isSyncing && (
                                 <div className="flex items-center gap-1.5 text-blue-600 font-bold animate-pulse text-sm">
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -501,28 +512,14 @@ export default function JRManagePage() {
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 w-full">
                             {/* Row 1 */}
-                            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-                                <DialogTrigger asChild>
-                                    <Button className="bg-primary text-primary-foreground w-full">
-                                        <Plus className="mr-2 h-4 w-4" /> Create New JR
-                                    </Button>
-                                </DialogTrigger>
-                                <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-                                    <DialogHeader className="mb-6">
-                                        <DialogTitle className="text-2xl font-bold text-center">Create New Requisition</DialogTitle>
-                                        <DialogDescription className="text-center">Drafting a new job requisition. ID will be generated automatically.</DialogDescription>
-                                    </DialogHeader>
-                                    <CreateJobRequisitionForm
-                                        onCancel={() => setIsCreateOpen(false)}
-                                        selectedCreatedBy={selectedCreatedBy}
-                                        profiles={profiles}
-                                        onSuccess={(newJR) => {
-                                            setIsCreateOpen(false);
-                                            handleJRSelect(newJR.id);
-                                        }}
-                                    />
-                                </DialogContent>
-                            </Dialog>
+                            <Button
+                                disabled={!selectedJR}
+                                variant="outline"
+                                onClick={() => setIsNoteOpen(true)}
+                                className="border-amber-200 text-amber-700 hover:bg-amber-50 w-full"
+                            >
+                                <StickyNote className="mr-2 h-4 w-4" /> {selectedJR?.jr_note ? "Note" : "Add Note"}
+                            </Button>
 
                             <Button
                                 disabled={!selectedJR || isTriggeringReport}
