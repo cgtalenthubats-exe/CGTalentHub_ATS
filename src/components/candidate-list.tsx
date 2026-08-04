@@ -123,6 +123,15 @@ function matchesMultiFilter(filter: string[], value: string | null | undefined):
     return filter.some(f => f === UNKNOWN ? !value : f === value);
 }
 
+// All filterable dimensions on the candidate list. Used to cascade each filter's
+// option list off every OTHER active filter (exclude-self), so e.g. picking a
+// Status narrows the Company dropdown without narrowing its own options away.
+const MATCH_KEYS = [
+    'global', 'status', 'gender', 'company', 'position', 'currentJob', 'country',
+    'region', 'nationality', 'industry', 'rating', 'age', 'reviewer', 'type', 'remark',
+] as const;
+type MatchKey = typeof MATCH_KEYS[number];
+
 // Standalone multi-select filter with search input + Apply/Clear UX
 function MSFilter({ label, options, selected, setSelected }: {
     label: string; options: string[]; selected: string[]; setSelected: (v: string[]) => void;
@@ -315,6 +324,8 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     const [filterIndustry, setFilterIndustry] = useState<string[]>([]);
     const [filterRating, setFilterRating] = useState<string[]>([]);
     const [filterReviewer, setFilterReviewer] = useState<string[]>([]);
+    const [filterType, setFilterType] = useState<string[]>([]);
+    const [filterRemark, setFilterRemark] = useState<string[]>([]);
     const [filterAgeMin, setFilterAgeMin] = useState<number | null>(null);
     const [filterAgeMax, setFilterAgeMax] = useState<number | null>(null);
     const [filterAgeIncludeUnknown, setFilterAgeIncludeUnknown] = useState(true);
@@ -588,28 +599,16 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     const greyStatuses = ["Not Open", "Not Pass Interview", "Too Senior", "Hold"];
     const redStatuses = ["Rejected", "Not fit"];
 
-    // Unique option sets derived from all candidates (Unknown included if any nulls exist)
-    const uniqueStatuses = buildOptions(candidates.map(c => c.status));
-    const uniqueGenders = buildOptions(candidates.map(c => c.candidate_gender));
-    const uniqueCompanies = buildOptions(candidates.map(c => c.candidate_current_company));
-    const uniquePositions = buildOptions(candidates.map(c => c.candidate_current_position));
-    const uniqueCurrentJobs = ['Current', 'Latest Position'];
-    const uniqueCountries = buildOptions(candidates.map(c => {
-        if (!c.candidate_country) return null;
-        const idx = c.candidate_country.indexOf('(');
-        return idx >= 0 ? c.candidate_country.slice(0, idx).trim() : c.candidate_country;
-    }));
-    const uniqueRegions = buildOptions(candidates.map(c => c.candidate_region));
-    const uniqueNationalities = buildOptions(candidates.map(c => c.candidate_nationality));
-    const uniqueIndustries = buildOptions(candidates.map(c => c.candidate_industry));
-    const uniqueRatings = buildOptions(candidates.map(c => c.candidate_hotel_rating));
-    const uniqueReviewers = Array.from(new Set(candidates.flatMap(c => c.candidate_reviewers || []))).sort();
-
-    // Multi-select filter logic (empty array = show all)
-    const filteredCandidates = candidates.filter(c => {
+    // Per-candidate match flags for every filter dimension. Reused to build both
+    // the final filtered list and each filter's cascading (exclude-self) option
+    // pool: a dimension's own filter is skipped when computing ITS options, but
+    // every other active filter + the global text search still applies — so
+    // picking a Status narrows the Company dropdown, without the Status dropdown
+    // narrowing its own choices away.
+    const candidateMatches = candidates.map(c => {
         try {
             const f = (filterText || "").toLowerCase();
-            const matchesGlobal = !f ||
+            const global = !f ||
                 (c.candidate_name || "").toLowerCase().includes(f) ||
                 (c.candidate_id || "").toLowerCase().includes(f) ||
                 (c.candidate_email || "").toLowerCase().includes(f) ||
@@ -621,33 +620,69 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                 (c.candidate_nationality || "").toLowerCase().includes(f) ||
                 String(c.candidate_age || "").includes(f);
 
-            const matchesStatus = matchesMultiFilter(filterStatus, c.status);
-            const matchesGender = matchesMultiFilter(filterGender, c.candidate_gender);
-            const matchesCompany = matchesMultiFilter(filterCompany, c.candidate_current_company);
-            const matchesPosition = matchesMultiFilter(filterPosition, c.candidate_current_position);
-            const matchesCurrentJob = matchesMultiFilter(filterIsCurrentJob, c.candidate_is_current_job);
-            const matchesRegion = matchesMultiFilter(filterRegion, c.candidate_region);
-            const matchesNationality = matchesMultiFilter(filterNationality, c.candidate_nationality);
-            const matchesIndustry = matchesMultiFilter(filterIndustry, c.candidate_industry);
-            const matchesRating = matchesMultiFilter(filterRating, c.candidate_hotel_rating);
-            const matchesCountry = filterCountry.length === 0 || filterCountry.some(fc =>
-                fc === UNKNOWN ? !c.candidate_country : (c.candidate_country || '').startsWith(fc)
-            );
             const ageFilterActive = filterAgeMin !== null || filterAgeMax !== null;
-            const matchesAge = !ageFilterActive || (() => {
-                const age = parseInt(String(c.candidate_age || ''));
-                const hasAge = !isNaN(age) && age > 0;
+            const age = !ageFilterActive || (() => {
+                const candidateAge = parseInt(String(c.candidate_age || ''));
+                const hasAge = !isNaN(candidateAge) && candidateAge > 0;
                 if (!hasAge) return filterAgeIncludeUnknown;
-                if (filterAgeMin !== null && age < filterAgeMin) return false;
-                if (filterAgeMax !== null && age > filterAgeMax) return false;
+                if (filterAgeMin !== null && candidateAge < filterAgeMin) return false;
+                if (filterAgeMax !== null && candidateAge > filterAgeMax) return false;
                 return true;
             })();
 
-            const matchesReviewer = filterReviewer.length === 0 || filterReviewer.some(r => (c.candidate_reviewers || []).includes(r));
-
-            return matchesGlobal && matchesStatus && matchesGender && matchesCompany && matchesPosition && matchesCurrentJob && matchesCountry && matchesRegion && matchesNationality && matchesIndustry && matchesRating && matchesAge && matchesReviewer;
-        } catch { return false; }
+            const m: Record<MatchKey, boolean> = {
+                global,
+                status: matchesMultiFilter(filterStatus, c.status),
+                gender: matchesMultiFilter(filterGender, c.candidate_gender),
+                company: matchesMultiFilter(filterCompany, c.candidate_current_company),
+                position: matchesMultiFilter(filterPosition, c.candidate_current_position),
+                currentJob: matchesMultiFilter(filterIsCurrentJob, c.candidate_is_current_job),
+                country: filterCountry.length === 0 || filterCountry.some(fc =>
+                    fc === UNKNOWN ? !c.candidate_country : (c.candidate_country || '').startsWith(fc)
+                ),
+                region: matchesMultiFilter(filterRegion, c.candidate_region),
+                nationality: matchesMultiFilter(filterNationality, c.candidate_nationality),
+                industry: matchesMultiFilter(filterIndustry, c.candidate_industry),
+                rating: matchesMultiFilter(filterRating, c.candidate_hotel_rating),
+                age,
+                reviewer: filterReviewer.length === 0 || filterReviewer.some(r => (c.candidate_reviewers || []).includes(r)),
+                type: matchesMultiFilter(filterType, c.list_type || 'Longlist'),
+                remark: filterRemark.length === 0 || filterRemark.some(r => (c.candidate_status || []).includes(r)),
+            };
+            return { c, m };
+        } catch {
+            const m = Object.fromEntries(MATCH_KEYS.map(k => [k, false])) as Record<MatchKey, boolean>;
+            return { c, m };
+        }
     });
+
+    const filteredCandidates = candidateMatches
+        .filter(({ m }) => MATCH_KEYS.every(k => m[k]))
+        .map(({ c }) => c);
+
+    const poolExcluding = (excludeKey: MatchKey) =>
+        candidateMatches
+            .filter(({ m }) => MATCH_KEYS.every(k => k === excludeKey || m[k]))
+            .map(({ c }) => c);
+
+    // Cascading option sets (Unknown included if any nulls exist in the narrowed pool)
+    const uniqueStatuses = buildOptions(poolExcluding('status').map(c => c.status));
+    const uniqueGenders = buildOptions(poolExcluding('gender').map(c => c.candidate_gender));
+    const uniqueCompanies = buildOptions(poolExcluding('company').map(c => c.candidate_current_company));
+    const uniquePositions = buildOptions(poolExcluding('position').map(c => c.candidate_current_position));
+    const uniqueCurrentJobs = ['Current', 'Latest Position'];
+    const uniqueCountries = buildOptions(poolExcluding('country').map(c => {
+        if (!c.candidate_country) return null;
+        const idx = c.candidate_country.indexOf('(');
+        return idx >= 0 ? c.candidate_country.slice(0, idx).trim() : c.candidate_country;
+    }));
+    const uniqueRegions = buildOptions(poolExcluding('region').map(c => c.candidate_region));
+    const uniqueNationalities = buildOptions(poolExcluding('nationality').map(c => c.candidate_nationality));
+    const uniqueIndustries = buildOptions(poolExcluding('industry').map(c => c.candidate_industry));
+    const uniqueRatings = buildOptions(poolExcluding('rating').map(c => c.candidate_hotel_rating));
+    const uniqueReviewers = Array.from(new Set(poolExcluding('reviewer').flatMap(c => c.candidate_reviewers || []))).sort();
+    const uniqueTypes = buildOptions(poolExcluding('type').map(c => c.list_type || 'Longlist'));
+    const uniqueRemarks = Array.from(new Set(poolExcluding('remark').flatMap(c => c.candidate_status || []))).sort();
 
     // Custom Sorting Hierarchy:
     // 1. Successful Placement (Global Top)
@@ -865,6 +900,8 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                         <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest mr-1">Filters:</span>
 
                         <MSFilter label="Status" options={uniqueStatuses} selected={filterStatus} setSelected={setFilterStatus} />
+                        <MSFilter label="Type" options={uniqueTypes} selected={filterType} setSelected={setFilterType} />
+                        <MSFilter label="Remark" options={uniqueRemarks} selected={filterRemark} setSelected={setFilterRemark} />
                         <MSFilter label="Gender" options={uniqueGenders} selected={filterGender} setSelected={setFilterGender} />
                         <MSFilter label="Company" options={uniqueCompanies} selected={filterCompany} setSelected={setFilterCompany} />
                         <MSFilter label="Position" options={uniquePositions} selected={filterPosition} setSelected={setFilterPosition} />
@@ -892,11 +929,11 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                         </div>
 
                         {/* Clear all */}
-                        {(filterStatus.length > 0 || filterGender.length > 0 || filterCompany.length > 0 || filterPosition.length > 0 || filterIsCurrentJob.length > 0 || filterCountry.length > 0 || filterRegion.length > 0 || filterNationality.length > 0 || filterIndustry.length > 0 || filterRating.length > 0 || filterReviewer.length > 0 || filterAgeMin !== null || filterAgeMax !== null || filterText) && (
+                        {(filterStatus.length > 0 || filterType.length > 0 || filterRemark.length > 0 || filterGender.length > 0 || filterCompany.length > 0 || filterPosition.length > 0 || filterIsCurrentJob.length > 0 || filterCountry.length > 0 || filterRegion.length > 0 || filterNationality.length > 0 || filterIndustry.length > 0 || filterRating.length > 0 || filterReviewer.length > 0 || filterAgeMin !== null || filterAgeMax !== null || filterText) && (
                             <Button size="sm" variant="ghost"
                                 className="h-8 px-3 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
                                 onClick={() => {
-                                    setFilterStatus([]); setFilterGender([]); setFilterCompany([]);
+                                    setFilterStatus([]); setFilterType([]); setFilterRemark([]); setFilterGender([]); setFilterCompany([]);
                                     setFilterPosition([]); setFilterIsCurrentJob([]); setFilterCountry([]);
                                     setFilterRegion([]); setFilterNationality([]); setFilterIndustry([]); setFilterRating([]); setFilterReviewer([]);
                                     setFilterAgeMin(null); setFilterAgeMax(null); setFilterAgeIncludeUnknown(true);
