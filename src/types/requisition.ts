@@ -88,7 +88,15 @@ export interface JRCandidateExperience {
 
 export interface JRAnalytics {
     countsByStatus: { status: string; count: number }[];
-    agingByStatus: { status: string; avgDays: number }[];
+    agingByStatus: {
+        status: string;
+        avgDays: number;
+        minDays: number;
+        maxDays: number;
+        visits: number;
+        closedCount: number;
+        ongoingCount: number;
+    }[];
 }
 
 export interface StatusLog {

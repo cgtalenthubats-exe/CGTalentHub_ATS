@@ -366,7 +366,7 @@ export async function getJRAnalytics(jrId: string): Promise<JRAnalytics> {
             // Even if no candidates, return all statuses with 0 count to keep graphs visible
             return {
                 countsByStatus: allStatuses.map(s => ({ status: s, count: 0 })),
-                agingByStatus: allStatuses.map(s => ({ status: s, avgDays: 0 }))
+                agingByStatus: allStatuses.map(s => ({ status: s, avgDays: 0, minDays: 0, maxDays: 0, visits: 0, closedCount: 0, ongoingCount: 0 }))
             };
         }
 
@@ -380,13 +380,13 @@ export async function getJRAnalytics(jrId: string): Promise<JRAnalytics> {
 
         // 2. Compute Counts & Aging
         const countMap: Record<string, number> = {};
-        const agingMap: Record<string, { totalDays: number, count: number }> = {};
+        const agingMap: Record<string, { totalDays: number, min: number, max: number, count: number, closedCount: number, ongoingCount: number }> = {};
 
         // Initialize with all statuses to ensure they appear in the graph
         allStatuses.forEach(s => {
             countMap[s] = 0;
         });
-        
+
         const now = new Date();
 
         // Count activity transactions
@@ -401,25 +401,34 @@ export async function getJRAnalytics(jrId: string): Promise<JRAnalytics> {
             });
         }
 
-        // Aging: Time since the LATEST activity in the current status for each candidate
+        // Aging: how long each candidate actually stayed in each status they ever visited,
+        // measured as the interval between consecutive status_log entries (or "now" for the
+        // still-open last entry). This replaces the old "current status only" snapshot, which
+        // hid any status a candidate had already moved past.
         jrCands.forEach(c => {
-            const status = getLatestStatus(logs || [], c.jr_candidate_id, "Pool Candidate");
-            
             const cLogs = (logs || []).filter(l => l.jr_candidate_id === c.jr_candidate_id);
-            if (cLogs.length > 0) {
-                cLogs.sort((a, b) => {
-                    const dateA = new Date(a.timestamp).getTime();
-                    const dateB = new Date(b.timestamp).getTime();
-                    if (dateA !== dateB && !isNaN(dateA) && !isNaN(dateB)) return dateB - dateA;
-                    return b.log_id - a.log_id;
-                });
-                const latestLog = cLogs[0];
-                const days = Math.floor((now.getTime() - new Date(latestLog.timestamp).getTime()) / (1000 * 3600 * 24));
-                
-                if (!agingMap[status]) agingMap[status] = { totalDays: 0, count: 0 };
+            cLogs.sort((a, b) => {
+                const dateA = new Date(a.timestamp).getTime();
+                const dateB = new Date(b.timestamp).getTime();
+                if (dateA !== dateB && !isNaN(dateA) && !isNaN(dateB)) return dateA - dateB; // ascending
+                return a.log_id - b.log_id;
+            });
+
+            cLogs.forEach((log, i) => {
+                const status = log.status || "Unknown";
+                const isLast = i === cLogs.length - 1;
+                const startTime = new Date(log.timestamp).getTime();
+                const endTime = isLast ? now.getTime() : new Date(cLogs[i + 1].timestamp).getTime();
+                if (isNaN(startTime) || isNaN(endTime) || endTime < startTime) return; // guard bad/future-dated timestamps
+
+                const days = Math.floor((endTime - startTime) / (1000 * 3600 * 24));
+                if (!agingMap[status]) agingMap[status] = { totalDays: 0, min: days, max: days, count: 0, closedCount: 0, ongoingCount: 0 };
                 agingMap[status].totalDays += days;
+                agingMap[status].min = Math.min(agingMap[status].min, days);
+                agingMap[status].max = Math.max(agingMap[status].max, days);
                 agingMap[status].count++;
-            }
+                if (isLast) agingMap[status].ongoingCount++; else agingMap[status].closedCount++;
+            });
         });
 
         // Prepare result sorted by stage_order
@@ -430,10 +439,18 @@ export async function getJRAnalytics(jrId: string): Promise<JRAnalytics> {
         });
 
         const countsByStatus = sortedStatuses.map(s => ({ status: s, count: countMap[s] }));
-        const agingByStatus = sortedStatuses.map(s => ({
-            status: s,
-            avgDays: agingMap[s] ? Math.round(agingMap[s].totalDays / agingMap[s].count) : 0
-        }));
+        const agingByStatus = sortedStatuses.map(s => {
+            const a = agingMap[s];
+            return {
+                status: s,
+                avgDays: a ? Math.round(a.totalDays / a.count) : 0,
+                minDays: a ? a.min : 0,
+                maxDays: a ? a.max : 0,
+                visits: a ? a.count : 0,
+                closedCount: a ? a.closedCount : 0,
+                ongoingCount: a ? a.ongoingCount : 0,
+            };
+        });
 
         return { countsByStatus, agingByStatus };
     } catch (e) {

@@ -303,6 +303,22 @@ export default function JRManagePage() {
         );
     };
 
+    // Aging chart tooltip: avg is the bar height, but min/max/visit breakdown only show on hover
+    const AgingTooltip = ({ active, payload, label }: any) => {
+        if (!active || !payload || !payload.length) return null;
+        const d = payload[0].payload;
+        return (
+            <div className="rounded-md border bg-white dark:bg-slate-900 shadow-md px-3 py-2 text-xs space-y-1">
+                <div className="font-semibold text-slate-700 dark:text-slate-200">{label}</div>
+                <div>Avg: <span className="font-medium">{d.avgDays} days</span></div>
+                <div>Min–Max: <span className="font-medium">{d.minDays}–{d.maxDays} days</span></div>
+                <div className="text-slate-500 dark:text-slate-400">
+                    {d.visits} visit{d.visits === 1 ? '' : 's'} ({d.closedCount} closed, {d.ongoingCount} ongoing)
+                </div>
+            </div>
+        );
+    };
+
     const csvEscape = (val: any) => `"${String(val ?? '').replace(/"/g, '""')}"`;
 
     const downloadCSV = (filename: string, lines: string[]) => {
@@ -703,7 +719,7 @@ export default function JRManagePage() {
 
                                             <Card>
                                                 <CardContent className="pt-4">
-                                                    <h3 className="text-base font-bold text-slate-700 dark:text-slate-200 mb-4">Avg. Aging (Days)</h3>
+                                                    <h3 className="text-base font-bold text-slate-700 dark:text-slate-200 mb-4">Avg. Aging (Days) <span className="font-normal text-xs text-slate-400">— time actually spent per status, hover for min/max</span></h3>
                                                     {(() => {
                                                         const agingData = analytics.agingByStatus.filter((i: any) => !EXCLUDED_CHART_STATUSES.includes(i.status));
                                                         return (
@@ -712,7 +728,7 @@ export default function JRManagePage() {
                                                                     <BarChart data={agingData} margin={{ bottom: 40, top: 20 }}>
                                                                         <XAxis dataKey="status" interval={0} height={60} tick={TwoLineXAxisTick} />
                                                                         <YAxis tick={{ fontSize: 13 }} />
-                                                                        <Tooltip />
+                                                                        <Tooltip content={AgingTooltip} />
                                                                         <Bar dataKey="avgDays" fill="#f97316" radius={[4, 4, 0, 0]} barSize={30}>
                                                                             <LabelList dataKey="avgDays" position="top" style={{ fontSize: 13, fontWeight: 700, fill: '#334155' }} />
                                                                         </Bar>
