@@ -1587,3 +1587,125 @@ export async function generateSearchPPTX(
     const safeName = jobId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 40);
     return { base64, filename: `search_${safeName}_${new Date().toISOString().slice(0, 10)}.pptx` };
 }
+
+// ── Chat Matrix PPTX ──────────────────────────────────────────────────────────
+
+function parseMarkdownTable(text: string): { headers: string[]; rows: string[][] } | null {
+    const lines = text.split('\n').map(l => l.trim());
+    const startIdx = lines.findIndex(l => l.startsWith('|') && l.endsWith('|') && l.includes('|', 1));
+    if (startIdx === -1) return null;
+    const sepLine = lines[startIdx + 1] ?? '';
+    if (!sepLine.startsWith('|') || !/[\-:]/.test(sepLine)) return null;
+    const parseRow = (l: string) => l.split('|').slice(1, -1).map(c => c.trim());
+    const headers = parseRow(lines[startIdx]);
+    if (!headers.length) return null;
+    const rows: string[][] = [];
+    for (let i = startIdx + 2; i < lines.length; i++) {
+        if (!lines[i].startsWith('|')) break;
+        rows.push(parseRow(lines[i]));
+    }
+    return rows.length ? { headers, rows } : null;
+}
+
+function matrixNumScore(cell: string): number | null {
+    const n = parseFloat(cell.replace(/[^0-9.]/g, ''));
+    return isNaN(n) ? null : n;
+}
+
+function matrixScoreColor(n: number, max: number): string {
+    const pct = (n / max) * 100;
+    return pct >= 80 ? C.green : pct >= 65 ? "4f46e5" : pct >= 50 ? C.amber : C.red;
+}
+
+function addChatMatrixCoverSlide(pptx: PptxGenJS, jrId: string, title: string, dateStr: string) {
+    const slide = pptx.addSlide();
+    slide.background = { color: C.slate900 };
+    slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.1, h: "100%", fill: { color: C.indigo } });
+    slide.addText("CG TALENT HUB", { x: 0.3, y: 1.8, w: 12.7, h: 0.4, fontSize: 10, bold: true, color: C.indigo, charSpacing: 4 });
+    slide.addText("Competency Evaluation Matrix", { x: 0.3, y: 2.3, w: 12.7, h: 0.9, fontSize: 34, bold: true, color: C.white });
+    slide.addText(title, { x: 0.3, y: 3.3, w: 12.7, h: 0.5, fontSize: 16, color: "94a3b8" });
+    slide.addShape(pptx.ShapeType.line, { x: 0.3, y: 4.0, w: 3.0, h: 0, line: { color: C.indigo, width: 1.5 } });
+    slide.addText(`${jrId}  ·  Generated ${dateStr}`, { x: 0.3, y: 4.2, w: 12.7, h: 0.35, fontSize: 9, color: C.slate500 });
+    slide.addText("Generated from AI Chat Analysis", { x: 0.3, y: 4.55, w: 12.7, h: 0.3, fontSize: 9, italic: true, color: C.slate500 });
+}
+
+function addChatMatrixTableSlide(pptx: PptxGenJS, parsed: { headers: string[]; rows: string[][] }, slideTitle: string) {
+    const slide = pptx.addSlide();
+    slide.background = { color: C.white };
+    slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.08, h: "100%", fill: { color: C.indigo } });
+    slide.addText(slideTitle, { x: 0.3, y: 0.15, w: 12.75, h: 0.5, fontSize: 18, bold: true, color: C.slate900 });
+
+    const { headers, rows } = parsed;
+    const colCount = headers.length;
+    const totalW = 12.85;
+    const nameColW = Math.min(2.5, totalW * 0.22);
+    const restW = (totalW - nameColW) / Math.max(1, colCount - 1);
+    const colW = headers.map((_, i) => i === 0 ? nameColW : restW);
+
+    const isNumericCol = headers.map((_, ci) =>
+        rows.some(row => { const n = matrixNumScore(row[ci] ?? ''); return n !== null && n > 0; })
+    );
+    const allNums = rows.flatMap(row => row.map(c => matrixNumScore(c)).filter((n): n is number => n !== null));
+    const maxVal = allNums.length ? Math.max(...allNums) : 100;
+
+    const hOpts = { bold: true, color: C.white, fill: { color: C.indigo }, valign: "middle" as const };
+    const headerRow = headers.map((h, i) => ({
+        text: h, options: { ...hOpts, align: i === 0 ? "left" as const : "center" as const },
+    }));
+
+    const dataRows = rows.map((row, ri) => {
+        const rowFill = ri % 2 === 0 ? { color: C.white } : { color: C.slate100 };
+        return row.map((cell, ci) => {
+            const n = matrixNumScore(cell);
+            const isNum = isNumericCol[ci] && n !== null;
+            return {
+                text: cell || "-",
+                options: {
+                    fill: rowFill, valign: "middle" as const,
+                    align: ci === 0 ? "left" as const : "center" as const,
+                    bold: isNum,
+                    color: isNum ? matrixScoreColor(n!, maxVal) : (ci === 0 ? C.slate900 : C.slate600),
+                },
+            };
+        });
+    });
+
+    (slide as any).addTable([headerRow, ...dataRows], {
+        x: 0.15, y: 0.78, w: totalW,
+        fontSize: colCount > 8 ? 6.5 : 7.5,
+        rowH: 0.28,
+        border: { type: "solid", pt: 0.5, color: C.slate200 },
+        autoPage: true,
+        autoPageRepeatHeader: true,
+        autoPageHeaderRows: 1,
+        autoPageSlideStartY: 0.5,
+        newSlideStartY: 0.5,
+        colW,
+    });
+}
+
+export async function generateChatMatrixPPTX(
+    jrId: string,
+    matrixText: string,
+    jrTitle?: string,
+): Promise<{ base64: string; filename: string }> {
+    const parsed = parseMarkdownTable(matrixText);
+    if (!parsed) throw new Error("No table found in this message");
+
+    const { data: jrRow } = await adminAuthClient.from("job_requisitions").select("position_jr").eq("jr_id", jrId).single();
+    const title = jrTitle || (jrRow as any)?.position_jr || jrId;
+    const dateStr = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+    const pptx = new PptxGenJS();
+    pptx.layout  = "LAYOUT_WIDE";
+    pptx.author  = "CG Talent Hub";
+    pptx.company = "CG Talent Hub";
+    pptx.subject = `Competency Matrix — ${title}`;
+    pptx.title   = `${jrId} Competency Matrix`;
+
+    addChatMatrixCoverSlide(pptx, jrId, title, dateStr);
+    addChatMatrixTableSlide(pptx, parsed, "Competency Evaluation Matrix");
+
+    const base64 = await pptx.write({ outputType: "base64" }) as string;
+    return { base64, filename: `${jrId}_competency_matrix_${new Date().toISOString().slice(0, 10)}.pptx` };
+}

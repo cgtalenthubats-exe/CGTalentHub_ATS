@@ -1,14 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Sparkles, Loader2, RotateCcw, ChevronDown, ChevronUp, Briefcase, Target, Globe, Wrench, BarChart3, History, Clock, MessageSquare, Send, Bot, User, MapPin, Cake, Linkedin, ExternalLink, Download, Maximize2, Minimize2 } from "lucide-react";
+import { Sparkles, Loader2, RotateCcw, ChevronDown, ChevronUp, Briefcase, Target, Globe, Wrench, BarChart3, History, Clock, MessageSquare, Send, Bot, User, MapPin, Cake, Linkedin, ExternalLink, Download, Maximize2, Minimize2, Copy, Check, FileDown } from "lucide-react";
 import { CandidateAvatar } from "@/components/candidate-avatar";
 import { CandidateProfileSheet } from "@/components/candidate-profile-sheet";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { triggerStage3Ranking, getStage3JobStatus, getLatestJobForJR, getJobHistoryForJR, type Stage3JobData, type Stage3Result, type JobHistoryItem } from "@/app/actions/ai-ranking";
 import { sendJrChatMessage, getJrChatHistory } from "@/app/actions/jr-ai-chat";
-import { generateAssessmentPPTX } from "@/app/actions/export-pptx";
+import { generateAssessmentPPTX, generateChatMatrixPPTX } from "@/app/actions/export-pptx";
 import { shareAssessmentReport } from "@/app/actions/share-report";
 import { ShareReportDialog } from "@/components/share-report-dialog";
 import ReactMarkdown from "react-markdown";
@@ -593,9 +593,35 @@ function ChatSection({ jrId, jrTitle }: { jrId: string; jrTitle?: string }) {
     const [historyLoading, setHistoryLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [inputExpanded, setInputExpanded] = useState(false);
+    const [copiedId, setCopiedId] = useState<number | null>(null);
+    const [matrixExportingId, setMatrixExportingId] = useState<number | null>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const msgIdRef = useRef(0);
+
+    const hasTable = (text: string) => /^\|.+\|$/m.test(text);
+
+    const handleCopy = (msg: ChatMessage) => {
+        navigator.clipboard.writeText(msg.text).then(() => {
+            setCopiedId(msg.id);
+            setTimeout(() => setCopiedId(null), 2000);
+        });
+    };
+
+    const handleExportMatrix = async (msg: ChatMessage) => {
+        setMatrixExportingId(msg.id);
+        try {
+            const { base64, filename } = await generateChatMatrixPPTX(jrId, msg.text, jrTitle);
+            const a = document.createElement("a");
+            a.href = `data:application/vnd.openxmlformats-officedocument.presentationml.presentation;base64,${base64}`;
+            a.download = filename;
+            a.click();
+        } catch (e: any) {
+            alert(e?.message ?? "Export failed");
+        } finally {
+            setMatrixExportingId(null);
+        }
+    };
 
     // Load history when JR changes
     useEffect(() => {
@@ -693,14 +719,41 @@ function ChatSection({ jrId, jrTitle }: { jrId: string; jrTitle?: string }) {
                                 {msg.text}
                             </div>
                         ) : (
-                            <div className="max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed bg-slate-100 text-slate-800 rounded-tl-sm prose prose-sm prose-slate max-w-none
-                                prose-p:my-1 prose-headings:mt-2 prose-headings:mb-1 prose-headings:font-bold
-                                prose-ul:my-1 prose-ol:my-1 prose-li:my-0
-                                prose-table:text-xs prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1
-                                prose-strong:font-bold prose-code:text-xs prose-code:bg-slate-200 prose-code:px-1 prose-code:rounded">
-                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                    {msg.text}
-                                </ReactMarkdown>
+                            <div className="max-w-[85%] flex flex-col gap-1">
+                                <div className="rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed bg-slate-100 text-slate-800 rounded-tl-sm prose prose-sm prose-slate max-w-none
+                                    prose-p:my-1 prose-headings:mt-2 prose-headings:mb-1 prose-headings:font-bold
+                                    prose-ul:my-1 prose-ol:my-1 prose-li:my-0
+                                    prose-table:text-xs prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1
+                                    prose-strong:font-bold prose-code:text-xs prose-code:bg-slate-200 prose-code:px-1 prose-code:rounded">
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                        {msg.text}
+                                    </ReactMarkdown>
+                                </div>
+                                <div className="flex gap-1.5 pl-1">
+                                    <button
+                                        onClick={() => handleCopy(msg)}
+                                        className="inline-flex items-center gap-1 h-6 px-2 rounded-md text-[10px] font-medium border border-slate-200 bg-white text-slate-400 hover:text-slate-700 hover:border-slate-300 transition-colors"
+                                        title="Copy message"
+                                    >
+                                        {copiedId === msg.id
+                                            ? <><Check className="w-3 h-3 text-emerald-500" /><span className="text-emerald-600">Copied</span></>
+                                            : <><Copy className="w-3 h-3" />Copy</>
+                                        }
+                                    </button>
+                                    {hasTable(msg.text) && (
+                                        <button
+                                            onClick={() => handleExportMatrix(msg)}
+                                            disabled={matrixExportingId === msg.id}
+                                            className="inline-flex items-center gap-1 h-6 px-2 rounded-md text-[10px] font-medium border border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:border-indigo-300 transition-colors disabled:opacity-50"
+                                            title="Export as PowerPoint"
+                                        >
+                                            {matrixExportingId === msg.id
+                                                ? <><Loader2 className="w-3 h-3 animate-spin" />Exporting…</>
+                                                : <><FileDown className="w-3 h-3" />Export Matrix</>
+                                            }
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>
