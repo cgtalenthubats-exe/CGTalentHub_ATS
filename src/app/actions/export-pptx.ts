@@ -5,7 +5,7 @@ import fs from "fs";
 import path from "path";
 import sharp from "sharp";
 import { adminAuthClient } from "@/lib/supabase/admin";
-import { getStage3JobStatus, getJRCandidateRoster, getJRTopProfileShortlist, type Stage3Result, type ShortProfileCandidate } from "@/app/actions/ai-ranking";
+import { getStage3JobStatus, getJRCandidateRoster, getJRTopProfileShortlist, getJRInternalCandidates, type Stage3Result, type ShortProfileCandidate } from "@/app/actions/ai-ranking";
 import { getSearchJobStatus } from "@/app/actions/ai-search-ranking";
 import { getPoolMarketBreakdown, type MarketBreakdown } from "@/app/actions/market-breakdown";
 
@@ -1360,9 +1360,10 @@ export async function generateAssessmentPPTX(
     // Profile card sections further down need it.
     const shortProfileCandidates = await getJRTopProfileShortlist(jrId);
     const userPickIds = new Set(shortProfileCandidates.map(c => c.candidate_id));
-    const [userPickBreakdown, aiBreakdown] = await Promise.all([
+    const [userPickBreakdown, aiBreakdown, internalCandidates] = await Promise.all([
         getPoolMarketBreakdown(shortProfileCandidates.map(c => c.candidate_id)),
         getPoolMarketBreakdown(top20.map(r => r.candidate_id)),
+        getJRInternalCandidates(jrId),
     ]);
     const overlapCount = top20.filter(r => userPickIds.has(r.candidate_id)).length;
 
@@ -1463,6 +1464,88 @@ export async function generateAssessmentPPTX(
     ], avgScores, jobData.summary);
 
     addTopTableSlide(pptx, top20, `Top ${top20.length} Summary`);
+
+    // Section 04 — Internal Candidates (placed before Appendix; also duplicated in Appendix Long List)
+    if (internalCandidates.length > 0) {
+        const internalSectionNum = 2
+            + (shortProfileCandidates.length > 0 ? 1 : 0)
+            + (top20.length > 0 ? 1 : 0);
+        const internalSectionLabel = `Section ${String(internalSectionNum).padStart(2, "0")}`;
+        const scoreByCandidate = new Map(sorted.map(r => [r.candidate_id, r]));
+
+        addSectionCoverSlide(pptx, internalSectionLabel, "Internal Candidates",
+            "Candidates currently within the organisation being considered for this role.");
+
+        await addShortProfileCardsSlides(
+            pptx,
+            internalCandidates.map((c): ProfileCardItem => ({
+                candidate_id: c.candidate_id,
+                rank: c.rank,
+                name: c.name,
+                photo_url: c.photo_url,
+                linkedin: c.linkedin,
+                age: c.age,
+                nationality: c.nationality,
+                position: c.position,
+                company: c.company,
+                location: c.location,
+                education: c.education,
+                experience_history: c.experience_history,
+                rating: c.rating,
+                latest_status: c.latest_status,
+                score: scoreByCandidate.get(c.candidate_id)?.score ?? null,
+                dims: (() => {
+                    const r = scoreByCandidate.get(c.candidate_id);
+                    if (!r || r.experience_score == null) return null;
+                    return [
+                        { label: "Experience", score: r.experience_score },
+                        { label: "Leadership", score: r.leadership_score },
+                        { label: "Market", score: r.market_score },
+                        { label: "Skills", score: r.skills_score },
+                    ];
+                })(),
+            })),
+            `${internalSectionLabel} — Internal Candidates`,
+        );
+
+        const internalForTable: Stage3Result[] = internalCandidates.map(c => {
+            const ranked = scoreByCandidate.get(c.candidate_id);
+            return {
+                candidate_id: c.candidate_id,
+                rank: c.rank,
+                name: c.name,
+                photo_url: c.photo_url,
+                linkedin: c.linkedin,
+                age: c.age,
+                age_source: c.age_source,
+                gender: null,
+                nationality: c.nationality,
+                address: null,
+                position: c.position,
+                company: c.company,
+                location: c.location,
+                education: c.education,
+                experience_history: c.experience_history,
+                score: ranked?.score ?? 0,
+                strengths: ranked?.strengths ?? "",
+                gaps: ranked?.gaps ?? "",
+                tradeoff: ranked?.tradeoff ?? "",
+                list_type: "Internal Candidate",
+                latest_status: c.latest_status,
+                rating: c.rating,
+                experience_score: ranked?.experience_score ?? null,
+                experience_summary: ranked?.experience_summary ?? null,
+                leadership_score: ranked?.leadership_score ?? null,
+                leadership_summary: ranked?.leadership_summary ?? null,
+                market_score: ranked?.market_score ?? null,
+                market_summary: ranked?.market_summary ?? null,
+                skills_score: ranked?.skills_score ?? null,
+                skills_summary: ranked?.skills_summary ?? null,
+            };
+        });
+
+        addLongListSlide(pptx, internalForTable, `Internal Candidates — ${internalForTable.length} Total`);
+    }
 
     // Long List order matches the reference workflow: Top Profile (by rank) →
     // Standard → Gray-status (Not Open / Not fit / Too Senior) → Rejected.

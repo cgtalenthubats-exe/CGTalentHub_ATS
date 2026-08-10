@@ -412,6 +412,81 @@ export async function getJRTopProfileShortlist(jrId: string): Promise<ShortProfi
     }).sort((a, b) => a.rank - b.rank);
 }
 
+export async function getJRInternalCandidates(jrId: string): Promise<ShortProfileCandidate[]> {
+    // 1. All candidate_ids in this JR
+    const { data: jrRows } = await adminAuthClient
+        .from("jr_candidates")
+        .select("candidate_id, jr_candidate_id, rank")
+        .eq("jr_id", jrId);
+
+    const allIds = (jrRows ?? []).map((r: any) => r.candidate_id);
+    if (!allIds.length) return [];
+
+    // 2. Filter to Internal Candidates only
+    const { data: internalProfiles } = await adminAuthClient
+        .from("Candidate Profile")
+        .select("candidate_id, name, photo, linkedin, age, age_source, nationality, candidate_status")
+        .in("candidate_id", allIds)
+        .contains("candidate_status", ["Internal Candidate"]);
+
+    const candidateIds = (internalProfiles ?? []).map((p: any) => p.candidate_id);
+    if (!candidateIds.length) return [];
+
+    const [expRes, enhanceRes, statusByJrCandidateId] = await Promise.all([
+        adminAuthClient
+            .from("candidate_experiences")
+            .select("candidate_id, position, company, company_id, start_date, end_date, country, is_current_job")
+            .in("candidate_id", candidateIds),
+        adminAuthClient
+            .from("candidate_profile_enhance")
+            .select("candidate_id, education_summary")
+            .in("candidate_id", candidateIds),
+        getLatestStatusByJrCandidateId(
+            (jrRows ?? [])
+                .filter((j: any) => candidateIds.includes(j.candidate_id))
+                .map((j: any) => j.jr_candidate_id)
+        ),
+    ]);
+
+    const profileMap = new Map((internalProfiles ?? []).map((p: any) => [p.candidate_id, p as any]));
+    const expByCandidate = groupExperiencesByCandidate((expRes.data ?? []) as ExperienceRow[]);
+    const enhanceMap = new Map((enhanceRes.data ?? []).map((e: any) => [e.candidate_id, e as any]));
+    const jrMap = new Map((jrRows ?? []).map((j: any) => [j.candidate_id, j]));
+
+    const companyIds = [...new Set(
+        candidateIds.map((cId: string) => expByCandidate.get(cId)?.[0]?.company_id).filter((id): id is number => id != null)
+    )];
+    const companyMasterRes = companyIds.length
+        ? await adminAuthClient.from("company_master").select("company_id, rating").in("company_id", companyIds)
+        : { data: [] as any[] };
+    const ratingByCompanyId = new Map((companyMasterRes.data ?? []).map((c: any) => [c.company_id, c.rating]));
+
+    return candidateIds.map((cId: string) => {
+        const profile = profileMap.get(cId);
+        const sortedExp = expByCandidate.get(cId) ?? [];
+        const latest = sortedExp[0];
+        const enhance = enhanceMap.get(cId);
+        const jrRow = jrMap.get(cId);
+        return {
+            candidate_id: cId,
+            rank: jrRow?.rank ?? 999,
+            name: profile?.name ?? cId,
+            photo_url: profile?.photo ?? null,
+            linkedin: profile?.linkedin ?? null,
+            age: profile?.age ?? null,
+            age_source: profile?.age_source ?? null,
+            nationality: profile?.nationality ?? null,
+            position: latest?.position ?? null,
+            company: latest?.company ?? null,
+            location: latest?.country ?? null,
+            education: formatEducationHeadline(enhance?.education_summary) || null,
+            experience_history: formatExperienceHistory(sortedExp, 4),
+            rating: latest?.company_id != null ? (ratingByCompanyId.get(latest.company_id) ?? null) : null,
+            latest_status: statusByJrCandidateId.get(String(jrRow?.jr_candidate_id)) ?? null,
+        };
+    }).sort((a, b) => a.rank - b.rank);
+}
+
 export type JobHistoryItem = {
     jobId: string;
     query: string;
