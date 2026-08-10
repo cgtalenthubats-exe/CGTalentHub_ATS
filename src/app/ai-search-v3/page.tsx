@@ -5,7 +5,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
     Bot, User, Send, Loader2, Sparkles, ChevronDown, ChevronUp,
-    RotateCcw, Search, UserPlus, Trash2, Users, TrendingUp, Building2, Globe, Filter, AlertCircle, X, Download
+    RotateCcw, Search, UserPlus, Trash2, Users, TrendingUp, Building2, Globe, Filter, AlertCircle, X, Download,
+    Copy, Check, Table2
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -157,6 +158,8 @@ export default function AISearchV3Page() {
     const [isLoading, setIsLoading] = useState(false);
     const [input, setInput] = useState("");
     const [hasLoaded, setHasLoaded] = useState(false);
+    const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
+    const [copiedTableMsgId, setCopiedTableMsgId] = useState<string | null>(null);
 
     const [filters, setFilters] = useState<DemoFilterState>(EMPTY_FILTERS);
     const [staticOptions, setStaticOptions] = useState<any>(null);
@@ -445,6 +448,53 @@ export default function AISearchV3Page() {
         autoSearchTimerRef.current = setTimeout(() => runSearch(f), 600);
     };
 
+    const chatHasTable = (text: string) => /^\|.+\|$/m.test(text);
+
+    const chatStripMd = (text: string) =>
+        text
+            .replace(/\*\*(.+?)\*\*/g, '$1')
+            .replace(/\*(.+?)\*/g, '$1')
+            .replace(/^#{1,6}\s+/gm, '')
+            .replace(/^\|[\s:|‑\-]+\|.*$/gm, '')
+            .replace(/\*\*\*/g, '---')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+
+    const handleChatCopy = (m: ChatMsg) => {
+        navigator.clipboard.writeText(chatStripMd(m.content)).then(() => {
+            setCopiedMsgId(m.id);
+            setTimeout(() => setCopiedMsgId(null), 2000);
+        });
+    };
+
+    const handleChatCopyTable = async (m: ChatMsg) => {
+        const isSep = (l: string) => /^\|(\s*:?-+:?\s*\|)+$/.test(l);
+        const tableLines = m.content.split('\n').map(l => l.trim())
+            .filter(l => l.startsWith('|') && l.endsWith('|') && !isSep(l));
+        if (!tableLines.length) return;
+        const parseRow = (line: string) =>
+            line.split('|').slice(1, -1).map(c => c.trim().replace(/\*\*/g, '').replace(/\*/g, ''));
+        const rows = tableLines.map(parseRow);
+        const tsv = rows.map(r => r.join('\t')).join('\n');
+        const hs = 'background:#6366f1;color:#fff;padding:5px 8px;border:1px solid #c7d2fe;font-size:11px;font-family:Arial,sans-serif;font-weight:bold';
+        const cs = (ri: number) => `background:${ri % 2 === 0 ? '#fff' : '#f8fafc'};padding:4px 8px;border:1px solid #e2e8f0;font-size:11px;font-family:Arial,sans-serif`;
+        const headerHtml = rows[0].map(c => `<th style="${hs}">${c}</th>`).join('');
+        const bodyHtml = rows.slice(1).map((row, ri) =>
+            `<tr>${row.map(c => `<td style="${cs(ri)}">${c}</td>`).join('')}</tr>`
+        ).join('');
+        const html = `<table style="border-collapse:collapse"><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>`;
+        try {
+            await navigator.clipboard.write([new ClipboardItem({
+                'text/plain': new Blob([tsv], { type: 'text/plain' }),
+                'text/html': new Blob([html], { type: 'text/html' }),
+            })]);
+        } catch {
+            await navigator.clipboard.writeText(tsv);
+        }
+        setCopiedTableMsgId(m.id);
+        setTimeout(() => setCopiedTableMsgId(null), 2000);
+    };
+
     const clearChat = () => {
         setMessages([]);
         localStorage.removeItem(STORAGE_KEY);
@@ -632,13 +682,35 @@ export default function AISearchV3Page() {
                                                 : <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
                                             }
                                         </div>
-                                        {(m.filters || m.sessionId) && (
-                                            <div className="flex gap-1.5">
+                                        {m.role === "assistant" && (
+                                            <div className="flex flex-wrap gap-1.5">
+                                                <button
+                                                    onClick={() => handleChatCopy(m)}
+                                                    className="inline-flex items-center gap-1 h-6 px-2 rounded-md text-[10px] font-medium border border-slate-200 bg-white text-slate-400 hover:text-slate-700 hover:border-slate-300 transition-colors"
+                                                    title="Copy as plain text"
+                                                >
+                                                    {copiedMsgId === m.id
+                                                        ? <><Check className="w-3 h-3 text-emerald-500" /><span className="text-emerald-600">Copied</span></>
+                                                        : <><Copy className="w-3 h-3" />Copy</>
+                                                    }
+                                                </button>
+                                                {chatHasTable(m.content) && (
+                                                    <button
+                                                        onClick={() => handleChatCopyTable(m)}
+                                                        className="inline-flex items-center gap-1 h-6 px-2 rounded-md text-[10px] font-medium border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-colors"
+                                                        title="Copy table — paste into Excel or Word"
+                                                    >
+                                                        {copiedTableMsgId === m.id
+                                                            ? <><Check className="w-3 h-3" />Copied Table</>
+                                                            : <><Table2 className="w-3 h-3" />Copy Table</>
+                                                        }
+                                                    </button>
+                                                )}
                                                 {m.filters && (
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
-                                                        className="h-7 text-xs gap-1.5 self-start rounded-lg border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                                                        className="h-6 text-[10px] px-2 gap-1 rounded-md border-indigo-200 text-indigo-600 hover:bg-indigo-50"
                                                         onClick={() => applyFiltersFromAI(m.filters)}
                                                     >
                                                         <Filter className="h-3 w-3" />
@@ -649,7 +721,7 @@ export default function AISearchV3Page() {
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
-                                                        className="h-7 text-xs gap-1.5 self-start rounded-lg border-emerald-200 text-emerald-600 hover:bg-emerald-50"
+                                                        className="h-6 text-[10px] px-2 gap-1 rounded-md border-violet-200 text-violet-600 hover:bg-violet-50"
                                                         disabled={assessingId === m.id}
                                                         onClick={() => runAIAssessment(m)}
                                                     >
