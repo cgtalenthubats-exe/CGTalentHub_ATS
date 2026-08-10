@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Sparkles, Loader2, RotateCcw, ChevronDown, ChevronUp, Briefcase, Target, Globe, Wrench, BarChart3, History, Clock, MessageSquare, Send, Bot, User, MapPin, Cake, Linkedin, ExternalLink, Download, Maximize2, Minimize2, Copy, Check, FileDown } from "lucide-react";
+import { Sparkles, Loader2, RotateCcw, ChevronDown, ChevronUp, Briefcase, Target, Globe, Wrench, BarChart3, History, Clock, MessageSquare, Send, Bot, User, MapPin, Cake, Linkedin, ExternalLink, Download, Maximize2, Minimize2, Copy, Check, FileDown, Table2 } from "lucide-react";
 import { CandidateAvatar } from "@/components/candidate-avatar";
 import { CandidateProfileSheet } from "@/components/candidate-profile-sheet";
 import { Button } from "@/components/ui/button";
@@ -594,6 +594,7 @@ function ChatSection({ jrId, jrTitle }: { jrId: string; jrTitle?: string }) {
     const [error, setError] = useState<string | null>(null);
     const [inputExpanded, setInputExpanded] = useState(false);
     const [copiedId, setCopiedId] = useState<number | null>(null);
+    const [copiedTableId, setCopiedTableId] = useState<number | null>(null);
     const [matrixExportingId, setMatrixExportingId] = useState<number | null>(null);
     const bottomRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -601,11 +602,49 @@ function ChatSection({ jrId, jrTitle }: { jrId: string; jrTitle?: string }) {
 
     const hasTable = (text: string) => /^\|.+\|$/m.test(text);
 
+    const stripMd = (text: string) =>
+        text
+            .replace(/\*\*(.+?)\*\*/g, '$1')
+            .replace(/\*(.+?)\*/g, '$1')
+            .replace(/^#{1,6}\s+/gm, '')
+            .replace(/^\|[\s:|‑\-]+\|.*$/gm, '')
+            .replace(/\*\*\*/g, '---')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+
     const handleCopy = (msg: ChatMessage) => {
-        navigator.clipboard.writeText(msg.text).then(() => {
+        navigator.clipboard.writeText(stripMd(msg.text)).then(() => {
             setCopiedId(msg.id);
             setTimeout(() => setCopiedId(null), 2000);
         });
+    };
+
+    const handleCopyTable = async (msg: ChatMessage) => {
+        const isSep = (l: string) => /^\|(\s*:?-+:?\s*\|)+$/.test(l);
+        const tableLines = msg.text.split('\n').map(l => l.trim())
+            .filter(l => l.startsWith('|') && l.endsWith('|') && !isSep(l));
+        if (!tableLines.length) return;
+        const parseRow = (line: string) =>
+            line.split('|').slice(1, -1).map(c => c.trim().replace(/\*\*/g, '').replace(/\*/g, ''));
+        const rows = tableLines.map(parseRow);
+        const tsv = rows.map(r => r.join('\t')).join('\n');
+        const hs = 'background:#6366f1;color:#fff;padding:5px 8px;border:1px solid #c7d2fe;font-size:11px;font-family:Arial,sans-serif;font-weight:bold';
+        const cs = (ri: number) => `background:${ri % 2 === 0 ? '#fff' : '#f8fafc'};padding:4px 8px;border:1px solid #e2e8f0;font-size:11px;font-family:Arial,sans-serif`;
+        const headerHtml = rows[0].map(c => `<th style="${hs}">${c}</th>`).join('');
+        const bodyHtml = rows.slice(1).map((row, ri) =>
+            `<tr>${row.map(c => `<td style="${cs(ri)}">${c}</td>`).join('')}</tr>`
+        ).join('');
+        const html = `<table style="border-collapse:collapse"><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table>`;
+        try {
+            await navigator.clipboard.write([new ClipboardItem({
+                'text/plain': new Blob([tsv], { type: 'text/plain' }),
+                'text/html': new Blob([html], { type: 'text/html' }),
+            })]);
+        } catch {
+            await navigator.clipboard.writeText(tsv);
+        }
+        setCopiedTableId(msg.id);
+        setTimeout(() => setCopiedTableId(null), 2000);
     };
 
     const handleExportMatrix = async (msg: ChatMessage) => {
@@ -733,7 +772,7 @@ function ChatSection({ jrId, jrTitle }: { jrId: string; jrTitle?: string }) {
                                     <button
                                         onClick={() => handleCopy(msg)}
                                         className="inline-flex items-center gap-1 h-6 px-2 rounded-md text-[10px] font-medium border border-slate-200 bg-white text-slate-400 hover:text-slate-700 hover:border-slate-300 transition-colors"
-                                        title="Copy message"
+                                        title="Copy as plain text"
                                     >
                                         {copiedId === msg.id
                                             ? <><Check className="w-3 h-3 text-emerald-500" /><span className="text-emerald-600">Copied</span></>
@@ -742,10 +781,22 @@ function ChatSection({ jrId, jrTitle }: { jrId: string; jrTitle?: string }) {
                                     </button>
                                     {hasTable(msg.text) && (
                                         <button
+                                            onClick={() => handleCopyTable(msg)}
+                                            className="inline-flex items-center gap-1 h-6 px-2 rounded-md text-[10px] font-medium border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-300 transition-colors"
+                                            title="Copy table — paste into Excel or Word as formatted table"
+                                        >
+                                            {copiedTableId === msg.id
+                                                ? <><Check className="w-3 h-3" />Copied Table</>
+                                                : <><Table2 className="w-3 h-3" />Copy Table</>
+                                            }
+                                        </button>
+                                    )}
+                                    {hasTable(msg.text) && (
+                                        <button
                                             onClick={() => handleExportMatrix(msg)}
                                             disabled={matrixExportingId === msg.id}
                                             className="inline-flex items-center gap-1 h-6 px-2 rounded-md text-[10px] font-medium border border-indigo-200 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:border-indigo-300 transition-colors disabled:opacity-50"
-                                            title="Export as PowerPoint"
+                                            title="Export as PowerPoint slide"
                                         >
                                             {matrixExportingId === msg.id
                                                 ? <><Loader2 className="w-3 h-3 animate-spin" />Exporting…</>
