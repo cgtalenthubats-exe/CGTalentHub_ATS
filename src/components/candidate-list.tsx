@@ -710,6 +710,12 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
         if (isTopA && !isTopB) return -1;
         if (!isTopA && isTopB) return 1;
 
+        // 2.5. Internal Candidate grouping (within each list_type)
+        const isInternalA = (a.candidate_status ?? []).includes('Internal Candidate');
+        const isInternalB = (b.candidate_status ?? []).includes('Internal Candidate');
+        if (isInternalA && !isInternalB) return -1;
+        if (!isInternalA && isInternalB) return 1;
+
         // 3. Pipeline stage (status_master.stage_order)
         const orderA = statusOrderMap.get(a.status);
         const orderB = statusOrderMap.get(b.status);
