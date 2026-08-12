@@ -333,6 +333,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
         if (body.checked !== undefined) updateData.checked = body.checked || null;
 
+        // Job classification fields
+        if (body.job_grouping !== undefined) updateData.job_grouping = body.job_grouping || null;
+        if (body.job_function !== undefined) updateData.job_function = body.job_function || null;
+
         // Compensation & Benefits fields
         const compensationFields = [
             'gross_salary_base_b_mth', 'other_income', 'bonus_mth',

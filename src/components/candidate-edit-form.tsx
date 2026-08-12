@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/popover";
 import { toast } from "@/lib/notifications";
 import { getEffectiveAge, formatDateForInput, extractYear, calculateBachelorYearFromAge } from "@/lib/date-utils";
+import { ALL_JOB_GROUPING_LABELS, getFunctionsForGrouping } from "@/lib/job-function-constants";
 
 interface CandidateEditFormProps {
     candidateId: string;
@@ -80,6 +81,8 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
         country: "",
         full_address: "",
         blacklist_note: "",
+        job_grouping: "",
+        job_function: "",
         // Compensation & Benefits
         gross_salary_base_b_mth: "",
         other_income: "",
@@ -132,6 +135,8 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                     country: data.enhancement?.country || "",
                     full_address: data.enhancement?.full_address || "",
                     blacklist_note: data.blacklist_note || "",
+                    job_grouping: data.job_grouping || "",
+                    job_function: data.job_function || "",
                     // Compensation & Benefits
                     gross_salary_base_b_mth: formatNumberWithCommas(data.gross_salary_base_b_mth) || "",
                     car_allowance_b_mth: formatNumberWithCommas(data.car_allowance_b_mth) || "",
@@ -335,6 +340,8 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                 skills: formData.skills,
                 languages: formData.languages,
                 blacklist_note: formData.blacklist_note || null,
+                job_grouping: formData.job_grouping || null,
+                job_function: formData.job_function || null,
                 // Compensation & Benefits fields
                 gross_salary_base_b_mth: parseNumberFromCommas(formData.gross_salary_base_b_mth) || null,
                 car_allowance_b_mth: parseNumberFromCommas(formData.car_allowance_b_mth) || null,
@@ -587,6 +594,32 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                                             </Command>
                                         </PopoverContent>
                                     </Popover>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs">Job Grouping</Label>
+                                    <select
+                                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                                        value={formData.job_grouping}
+                                        onChange={e => setFormData(prev => ({ ...prev, job_grouping: e.target.value, job_function: '' }))}
+                                    >
+                                        <option value="">Select Grouping...</option>
+                                        {ALL_JOB_GROUPING_LABELS.map(g => <option key={g} value={g}>{g}</option>)}
+                                    </select>
+                                </div>
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs">Job Function</Label>
+                                    <select
+                                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
+                                        value={formData.job_function}
+                                        onChange={e => setFormData(prev => ({ ...prev, job_function: e.target.value }))}
+                                        disabled={!formData.job_grouping}
+                                    >
+                                        <option value="">Select Function...</option>
+                                        {getFunctionsForGrouping(formData.job_grouping).map(f => <option key={f} value={f}>{f}</option>)}
+                                    </select>
                                 </div>
                             </div>
 
