@@ -98,9 +98,9 @@ async function fetchImageBase64(url: string | null): Promise<string | null> {
             const resized = await sharp(buf).resize(500, 500, { fit: "cover" }).jpeg({ quality: 78 }).toBuffer();
             return `data:image/jpeg;base64,${resized.toString("base64")}`;
         } catch {
-            // Not a decodable raster image (e.g. an SVG avatar) — fall back to the original.
-            const mime = res.headers.get("content-type") ?? "image/jpeg";
-            return `data:${mime};base64,${buf.toString("base64")}`;
+            // sharp failed — likely SVG or other non-raster format. pptxgenjs cannot
+            // embed SVG; returning null triggers the text-initial placeholder instead.
+            return null;
         }
     } catch { return null; }
 }
