@@ -77,6 +77,19 @@ function trunc(s: string | null | undefined, max: number): string {
     return s.length > max ? s.slice(0, max - 1) + "…" : s;
 }
 
+// Strip query params from hyperlink URLs before passing to pptxgenjs.
+// pptxgenjs writes the URL directly into an XML attribute without escaping &,
+// so any query-string & causes invalid XML → PowerPoint "needs repair" dialog.
+function sanitizeHyperlinkUrl(url: string | null | undefined): string | null {
+    if (!url) return null;
+    try {
+        const parsed = new URL(url.startsWith("http") ? url : `https://${url}`);
+        return `${parsed.protocol}//${parsed.host}${parsed.pathname}`;
+    } catch {
+        return null;
+    }
+}
+
 function parseBullets(s: string | null): string[] {
     if (!s) return [];
     return s.split("|").map(b => b.trim()).filter(Boolean);
@@ -758,7 +771,7 @@ async function addCandidateSlide(pptx: PptxGenJS, r: Stage3Result, photoBase64: 
         slide.addText("LinkedIn  View Profile", {
             x: chipX + 0.1, y: INFO_Y, w: 1.45, h: INFO_H,
             fontSize: 8, color: C.indigo, valign: "middle",
-            hyperlink: { url: r.linkedin },
+            hyperlink: { url: sanitizeHyperlinkUrl(r.linkedin)! },
         });
         chipX += 1.75;
     }
@@ -1145,7 +1158,7 @@ async function addShortProfileCardsSlides(pptx: PptxGenJS, candidates: ProfileCa
             const badgeY = contentBottom + 0.1;
             const linkedinIconUri = c.linkedin ? getLinkedinIconUri() : null;
             if (c.linkedin && linkedinIconUri) {
-                slide.addImage({ data: linkedinIconUri, x: cx + 0.15, y: badgeY, w: 0.26, h: 0.26, hyperlink: { url: c.linkedin } });
+                slide.addImage({ data: linkedinIconUri, x: cx + 0.15, y: badgeY, w: 0.26, h: 0.26, hyperlink: { url: sanitizeHyperlinkUrl(c.linkedin)! } });
             }
             if (c.rating) {
                 const ratingX = cx + (c.linkedin ? 0.48 : 0.15);
@@ -1225,7 +1238,7 @@ function addTopTableSlide(pptx: PptxGenJS, results: Stage3Result[], title: strin
             { text: trunc(r.gender, 8) || "-",        options: { ...base, align: "center" as const, color: C.slate600 } },
             { text: trunc(r.position, 32) || "-",     options: { ...base, color: C.slate600 } },
             { text: trunc(r.company, 26) || "-",      options: { ...base, color: C.slate600 } },
-            { text: r.linkedin ? "View" : "-",        options: r.linkedin ? { ...base, align: "center" as const, color: C.indigo, hyperlink: { url: r.linkedin } } : { ...base, align: "center" as const, color: C.slate300 } },
+            { text: r.linkedin ? "View" : "-",        options: (() => { const u = sanitizeHyperlinkUrl(r.linkedin); return u ? { ...base, align: "center" as const, color: C.indigo, hyperlink: { url: u } } : { ...base, align: "center" as const, color: C.slate300 }; })() },
             { text: `${r.score}`,                     options: { ...base, align: "center" as const, bold: true, color: scoreColor(r.score) } },
             { text: fmt(r.experience_score),          options: { ...base, align: "center" as const, bold: true, color: DIM_COL_COLORS[0] } },
             { text: fmt(r.leadership_score),          options: { ...base, align: "center" as const, bold: true, color: DIM_COL_COLORS[1] } },
@@ -1313,7 +1326,7 @@ function addLongListSlide(pptx: PptxGenJS, results: Stage3Result[], titleBase: s
                 { text: trunc(r.gender, 8) || "-",           options: { ...base, align: "center" as const, color: C.slate600 } },
                 { text: trunc(r.location, 20) || "-",        options: { ...base, color: C.slate600 } },
                 { text: trunc(r.nationality, 18) || "-",     options: { ...base, color: C.slate600 } },
-                { text: r.linkedin ? "View" : "-",           options: r.linkedin ? { ...base, align: "center" as const, color: C.indigo, hyperlink: { url: r.linkedin } } : { ...base, align: "center" as const, color: C.slate300 } },
+                { text: r.linkedin ? "View" : "-",           options: (() => { const u = sanitizeHyperlinkUrl(r.linkedin); return u ? { ...base, align: "center" as const, color: C.indigo, hyperlink: { url: u } } : { ...base, align: "center" as const, color: C.slate300 }; })() },
                 { text: r.latest_status ?? "-",              options: { ...base, color: isRejected ? C.red : C.slate600 } },
             ];
         });
