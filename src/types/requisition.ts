@@ -60,6 +60,7 @@ export interface JRCandidate {
     candidate_reviewers?: string[];
     candidate_experiences?: JRCandidateExperience[];
     head_recruit_feedback?: string;
+    head_recruit_note?: string;
 }
 
 export const HEAD_RECRUIT_FEEDBACK_OPTIONS = [

@@ -75,6 +75,7 @@ interface CandidateListProps {
 import { ConfirmPlacementDialog } from "@/components/confirm-placement-dialog";
 import { CandidateLinkedinButton } from "@/components/candidate-linkedin-button";
 import { CompanyQuickEditDialog } from "@/components/company-quick-edit-dialog";
+import { HeadRecruitNoteDialog } from "@/components/head-recruit-note-dialog";
 
 const UNKNOWN = '(Unknown)';
 const CLEAR_FEEDBACK_VALUE = '__clear__';
@@ -338,6 +339,11 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     const [feedbackCandidate, setFeedbackCandidate] = useState<{ id: string, name: string } | null>(null);
     const [placementCandidate, setPlacementCandidate] = useState<{ id: string, name: string } | null>(null);
 
+    // Head Recruit Note Dialog State — opened either from clicking the Note cell directly,
+    // or automatically right after setting a Head Recruit Feedback value
+    const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
+    const [noteCandidate, setNoteCandidate] = useState<{ id: string; name: string; note: string | null } | null>(null);
+
     // Sheet (Activity & Logs) State
     const [isSheetOpen, setIsSheetOpen] = useState(false);
     const [sheetCandidateId, setSheetCandidateId] = useState<string | null>(null);
@@ -533,6 +539,12 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
             const updated = await getJRCandidates(jrId);
             setCandidates(updated);
             toast.success(`Updated Head Recruit Feedback to "${feedback}"`);
+
+            // Prompt for a note right after setting feedback — skippable, and pre-filled
+            // with whatever note already exists so it doubles as an edit flow.
+            const c = updated.find(x => x.id === jrCandId);
+            setNoteCandidate({ id: jrCandId, name: c?.candidate_name || "Unknown", note: c?.head_recruit_note || null });
+            setIsNoteDialogOpen(true);
         } else {
             toast.error("Error: " + error);
         }
@@ -781,7 +793,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     const totalVirtualSize = rowVirtualizer.getTotalSize();
     const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
     const paddingBottom = virtualItems.length > 0 ? totalVirtualSize - virtualItems[virtualItems.length - 1].end : 0;
-    const COL_SPAN = showSalary ? 19 : 18;
+    const COL_SPAN = showSalary ? 20 : 19;
 
 
 
@@ -978,6 +990,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                             </th>
                             <th className="px-2 py-4 w-[40px]"></th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[180px]">Head Recruit Feedback</th>
+                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[200px]">Head Recruit Note</th>
                             <th className="text-right font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[80px]">Action</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[70px]">Rank</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[120px]">Type</th>
@@ -1055,6 +1068,24 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                             )}
                                             {feedbackUpdating !== c.id && <ChevronDown className="absolute right-2.5 h-3 w-3 text-slate-400 pointer-events-none" />}
                                         </div>
+                                    </td>
+                                    {/* Head Recruit Note — shared, editable by any recruiter */}
+                                    <td className="px-4 py-4">
+                                        <button
+                                            onClick={() => {
+                                                setNoteCandidate({ id: c.id, name: c.candidate_name || "Unknown", note: c.head_recruit_note || null });
+                                                setIsNoteDialogOpen(true);
+                                            }}
+                                            className="text-left w-full max-w-[190px] group/note"
+                                        >
+                                            {c.head_recruit_note ? (
+                                                <span className="text-xs text-slate-600 italic line-clamp-2 leading-snug group-hover/note:text-indigo-600 transition-colors" title={c.head_recruit_note}>
+                                                    "{c.head_recruit_note}"
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-300 text-xs group-hover/note:text-slate-400 transition-colors">— add note —</span>
+                                            )}
+                                        </button>
                                     </td>
                                     <td className="px-4 py-4 text-left">
                                         <DropdownMenu>
@@ -1449,6 +1480,20 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                 </table>
                 </div>
             </CardContent>
+
+            {noteCandidate && (
+                <HeadRecruitNoteDialog
+                    open={isNoteDialogOpen}
+                    onOpenChange={setIsNoteDialogOpen}
+                    jrCandidateId={noteCandidate.id}
+                    candidateName={noteCandidate.name}
+                    note={noteCandidate.note}
+                    onSaved={async () => {
+                        const updated = await getJRCandidates(jrId);
+                        setCandidates(updated);
+                    }}
+                />
+            )}
 
             {feedbackCandidate && (
                 <AddFeedbackDialog

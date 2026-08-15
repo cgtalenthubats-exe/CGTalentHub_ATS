@@ -210,6 +210,27 @@ export async function updateHeadRecruitFeedback(jrCandidateId: string, feedback:
     }
 }
 
+// Free-form note tied to this candidate within this JR — visible/editable by every recruiter on
+// the requisition, separate from the Head Recruit Feedback status marker so the two can be
+// edited independently.
+export async function updateHeadRecruitNote(jrCandidateId: string, note: string) {
+    const supabase = adminAuthClient;
+    try {
+        const { error } = await (supabase
+            .from('jr_candidates') as any)
+            .update({ head_recruit_note: note || null })
+            .eq('jr_candidate_id', jrCandidateId);
+
+        if (error) throw error;
+
+        revalidatePath("/requisitions/manage");
+        return { success: true };
+    } catch (e: any) {
+        console.error("Error updating head recruit note:", e);
+        return { success: false, error: e.message };
+    }
+}
+
 export async function batchUpdateCandidateStatus(
     jrCandidateIds: string[],
     newStatus: string,
