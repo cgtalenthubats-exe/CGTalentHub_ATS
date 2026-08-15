@@ -21,7 +21,7 @@ import { JRTabs } from "@/components/jr-tabs";
 import { CreateJobRequisitionForm } from "@/components/create-jr-form";
 import { AddCandidateDialog } from "@/components/add-candidate-dialog";
 import { ReportViewDialog } from "@/components/report-view-dialog";
-import { triggerReport } from "@/app/actions/n8n-actions";
+import { generateJRReportPPTX } from "@/app/actions/export-jr-report";
 import { CopyJRDialog } from "@/components/copy-jr-dialog";
 import { toast } from "@/lib/notifications";
 import { deleteJobRequisition, getUserProfiles, getRequisition } from "@/app/actions/requisitions";
@@ -388,17 +388,22 @@ export default function JRManagePage() {
 
     const handleCreateReport = async () => {
         if (!selectedJR) return;
-
         setIsTriggeringReport(true);
-        // Using a dummy email for now since we don't have auth context here yet
-        const res = await triggerReport(selectedJR.id, "admin@cgtalenthub.com");
-
-        if (res.success) {
-            toast.success("Report generation triggered! Wait a few minutes for n8n to finish.");
-        } else {
-            toast.error(`Error: ${res.error}`);
+        try {
+            const { base64, filename } = await generateJRReportPPTX(selectedJR.id);
+            const link = document.createElement("a");
+            link.href = `data:application/vnd.openxmlformats-officedocument.presentationml.presentation;base64,${base64}`;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            toast.success("Report ready — downloading now.");
+        } catch (err: any) {
+            console.error("JR Report PPTX error:", err);
+            toast.error(`Error generating report: ${err?.message ?? "Unknown error"}`);
+        } finally {
+            setIsTriggeringReport(false);
         }
-        setIsTriggeringReport(false);
     };
 
     // --- Realtime Sync ---
