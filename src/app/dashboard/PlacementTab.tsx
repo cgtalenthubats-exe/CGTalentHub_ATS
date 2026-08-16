@@ -6,11 +6,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RotateCcw, TrendingUp, Target, Coins, Search, RefreshCw } from "lucide-react";
+import { Loader2, RotateCcw, TrendingUp, Target, Coins, Search, RefreshCw, Download } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
+import { generatePlacementReportPPTX } from "@/app/actions/export-placement-report";
+import { toast } from "sonner";
 
 const COLORS = ["#4f46e5", "#7c3aed", "#0891b2", "#0d9488", "#dc2626", "#ea580c", "#ca8a04", "#15803d"];
 
@@ -60,6 +62,31 @@ export default function PlacementTab() {
     const [selectedSubBU, setSelectedSubBU] = useState<string[]>([]);
     const [selectedYear, setSelectedYear] = useState<string[]>([]);
     const [selectedStatus, setSelectedStatus] = useState("all");
+    const [exportingPPTX, setExportingPPTX] = useState(false);
+    const [defaultYearSet, setDefaultYearSet] = useState(false);
+
+    const handleExportPPTX = async () => {
+        setExportingPPTX(true);
+        try {
+            const { base64, filename } = await generatePlacementReportPPTX({
+                selectedBU,
+                selectedSubBU,
+                selectedYear,
+                selectedStatus,
+            });
+            const link = document.createElement("a");
+            link.href = `data:application/vnd.openxmlformats-officedocument.presentationml.presentation;base64,${base64}`;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            toast.success("Report ready — downloading now.");
+        } catch (err: any) {
+            toast.error(`Export failed: ${err?.message ?? "Unknown error"}`);
+        } finally {
+            setExportingPPTX(false);
+        }
+    };
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -79,10 +106,10 @@ export default function PlacementTab() {
     }, [rawPlacements, rawJRs]);
 
     const subBuOptions = useMemo(() => {
-        if (selectedBU === "all") return [];
+        if (selectedBU.length === 0) return [];
         const s = new Set<string>();
-        rawPlacements.filter(r => r.bu === selectedBU).forEach(r => r.sub_bu && s.add(r.sub_bu));
-        rawJRs.filter(r => r.bu === selectedBU).forEach(r => r.sub_bu && s.add(r.sub_bu));
+        rawPlacements.filter(r => selectedBU.includes(r.bu)).forEach(r => r.sub_bu && s.add(r.sub_bu));
+        rawJRs.filter(r => selectedBU.includes(r.bu)).forEach(r => r.sub_bu && s.add(r.sub_bu));
         return Array.from(s).sort();
     }, [rawPlacements, rawJRs, selectedBU]);
 
@@ -92,6 +119,14 @@ export default function PlacementTab() {
         rawJRs.forEach(r => { const y = parseYear(r.request_date); if (y) s.add(y); });
         return Array.from(s).sort((a, b) => b - a);
     }, [rawPlacements, rawJRs]);
+
+    // Set latest year as default once yearOptions are available
+    useEffect(() => {
+        if (!defaultYearSet && yearOptions.length > 0) {
+            setSelectedYear([yearOptions[0].toString()]);
+            setDefaultYearSet(true);
+        }
+    }, [yearOptions, defaultYearSet]);
 
     const filteredPlacements = useMemo(() => rawPlacements.filter(r => {
         if (selectedBU.length > 0 && !selectedBU.includes(r.bu)) return false;
@@ -226,9 +261,22 @@ export default function PlacementTab() {
                     <Coins className="w-4 h-4 text-purple-500" />
                     Cost Saving = 20% of Annual Salary avoided by recruiting in-house instead of 3rd party
                 </p>
-                <Button variant="outline" size="sm" onClick={fetchData} disabled={loading} className="gap-2 text-slate-500">
-                    <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} /> Refresh
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button
+                        variant="outline" size="sm"
+                        onClick={handleExportPPTX}
+                        disabled={exportingPPTX || loading}
+                        className="gap-2 text-slate-500"
+                    >
+                        {exportingPPTX
+                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                            : <Download className="h-3 w-3" />}
+                        Export PPTX
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={fetchData} disabled={loading} className="gap-2 text-slate-500">
+                        <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} /> Refresh
+                    </Button>
+                </div>
             </div>
 
             {/* Filters */}
