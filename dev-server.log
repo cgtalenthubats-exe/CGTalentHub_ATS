@@ -1,0 +1,29 @@
+
+> ats-system@0.1.0 dev
+> next dev
+
+   ▲ Next.js 15.1.9
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.1.46:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 2.4s
+ ○ Compiling /src/middleware ...
+ ✓ Compiled /src/middleware in 530ms (196 modules)
+ ○ Compiling /api/gen-jr-report/[jrId] ...
+ ✓ Compiled /api/gen-jr-report/[jrId] in 3.1s (517 modules)
+ GET /api/gen-jr-report/JR000204 200 in 14266ms
+ GET /api/gen-jr-report/JR000204 200 in 2394ms
+ GET /api/gen-jr-report/JR000204 200 in 1846ms
+ ✓ Compiled in 21ms
+ ✓ Compiled /api/gen-jr-report/[jrId] in 496ms (267 modules)
+ GET /api/gen-jr-report/JR000204 200 in 7748ms
+ ✓ Compiled in 20ms
+ ✓ Compiled /api/gen-jr-report/[jrId] in 486ms (267 modules)
+ GET /api/gen-jr-report/JR000204 200 in 4159ms
+ ✓ Compiled in 24ms
+ ✓ Compiled /api/gen-jr-report/[jrId] in 417ms (267 modules)
+ GET /api/gen-jr-report/JR000204 200 in 3794ms
+ ✓ Compiled in 13ms
+ ✓ Compiled in 209ms (445 modules)
