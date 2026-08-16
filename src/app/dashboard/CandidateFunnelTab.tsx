@@ -8,9 +8,11 @@ import {
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
 import {
-    Loader2, Briefcase, Building2, ChevronRight, Globe2, Layers, RotateCcw, X, Cake, Flag, Info, Users, Target,
+    Loader2, Briefcase, Building2, Globe2, Layers, RotateCcw, X, Cake, Flag, Users, Target, ChevronDown, FileText, Database,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import FunnelCandidateListSection from "./FunnelCandidateListSection";
 
@@ -32,7 +34,7 @@ function colorForName(name: string): string {
 }
 
 const EMPTY_FILTERS: PopulationFilters = {};
-const EMPTY_CASCADE: CascadingOptions = { groups: [], industries: [], countries: [], continents: [], position_keywords: [], hotel_chains: [] };
+const EMPTY_CASCADE: CascadingOptions = { groups: [], industries: [], countries: [], continents: [], position_keywords: [], hotel_chains: [], job_groupings: [], job_functions: [] };
 
 function pct(n: number, total: number): number {
     return total > 0 ? Math.round((n / total) * 100) : 0;
@@ -40,56 +42,6 @@ function pct(n: number, total: number): number {
 
 function union(a: string[], b: string[]): string[] {
     return [...new Set([...a, ...b])].sort();
-}
-
-// ── Funnel stage card — connected sequence, % of previous stage ─────────────
-function FunnelStage({
-    label, value, prevValue, color, isFirst, sub,
-}: { label: string; value: number; prevValue: number | null; color: string; isFirst: boolean; sub?: string }) {
-    const dropPct = prevValue && prevValue > 0 ? Math.round((value / prevValue) * 100) : null;
-    return (
-        <div className="flex items-center gap-2 flex-1 min-w-[160px]">
-            {!isFirst && <ChevronRight className="h-5 w-5 text-slate-300 shrink-0 hidden md:block" />}
-            <div className="relative bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex-1 overflow-hidden">
-                <div className="absolute top-0 left-0 right-0 h-1" style={{ background: color }} />
-                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1.5">{label}</div>
-                <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-black text-slate-800">{value.toLocaleString()}</span>
-                    {dropPct !== null && (
-                        <span
-                            className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                            style={{ background: `${color}18`, color }}
-                        >
-                            {dropPct}%
-                        </span>
-                    )}
-                </div>
-                {sub && <div className="text-[10px] text-slate-400 font-medium mt-0.5">{sub}</div>}
-            </div>
-        </div>
-    );
-}
-
-// ── Cross-cut metric card — NOT chained into the sequential funnel (its base
-// is "Matching Filters", not the previous funnel stage) ────────────────────
-function CrossCutCard({
-    label, value, base, color, icon: Icon,
-}: { label: string; value: number; base: number; color: string; icon: React.ElementType }) {
-    return (
-        <div className="relative bg-white rounded-2xl border border-slate-200 shadow-sm p-4 min-w-[200px] overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1" style={{ background: color }} />
-            <div className="flex items-center gap-1.5 mb-1.5">
-                <Icon className="h-3 w-3" style={{ color }} />
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{label}</span>
-            </div>
-            <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-black text-slate-800">{value.toLocaleString()}</span>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: `${color}18`, color }}>
-                    {pct(value, base)}% of matching filters
-                </span>
-            </div>
-        </div>
-    );
 }
 
 // ── Donut chart with side legend — used only where categories are few (≤7) ──
@@ -227,59 +179,91 @@ function BadgeGridCard({
 const RANK_BADGE: Record<number, string> = { 1: "#f59e0b", 2: "#94a3b8", 3: "#b45309" };
 
 function RankedListCard({
-    title, subtitle, data, icon: Icon, selected, onSelect, filterTotal,
-}: { title: string; subtitle?: string; data: { name: string; count: number }[]; icon: React.ElementType; selected?: string[]; onSelect?: (name: string) => void; filterTotal?: number }) {
-    const max = Math.max(...data.map(d => d.count), 1);
+    title, subtitle, data, icon: Icon, selected, onSelect, filterTotal, limit = 10,
+}: { title: string; subtitle?: string; data: { name: string; count: number }[]; icon: React.ElementType; selected?: string[]; onSelect?: (name: string) => void; filterTotal?: number; limit?: number }) {
+    const [dialogOpen, setDialogOpen] = useState(false);
     const clickable = !!onSelect;
+    const displayData = data.slice(0, limit);
+    const hasMore = data.length > limit;
+
+    const renderRow = (d: { name: string; count: number }, globalIdx: number) => {
+        const isSelected = selected?.includes(d.name);
+        const Row = clickable ? "button" : "div";
+        return (
+            <Row
+                key={d.name}
+                onClick={clickable ? () => onSelect!(d.name) : undefined}
+                className={cn(
+                    "w-full flex items-center gap-2.5 rounded-lg px-1 py-1 transition-colors",
+                    clickable && "cursor-pointer",
+                    isSelected ? "bg-indigo-50" : clickable ? "hover:bg-slate-50" : ""
+                )}
+            >
+                <span
+                    className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[9px] font-black"
+                    style={{
+                        background: RANK_BADGE[globalIdx + 1] ?? "#c7d2fe",
+                        color: globalIdx < 3 ? "#fff" : "#4338ca",
+                    }}
+                >
+                    {globalIdx + 1}
+                </span>
+                <span className={cn("text-xs flex-1 truncate text-left", isSelected ? "font-black text-indigo-700" : "font-semibold text-slate-600")} title={d.name}>{d.name}</span>
+                <span className="text-xs font-black text-slate-700 w-10 text-right shrink-0">{d.count.toLocaleString()}</span>
+            </Row>
+        );
+    };
+
     return (
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
-            <div className="flex items-center gap-2 mb-1">
-                <Icon className="h-3.5 w-3.5 text-slate-400" />
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">{title}</h3>
-                {filterTotal != null && <span className="text-xs font-black text-slate-900">· Total: {filterTotal.toLocaleString()}</span>}
-                {clickable && <span className="text-xs text-indigo-500 font-bold ml-auto">click to filter</span>}
-            </div>
-            {subtitle && <p className="text-[10px] text-slate-400 mb-3">{subtitle}</p>}
-            {!subtitle && <div className="mb-3" />}
-            {!data.length ? (
-                <div className="flex items-center justify-center h-40 text-slate-400 text-xs font-bold uppercase tracking-widest">
-                    No data
+        <>
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                <div className="flex items-center gap-2 mb-1">
+                    <Icon className="h-3.5 w-3.5 text-slate-400" />
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">{title}</h3>
+                    {filterTotal != null && <span className="text-xs font-black text-slate-900">· Total: {filterTotal.toLocaleString()}</span>}
+                    {clickable && <span className="text-xs text-indigo-500 font-bold ml-auto">click to filter</span>}
                 </div>
-            ) : (
-                <div className="space-y-1">
-                    {data.map((d, i) => {
-                        const isSelected = selected?.includes(d.name);
-                        const Row = clickable ? "button" : "div";
-                        return (
-                            <Row
-                                key={d.name}
-                                onClick={clickable ? () => onSelect!(d.name) : undefined}
-                                className={cn(
-                                    "w-full flex items-center gap-2.5 rounded-lg px-1 py-1 transition-colors",
-                                    clickable && "cursor-pointer",
-                                    isSelected ? "bg-indigo-50" : clickable ? "hover:bg-slate-50" : ""
-                                )}
+                {subtitle && <p className="text-[10px] text-slate-400 mb-3">{subtitle}</p>}
+                {!subtitle && <div className="mb-3" />}
+                {!data.length ? (
+                    <div className="flex items-center justify-center h-40 text-slate-400 text-xs font-bold uppercase tracking-widest">
+                        No data
+                    </div>
+                ) : (
+                    <>
+                        <div className="space-y-1">
+                            {displayData.map((d, i) => renderRow(d, i))}
+                        </div>
+                        {hasMore && (
+                            <button
+                                onClick={() => setDialogOpen(true)}
+                                className="mt-3 w-full flex items-center justify-center gap-1 text-xs text-indigo-500 hover:text-indigo-700 font-semibold py-1.5 border border-indigo-100 rounded-lg hover:bg-indigo-50 transition-colors"
                             >
-                                <span
-                                    className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[9px] font-black text-white"
-                                    style={{ background: RANK_BADGE[i + 1] ?? "#c7d2fe", color: i < 3 ? "#fff" : "#4338ca" }}
-                                >
-                                    {i + 1}
-                                </span>
-                                <span className={cn("text-xs w-36 truncate shrink-0 text-left", isSelected ? "font-black text-indigo-700" : "font-semibold text-slate-600")} title={d.name}>{d.name}</span>
-                                <div className="flex-1 bg-slate-100 rounded-full h-2 min-w-[40px]">
-                                    <div
-                                        className="h-full rounded-full bg-indigo-500"
-                                        style={{ width: `${Math.max(4, (d.count / max) * 100)}%` }}
-                                    />
-                                </div>
-                                <span className="text-xs font-black text-slate-700 w-10 text-right shrink-0">{d.count.toLocaleString()}</span>
-                            </Row>
-                        );
-                    })}
-                </div>
-            )}
-        </div>
+                                <ChevronDown className="h-3.5 w-3.5" />
+                                View All ({data.length})
+                            </button>
+                        )}
+                    </>
+                )}
+            </div>
+
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogContent className="max-w-sm max-h-[80vh] flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-sm font-black">
+                            <Icon className="h-4 w-4 text-slate-400" />
+                            {title}
+                        </DialogTitle>
+                        {clickable && (
+                            <p className="text-xs text-indigo-500 font-semibold">Click to toggle filter</p>
+                        )}
+                    </DialogHeader>
+                    <div className="overflow-y-auto flex-1 space-y-1 pr-1">
+                        {data.map((d, i) => renderRow(d, i))}
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </>
     );
 }
 
@@ -292,7 +276,7 @@ const FILTER_LABELS: Record<keyof PopulationFilters, string> = {
     position_keywords: "Position Keyword",
     set_symbols: "SET Company",
     hotel_chains: "Hotel Chain",
-    job_groupings: "Job Grouping",
+    job_groupings: "Job Family",
     job_functions: "Job Function",
 };
 
@@ -329,6 +313,7 @@ export default function CandidateFunnelTab() {
     const [data, setData] = useState<PopulationData | null>(null);
     const [loading, setLoading] = useState(true);
     const [dataLoading, setDataLoading] = useState(false);
+    const [siteStats, setSiteStats] = useState<{ totalCandidates: number; resumeCount: number; orgChartCount: number } | null>(null);
 
     const [filters, setFilters] = useState<PopulationFilters>(EMPTY_FILTERS);
     const [listVisible, setListVisible] = useState(false);
@@ -354,10 +339,12 @@ export default function CandidateFunnelTab() {
             getPopulationFilterOptions(),
             getCandidatePopulationData({}),
             getCascadingPopulationOptions({}),
-        ]).then(([opts, d, c]) => {
+            fetch('/api/stats').then(r => r.json()),
+        ]).then(([opts, d, c, stats]) => {
             setFilterOptions(opts);
             setData(d);
             setCascade(c);
+            setSiteStats({ totalCandidates: stats.totalCandidates || 0, resumeCount: stats.resumeCount || 0, orgChartCount: stats.orgChartCount || 0 });
         }).catch(console.error).finally(() => setLoading(false));
     }, []);
 
@@ -445,6 +432,18 @@ export default function CandidateFunnelTab() {
                         selected={filters.hotel_chains || []}
                         onChange={v => updateFilter('hotel_chains', v)}
                     />
+                    <FilterMultiSelect
+                        label="Job Family"
+                        options={union(cascade.job_groupings, filters.job_groupings || [])}
+                        selected={filters.job_groupings || []}
+                        onChange={v => updateFilter('job_groupings', v)}
+                    />
+                    <FilterMultiSelect
+                        label="Job Function"
+                        options={union(cascade.job_functions, filters.job_functions || [])}
+                        selected={filters.job_functions || []}
+                        onChange={v => updateFilter('job_functions', v)}
+                    />
                     {hasFilters && (
                         <Button
                             variant="ghost" size="sm"
@@ -475,39 +474,53 @@ export default function CandidateFunnelTab() {
                 <ActiveFilterChips filters={filters} onRemove={updateFilter} />
             </div>
 
-            {/* ── Funnel — Total DB → Matching Filters → Currently Employed are   */}
-            {/*    genuine sequential subsets; SET Experience is a separate cut    */}
-            {/*    of "Matching Filters" and is NOT chained after Currently Employed */}
-            {data && (
-                <div className="flex flex-col gap-3">
-                    <div className="flex flex-col md:flex-row gap-2">
-                        <FunnelStage label="Total in Database" value={data.total_db} prevValue={null} color="#6366f1" isFirst />
-                        <FunnelStage
-                            label={hasFilters ? "Matching Filters" : "In Experience Pool"}
-                            value={data.total_filtered} prevValue={data.total_db} color="#0284c7" isFirst={false}
-                        />
-                        <FunnelStage
-                            label="Currently Employed"
-                            value={data.currently_employed} prevValue={data.total_filtered} color="#059669" isFirst={false}
-                            sub="Flagged with a current-job experience row"
-                        />
+            {/* ── Site-wide KPI cards ─────────────────────────────────────────── */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <Card className="relative overflow-hidden group border-none bg-white ring-1 ring-slate-200 shadow-xl transition-all hover:shadow-2xl">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Total Profile</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-5xl font-black tracking-tighter text-slate-900">
+                            {loading ? "..." : (siteStats?.totalCandidates ?? 0).toLocaleString()}
+                        </div>
+                        <div className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Database Records</div>
+                    </CardContent>
+                    <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
+                        <Users className="w-12 h-12" />
                     </div>
-                    <div className="flex items-start gap-2 text-[11px] text-slate-400">
-                        <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                        <span>
-                            The {(data.total_filtered - data.currently_employed).toLocaleString()} not counted as "Currently Employed" aren't
-                            necessarily unemployed — some simply don't have a job experience row flagged "Current" yet (a data-entry gap, not a confirmed status).
-                        </span>
+                </Card>
+
+                <Card className="relative overflow-hidden group border-none bg-white ring-1 ring-slate-200 shadow-xl transition-all hover:shadow-2xl">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Total CV</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-5xl font-black tracking-tighter text-slate-900">
+                            {loading ? "..." : (siteStats?.resumeCount ?? 0).toLocaleString()}
+                        </div>
+                        <div className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Verified Documents</div>
+                    </CardContent>
+                    <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
+                        <FileText className="w-12 h-12" />
                     </div>
-                    <CrossCutCard
-                        label="SET Experience (by Candidate)"
-                        value={data.set_experienced}
-                        base={data.total_filtered}
-                        color="#f59e0b"
-                        icon={Building2}
-                    />
-                </div>
-            )}
+                </Card>
+
+                <Card className="relative overflow-hidden group border-none bg-white ring-1 ring-slate-200 shadow-xl transition-all hover:shadow-2xl">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Total Org</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-5xl font-black tracking-tighter text-slate-900">
+                            {loading ? "..." : (siteStats?.orgChartCount ?? 0).toLocaleString()}
+                        </div>
+                        <div className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Org Nodes</div>
+                    </CardContent>
+                    <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
+                        <Database className="w-12 h-12" />
+                    </div>
+                </Card>
+            </div>
 
             {/* ── Overview: donut (few categories) + badge grid (medium) ───── */}
             {data && (
@@ -533,7 +546,7 @@ export default function CandidateFunnelTab() {
                     />
                     <RankedListCard title="By Industry" data={data.by_industry} icon={Building2} selected={filters.industries || []} onSelect={v => updateFilter('industries', v)} filterTotal={data.total_filtered} />
                     <RankedListCard title="By Position Keyword" data={data.by_position_keyword} icon={Briefcase} selected={filters.position_keywords || []} onSelect={v => updateFilter('position_keywords', v)} filterTotal={data.total_filtered} />
-                    <RankedListCard title="By Job Grouping" data={data.by_job_grouping} icon={Users} selected={filters.job_groupings || []} onSelect={v => updateFilter('job_groupings', v)} filterTotal={data.total_filtered} />
+                    <RankedListCard title="By Job Family" data={data.by_job_grouping} icon={Users} selected={filters.job_groupings || []} onSelect={v => updateFilter('job_groupings', v)} filterTotal={data.total_filtered} />
                 </div>
             )}
 

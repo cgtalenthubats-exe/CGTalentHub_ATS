@@ -48,6 +48,8 @@ export interface PopulationFilterOptions {
     position_keywords: string[];
     set_companies: SetCompany[];
     hotel_chains: string[];
+    job_groupings: string[];
+    job_functions: string[];
 }
 
 // Cascading options — same shape minus set_companies (that dropdown's options are
@@ -59,6 +61,8 @@ export interface CascadingOptions {
     continents: string[];
     position_keywords: string[];
     hotel_chains: string[];
+    job_groupings: string[];
+    job_functions: string[];
 }
 
 const SKIP = new Set(['Unknown', 'N/A', 'Not Found', 'No Match Found', 'Undetermined', 'Unclassified', 'Wait AI Check', 'Unassigned', '', 'null']);
@@ -115,12 +119,13 @@ function resolveChainBrandIds(chainMaps: HotelChainMaps, selectedNames: string[]
 export async function getPopulationFilterOptions(): Promise<PopulationFilterOptions> {
     const supabase = adminAuthClient as any;
 
-    const [countryRes, setRes, cmRes, expRes, chainMaps] = await Promise.all([
+    const [countryRes, setRes, cmRes, expRes, chainMaps, cpRes] = await Promise.all([
         supabase.from('country').select('country, continent'),
         supabase.from('company_set_group').select('symbol, company_name, index_group, sector').order('symbol'),
         supabase.from('company_master').select('group, industry').range(0, 19999),
         supabase.from('candidate_experiences').select('country, position_keyword').range(0, 49999),
         loadHotelChainMaps(supabase),
+        supabase.from('Candidate Profile').select('job_grouping, job_function').range(0, 9999),
     ]);
 
     const continents = [...new Set<string>((countryRes.data || []).map((r: any) => r.continent).filter(Boolean))].sort();
@@ -128,11 +133,14 @@ export async function getPopulationFilterOptions(): Promise<PopulationFilterOpti
     const industries = [...new Set<string>((cmRes.data || []).map((r: any) => r.industry).filter((i: any) => i && !SKIP.has(i)))].sort();
     const countries = [...new Set<string>((expRes.data || []).map((r: any) => r.country).filter((c: any) => c && !SKIP.has(c)))].sort();
     const position_keywords = [...new Set<string>((expRes.data || []).map((r: any) => r.position_keyword).filter(Boolean))].sort();
+    const job_groupings = [...new Set<string>((cpRes.data || []).map((r: any) => r.job_grouping).filter((g: any) => g && !SKIP.has(g)))].sort();
+    const job_functions = [...new Set<string>((cpRes.data || []).map((r: any) => r.job_function).filter((f: any) => f && !SKIP.has(f)))].sort();
 
     return {
         groups, industries, countries, continents, position_keywords,
         set_companies: setRes.data || [],
         hotel_chains: chainMaps.allParentNames,
+        job_groupings, job_functions,
     };
 }
 
@@ -148,12 +156,13 @@ export async function getPopulationFilterOptions(): Promise<PopulationFilterOpti
 export async function getCascadingPopulationOptions(filters: PopulationFilters): Promise<CascadingOptions> {
     const supabase = adminAuthClient as any;
 
-    const [countryRes, setRes, chainMaps] = await Promise.all([
+    const [countryRes, setRes, chainMaps, cpRes] = await Promise.all([
         supabase.from('country').select('country, continent'),
         filters.set_symbols?.length
             ? supabase.from('company_set_group').select('company_name').in('symbol', filters.set_symbols)
             : Promise.resolve({ data: [] }),
         loadHotelChainMaps(supabase),
+        supabase.from('Candidate Profile').select('job_grouping, job_function').range(0, 9999),
     ]);
     const countryContinent = new Map<string, string>((countryRes.data || []).map((r: any) => [r.country, r.continent]));
     const filterChainBrandIds = resolveChainBrandIds(chainMaps, filters.hotel_chains);
@@ -236,7 +245,10 @@ export async function getCascadingPopulationOptions(filters: PopulationFilters):
         }).filter(Boolean) as string[]
     )].sort();
 
-    return { groups, industries, countries, continents, position_keywords, hotel_chains };
+    const job_groupings = [...new Set<string>((cpRes.data || []).map((r: any) => r.job_grouping).filter((g: any) => g && !SKIP.has(g)))].sort();
+    const job_functions = [...new Set<string>((cpRes.data || []).map((r: any) => r.job_function).filter((f: any) => f && !SKIP.has(f)))].sort();
+
+    return { groups, industries, countries, continents, position_keywords, hotel_chains, job_groupings, job_functions };
 }
 
 const EMPTY_POPULATION_DATA: PopulationData = {
