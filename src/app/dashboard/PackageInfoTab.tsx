@@ -5,6 +5,7 @@ import { getRawBenchmarkData, BenchmarkCandidate } from "@/app/actions/benchmark
 import { parseSalary, hasBenefit } from "@/lib/benchmark-utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -356,6 +357,15 @@ export default function PackageInfoTab() {
                     <RotateCcw className="h-3 w-3" /> Reset
                 </Button>
             </div>
+
+            <ActiveFilterChips groups={[
+                { label: "Industry", values: selIndustry, onRemove: v => setSelIndustry(prev => prev.filter(x => x !== v)) },
+                { label: "Company Group", values: selGroup, onRemove: v => setSelGroup(prev => prev.filter(x => x !== v)) },
+                { label: "Job Grouping", values: selJobGrouping, onRemove: v => setSelJobGrouping(prev => prev.filter(x => x !== v)) },
+                { label: "Job Function", values: selJobFunction, onRemove: v => setSelJobFunction(prev => prev.filter(x => x !== v)) },
+                { label: "Company", values: selCompany, onRemove: v => setSelCompany(prev => prev.filter(x => x !== v)) },
+                { label: "Position", values: selPosition, onRemove: v => setSelPosition(prev => prev.filter(x => x !== v)) },
+            ]} />
 
             {companies.length === 0 ? (
                 <div className="text-center py-16 text-slate-400">No data matches the selected filters</div>

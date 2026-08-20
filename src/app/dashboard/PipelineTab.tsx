@@ -8,6 +8,7 @@ import {
 } from "@/app/actions/tracking";
 import { Card, CardContent } from "@/components/ui/card";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -181,6 +182,13 @@ export default function PipelineTab() {
                         <div className="h-0.5 w-full bg-slate-800 mt-1"></div>
                     </div>
                 </div>
+
+                <ActiveFilterChips groups={[
+                    { label: "Position", values: filters.position_jr, onRemove: v => toggleFilter('position_jr', v) },
+                    { label: "Business Unit", values: filters.bu, onRemove: v => toggleFilter('bu', v) },
+                    { label: "Sub BU", values: filters.sub_bu, onRemove: v => toggleFilter('sub_bu', v) },
+                    { label: "Status", values: filters.status, onRemove: v => toggleFilter('status', v) },
+                ]} />
             </div>
 
             {/* Dashboard Content */}

@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { RotateCcw, Loader2, Globe, TrendingUp, Users, Building, MapPin, Filter } from "lucide-react";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
 import { Button } from "@/components/ui/button";
 import { Tooltip as ReactTooltip } from "react-tooltip";
 import { cn } from "@/lib/utils";
@@ -363,6 +364,20 @@ export default function DashboardPage() {
                                 <FilterMultiSelect label="Set" options={availableOptions.sets} selected={gpSets} onChange={v => toggle(gpSets, v, setGpSets)} />
                             </div>
 
+                            <ActiveFilterChips groups={[
+                                { label: "JR Name", values: gpJrNames, onRemove: v => toggle(gpJrNames, v, setGpJrNames) },
+                                { label: "BU", values: gpBus, onRemove: v => toggle(gpBus, v, setGpBus) },
+                                { label: "Sub BU", values: gpSubBus, onRemove: v => toggle(gpSubBus, v, setGpSubBus) },
+                                { label: "Top Profile", values: gpTopProfile, onRemove: v => toggle(gpTopProfile, v, setGpTopProfile) },
+                                { label: "Gender", values: gpGender, onRemove: v => toggle(gpGender, v, setGpGender) },
+                                { label: "Country", values: gpCountries, onRemove: v => toggle(gpCountries, v, setGpCountries) },
+                                { label: "Industry", values: gpIndustries, onRemove: v => toggle(gpIndustries, v, setGpIndustries) },
+                                { label: "Group", values: gpGroups, onRemove: v => toggle(gpGroups, v, setGpGroups) },
+                                { label: "Company", values: gpCompanies, onRemove: v => toggle(gpCompanies, v, setGpCompanies) },
+                                { label: "Rating", values: gpRatings, onRemove: v => toggle(gpRatings, v, setGpRatings) },
+                                { label: "Set", values: gpSets, onRemove: v => toggle(gpSets, v, setGpSets) },
+                            ]} />
+
                             {/* MAP */}
                             <Card className="border-none shadow-xl rounded-3xl overflow-hidden bg-white/50 backdrop-blur-sm">
                                 <CardContent className="h-[550px] p-0 relative">
@@ -477,6 +492,13 @@ export default function DashboardPage() {
                                 </Button>
                             </div>
                         </div>
+
+                        <ActiveFilterChips groups={[
+                            { label: "Job Family", values: salaryJobFamilies, onRemove: v => toggle(salaryJobFamilies, v, setSalaryJobFamilies) },
+                            { label: "Company", values: salaryCompanies, onRemove: v => toggle(salaryCompanies, v, setSalaryCompanies) },
+                            { label: "Position", values: salaryPositions, onRemove: v => toggle(salaryPositions, v, setSalaryPositions) },
+                            { label: "Rating", values: salaryRatings, onRemove: v => toggle(salaryRatings, v, setSalaryRatings) },
+                        ]} />
 
                         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                             {/* Bar Chart V2 with Scroll Support */}

@@ -43,17 +43,19 @@ import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
 import { formatDateForDisplay } from "@/lib/date-utils";
 import Link from "next/link";
 import { MonthRangePicker } from "@/components/month-range-picker";
+import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
 
 export default function PlacementsPage() {
     const [records, setRecords] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
-    const [buFilter, setBuFilter] = useState("All");
-    const [subBuFilter, setSubBuFilter] = useState("All");
-    const [hireYearFilter, setHireYearFilter] = useState("All");
+    const [buFilters, setBuFilters] = useState<string[]>([]);
+    const [subBuFilters, setSubBuFilters] = useState<string[]>([]);
+    const [hireYearFilters, setHireYearFilters] = useState<string[]>([]);
     const [fromMonth, setFromMonth] = useState("");
     const [toMonth, setToMonth] = useState("");
-    const [positionFilter, setPositionFilter] = useState("All");
+    const [positionFilters, setPositionFilters] = useState<string[]>([]);
     const [selectedRecord, setSelectedRecord] = useState<any>(null);
     const [isResignDialogOpen, setIsResignDialogOpen] = useState(false);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -134,10 +136,10 @@ export default function PlacementsPage() {
             r.jr_id?.toLowerCase().includes(search.toLowerCase()) ||
             r.bu?.toLowerCase().includes(search.toLowerCase());
 
-        const matchesBU = buFilter === "All" || r.bu === buFilter;
-        const matchesSubBU = subBuFilter === "All" || r.sub_bu === subBuFilter;
-        const matchesHireYear = hireYearFilter === "All" || (r.hire_date && new Date(r.hire_date).getFullYear().toString() === hireYearFilter);
-        const matchesPosition = positionFilter === "All" || r.position === positionFilter;
+        const matchesBU = buFilters.length === 0 || buFilters.includes(r.bu);
+        const matchesSubBU = subBuFilters.length === 0 || subBuFilters.includes(r.sub_bu);
+        const matchesHireYear = hireYearFilters.length === 0 || (r.hire_date && hireYearFilters.includes(new Date(r.hire_date).getFullYear().toString()));
+        const matchesPosition = positionFilters.length === 0 || positionFilters.includes(r.position);
         const hireMon = r.hire_date ? r.hire_date.slice(0, 7) : "";
         const matchesPeriod = (!fromMonth && !toMonth) || (hireMon && (!fromMonth || hireMon >= fromMonth) && (!toMonth || hireMon <= toMonth));
 
@@ -149,7 +151,7 @@ export default function PlacementsPage() {
     const uniqueHireYears = Array.from(new Set(records.map(r => r.hire_date ? new Date(r.hire_date).getFullYear().toString() : null).filter(Boolean))).sort((a, b) => Number(b) - Number(a));
     const uniquePositions = Array.from(new Set(records.map(r => r.position).filter(Boolean)));
 
-    const isFiltered = search !== "" || buFilter !== "All" || subBuFilter !== "All" || hireYearFilter !== "All" || positionFilter !== "All" || !!fromMonth || !!toMonth;
+    const isFiltered = search !== "" || buFilters.length > 0 || subBuFilters.length > 0 || hireYearFilters.length > 0 || positionFilters.length > 0 || !!fromMonth || !!toMonth;
 
     return (
         <div className="mx-auto p-6 space-y-8 max-w-[95%] animate-in fade-in duration-500">
@@ -192,38 +194,30 @@ export default function PlacementsPage() {
                 <div className="flex items-center gap-2 text-slate-500 font-bold text-xs uppercase tracking-widest mr-2">
                     <Filter className="w-4 h-4" /> Filters
                 </div>
-                <select
-                    value={buFilter}
-                    onChange={(e) => setBuFilter(e.target.value)}
-                    className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 shadow-sm focus:ring-2 focus:ring-primary/20 min-w-[140px]"
-                >
-                    <option value="All">All Business Units</option>
-                    {uniqueBUs.map(bu => <option key={String(bu)} value={String(bu)}>{String(bu)}</option>)}
-                </select>
-                <select
-                    value={subBuFilter}
-                    onChange={(e) => setSubBuFilter(e.target.value)}
-                    className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 shadow-sm focus:ring-2 focus:ring-primary/20 min-w-[140px]"
-                >
-                    <option value="All">All Sub BUs / Depts</option>
-                    {uniqueSubBUs.map(sub => <option key={String(sub)} value={String(sub)}>{String(sub)}</option>)}
-                </select>
-                <select
-                    value={hireYearFilter}
-                    onChange={(e) => setHireYearFilter(e.target.value)}
-                    className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 shadow-sm focus:ring-2 focus:ring-primary/20 min-w-[140px]"
-                >
-                    <option value="All">All Hiring Years</option>
-                    {uniqueHireYears.map(y => <option key={String(y)} value={String(y)}>{String(y)}</option>)}
-                </select>
-                <select
-                    value={positionFilter}
-                    onChange={(e) => setPositionFilter(e.target.value)}
-                    className="h-9 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-700 shadow-sm focus:ring-2 focus:ring-primary/20 min-w-[140px]"
-                >
-                    <option value="All">All Positions</option>
-                    {uniquePositions.map(pos => <option key={String(pos)} value={String(pos)}>{String(pos)}</option>)}
-                </select>
+                <FilterMultiSelect
+                    label="Business Unit"
+                    options={uniqueBUs.map(String)}
+                    selected={buFilters}
+                    onChange={(v) => setBuFilters(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])}
+                />
+                <FilterMultiSelect
+                    label="Sub BU / Dept"
+                    options={uniqueSubBUs.map(String)}
+                    selected={subBuFilters}
+                    onChange={(v) => setSubBuFilters(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])}
+                />
+                <FilterMultiSelect
+                    label="Hiring Year"
+                    options={uniqueHireYears.map(String)}
+                    selected={hireYearFilters}
+                    onChange={(v) => setHireYearFilters(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])}
+                />
+                <FilterMultiSelect
+                    label="Position"
+                    options={uniquePositions.map(String)}
+                    selected={positionFilters}
+                    onChange={(v) => setPositionFilters(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])}
+                />
                 <MonthRangePicker
                     fromMonth={fromMonth}
                     toMonth={toMonth}
@@ -231,6 +225,13 @@ export default function PlacementsPage() {
                     onToChange={setToMonth}
                 />
             </div>
+
+            <ActiveFilterChips groups={[
+                { label: "Business Unit", values: buFilters, onRemove: v => setBuFilters(prev => prev.filter(x => x !== v)) },
+                { label: "Sub BU", values: subBuFilters, onRemove: v => setSubBuFilters(prev => prev.filter(x => x !== v)) },
+                { label: "Hiring Year", values: hireYearFilters, onRemove: v => setHireYearFilters(prev => prev.filter(x => x !== v)) },
+                { label: "Position", values: positionFilters, onRemove: v => setPositionFilters(prev => prev.filter(x => x !== v)) },
+            ]} />
 
             {/* Stats Summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

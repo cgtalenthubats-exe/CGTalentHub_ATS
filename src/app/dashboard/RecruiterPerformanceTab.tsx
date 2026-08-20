@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { getKPIData, KPIRawData } from "@/app/actions/kpi-actions";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
 import {
     ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
@@ -178,6 +179,11 @@ export default function RecruiterPerformanceTab() {
                     </Button>
                 )}
             </div>
+
+            <ActiveFilterChips groups={[
+                { label: "FY", values: selectedFYs.map(String), onRemove: v => toggleFY(Number(v)) },
+                { label: "Recruiter", values: selectedRecruiters, onRemove: v => setSelectedRecruiters(prev => prev.filter(i => i !== v)) },
+            ]} />
 
             {/* ── KPI Summary Cards ────────────────────────────────── */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">

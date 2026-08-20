@@ -39,14 +39,9 @@ import {
     Tooltip as ReTooltip,
     Legend
 } from "recharts";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
 import { MonthRangePicker } from "@/components/month-range-picker";
+import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
 
 function calculateYoS(hireDate: string, resignDate: string) {
     if (!hireDate || !resignDate) return "N/A";
@@ -70,9 +65,9 @@ export default function ResignationsPage() {
     const [search, setSearch] = useState("");
     const [selectedRecord, setSelectedRecord] = useState<any>(null);
     const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-    const [buFilter, setBuFilter] = useState("all");
-    const [resignYearFilter, setResignYearFilter] = useState("all");
-    const [reasonFilter, setReasonFilter] = useState("all");
+    const [buFilters, setBuFilters] = useState<string[]>([]);
+    const [resignYearFilters, setResignYearFilters] = useState<string[]>([]);
+    const [reasonFilters, setReasonFilters] = useState<string[]>([]);
     const [fromMonth, setFromMonth] = useState("");
     const [toMonth, setToMonth] = useState("");
 
@@ -100,10 +95,10 @@ export default function ResignationsPage() {
             r.position?.toLowerCase().includes(search.toLowerCase()) ||
             r.jr_id?.toLowerCase().includes(search.toLowerCase());
 
-        const matchesBU = buFilter === "all" || r.bu === buFilter;
-        const matchesYear = resignYearFilter === "all" || (r.resign_date && new Date(r.resign_date).getFullYear().toString() === resignYearFilter);
+        const matchesBU = buFilters.length === 0 || buFilters.includes(r.bu);
+        const matchesYear = resignYearFilters.length === 0 || (r.resign_date && resignYearFilters.includes(new Date(r.resign_date).getFullYear().toString()));
         const currentReason = r.resignation_reason || r.resignation_reason_test || "Other";
-        const matchesReason = reasonFilter === "all" || currentReason === reasonFilter;
+        const matchesReason = reasonFilters.length === 0 || reasonFilters.includes(currentReason);
         const resignMon = r.resign_date ? r.resign_date.slice(0, 7) : "";
         const matchesPeriod = (!fromMonth && !toMonth) || (resignMon && (!fromMonth || resignMon >= fromMonth) && (!toMonth || resignMon <= toMonth));
 
@@ -136,49 +131,28 @@ export default function ResignationsPage() {
 
                 <div className="flex flex-col md:flex-row items-center gap-3">
                     {/* BU Filter */}
-                    <div className="w-full md:w-48">
-                        <Select value={buFilter} onValueChange={setBuFilter}>
-                            <SelectTrigger className="h-12 bg-white border-slate-200 rounded-2xl shadow-sm font-medium">
-                                <SelectValue placeholder="All Business Units" />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl border-slate-100 shadow-xl">
-                                <SelectItem value="all" className="font-bold text-slate-400">All Business Units</SelectItem>
-                                {uniqueBUs.map(bu => (
-                                    <SelectItem key={bu} value={bu} className="font-medium text-slate-700">{bu}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    <FilterMultiSelect
+                        label="Business Unit"
+                        options={uniqueBUs}
+                        selected={buFilters}
+                        onChange={(v) => setBuFilters(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])}
+                    />
 
                     {/* Resign Year Filter */}
-                    <div className="w-full md:w-44">
-                        <Select value={resignYearFilter} onValueChange={setResignYearFilter}>
-                            <SelectTrigger className="h-12 bg-white border-slate-200 rounded-2xl shadow-sm font-medium">
-                                <SelectValue placeholder="All Years" />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl border-slate-100 shadow-xl">
-                                <SelectItem value="all" className="font-bold text-slate-400">All Years</SelectItem>
-                                {uniqueResignYears.map(year => (
-                                    <SelectItem key={year} value={year} className="font-medium text-slate-700">{year}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    <FilterMultiSelect
+                        label="Resign Year"
+                        options={uniqueResignYears}
+                        selected={resignYearFilters}
+                        onChange={(v) => setResignYearFilters(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])}
+                    />
 
                     {/* Reason Filter */}
-                    <div className="w-full md:w-48">
-                        <Select value={reasonFilter} onValueChange={setReasonFilter}>
-                            <SelectTrigger className="h-12 bg-white border-slate-200 rounded-2xl shadow-sm font-medium">
-                                <SelectValue placeholder="All Reasons" />
-                            </SelectTrigger>
-                            <SelectContent className="rounded-xl border-slate-100 shadow-xl">
-                                <SelectItem value="all" className="font-bold text-slate-400">All Reasons</SelectItem>
-                                {uniqueReasons.map(reason => (
-                                    <SelectItem key={reason} value={reason} className="font-medium text-slate-700">{reason}</SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
+                    <FilterMultiSelect
+                        label="Reason"
+                        options={uniqueReasons}
+                        selected={reasonFilters}
+                        onChange={(v) => setReasonFilters(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])}
+                    />
 
                     {/* Period Range Filter */}
                     <MonthRangePicker
@@ -199,6 +173,12 @@ export default function ResignationsPage() {
                     </div>
                 </div>
             </div>
+
+            <ActiveFilterChips groups={[
+                { label: "Business Unit", values: buFilters, onRemove: v => setBuFilters(prev => prev.filter(x => x !== v)) },
+                { label: "Resign Year", values: resignYearFilters, onRemove: v => setResignYearFilters(prev => prev.filter(x => x !== v)) },
+                { label: "Reason", values: reasonFilters, onRemove: v => setReasonFilters(prev => prev.filter(x => x !== v)) },
+            ]} />
 
             {/* Row 1: Key Metric (Matching Placements Style) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -245,11 +225,11 @@ export default function ResignationsPage() {
                                         .slice()
                                         .sort((a: any, b: any) => a.reason.localeCompare(b.reason))
                                         .map((row: any, idx: number) => {
-                                            const isSelected = reasonFilter !== "all" && row.reason === reasonFilter;
+                                            const isSelected = reasonFilters.includes(row.reason);
                                             return (
                                                 <TableRow
                                                     key={idx}
-                                                    onClick={() => setReasonFilter(isSelected ? "all" : row.reason)}
+                                                    onClick={() => setReasonFilters(prev => isSelected ? prev.filter(x => x !== row.reason) : [...prev, row.reason])}
                                                     className={cn(
                                                         "cursor-pointer transition-all border-slate-50",
                                                         isSelected ? "bg-indigo-50/50 hover:bg-indigo-50" : "hover:bg-slate-50/80"

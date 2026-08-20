@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, RotateCcw, TrendingUp, Target, Coins, Search, RefreshCw, Download } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { generatePlacementReportPPTX } from "@/app/actions/export-placement-report";
@@ -319,6 +320,12 @@ export default function PlacementTab() {
                     <RotateCcw className="h-3 w-3" /> Reset
                 </Button>
             </div>
+
+            <ActiveFilterChips groups={[
+                { label: "BU", values: selectedBU, onRemove: v => setSelectedBU(prev => prev.filter(i => i !== v)) },
+                { label: "Sub BU", values: selectedSubBU, onRemove: v => setSelectedSubBU(prev => prev.filter(i => i !== v)) },
+                { label: "Year", values: selectedYear, onRemove: v => setSelectedYear(prev => prev.filter(i => i !== v)) },
+            ]} />
 
             {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
