@@ -31,6 +31,13 @@ function parseYear(dateStr: string | null): number | null {
     return null;
 }
 
+function formatHireDate(dateStr: string | null): string {
+    if (!dateStr) return "-";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
 function formatMillion(val: number): string {
     if (!val) return "-";
     if (val >= 1_000_000) return `${(val / 1_000_000).toFixed(1)}M`;
@@ -344,9 +351,9 @@ export default function PlacementTab() {
                         <thead>
                             <tr className="bg-slate-800 text-slate-200">
                                 <th className="text-left px-4 py-3 text-xs font-semibold uppercase w-[100px]">Year</th>
-                                <th className="text-center px-2 py-2 text-xs font-bold text-indigo-300 border-l border-slate-600" colSpan={3}>All BU</th>
+                                <th className="text-center px-2 py-2 text-xs font-bold text-indigo-300 border-l-2 border-indigo-400" colSpan={3}>All BU</th>
                                 {buList.map(bu => (
-                                <th key={bu} className="text-center px-2 py-6 text-xs font-bold text-slate-300 border-l border-slate-700/50" colSpan={3}>
+                                <th key={bu} className="text-center px-2 py-6 text-xs font-bold text-slate-300 border-l-2 border-slate-500" colSpan={3}>
                                         <div className="flex flex-col items-center gap-2">
                                             <div className="w-32 h-16 relative bg-white/5 rounded-lg flex items-center justify-center overflow-hidden border border-white/10 group">
                                                 <img 
@@ -371,30 +378,30 @@ export default function PlacementTab() {
                             <tr className="bg-slate-700 text-[10px] uppercase tracking-wider text-slate-300">
                                 <th className="px-4 py-2"></th>
                                 {["Search", "Placement", "Saving"].map(h => (
-                                    <th key={`all-${h}`} className={cn("px-3 py-3 text-center font-medium text-indigo-300 border-l border-slate-600/50", h === "Saving" ? "w-[100px]" : "w-[80px]")}>{h}</th>
+                                    <th key={`all-${h}`} className={cn("px-3 py-3 text-center font-medium text-indigo-300", h === "Search" ? "border-l-2 border-indigo-400" : "border-l border-slate-500", h === "Saving" ? "w-[100px]" : "w-[80px]")}>{h}</th>
                                 ))}
                                 {buList.flatMap(bu => ["Search", "Placement", "Saving"].map(h => (
-                                    <th key={`${bu}-${h}`} className={cn("px-3 py-3 text-center font-medium border-l border-slate-600/50", h === "Saving" ? "w-[100px]" : "w-[80px]")}>{h}</th>
+                                    <th key={`${bu}-${h}`} className={cn("px-3 py-3 text-center font-medium", h === "Search" ? "border-l-2 border-slate-500" : "border-l border-slate-600", h === "Saving" ? "w-[100px]" : "w-[80px]")}>{h}</th>
                                 )))}
                             </tr>
                         </thead>
                         <tbody>
-                            <tr className="bg-indigo-950/10 border-b border-slate-200 font-bold">
+                            <tr className="bg-indigo-950/10 border-b-2 border-slate-300 font-bold">
                                 <td className="px-4 py-3 text-xs font-bold text-indigo-700 uppercase">Total</td>
-                                <td className="px-2 py-3 text-center border-l border-slate-100"><span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-bold text-sm">{totalSearch}</span></td>
-                                <td className="px-2 py-3 text-center"><span className="text-emerald-700 font-bold text-sm">{totalPlacement}</span></td>
-                                <td className="px-2 py-3 text-center"><span className="bg-purple-600 text-white px-2 py-1 rounded-lg font-bold text-sm shadow-sm">{formatMillion(totalSaving)}</span></td>
+                                <td className="px-2 py-3 text-center border-l-2 border-indigo-300"><span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-bold text-sm">{totalSearch}</span></td>
+                                <td className="px-2 py-3 text-center border-l border-slate-200"><span className="text-emerald-700 font-bold text-sm">{totalPlacement}</span></td>
+                                <td className="px-2 py-3 text-center border-l border-slate-200"><span className="bg-purple-600 text-white px-2 py-1 rounded-lg font-bold text-sm shadow-sm">{formatMillion(totalSaving)}</span></td>
                                 {buList.map(bu => {
                                     const s = byBU[bu] || { search: 0, placement: 0, saving: 0 };
                                     return (
                                         <React.Fragment key={bu}>
-                                            <td className="px-2 py-3 text-center border-l border-slate-100"><span className="text-slate-600 font-medium text-sm">{s.search || "-"}</span></td>
-                                            <td className="px-2 py-3 text-center"><span className={`text-sm font-bold ${s.placement > 0 ? "text-slate-800" : "text-slate-300"}`}>{s.placement || "-"}</span></td>
-                                            <td className="px-2 py-3 text-center">
+                                            <td className="px-2 py-3 text-center border-l-2 border-slate-300"><span className="text-slate-600 font-medium text-sm">{s.search || "-"}</span></td>
+                                            <td className="px-2 py-3 text-center border-l border-slate-200"><span className={`text-sm font-bold ${s.placement > 0 ? "text-slate-800" : "text-slate-400"}`}>{s.placement || "-"}</span></td>
+                                            <td className="px-2 py-3 text-center border-l border-slate-200">
                                                 {s.saving > 0 ? (
                                                     <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded font-bold text-sm">{formatMillion(s.saving)}</span>
                                                 ) : (
-                                                    <span className="text-slate-300">-</span>
+                                                    <span className="text-slate-400">-</span>
                                                 )}
                                             </td>
                                         </React.Fragment>
@@ -404,28 +411,28 @@ export default function PlacementTab() {
                             {yearList.map((year, idx) => {
                                 const allStat = allBUStats[year] || { search: 0, placement: 0, saving: 0 };
                                 return (
-                                    <tr key={year} className={`border-b border-slate-100 hover:bg-slate-50/70 ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/30"}`}>
+                                    <tr key={year} className={`border-b border-slate-200 hover:bg-slate-50/70 ${idx % 2 === 0 ? "bg-white" : "bg-slate-50/30"}`}>
                                         <td className="px-4 py-3 text-xs font-bold text-slate-600">{year}</td>
-                                        <td className="px-2 py-3 text-center border-l border-slate-100 text-indigo-700 font-medium">{allStat.search || "-"}</td>
-                                        <td className="px-2 py-3 text-center"><span className={`font-bold text-sm ${allStat.placement > 0 ? "text-slate-700" : "text-slate-300"}`}>{allStat.placement || "-"}</span></td>
-                                        <td className="px-2 py-3 text-center">
+                                        <td className="px-2 py-3 text-center border-l-2 border-indigo-200 text-indigo-700 font-medium">{allStat.search || "-"}</td>
+                                        <td className="px-2 py-3 text-center border-l border-slate-200"><span className={`font-bold text-sm ${allStat.placement > 0 ? "text-slate-700" : "text-slate-400"}`}>{allStat.placement || "-"}</span></td>
+                                        <td className="px-2 py-3 text-center border-l border-slate-200">
                                             {allStat.saving > 0 ? (
                                                 <span className="bg-purple-100 text-purple-600 px-2 py-0.5 rounded font-bold text-sm">{formatMillion(allStat.saving)}</span>
                                             ) : (
-                                                <span className="text-slate-300">-</span>
+                                                <span className="text-slate-400">-</span>
                                             )}
                                         </td>
                                         {buList.map(bu => {
                                             const s = (byYearBU[year] || {})[bu] || { search: 0, placement: 0, saving: 0 };
                                             return (
                                                 <React.Fragment key={bu}>
-                                                    <td className="px-2 py-3 text-center border-l border-slate-100 text-slate-500">{s.search || "-"}</td>
-                                                    <td className="px-2 py-3 text-center"><span className={`text-sm font-semibold ${s.placement > 0 ? "text-slate-700" : "text-slate-300"}`}>{s.placement || "-"}</span></td>
-                                                    <td className="px-2 py-3 text-center">
+                                                    <td className="px-2 py-3 text-center border-l-2 border-slate-200 text-slate-500">{s.search || "-"}</td>
+                                                    <td className="px-2 py-3 text-center border-l border-slate-200"><span className={`text-sm font-semibold ${s.placement > 0 ? "text-slate-700" : "text-slate-400"}`}>{s.placement || "-"}</span></td>
+                                                    <td className="px-2 py-3 text-center border-l border-slate-200">
                                                         {s.saving > 0 ? (
                                                             <span className="bg-purple-50 text-purple-600 px-2 py-0.5 rounded font-bold text-xs">{formatMillion(s.saving)}</span>
                                                         ) : (
-                                                            <span className="text-slate-300">-</span>
+                                                            <span className="text-slate-400">-</span>
                                                         )}
                                                     </td>
                                                 </React.Fragment>
@@ -439,8 +446,8 @@ export default function PlacementTab() {
                 </CardContent>
             </Card>
 
-            {/* Charts + Lists */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card className="border shadow-sm">
                     <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-slate-700">Placement by BU</CardTitle></CardHeader>
                     <CardContent>
@@ -474,42 +481,56 @@ export default function PlacementTab() {
                         ) : <div className="h-[240px] flex items-center justify-center text-slate-400 text-sm">No JG data</div>}
                     </CardContent>
                 </Card>
-
-                <div className="flex flex-col gap-4">
-                    <Card className="border shadow-sm flex-1">
-                        <CardHeader className="pb-2"><CardTitle className="text-sm font-bold text-slate-700">Placement Position</CardTitle></CardHeader>
-                        <CardContent className="p-0">
-                            <div className="divide-y max-h-[140px] overflow-y-auto">
-                                {filteredPlacements.slice(0, 10).map((p, i) => (
-                                    <div key={i} className="flex items-center gap-2 px-4 py-2 hover:bg-slate-50">
-                                        <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex items-center justify-center shrink-0">{i + 1}</span>
-                                        <span className="text-xs text-slate-700 truncate">{p.position}</span>
-                                    </div>
-                                ))}
-                                {filteredPlacements.length === 0 && <p className="text-xs text-slate-400 px-4 py-3">No data</p>}
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card className="border shadow-sm flex-1">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-sm font-bold text-slate-700">
-                                Executive Name <Badge variant="secondary" className="ml-2 text-[10px]">{totalPlacement}</Badge>
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-0">
-                            <div className="divide-y max-h-[140px] overflow-y-auto">
-                                {filteredPlacements.slice(0, 10).map((p, i) => (
-                                    <div key={i} className="flex items-center justify-between px-4 py-2 hover:bg-slate-50">
-                                        <span className="text-xs text-slate-700 truncate">{p.candidate_name}</span>
-                                        <Badge variant="outline" className="text-[10px] shrink-0 ml-2">{p.bu}</Badge>
-                                    </div>
-                                ))}
-                                {filteredPlacements.length === 0 && <p className="text-xs text-slate-400 px-4 py-3">No data</p>}
-                            </div>
-                        </CardContent>
-                    </Card>
-                </div>
             </div>
+
+            {/* Placement List — Position + Executive Name were the same row split */}
+            {/* across two cards; merged here with JR ID added, full width since it's long */}
+            <Card className="border shadow-sm overflow-hidden">
+                <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-bold text-slate-700">
+                        Placement List <Badge variant="secondary" className="ml-2 text-[10px]">{totalPlacement}</Badge>
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <div className="max-h-[400px] overflow-auto">
+                        <table className="w-full text-xs">
+                            <thead className="sticky top-0 z-10 bg-slate-100 text-slate-500">
+                                <tr>
+                                    <th className="text-left px-4 py-2 font-semibold w-10">#</th>
+                                    <th className="text-left px-4 py-2 font-semibold">JR ID</th>
+                                    <th className="text-left px-4 py-2 font-semibold">Position</th>
+                                    <th className="text-left px-4 py-2 font-semibold">Executive Name</th>
+                                    <th className="text-left px-4 py-2 font-semibold">BU</th>
+                                    <th className="text-left px-4 py-2 font-semibold">Hiring Date</th>
+                                    <th className="text-left px-4 py-2 font-semibold">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y">
+                                {filteredPlacements.map((p, i) => (
+                                    <tr key={`${p.jr_id}-${i}`} className="hover:bg-slate-50">
+                                        <td className="px-4 py-2 text-slate-400">
+                                            <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold flex items-center justify-center">{i + 1}</span>
+                                        </td>
+                                        <td className="px-4 py-2 text-slate-500 font-mono">{p.jr_id || "-"}</td>
+                                        <td className="px-4 py-2 text-slate-700">{p.position}</td>
+                                        <td className="px-4 py-2 text-slate-700 font-medium">{p.candidate_name}</td>
+                                        <td className="px-4 py-2"><Badge variant="outline" className="text-[10px]">{p.bu}</Badge></td>
+                                        <td className="px-4 py-2 text-slate-500">{formatHireDate(p.hire_date)}</td>
+                                        <td className="px-4 py-2">
+                                            <Badge variant={p.hiring_status === "Resigned" ? "destructive" : "secondary"} className="text-[10px]">
+                                                {p.hiring_status || "-"}
+                                            </Badge>
+                                        </td>
+                                    </tr>
+                                ))}
+                                {filteredPlacements.length === 0 && (
+                                    <tr><td colSpan={7} className="text-center text-slate-400 px-4 py-6">No data</td></tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     );
 }

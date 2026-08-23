@@ -4,6 +4,7 @@ import PptxGenJS from "pptxgenjs";
 import fs from "fs";
 import path from "path";
 import sharp from "sharp";
+import JSZip from "jszip";
 import { adminAuthClient } from "@/lib/supabase/admin";
 
 // ── Palette ───────────────────────────────────────────────────────────────────
@@ -34,6 +35,7 @@ const MARGIN  = 0.20;
 // ── Types ─────────────────────────────────────────────────────────────────────
 type PlacementRec = {
     jr_id: string;
+    candidate_id: string;
     position: string;
     bu: string;
     sub_bu: string;
@@ -105,6 +107,46 @@ function fmtDate(dateStr: string | null): string {
 function fmtSalary(val: number): string {
     if (!val) return "-";
     return val.toLocaleString();
+}
+
+// pptxgenjs only exposes a single uniform `dataLabelColor` for a whole chart,
+// but it already emits one <c:dLbl> per data point internally — so the pie
+// slice labels come out black regardless of `chartColors`, which is why the
+// PPTX text doesn't match the dashboard (where each label inherits its
+// slice's fill). Post-process the generated chart XML to recolor each
+// point's label text to match its own slice.
+//
+// Read each slice's ACTUAL rendered fill from its <c:dPt> rather than
+// recomputing from the `chartColors` array we passed in: when a chart has
+// more data points than colors, pptxgenjs picks a RANDOM palette color for
+// the overflow slices (see its chart-gen source, the `_dataIndex + 1 >
+// chartColors.length` branch) — so the only reliable source of truth for
+// "what color is this slice" is the XML pptxgenjs already wrote.
+function recolorDoughnutLabels(xml: string): string {
+    const dPtColors = new Map<number, string>();
+    const dPtRe = /<c:dPt>\s*<c:idx val="(\d+)"\/>[\s\S]*?srgbClr val="([0-9A-Fa-f]{6})"/g;
+    let dm: RegExpExecArray | null;
+    while ((dm = dPtRe.exec(xml)) !== null) dPtColors.set(parseInt(dm[1], 10), dm[2]);
+    if (dPtColors.size === 0) return xml;
+
+    return xml.replace(
+        /<c:dLbl>\s*<c:idx val="(\d+)"\/>([\s\S]*?)<\/c:dLbl>/g,
+        (_whole, idxStr: string, inner: string) => {
+            const color = dPtColors.get(parseInt(idxStr, 10));
+            const recolored = color ? inner.replace(/srgbClr val="000000"/, `srgbClr val="${color}"`) : inner;
+            return `<c:dLbl><c:idx val="${idxStr}"/>${recolored}</c:dLbl>`;
+        }
+    );
+}
+
+async function recolorChartLabelsInPptx(buffer: Buffer): Promise<Buffer> {
+    const zip = await JSZip.loadAsync(buffer);
+    const chartFiles = Object.keys(zip.files).filter(f => /^ppt\/charts\/chart\d+\.xml$/.test(f));
+    for (const file of chartFiles) {
+        const xml = await zip.file(file)!.async("string");
+        zip.file(file, recolorDoughnutLabels(xml));
+    }
+    return zip.generateAsync({ type: "nodebuffer" });
 }
 
 // ── Slide 1: Overview ─────────────────────────────────────────────────────────
@@ -619,14 +661,30 @@ export async function generatePlacementReportPPTX(params: {
     const [erRes, jrRes] = await Promise.all([
         supabase
             .from("employment_record")
-            .select("jr_id, position, bu, sub_bu, candidate_name, hire_date, hiring_status, outsource_fee_20_percent, job_grade, annual_salary"),
+            .select("jr_id, candidate_id, position, bu, sub_bu, candidate_name, hire_date, hiring_status, outsource_fee_20_percent, job_grade, annual_salary"),
         supabase
             .from("job_requisitions")
             .select("jr_id, bu, sub_bu, request_date"),
     ]);
 
-    const rawPlacements: PlacementRec[] = (erRes.data || []).map((r: any) => ({
+    const rawErData = erRes.data || [];
+
+    // Live-join candidate_name from Candidate Profile — same fix as
+    // getEmploymentRecords()/getRawPlacementData(); keeps this export in sync
+    // with the dashboard tab and with requisitions/placements.
+    const candidateIds = [...new Set(rawErData.map((r: any) => r.candidate_id).filter(Boolean))];
+    const nameByCandidateId = new Map<string, string>();
+    if (candidateIds.length > 0) {
+        const { data: profiles } = await supabase
+            .from("Candidate Profile")
+            .select("candidate_id, name")
+            .in("candidate_id", candidateIds);
+        (profiles || []).forEach((p: any) => { if (p.name) nameByCandidateId.set(p.candidate_id, p.name); });
+    }
+
+    const rawPlacements: PlacementRec[] = rawErData.map((r: any) => ({
         ...r,
+        candidate_name: (r.candidate_id && nameByCandidateId.get(r.candidate_id)) || r.candidate_name,
         outsource_fee_20_percent: r.outsource_fee_20_percent || 0,
         annual_salary: r.annual_salary || 0,
     }));
@@ -658,7 +716,9 @@ export async function generatePlacementReportPPTX(params: {
     });
     addCandidateListSlides(pptx, filteredPlacements);
 
-    const base64 = await pptx.write({ outputType: "base64" }) as string;
+    const rawBuffer = await pptx.write({ outputType: "nodebuffer" }) as Buffer;
+    const recoloredBuffer = await recolorChartLabelsInPptx(rawBuffer);
+    const base64 = recoloredBuffer.toString("base64");
     const yearStr = selectedYear.length > 0 ? `_${selectedYear.join("-")}` : "";
     const buStr   = selectedBU.length   > 0 ? `_${selectedBU.join("-").replace(/\s+/g, "")}` : "";
     const filename = `Placement_Report${yearStr}${buStr}_${new Date().toISOString().slice(0, 10)}.pptx`;

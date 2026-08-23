@@ -15,6 +15,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList
 } from 'recharts';
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
+import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
 import { JRNoteDialog } from "@/components/jr-note-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -37,6 +38,28 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+
+// job_requisitions.request_date has no fixed format in the DB (ISO, M/D/YYYY,
+// and ISO-with-time all coexist) — Date.parse handles ISO fine but is
+// unreliable across browsers for ambiguous strings, so slash-separated dates
+// are parsed explicitly as M/D/YYYY (the dominant unambiguous convention
+// among existing rows). Returns null for anything unparseable.
+function parseFlexibleDate(dateStr: string | null | undefined): number | null {
+    if (!dateStr) return null;
+    const isoMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(dateStr);
+    if (isoMatch) {
+        const t = new Date(dateStr).getTime();
+        return isNaN(t) ? null : t;
+    }
+    const slashMatch = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(dateStr);
+    if (slashMatch) {
+        const [, m, d, y] = slashMatch;
+        const t = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10)).getTime();
+        return isNaN(t) ? null : t;
+    }
+    const t = new Date(dateStr).getTime();
+    return isNaN(t) ? null : t;
+}
 
 const IS_ACTIVE_OPTIONS: Array<'Active' | 'Inactive' | 'Closed'> = ['Active', 'Inactive', 'Closed'];
 
@@ -304,6 +327,19 @@ export default function RequisitionsPage() {
                 if (!isNaN(numA) && !isNaN(numB)) {
                     return direction === 'asc' ? numA - numB : numB - numA;
                 }
+            }
+
+            // job_requisitions.request_date is stored as free text with mixed
+            // formats (YYYY-MM-DD, M/D/YYYY, ISO timestamps) — a plain string
+            // compare sorts them lexicographically, not chronologically. Parse
+            // to a real timestamp instead; unparseable/empty dates sort last.
+            if (key === 'opened_date') {
+                const tsA = parseFlexibleDate(valA);
+                const tsB = parseFlexibleDate(valB);
+                if (tsA === null && tsB === null) return 0;
+                if (tsA === null) return 1;
+                if (tsB === null) return -1;
+                return direction === 'asc' ? tsA - tsB : tsB - tsA;
             }
 
             if (typeof valA === 'string') valA = valA.toLowerCase();
@@ -867,6 +903,14 @@ export default function RequisitionsPage() {
                                 className="h-10 min-w-0 w-full"
                             />
                         </div>
+                        <ActiveFilterChips groups={[
+                            { label: "Position", values: filterPosition, onRemove: v => toggle(filterPosition, v, setFilterPosition) },
+                            { label: "Business Unit", values: filterBu, onRemove: v => toggle(filterBu, v, setFilterBu) },
+                            { label: "Sub BU", values: filterSubBu, onRemove: v => toggle(filterSubBu, v, setFilterSubBu) },
+                            { label: "Created By", values: filterCreatedBy, onRemove: v => toggle(filterCreatedBy, v, setFilterCreatedBy) },
+                            { label: "JR Type", values: filterJrType, onRemove: v => toggle(filterJrType, v, setFilterJrType) },
+                            { label: "Status", values: filterIsActive, onRemove: v => toggle(filterIsActive, v, setFilterIsActive) },
+                        ]} />
                         {/* Clear Filters Button */}
                         {(filterPosition.length > 0 || filterBu.length > 0 || filterSubBu.length > 0 || filterJrType.length > 0 || filterIsActive.length > 0 || filterCreatedBy.length > 0 || fromMonth || toMonth) && (
                             <div className="flex justify-end">
