@@ -326,12 +326,12 @@ export default function ResignationsPage() {
             <Card className="border-none shadow-2xl shadow-slate-200/50 rounded-[2.5rem] overflow-hidden bg-white">
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
-                        <Table>
+                        <Table className="min-w-[1400px]">
                             <TableHeader className="bg-slate-50/50">
                                 <TableRow className="hover:bg-transparent border-slate-100">
                                     <TableHead className="font-black text-slate-600 uppercase text-xs tracking-widest py-6 pl-8">Name & Position</TableHead>
-                                    <TableHead className="font-black text-slate-600 uppercase text-xs tracking-widest py-6">Business Unit</TableHead>
-                                    <TableHead className="font-black text-slate-600 uppercase text-xs tracking-widest py-6 text-indigo-600">YoS</TableHead>
+                                    <TableHead className="font-black text-slate-600 uppercase text-xs tracking-widest py-6 whitespace-nowrap">Business Unit</TableHead>
+                                    <TableHead className="font-black text-slate-600 uppercase text-xs tracking-widest py-6 text-indigo-600 whitespace-nowrap">YoS</TableHead>
                                     <TableHead className="font-black text-slate-600 uppercase text-xs tracking-widest py-6">Resigned Date</TableHead>
                                     <TableHead className="font-black text-slate-600 uppercase text-xs tracking-widest py-6">Reason</TableHead>
                                     <TableHead className="font-black text-slate-600 uppercase text-xs tracking-widest py-6">Company Destination</TableHead>
@@ -361,13 +361,13 @@ export default function ResignationsPage() {
                                                 </div>
                                             </div>
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="whitespace-nowrap">
                                             <div className="flex flex-col">
                                                 <span className="font-bold text-slate-700 text-sm uppercase">{r.bu || 'N/A'}</span>
                                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">{r.sub_bu}</span>
                                             </div>
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="whitespace-nowrap">
                                             {r.hire_date && r.resign_date ? (
                                                 <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100 uppercase">
                                                     {calculateYoS(r.hire_date, r.resign_date)}

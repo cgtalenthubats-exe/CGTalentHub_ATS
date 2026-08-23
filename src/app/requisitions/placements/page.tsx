@@ -40,7 +40,7 @@ import { Badge } from "@/components/ui/badge";
 import { EditPlacementDialog } from "@/components/edit-placement-dialog";
 import { Pencil } from "lucide-react";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
-import { formatDateForDisplay } from "@/lib/date-utils";
+import { formatDateForDisplay, getEffectiveAge } from "@/lib/date-utils";
 import Link from "next/link";
 import { MonthRangePicker } from "@/components/month-range-picker";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
@@ -256,12 +256,12 @@ export default function PlacementsPage() {
             <Card className="border-none shadow-2xl shadow-slate-200/50 rounded-[2.5rem] overflow-hidden bg-white">
                 <CardContent className="p-0">
                     <div className="overflow-x-auto">
-                        <Table>
+                        <Table className="min-w-[1280px]">
                             <TableHeader className="bg-slate-50/50">
                                 <TableRow className="hover:bg-transparent border-slate-100">
                                     <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6 pl-8">JR ID & Position</TableHead>
                                     <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6">Candidate Name</TableHead>
-                                    <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6">DOB | Age</TableHead>
+                                    <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6 whitespace-nowrap">DOB | Age</TableHead>
                                     <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6">Business Unit</TableHead>
                                     <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6">Salary Info</TableHead>
                                     <TableHead className="font-black text-slate-600 uppercase text-[10px] tracking-widest py-6">Fee (20%)</TableHead>
@@ -300,13 +300,13 @@ export default function PlacementsPage() {
                                                 </div>
                                             </div>
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell className="whitespace-nowrap">
                                             <div className="flex flex-col">
                                                 <span className="text-xs font-bold text-slate-700">
                                                     {formatDateForDisplay(r.date_of_birth)}
                                                 </span>
                                                 <span className="text-xs font-bold text-black">
-                                                    {r.date_of_birth ? `${new Date().getFullYear() - new Date(r.date_of_birth).getFullYear()} yrs` : ''}
+                                                    {r.date_of_birth ? `${getEffectiveAge(r.date_of_birth, null)} yrs` : ''}
                                                 </span>
                                             </div>
                                         </TableCell>

@@ -21,7 +21,11 @@ export async function getEmploymentRecords(status?: 'Active' | 'Resigned') {
         return [];
     }
 
-    // Manual fetch of DOBs for candidates
+    // Live-join identity fields from Candidate Profile — name/LinkedIn/DOB should always
+    // reflect the current profile, not whatever was captured when this row was written.
+    // (Position, BU, salary, etc. stay as stored — those are historical facts about this
+    // specific placement, not identity data, and must not drift if the candidate's current
+    // role changes later.)
     const records = data || [];
     if (records.length > 0) {
         const candidateIds = records.map((r: any) => r.candidate_id).filter(Boolean);
@@ -29,16 +33,16 @@ export async function getEmploymentRecords(status?: 'Active' | 'Resigned') {
         if (candidateIds.length > 0) {
             const { data: profiles, error: profileError } = await supabase
                 .from('Candidate Profile')
-                .select('candidate_id, date_of_birth')
+                .select('candidate_id, date_of_birth, name, linkedin')
                 .in('candidate_id', candidateIds);
 
             if (!profileError && profiles) {
-                const dobMap = new Map(profiles.map((p: any) => [p.candidate_id, p.date_of_birth]));
-                // Merge DOB into records
+                const profileMap = new Map(profiles.map((p: any) => [p.candidate_id, p]));
                 records.forEach((r: any) => {
-                    if (r.candidate_id) {
-                        r.date_of_birth = dobMap.get(r.candidate_id) || null;
-                    }
+                    const profile = r.candidate_id ? profileMap.get(r.candidate_id) : null;
+                    r.date_of_birth = profile?.date_of_birth || null;
+                    if (profile?.name) r.candidate_name = profile.name;
+                    if (profile?.linkedin) r.linkedIn = profile.linkedin;
                 });
             }
         }

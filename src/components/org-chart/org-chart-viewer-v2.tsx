@@ -1191,6 +1191,7 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
                 chartCompanyName={companyName}
                 onConfirmMatch={(id) => handleConfirmVerification(id, 'TRUE')}
                 onFlagError={(id) => handleConfirmVerification(id, 'NOT_MATCH')}
+                onViewProfile={(candidateId) => setProfileSheetCandidateId(candidateId)}
                 isProcessing={isVerifying}
             />
             <CandidateProfileSheet

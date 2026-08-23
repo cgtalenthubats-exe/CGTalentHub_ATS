@@ -4,9 +4,9 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Badge } from "@/components/ui/badge";
 import {
     Loader2, Mail, Phone, MapPin,
-    Globe, Briefcase, GraduationCap,
-    FileText, Calendar, ExternalLink, Download,
-    UserCog, Edit3, AlertCircle, Trash2, CheckSquare,
+    Globe, GraduationCap,
+    Calendar, ExternalLink, Download,
+    UserCog, AlertCircle, Trash2,
     ShieldCheck, User, Building2
 } from "lucide-react";
 import {
@@ -17,13 +17,14 @@ import {
 } from "@/components/experience-dialog";
 import { CandidateEditSheet } from "./candidate-edit-sheet";
 import { RefreshProfileButton } from "@/components/candidate-client-actions";
-import { StatusSelect } from "@/components/ui/status-select";
+import { QuickEditBar } from "@/components/candidate-quick-edit-bar";
+import { FinancialEditSection } from "@/components/candidate-financial-edit-section";
 import { getCandidateProfileDetails, getReferenceChecks, type ReferenceCheck } from "@/app/actions/jr-candidate-logs";
 import { CandidateAvatar } from "@/components/candidate-avatar";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn, formatNumberWithCommas } from "@/lib/utils";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import { formatMonthYear } from "@/lib/date-utils";
 import { HistoryTimeline } from "@/components/history/HistoryTimeline";
 import { History as HistoryIcon } from "lucide-react";
@@ -507,80 +508,7 @@ export function CandidateProfileSheet({ candidateId, open, onOpenChange }: Candi
                                                 </div>
                                             )}
                                             {/* Compensation Grid */}
-                                            <div className="space-y-4">
-                                                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-2">
-                                                    Financial Profile & Benefits
-                                                </h3>
-                                                <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100/50">
-                                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5 text-sm">
-                                                        <div className="space-y-1">
-                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Salary (฿/M)</p>
-                                                            <p className="font-bold text-base text-emerald-600">
-                                                                {candidate?.gross_salary_base_b_mth ? `฿${formatNumberWithCommas(candidate.gross_salary_base_b_mth)}` : "-"}
-                                                            </p>
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Bonus (m)</p>
-                                                            <p className="font-bold text-slate-700">{candidate?.bonus_mth ? `${candidate.bonus_mth} m` : "-"}</p>
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Other Inc.</p>
-                                                            <p className="font-bold text-slate-700 truncate" title={candidate?.other_income}>{candidate?.other_income || "-"}</p>
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Car (฿/M)</p>
-                                                            <p className="font-bold text-slate-700">{candidate?.car_allowance_b_mth ? `฿${formatNumberWithCommas(candidate.car_allowance_b_mth)}` : "-"}</p>
-                                                        </div>
-
-                                                        <div className="space-y-1">
-                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Gas (฿/M)</p>
-                                                            <p className="font-bold text-slate-700">{candidate?.gasoline_b_mth ? `฿${formatNumberWithCommas(candidate.gasoline_b_mth)}` : "-"}</p>
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Phone (฿/M)</p>
-                                                            <p className="font-bold text-slate-700">{candidate?.phone_b_mth ? `฿${formatNumberWithCommas(candidate.phone_b_mth)}` : "-"}</p>
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">PFund (%)</p>
-                                                            <p className="font-bold text-slate-700">{candidate?.provident_fund_pct ? `${candidate.provident_fund_pct}%` : "-"}</p>
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Insurance</p>
-                                                            <div className="flex flex-wrap gap-1">
-                                                                {candidate?.insurance ? (
-                                                                    candidate.insurance.split(',').map((item: string, i: number) => (
-                                                                        <span key={i} className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-bold border border-indigo-100 uppercase">
-                                                                            {item.trim()}
-                                                                        </span>
-                                                                    ))
-                                                                ) : "-"}
-                                                            </div>
-                                                        </div>
-
-                                                        <div className="space-y-1">
-                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Med (฿/Yr)</p>
-                                                            <p className="font-bold text-slate-700">{candidate?.medical_b_annual ? `฿${formatNumberWithCommas(candidate.medical_b_annual)}` : "-"}</p>
-                                                        </div>
-                                                        <div className="space-y-1">
-                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Med (฿/M)</p>
-                                                            <p className="font-bold text-slate-700">{candidate?.medical_b_mth ? `฿${formatNumberWithCommas(candidate.medical_b_mth)}` : "-"}</p>
-                                                        </div>
-                                                        <div className="space-y-1 md:col-span-2">
-                                                            <p className="text-[9px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Housing / Expat</p>
-                                                            <p className="font-bold text-slate-700 truncate" title={candidate?.housing_for_expat_b_mth}>{candidate?.housing_for_expat_b_mth || "-"}</p>
-                                                        </div>
-                                                    </div>
-
-                                                    {candidate?.others_benefit && (
-                                                        <div className="mt-6 pt-5 border-t border-slate-200/50">
-                                                            <p className="text-[9px] uppercase font-black text-slate-400 tracking-widest block mb-2">Additional Benefits Pool</p>
-                                                            <p className="text-xs font-medium text-slate-600 leading-relaxed italic">
-                                                                &ldquo;{candidate.others_benefit}&rdquo;
-                                                            </p>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
+                                            <FinancialEditSection candidate={candidate} onSave={patchCandidate} />
 
                                             {/* Danger Zone */}
                                             <div className="space-y-3">
@@ -706,97 +634,3 @@ export function CandidateProfileSheet({ candidateId, open, onOpenChange }: Candi
     );
 }
 
-const GENDER_OPTIONS = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
-
-function QuickEditBar({ candidate, onSave }: { candidate: any; onSave: (fields: Record<string, any>) => Promise<void> }) {
-    const [linkedin, setLinkedin] = useState(candidate?.linkedin || '');
-    const [age, setAge] = useState(String(candidate?.age || ''));
-    const [gender, setGender] = useState(candidate?.gender || '');
-    const [statuses, setStatuses] = useState<string[]>(candidate?.candidate_status || []);
-    const [saving, setSaving] = useState<string | null>(null);
-
-    useEffect(() => {
-        setLinkedin(candidate?.linkedin || '');
-        setAge(String(candidate?.age || ''));
-        setGender(candidate?.gender || '');
-        setStatuses(candidate?.candidate_status || []);
-    }, [candidate]);
-
-    const save = async (field: string, value: any) => {
-        setSaving(field);
-        await onSave({ [field]: value });
-        setSaving(null);
-    };
-
-    return (
-        <div className="bg-gradient-to-r from-indigo-50/60 to-slate-50/60 rounded-2xl p-5 ring-1 ring-indigo-100/60 space-y-4">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-400 flex items-center gap-2">
-                <Edit3 className="h-3 w-3" /> Quick Edit
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* LinkedIn */}
-                <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">LinkedIn URL</label>
-                    <div className="flex gap-2">
-                        <input
-                            value={linkedin}
-                            onChange={e => setLinkedin(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') save('linkedin', linkedin); }}
-                            placeholder="linkedin.com/in/..."
-                            className="flex-1 h-8 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                        />
-                        <Button size="sm" variant="outline" className="h-8 px-3 text-xs font-black"
-                            disabled={saving === 'linkedin'}
-                            onClick={() => save('linkedin', linkedin)}>
-                            {saving === 'linkedin' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Save'}
-                        </Button>
-                    </div>
-                </div>
-                {/* Gender */}
-                <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Gender</label>
-                    <select
-                        value={gender}
-                        onChange={e => { setGender(e.target.value); save('gender', e.target.value); }}
-                        className="w-full h-8 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                    >
-                        <option value="">— Select —</option>
-                        {GENDER_OPTIONS.map(g => <option key={g} value={g}>{g}</option>)}
-                    </select>
-                </div>
-                {/* Age */}
-                <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Age (manual override)</label>
-                    <div className="flex gap-2">
-                        <input
-                            type="number"
-                            value={age}
-                            onChange={e => setAge(e.target.value)}
-                            onKeyDown={e => { if (e.key === 'Enter') save('age', parseInt(age) || null); }}
-                            placeholder="e.g. 45"
-                            className="flex-1 h-8 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                        />
-                        <Button size="sm" variant="outline" className="h-8 px-3 text-xs font-black"
-                            disabled={saving === 'age'}
-                            onClick={() => save('age', parseInt(age) || null)}>
-                            {saving === 'age' ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Save'}
-                        </Button>
-                    </div>
-                </div>
-                {/* Remark / candidate_status */}
-                <div className="space-y-1">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Remark (Status Tags)</label>
-                    <div className="flex items-center gap-2">
-                        <StatusSelect
-                            value={statuses}
-                            onChange={(next) => { setStatuses(next); save('candidate_status', next); }}
-                            className="h-8 text-xs bg-white"
-                            disabled={saving === 'candidate_status'}
-                        />
-                        {saving === 'candidate_status' && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400 flex-shrink-0" />}
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-}

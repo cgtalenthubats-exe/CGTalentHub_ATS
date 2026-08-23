@@ -1793,6 +1793,7 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                 chartCompanyName={chartCompanyName}
                 onConfirmMatch={(id) => handleConfirmVerification(id, 'TRUE')}
                 onFlagError={(id) => handleConfirmVerification(id, 'NOT_MATCH')}
+                onViewProfile={(candidateId) => setProfileSheetCandidateId(candidateId)}
                 isProcessing={isVerifyingNode}
             />
 

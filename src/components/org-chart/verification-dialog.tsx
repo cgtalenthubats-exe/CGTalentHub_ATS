@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { AlertTriangle, CheckCircle2, XCircle, Info, Building2, Briefcase } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, XCircle, Info, Building2, Briefcase, UserCog } from 'lucide-react'
 import { cn } from "@/lib/utils"
 
 type VerificationDialogProps = {
@@ -21,6 +21,7 @@ type VerificationDialogProps = {
     chartCompanyName: string
     onConfirmMatch: (nodeId: string) => void
     onFlagError: (nodeId: string) => void
+    onViewProfile?: (candidateId: string) => void
     isProcessing?: boolean
 }
 
@@ -31,6 +32,7 @@ export function VerificationDialog({
     chartCompanyName,
     onConfirmMatch,
     onFlagError,
+    onViewProfile,
     isProcessing = false
 }: VerificationDialogProps) {
     if (!node) return null;
@@ -43,8 +45,8 @@ export function VerificationDialog({
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="max-w-md">
-                <DialogHeader>
+            <DialogContent className="max-w-xl grid-cols-1">
+                <DialogHeader className="min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                         <div className={cn(
                             "p-2 rounded-full",
@@ -55,13 +57,13 @@ export function VerificationDialog({
                         <DialogTitle className="text-xl">Verify Candidate Info</DialogTitle>
                     </div>
                     <DialogDescription className="text-sm font-medium">
-                        {isCompanyMismatch 
+                        {isCompanyMismatch
                             ? "We detected that this candidate might be working at a different company."
                             : "The candidate's current position doesn't perfectly match the OrgChart title."}
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4 py-4">
+                <div className="space-y-4 py-4 min-w-0">
                     {/* Comparison Table */}
                     <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50/50">
                         <div className="grid grid-cols-2 divide-x divide-slate-200 border-b border-slate-200 bg-slate-100/50">
@@ -71,7 +73,7 @@ export function VerificationDialog({
 
                         {/* Company Row */}
                         <div className="grid grid-cols-2 divide-x divide-slate-200 border-b border-slate-200">
-                            <div className="p-3 flex flex-col gap-1">
+                            <div className="min-w-0 p-3 flex flex-col gap-1">
                                 <span className="text-[10px] text-slate-400 flex items-center gap-1 uppercase font-bold">
                                     <Building2 size={10} /> Company
                                 </span>
@@ -80,13 +82,13 @@ export function VerificationDialog({
                                 </span>
                             </div>
                             <div className={cn(
-                                "p-3 flex flex-col gap-1",
+                                "min-w-0 p-3 flex flex-col gap-1",
                                 isCompanyMismatch ? "bg-rose-50/50" : ""
                             )}>
                                 <span className="text-[10px] text-slate-400 flex items-center gap-1 uppercase font-bold">
                                     <Building2 size={10} /> Candidate&apos;s Current
                                 </span>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
                                     <span className={cn(
                                         "text-sm font-semibold truncate",
                                         isCompanyMismatch ? "text-rose-600" : "text-emerald-600"
@@ -100,7 +102,7 @@ export function VerificationDialog({
 
                         {/* Position Row */}
                         <div className="grid grid-cols-2 divide-x divide-slate-200">
-                            <div className="p-3 flex flex-col gap-1">
+                            <div className="min-w-0 p-3 flex flex-col gap-1">
                                 <span className="text-[10px] text-slate-400 flex items-center gap-1 uppercase font-bold">
                                     <Briefcase size={10} /> Position / Title
                                 </span>
@@ -109,13 +111,13 @@ export function VerificationDialog({
                                 </span>
                             </div>
                             <div className={cn(
-                                "p-3 flex flex-col gap-1",
+                                "min-w-0 p-3 flex flex-col gap-1",
                                 isPositionMismatch ? "bg-amber-50/50" : ""
                             )}>
                                 <span className="text-[10px] text-slate-400 flex items-center gap-1 uppercase font-bold">
                                     <Briefcase size={10} /> ATS Experience
                                 </span>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
                                     <span className={cn(
                                         "text-sm font-semibold truncate",
                                         isPositionMismatch ? "text-amber-600" : "text-emerald-600"
@@ -157,18 +159,28 @@ export function VerificationDialog({
                     </div>
                 </div>
 
-                <DialogFooter className="flex flex-col sm:flex-row gap-2 sm:gap-0">
-                    <Button 
-                        variant="ghost" 
-                        onClick={onClose} 
+                <DialogFooter className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:gap-y-2 sm:gap-x-0">
+                    <Button
+                        variant="ghost"
+                        onClick={onClose}
                         className="sm:mr-auto text-slate-500"
                         disabled={isProcessing}
                     >
                         Back
                     </Button>
-                    <div className="flex gap-2">
-                        <Button 
-                            variant="outline" 
+                    <div className="flex flex-wrap justify-end gap-2">
+                        {onViewProfile && node.candidate_id && (
+                            <Button
+                                variant="outline"
+                                className="gap-1.5 text-slate-600"
+                                onClick={() => onViewProfile(node.candidate_id)}
+                                disabled={isProcessing}
+                            >
+                                <UserCog size={14} /> View Full Profile
+                            </Button>
+                        )}
+                        <Button
+                            variant="outline"
                             className="border-rose-500 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
                             onClick={() => onFlagError(node.node_id)}
                             disabled={isProcessing}
