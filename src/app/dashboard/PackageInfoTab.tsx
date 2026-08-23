@@ -9,7 +9,7 @@ import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, RotateCcw, RefreshCw, CheckCircle2, Minus, Search, Building2, Briefcase, Factory, Info } from "lucide-react";
+import { Loader2, RotateCcw, RefreshCw, CheckCircle2, Minus, Search, Building2, Briefcase, Factory, Info, Star, TrendingUp } from "lucide-react";
 import { formatNumberWithCommas } from "@/lib/utils";
 
 // ---- Benefit row definitions ----
@@ -55,6 +55,9 @@ function SalaryDotChart({ companies, dataByCompany }: {
                             </div>
                             <div className="text-xs font-bold text-indigo-700 mt-1">
                                 {formatK(dataByCompany[c]?.avg ?? null)}
+                            </div>
+                            <div className="text-[9px] font-semibold text-slate-400 mt-0.5">
+                                {dataByCompany[c]?.salaries.length ?? 0} candidates
                             </div>
                         </div>
                     ))}
@@ -115,6 +118,7 @@ export default function PackageInfoTab() {
     const [selJobFunction, setSelJobFunction] = useState<string[]>([]);
     const [selCompany, setSelCompany] = useState<string[]>([]);
     const [selPosition, setSelPosition] = useState<string[]>([]);
+    const [selRating, setSelRating] = useState<string[]>([]);
 
     // Detail Dialog State
     const [detailDialog, setDetailDialog] = useState<{ open: boolean; title: string; content: string }>({
@@ -140,7 +144,8 @@ export default function PackageInfoTab() {
         const jobFunctions = Array.from(new Set(rawData.map(c => c.job_function).filter(v => v && v !== 'NA' && v !== 'Not found exp'))).sort() as string[];
         const companies = Array.from(new Set(rawData.map(c => c.company).filter(Boolean))).sort() as string[];
         const positions = Array.from(new Set(rawData.map(c => c.position).filter(Boolean))).sort() as string[];
-        return { industries, companyGroups, jobGroupings, jobFunctions, companies, positions };
+        const ratings = Array.from(new Set(rawData.map(c => c.rating).filter(Boolean))).sort() as string[];
+        return { industries, companyGroups, jobGroupings, jobFunctions, companies, positions, ratings };
     }, [rawData]);
 
     // Filtered candidates
@@ -152,8 +157,9 @@ export default function PackageInfoTab() {
         if (selJobFunction.length > 0) tempFiltered = tempFiltered.filter(c => selJobFunction.includes(c.job_function || ''));
         if (selCompany.length > 0) tempFiltered = tempFiltered.filter(c => selCompany.includes(c.company || ''));
         if (selPosition.length > 0) tempFiltered = tempFiltered.filter(c => selPosition.includes(c.position || ''));
+        if (selRating.length > 0) tempFiltered = tempFiltered.filter(c => selRating.includes(c.rating || ''));
         return tempFiltered;
-    }, [rawData, selIndustry, selGroup, selJobGrouping, selJobFunction, selCompany, selPosition]);
+    }, [rawData, selIndustry, selGroup, selJobGrouping, selJobFunction, selCompany, selPosition, selRating]);
 
     // Interdependent Filter Options Logic
     // For each filter, options = all unique values of that field from candidates filtering by ALL OTHER filters.
@@ -165,8 +171,9 @@ export default function PackageInfoTab() {
         if (selJobFunction.length > 0) temp = temp.filter(c => selJobFunction.includes(c.job_function || ''));
         if (selCompany.length > 0) temp = temp.filter(c => selCompany.includes(c.company || ''));
         if (selPosition.length > 0) temp = temp.filter(c => selPosition.includes(c.position || ''));
+        if (selRating.length > 0) temp = temp.filter(c => selRating.includes(c.rating || ''));
         return Array.from(new Set(temp.map(c => c.company_industry).filter(Boolean))).sort() as string[];
-    }, [rawData, selGroup, selJobGrouping, selJobFunction, selCompany, selPosition]);
+    }, [rawData, selGroup, selJobGrouping, selJobFunction, selCompany, selPosition, selRating]);
 
     const groupOptions = useMemo(() => {
         let temp = rawData;
@@ -175,8 +182,9 @@ export default function PackageInfoTab() {
         if (selJobFunction.length > 0) temp = temp.filter(c => selJobFunction.includes(c.job_function || ''));
         if (selCompany.length > 0) temp = temp.filter(c => selCompany.includes(c.company || ''));
         if (selPosition.length > 0) temp = temp.filter(c => selPosition.includes(c.position || ''));
+        if (selRating.length > 0) temp = temp.filter(c => selRating.includes(c.rating || ''));
         return Array.from(new Set(temp.map(c => c.company_group).filter(Boolean))).sort() as string[];
-    }, [rawData, selIndustry, selJobGrouping, selJobFunction, selCompany, selPosition]);
+    }, [rawData, selIndustry, selJobGrouping, selJobFunction, selCompany, selPosition, selRating]);
 
     const jobGroupingOptions = useMemo(() => {
         let temp = rawData;
@@ -185,8 +193,9 @@ export default function PackageInfoTab() {
         if (selJobFunction.length > 0) temp = temp.filter(c => selJobFunction.includes(c.job_function || ''));
         if (selCompany.length > 0) temp = temp.filter(c => selCompany.includes(c.company || ''));
         if (selPosition.length > 0) temp = temp.filter(c => selPosition.includes(c.position || ''));
+        if (selRating.length > 0) temp = temp.filter(c => selRating.includes(c.rating || ''));
         return Array.from(new Set(temp.map(c => c.job_grouping).filter(v => v && v !== 'NA' && v !== 'Not found exp'))).sort() as string[];
-    }, [rawData, selIndustry, selGroup, selJobFunction, selCompany, selPosition]);
+    }, [rawData, selIndustry, selGroup, selJobFunction, selCompany, selPosition, selRating]);
 
     const jobFunctionOptions = useMemo(() => {
         let temp = rawData;
@@ -195,8 +204,9 @@ export default function PackageInfoTab() {
         if (selJobGrouping.length > 0) temp = temp.filter(c => selJobGrouping.includes(c.job_grouping || ''));
         if (selCompany.length > 0) temp = temp.filter(c => selCompany.includes(c.company || ''));
         if (selPosition.length > 0) temp = temp.filter(c => selPosition.includes(c.position || ''));
+        if (selRating.length > 0) temp = temp.filter(c => selRating.includes(c.rating || ''));
         return Array.from(new Set(temp.map(c => c.job_function).filter(v => v && v !== 'NA' && v !== 'Not found exp'))).sort() as string[];
-    }, [rawData, selIndustry, selGroup, selJobGrouping, selCompany, selPosition]);
+    }, [rawData, selIndustry, selGroup, selJobGrouping, selCompany, selPosition, selRating]);
 
     const companyOptions = useMemo(() => {
         let temp = rawData;
@@ -205,8 +215,9 @@ export default function PackageInfoTab() {
         if (selJobGrouping.length > 0) temp = temp.filter(c => selJobGrouping.includes(c.job_grouping || ''));
         if (selJobFunction.length > 0) temp = temp.filter(c => selJobFunction.includes(c.job_function || ''));
         if (selPosition.length > 0) temp = temp.filter(c => selPosition.includes(c.position || ''));
+        if (selRating.length > 0) temp = temp.filter(c => selRating.includes(c.rating || ''));
         return Array.from(new Set(temp.map(c => c.company).filter(Boolean))).sort() as string[];
-    }, [rawData, selIndustry, selGroup, selJobGrouping, selJobFunction, selPosition]);
+    }, [rawData, selIndustry, selGroup, selJobGrouping, selJobFunction, selPosition, selRating]);
 
     const positionOptions = useMemo(() => {
         let temp = rawData;
@@ -215,8 +226,20 @@ export default function PackageInfoTab() {
         if (selJobGrouping.length > 0) temp = temp.filter(c => selJobGrouping.includes(c.job_grouping || ''));
         if (selJobFunction.length > 0) temp = temp.filter(c => selJobFunction.includes(c.job_function || ''));
         if (selCompany.length > 0) temp = temp.filter(c => selCompany.includes(c.company || ''));
+        if (selRating.length > 0) temp = temp.filter(c => selRating.includes(c.rating || ''));
         return Array.from(new Set(temp.map(c => c.position).filter(Boolean))).sort() as string[];
-    }, [rawData, selIndustry, selGroup, selJobGrouping, selJobFunction, selCompany]);
+    }, [rawData, selIndustry, selGroup, selJobGrouping, selJobFunction, selCompany, selRating]);
+
+    const ratingOptions = useMemo(() => {
+        let temp = rawData;
+        if (selIndustry.length > 0) temp = temp.filter(c => selIndustry.includes(c.company_industry || ''));
+        if (selGroup.length > 0) temp = temp.filter(c => selGroup.includes(c.company_group || ''));
+        if (selJobGrouping.length > 0) temp = temp.filter(c => selJobGrouping.includes(c.job_grouping || ''));
+        if (selJobFunction.length > 0) temp = temp.filter(c => selJobFunction.includes(c.job_function || ''));
+        if (selCompany.length > 0) temp = temp.filter(c => selCompany.includes(c.company || ''));
+        if (selPosition.length > 0) temp = temp.filter(c => selPosition.includes(c.position || ''));
+        return Array.from(new Set(temp.map(c => c.rating).filter(Boolean))).sort() as string[];
+    }, [rawData, selIndustry, selGroup, selJobGrouping, selJobFunction, selCompany, selPosition]);
 
     // Companies sorted by avg salary (ascending)
     const companies = useMemo(() => {
@@ -269,6 +292,14 @@ export default function PackageInfoTab() {
         return result;
     }, [companies, filtered]);
 
+    // Avg. Salary — mean gross salary across every filtered candidate (not an
+    // average of company averages, so headcount-heavy companies weigh more).
+    const avgSalary = useMemo(() => {
+        const sals = filtered.map(c => parseSalary(c.gross_salary_base_b_mth)).filter((v): v is number => v !== null);
+        if (sals.length === 0) return null;
+        return sals.reduce((s, v) => s + v, 0) / sals.length;
+    }, [filtered]);
+
     const handleReset = () => {
         setSelIndustry([]);
         setSelGroup([]);
@@ -276,6 +307,7 @@ export default function PackageInfoTab() {
         setSelJobFunction([]);
         setSelCompany([]);
         setSelPosition([]);
+        setSelRating([]);
     };
 
     if (loading) return (
@@ -353,6 +385,15 @@ export default function PackageInfoTab() {
                         setSelPosition(prev => prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]);
                     }}
                 />
+                <FilterMultiSelect
+                    label="Rating"
+                    icon={Star}
+                    options={ratingOptions}
+                    selected={selRating}
+                    onChange={(val) => {
+                        setSelRating(prev => prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]);
+                    }}
+                />
                 <Button variant="ghost" size="sm" onClick={handleReset} className="gap-2 text-slate-500 hover:text-red-500">
                     <RotateCcw className="h-3 w-3" /> Reset
                 </Button>
@@ -365,12 +406,44 @@ export default function PackageInfoTab() {
                 { label: "Job Function", values: selJobFunction, onRemove: v => setSelJobFunction(prev => prev.filter(x => x !== v)) },
                 { label: "Company", values: selCompany, onRemove: v => setSelCompany(prev => prev.filter(x => x !== v)) },
                 { label: "Position", values: selPosition, onRemove: v => setSelPosition(prev => prev.filter(x => x !== v)) },
+                { label: "Rating", values: selRating, onRemove: v => setSelRating(prev => prev.filter(x => x !== v)) },
             ]} />
 
             {companies.length === 0 ? (
                 <div className="text-center py-16 text-slate-400">No data matches the selected filters</div>
             ) : (
                 <>
+                    {/* ══ Summary cards — Total Company / Avg. Salary, matching the ══ */}
+                    {/*    Total Profile/Total CV KPI card style used elsewhere       ── */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <Card className="relative overflow-hidden group border-none bg-white ring-1 ring-slate-200 shadow-xl transition-all hover:shadow-2xl">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Total Company</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-5xl font-black tracking-tighter text-slate-900">{companies.length.toLocaleString()}</div>
+                                <div className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wide">With Salary Data</div>
+                            </CardContent>
+                            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
+                                <Building2 className="w-12 h-12" />
+                            </div>
+                        </Card>
+                        <Card className="relative overflow-hidden group border-none bg-white ring-1 ring-slate-200 shadow-xl transition-all hover:shadow-2xl">
+                            <CardHeader className="pb-2">
+                                <CardTitle className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Avg. Salary</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="text-5xl font-black tracking-tighter text-slate-900">
+                                    {avgSalary !== null ? `฿${formatNumberWithCommas(Math.round(avgSalary))}` : "-"}
+                                </div>
+                                <div className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Gross / Month</div>
+                            </CardContent>
+                            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
+                                <TrendingUp className="w-12 h-12" />
+                            </div>
+                        </Card>
+                    </div>
+
                     {/* ══ Section 1: Gross Salary Range Chart ══ */}
                     <Card className="border shadow-sm overflow-hidden">
                         <CardHeader className="bg-slate-900 text-white py-3 px-5">
@@ -388,56 +461,59 @@ export default function PackageInfoTab() {
                         <CardHeader className="bg-slate-800 text-white py-3 px-5">
                             <CardTitle className="text-sm font-bold">Benefits & Package Details</CardTitle>
                         </CardHeader>
-                        <CardContent className="p-0 overflow-x-auto">
-                            <table className="w-full text-xs" style={{ minWidth: `${Math.max(companies.length * 110 + 140, 500)}px` }}>
-                                <thead>
-                                    {/* Salary row under company header */}
+                        <CardContent className="p-0 overflow-auto max-h-[500px]">
+                            <table className="w-full text-xs" style={{ minWidth: `${Math.max(BENEFIT_ROWS.length * 110 + 160, 500)}px` }}>
+                                <thead className="sticky top-0 z-20">
                                     <tr className="bg-slate-100 border-b">
-                                        <th className="text-left px-4 py-2 text-slate-600 font-bold w-36 sticky left-0 bg-slate-100 z-10">
-                                            Benefit
+                                        <th className="text-left px-4 py-2 text-slate-600 font-bold w-44 sticky left-0 bg-slate-100 z-30">
+                                            Company
                                         </th>
-                                        {companies.map(c => {
-                                            const d = dataByCompany[c];
-                                            return (
-                                                <th key={c} className="text-center px-2 py-2 border-l border-slate-200 font-medium text-slate-700 min-w-[100px]">
-                                                    <div className="truncate max-w-[120px] mx-auto" title={c}>{c}</div>
-                                                    <div className="text-indigo-600 font-bold mt-0.5">
-                                                        {d ? `${formatK(d.min)}–${formatK(d.max)}` : '-'}
-                                                    </div>
-                                                    <div className="text-slate-400 text-[9px]">avg {d ? formatK(d.avg) : '-'}</div>
-                                                </th>
-                                            );
-                                        })}
+                                        {BENEFIT_ROWS.map(row => (
+                                            <th
+                                                key={row.key}
+                                                className={`text-center px-2 py-2 border-l border-slate-200 font-medium min-w-[100px] ${row.key === "others_benefit" ? "bg-slate-200 text-slate-500" : "text-slate-700 bg-slate-100"}`}
+                                            >
+                                                {row.label}
+                                            </th>
+                                        ))}
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {BENEFIT_ROWS.map((row, idx) => (
-                                        <tr key={row.key} className={`border-b ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-blue-50/30`}>
-                                            <td className="px-4 py-2.5 font-semibold text-slate-600 sticky left-0 bg-inherit z-10 border-r border-slate-100">
-                                                {row.label}
-                                            </td>
-                                            {companies.map(c => {
-                                                const val = benefitsByCompany[c]?.[row.key] ?? null;
-                                                return (
-                                                    <td key={c}
-                                                        className={`px-2 py-2.5 text-center border-l border-slate-100 ${val ? "cursor-pointer hover:bg-slate-100/50 transition-colors" : ""}`}
-                                                        onClick={() => val && setDetailDialog({ open: true, title: `${row.label} - ${c}`, content: val })}
-                                                    >
-                                                        {val ? (
-                                                            <span className="inline-flex items-center justify-center gap-0.5 text-emerald-700 font-medium">
-                                                                <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
-                                                                <span className="text-[10px] max-w-[80px] truncate">
-                                                                    {val.length > 10 ? val.slice(0, 10) + '…' : val}
+                                    {companies.map((c, idx) => {
+                                        const d = dataByCompany[c];
+                                        return (
+                                            <tr key={c} className={`border-b ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'} hover:bg-blue-50/30`}>
+                                                <td className="px-4 py-2.5 sticky left-0 bg-inherit z-10 border-r border-slate-100">
+                                                    <div className="font-semibold text-slate-700 truncate max-w-[160px]" title={c}>{c}</div>
+                                                    <div className="text-indigo-600 font-bold text-[10px] mt-0.5">
+                                                        {d ? `${formatK(d.min)}–${formatK(d.max)}` : '-'}
+                                                    </div>
+                                                    <div className="text-slate-400 text-[9px]">avg {d ? formatK(d.avg) : '-'} · {d?.salaries.length ?? 0} candidates</div>
+                                                </td>
+                                                {BENEFIT_ROWS.map(row => {
+                                                    const val = benefitsByCompany[c]?.[row.key] ?? null;
+                                                    const isOthers = row.key === "others_benefit";
+                                                    return (
+                                                        <td key={row.key}
+                                                            className={`px-2 py-2.5 text-center border-l border-slate-100 ${isOthers ? "bg-slate-100" : ""} ${val ? "cursor-pointer hover:bg-slate-100/50 transition-colors" : ""}`}
+                                                            onClick={() => val && setDetailDialog({ open: true, title: `${row.label} - ${c}`, content: val })}
+                                                        >
+                                                            {val ? (
+                                                                <span className={`inline-flex items-center justify-center gap-0.5 font-medium ${isOthers ? "text-slate-500" : "text-emerald-700"}`}>
+                                                                    {!isOthers && <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />}
+                                                                    <span className="text-[10px] max-w-[80px] truncate">
+                                                                        {val.length > 10 ? val.slice(0, 10) + '…' : val}
+                                                                    </span>
                                                                 </span>
-                                                            </span>
-                                                        ) : (
-                                                            <Minus className="w-3 h-3 text-slate-300 mx-auto" />
-                                                        )}
-                                                    </td>
-                                                );
-                                            })}
-                                        </tr>
-                                    ))}
+                                                            ) : (
+                                                                <Minus className="w-3 h-3 text-slate-300 mx-auto" />
+                                                            )}
+                                                        </td>
+                                                    );
+                                                })}
+                                            </tr>
+                                        );
+                                    })}
                                 </tbody>
                             </table>
                         </CardContent>

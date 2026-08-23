@@ -1,16 +1,12 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
-import { getGlobalPoolDisplay, getMarketSalaryStats } from "@/app/actions/dashboard";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getGlobalPoolDisplay } from "@/app/actions/dashboard";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ComposableMap, Geographies, Geography, Marker, ZoomableGroup } from "react-simple-maps";
 import { scaleLinear } from "d3-scale";
-import {
-    ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, Legend,
-    BarChart, Bar, LabelList
-} from 'recharts';
-import { RotateCcw, Loader2, Globe, TrendingUp, Users, Building, MapPin, Filter } from "lucide-react";
+import { RotateCcw, Loader2 } from "lucide-react";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
 import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
 import { Button } from "@/components/ui/button";
@@ -36,9 +32,7 @@ const CONTINENT_COORDS: Record<string, { center: [number, number], zoom: number 
 export default function DashboardPage() {
     // Data State — loaded lazily per tab
     const [globalData, setGlobalData] = useState<any>(null);
-    const [salaryData, setSalaryData] = useState<any>(null);
     const [globalLoading, setGlobalLoading] = useState(false);
-    const [salaryLoading, setSalaryLoading] = useState(false);
     const loadedTabs = useRef<Set<string>>(new Set());
 
     // Active tab
@@ -52,10 +46,6 @@ export default function DashboardPage() {
             setGlobalLoading(true);
             try { setGlobalData(await getGlobalPoolDisplay()); } catch (e) { console.error(e); }
             setGlobalLoading(false);
-        } else if (tab === "market") {
-            setSalaryLoading(true);
-            try { setSalaryData(await getMarketSalaryStats()); } catch (e) { console.error(e); }
-            setSalaryLoading(false);
         }
         // pipeline & placement tabs handle their own data internally
     }, []);
@@ -83,12 +73,6 @@ export default function DashboardPage() {
 
     // Map View State
     const [mapPosition, setMapPosition] = useState<{ center: [number, number], zoom: number }>(CONTINENT_COORDS["World"]);
-
-    // Filter State - Salary Benchmark (V2)
-    const [salaryJobFamilies, setSalaryJobFamilies] = useState<string[]>([]);
-    const [salaryCompanies, setSalaryCompanies] = useState<string[]>([]);
-    const [salaryPositions, setSalaryPositions] = useState<string[]>([]);
-    const [salaryRatings, setSalaryRatings] = useState<string[]>([]);
 
     // --- Helper: Toggle ---
     const toggle = (current: string[], value: string, setter: (val: string[]) => void) => {
@@ -227,71 +211,6 @@ export default function DashboardPage() {
         };
     }, [globalData, gpJrNames, gpBus, gpSubBus, gpTopProfile, gpGender, gpAgeRange, gpCountries, gpIndustries, gpGroups, gpCompanies, gpRatings, gpSets]);
 
-    // --- Logic: Salary Benchmark Filtering (V2 Interdependent) ---
-    const { filteredSalaryData, salaryOptions, chartData, uniqueKeywords } = useMemo(() => {
-        if (!salaryData) return { filteredSalaryData: [], salaryOptions: { jobFamilies: [], companies: [], positions: [], ratings: [] }, chartData: [], uniqueKeywords: [] };
-
-        const allDetails = salaryData.details;
-
-        const matches = (item: any, exclude?: string) => {
-            const mJobFam = exclude === 'jobFamily' || salaryJobFamilies.length === 0 || salaryJobFamilies.includes(item.jobFamily);
-            const mComp = exclude === 'company' || salaryCompanies.length === 0 || salaryCompanies.includes(item.company);
-            const mPos = exclude === 'position' || salaryPositions.length === 0 || salaryPositions.includes(item.positionKeyword);
-            const mRat = exclude === 'rating' || salaryRatings.length === 0 || salaryRatings.includes(item.rating);
-            return mJobFam && mComp && mPos && mRat;
-        };
-
-        // Available Options (Cascading)
-        const optsJobFam = new Set<string>();
-        const optsComp = new Set<string>();
-        const optsPos = new Set<string>();
-        const optsRat = new Set<string>();
-
-        allDetails.forEach((d: any) => {
-            if (matches(d, 'jobFamily')) optsJobFam.add(d.jobFamily);
-            if (matches(d, 'company')) optsComp.add(d.company);
-            if (matches(d, 'position')) optsPos.add(d.positionKeyword);
-            if (matches(d, 'rating')) optsRat.add(d.rating);
-        });
-
-        const filteredDetails = allDetails.filter((d: any) => matches(d));
-
-        // Format for Grouped Bar Chart
-        const compMap: Record<string, any> = {};
-        const keywords = new Set<string>();
-
-        filteredDetails.forEach((d: any) => {
-            if (!compMap[d.company]) {
-                compMap[d.company] = { 
-                    company: d.company, 
-                    rating: d.rating,
-                    industry: d.industry
-                };
-            }
-            compMap[d.company][d.positionKeyword] = d.salary;
-            keywords.add(d.positionKeyword);
-        });
-
-        const finalChartData = Object.values(compMap).sort((a: any, b: any) => {
-            // Sort by average of all keywords present in this company
-            const avgA = Object.keys(a).filter(k => k !== 'company' && k !== 'rating' && k !== 'industry').reduce((sum, k) => sum + a[k], 0);
-            const avgB = Object.keys(b).filter(k => k !== 'company' && k !== 'rating' && k !== 'industry').reduce((sum, k) => sum + b[k], 0);
-            return avgB - avgA;
-        });
-
-        return {
-            filteredSalaryData: filteredDetails,
-            salaryOptions: {
-                jobFamilies: Array.from(optsJobFam).sort(),
-                companies: Array.from(optsComp).sort(),
-                positions: Array.from(optsPos).sort(),
-                ratings: Array.from(optsRat).sort()
-            },
-            chartData: finalChartData,
-            uniqueKeywords: Array.from(keywords).sort()
-        };
-    }, [salaryData, salaryJobFamilies, salaryCompanies, salaryPositions, salaryRatings]);
-
     // Scales for Map
     const maxCount = Math.max(...(filteredStats.map((s: any) => s.count) || [0]), 10);
     const popScale = scaleLinear().domain([0, maxCount]).range([3, 15]);
@@ -307,7 +226,6 @@ export default function DashboardPage() {
                 <TabsList className="bg-slate-100 p-1 rounded-lg">
                     <TabsTrigger value="funnel" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Candidate Funnel</TabsTrigger>
                     <TabsTrigger value="global" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Global Candidate Pool</TabsTrigger>
-                    <TabsTrigger value="market" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Salary Benchmark</TabsTrigger>
                     <TabsTrigger value="pipeline" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Recruitment Pipeline</TabsTrigger>
                     <TabsTrigger value="placement" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Search & Placement</TabsTrigger>
                     <TabsTrigger value="recruiter" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Recruiter Performance</TabsTrigger>
@@ -460,172 +378,6 @@ export default function DashboardPage() {
                     </div>
                 </TabsContent>
 
-                {/* --- TAB 2: SALARY BENCHMARK --- */}
-                <TabsContent value="market" className="relative min-h-[400px] outline-none">
-                    {salaryLoading && (
-                        <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/60 backdrop-blur-[2px] rounded-3xl">
-                            <div className="flex flex-col items-center gap-3 p-8 bg-white shadow-2xl rounded-3xl border border-slate-100 scale-110 animate-in fade-in zoom-in duration-300">
-                                <Loader2 className="h-12 w-12 text-blue-600 animate-spin" />
-                                <div className="flex flex-col items-center">
-                                    <span className="text-sm font-black uppercase tracking-widest text-slate-800">Analyzing Market</span>
-                                    <span className="text-[10px] font-bold text-slate-400">Processing salary benchmarks...</span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                    
-                    <div className="space-y-6">
-                        {/* Filters V2 */}
-                        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-                            <FilterMultiSelect label="Job Family" options={salaryOptions?.jobFamilies || []} selected={salaryJobFamilies} onChange={v => toggle(salaryJobFamilies, v, setSalaryJobFamilies)} />
-                            <FilterMultiSelect label="Company" options={salaryOptions?.companies || []} selected={salaryCompanies} onChange={v => toggle(salaryCompanies, v, setSalaryCompanies)} />
-                            <FilterMultiSelect label="Position" options={salaryOptions?.positions || []} selected={salaryPositions} onChange={v => toggle(salaryPositions, v, setSalaryPositions)} />
-                            <FilterMultiSelect label="Rating" options={salaryOptions?.ratings || []} selected={salaryRatings} onChange={v => toggle(salaryRatings, v, setSalaryRatings)} />
-                            <div className="flex gap-2">
-                                <Button variant="outline" onClick={() => { 
-                                    setSalaryJobFamilies([]); 
-                                    setSalaryCompanies([]); 
-                                    setSalaryPositions([]); 
-                                    setSalaryRatings([]); 
-                                }} className="rounded-xl gap-2 flex-1">
-                                    <RotateCcw className="h-4 w-4" /> Reset
-                                </Button>
-                            </div>
-                        </div>
-
-                        <ActiveFilterChips groups={[
-                            { label: "Job Family", values: salaryJobFamilies, onRemove: v => toggle(salaryJobFamilies, v, setSalaryJobFamilies) },
-                            { label: "Company", values: salaryCompanies, onRemove: v => toggle(salaryCompanies, v, setSalaryCompanies) },
-                            { label: "Position", values: salaryPositions, onRemove: v => toggle(salaryPositions, v, setSalaryPositions) },
-                            { label: "Rating", values: salaryRatings, onRemove: v => toggle(salaryRatings, v, setSalaryRatings) },
-                        ]} />
-
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                            {/* Bar Chart V2 with Scroll Support */}
-                            <Card className="lg:col-span-12 border-none shadow-xl rounded-3xl overflow-hidden bg-white">
-                                <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                    <div>
-                                        <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-500">Market Salary Comparison (Annual)</CardTitle>
-                                        <CardDescription>Comparison by Company and Position Level</CardDescription>
-                                    </div>
-                                    <div className="flex items-center gap-4">
-                                        <div className="text-[10px] font-black uppercase text-slate-400 bg-slate-100 px-3 py-1 rounded-full">
-                                            {chartData.length} Companies Analyzed
-                                        </div>
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="h-[500px] relative p-0 overflow-hidden">
-                                    {/* Empty / Initial State */}
-                                    {salaryJobFamilies.length === 0 && salaryCompanies.length === 0 && salaryPositions.length === 0 && salaryRatings.length === 0 ? (
-                                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-50/50 z-10 p-8 text-center">
-                                            <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4">
-                                                <Filter className="h-8 w-8" />
-                                            </div>
-                                            <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight">Select Filters to Compare</h3>
-                                            <p className="text-sm text-slate-500 max-w-xs mt-2">Please select a Job Family, Company, or Rating to visualize the market salary benchmark.</p>
-                                        </div>
-                                    ) : (
-                                        <div className="h-full overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
-                                            <div style={{ width: Math.max(1400, chartData.length * 280), height: '100%' }}>
-                                                <div className="pt-6 px-10 flex justify-center border-b border-slate-50">
-                                                    <CustomLegend keywords={uniqueKeywords || []} />
-                                                </div>
-                                                <div className="p-4">
-                                                    <ResponsiveContainer width="100%" height={420}>
-                                                        <BarChart 
-                                                            data={chartData} 
-                                                            margin={{ top: 40, right: 40, bottom: 100, left: 40 }}
-                                                            barCategoryGap="20%"
-                                                            barGap={2}
-                                                        >
-                                                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                                                            <XAxis 
-                                                                dataKey="company" 
-                                                                fontSize={10} 
-                                                                fontWeight="900" 
-                                                                axisLine={{ stroke: '#0f172a', strokeWidth: 2 }} 
-                                                                tickLine={{ stroke: '#0f172a' }} 
-                                                                interval={0}
-                                                                dy={10}
-                                                                tick={{ fill: '#0f172a' }}
-                                                                tickFormatter={(value) => value.length > 25 ? `${value.substring(0, 25)}...` : value}
-                                                            />
-                                                            <YAxis 
-                                                                fontSize={11} 
-                                                                fontWeight="900"
-                                                                axisLine={{ stroke: '#0f172a', strokeWidth: 2 }} 
-                                                                tickLine={{ stroke: '#0f172a' }} 
-                                                                tickFormatter={(v) => `฿${(v/1000000).toFixed(1)}M`} 
-                                                                domain={[0, 'auto']}
-                                                                tick={{ fill: '#0f172a' }}
-                                                            />
-                                                            <Tooltip content={<SalaryV2Tooltip />} cursor={{ fill: '#f8fafc' }} />
-                                                            {(uniqueKeywords || []).map((kw, i) => (
-                                                                <Bar 
-                                                                    key={kw} 
-                                                                    dataKey={kw} 
-                                                                    name={kw} 
-                                                                    fill={CHART_COLORS[i % CHART_COLORS.length]} 
-                                                                    radius={[6, 6, 0, 0]} 
-                                                                    barSize={60}
-                                                                >
-                                                                    <LabelList 
-                                                                        dataKey={kw} 
-                                                                        position="top" 
-                                                                        offset={10}
-                                                                        formatter={(v: any) => v ? `฿${(v/1000000).toFixed(1)}M` : ''}
-                                                                        style={{ fill: CHART_COLORS[i % CHART_COLORS.length], fontSize: '11px', fontWeight: '900' }}
-                                                                    />
-                                                                </Bar>
-                                                            ))}
-                                                        </BarChart>
-                                                    </ResponsiveContainer>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
-
-                            {/* Detailed List */}
-                            <Card className="lg:col-span-12 border-none shadow-xl rounded-3xl overflow-hidden bg-white">
-                                <CardHeader>
-                                    <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-500">Detailed Salary Breakdown</CardTitle>
-                                </CardHeader>
-                                <CardContent className="p-0">
-                                    <div className="max-h-[500px] overflow-auto scrollbar-thin">
-                                        <table className="w-full text-xs">
-                                            <thead className="bg-slate-900 text-white sticky top-0 z-10 shadow-sm">
-                                                <tr>
-                                                    <th className="p-4 text-left font-black uppercase tracking-widest">Industry</th>
-                                                    <th className="p-4 text-left font-black uppercase tracking-widest">Company</th>
-                                                    <th className="p-4 text-left font-black uppercase tracking-widest">Name</th>
-                                                    <th className="p-4 text-left font-black uppercase tracking-widest">Position</th>
-                                                    <th className="p-4 text-right font-black uppercase tracking-widest">Base Salary (Mth)</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100">
-                                                {(filteredSalaryData || []).map((s: any, i: number) => (
-                                                    <tr key={i} className="hover:bg-slate-50 transition-colors">
-                                                        <td className="p-4 font-bold text-slate-400">{s.industry || '-'}</td>
-                                                        <td className="p-4 font-black text-slate-800">{s.company}</td>
-                                                        <td className="p-4 font-bold text-slate-600">{s.name}</td>
-                                                        <td className="p-4 text-slate-500">{s.position}</td>
-                                                        <td className="p-4 text-right font-black text-blue-600">฿{(s.salaryMonthly || 0).toLocaleString()}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                        {(!filteredSalaryData || filteredSalaryData.length === 0) && (
-                                            <div className="p-12 text-center text-slate-400 font-bold uppercase tracking-widest">No matching salary data found</div>
-                                        )}
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </div>
-                    </div>
-                </TabsContent>
-
                 {/* --- TAB 3: RECRUITMENT PIPELINE --- */}
                 <TabsContent value="pipeline" className="space-y-6 outline-none">
                     <PipelineTab />
@@ -650,48 +402,6 @@ export default function DashboardPage() {
         </div>
     );
 }
-
-const CHART_COLORS = ['#1e293b', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
-
-const CustomLegend = ({ keywords }: { keywords: string[] }) => (
-    <div className="flex flex-wrap gap-x-6 gap-y-3 justify-center">
-        {keywords.map((kw, i) => (
-            <div key={kw} className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100 shadow-sm">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
-                <span className="text-[10px] font-black uppercase tracking-tight text-slate-700">{kw}</span>
-            </div>
-        ))}
-    </div>
-);
-
-const SalaryV2Tooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-        const data = payload[0].payload;
-        return (
-            <div className="bg-slate-900 text-white border-none rounded-2xl p-4 shadow-2xl text-[10px] z-50 min-w-[180px]">
-                <div className="flex justify-between items-start mb-2 border-b border-slate-700 pb-2">
-                    <div>
-                        <p className="font-black text-xs uppercase tracking-widest">{data.company}</p>
-                        <p className="text-[8px] text-slate-500 uppercase tracking-widest">{data.industry}</p>
-                    </div>
-                    <div className="bg-blue-600 px-2 py-0.5 rounded text-[9px] font-black">
-                        {data.rating}
-                    </div>
-                </div>
-                <div className="space-y-2">
-                    {Object.keys(data).filter(k => k !== 'company' && k !== 'rating' && k !== 'industry').map(k => (
-                        <div key={k} className="flex justify-between items-center gap-4">
-                            <span className="text-slate-400 uppercase font-bold">{k}:</span>
-                            <span className="font-black text-blue-400">฿{(data[k]/1000000).toFixed(2)}M /yr</span>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        );
-    }
-    return null;
-};
-
 
 function MetricBox({ title, value, color }: any) {
     return (

@@ -23,6 +23,7 @@ export interface BenchmarkCandidate {
     company_industry: string | null;
     company_group: string | null;
     position: string | null;
+    rating: string | null;
 }
 
 export interface RawBenchmarkData {
@@ -59,11 +60,24 @@ export async function getRawBenchmarkData(): Promise<RawBenchmarkData> {
     // Fetch experiences ONLY for these candidates
     const { data: expData, error: expError } = await supabase
         .from('candidate_experiences')
-        .select('candidate_id, company, position, company_industry, company_group, is_current_job, start_date')
+        .select('candidate_id, company, company_id, position, company_industry, company_group, is_current_job, start_date')
         .in('candidate_id', candidateIds)
         .order('start_date', { ascending: false }); // Better to sort in SQL
 
     if (expError) console.error('benchmark exp error:', expError);
+
+    // company_master gives the properly-classified rating/industry/group — falls
+    // back to the denormalized text on candidate_experiences when a company
+    // isn't mapped (same precedence used by getMarketSalaryStats).
+    const companyIds = [...new Set((expData || []).map((e: any) => e.company_id).filter((id: any) => id != null))];
+    const companyLookup = new Map<number, { rating: string | null; industry: string | null; group: string | null }>();
+    if (companyIds.length > 0) {
+        const { data: companies } = await supabase
+            .from('company_master')
+            .select('company_id, rating, industry, group')
+            .in('company_id', companyIds);
+        (companies || []).forEach((c: any) => companyLookup.set(c.company_id, { rating: c.rating, industry: c.industry, group: c.group }));
+    }
 
     // Build experience map: prefer is_current_job='Current', else take latest by start_date
     const expMap = new Map<string, any>();
@@ -96,23 +110,26 @@ export async function getRawBenchmarkData(): Promise<RawBenchmarkData> {
 
     experiences.forEach((exp: any) => {
         if (!expMap.has(exp.candidate_id)) {
+            const master = exp.company_id != null ? companyLookup.get(exp.company_id) : null;
             expMap.set(exp.candidate_id, {
                 company: exp.company || '',
                 position: exp.position || '',
-                company_industry: exp.company_industry || '',
-                company_group: exp.company_group || '',
+                company_industry: master?.industry || exp.company_industry || '',
+                company_group: master?.group || exp.company_group || '',
+                rating: master?.rating || null,
             });
         }
     });
 
     const candidates: BenchmarkCandidate[] = candidatesWithSalary.map((cp: any) => {
-        const job = expMap.get(cp.candidate_id) || { company: null, position: null, company_industry: null, company_group: null };
+        const job = expMap.get(cp.candidate_id) || { company: null, position: null, company_industry: null, company_group: null, rating: null };
         return {
             ...cp,
             company: job.company || null,
             position: job.position || null,
             company_industry: job.company_industry || null,
             company_group: job.company_group || null,
+            rating: job.rating || null,
         };
     });
 
