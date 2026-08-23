@@ -2,17 +2,18 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
-    getCandidatePopulationData, getPopulationFilterOptions, getCascadingPopulationOptions,
-    PopulationData, PopulationFilterOptions, CascadingOptions, PopulationFilters, SetCompany,
+    getCandidatePopulationData, getPopulationFilterOptions, getCascadingPopulationOptions, getOrgChartCountsByGroup,
+    PopulationData, PopulationFilterOptions, CascadingOptions, PopulationFilters, SetCompany, OrgChartGroupCount, OrgChartGroupSummary,
 } from "@/app/actions/candidate-population";
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from "recharts";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
 import {
-    Loader2, Briefcase, Building2, Globe2, Layers, RotateCcw, X, Cake, Flag, Users, Target, ChevronDown, FileText, Database,
+    Loader2, Briefcase, Building2, Globe2, Layers, RotateCcw, X, Cake, Flag, Users, Target, ChevronDown, FileText, Database, Network,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Tooltip as UiTooltip, TooltipTrigger as UiTooltipTrigger, TooltipContent as UiTooltipContent, TooltipProvider as UiTooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import FunnelCandidateListSection from "./FunnelCandidateListSection";
 
@@ -123,10 +124,10 @@ function DonutCard({
     );
 }
 
-// ── Badge grid — medium-cardinality categories as colored chip cards ────────
-function BadgeGridCard({
-    title, data, icon: Icon, selected, onSelect, filterTotal,
-}: { title: string; data: { name: string; count: number }[]; icon: React.ElementType; selected: string[]; onSelect: (name: string) => void; filterTotal?: number }) {
+// ── Vertical bar card — single-hue magnitude bars for an ordered bucket axis ─
+function VerticalBarCard({
+    title, data, icon: Icon, filterTotal,
+}: { title: string; data: { name: string; count: number }[]; icon: React.ElementType; filterTotal?: number }) {
     const total = data.reduce((s, d) => s + d.count, 0);
     return (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
@@ -134,39 +135,25 @@ function BadgeGridCard({
                 <Icon className="h-3.5 w-3.5 text-slate-400" />
                 <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">{title}</h3>
                 {filterTotal != null && <span className="text-xs font-black text-slate-900">· Total: {filterTotal.toLocaleString()}</span>}
-                <span className="text-xs text-indigo-500 font-bold ml-auto">click to filter</span>
             </div>
             {!data.length ? (
                 <div className="flex items-center justify-center h-40 text-slate-400 text-xs font-bold uppercase tracking-widest">
                     No data
                 </div>
             ) : (
-                <div className="flex flex-wrap gap-2">
-                    {data.map(d => {
-                        const color = colorForName(d.name);
-                        const isSelected = selected.includes(d.name);
-                        return (
-                            <button
-                                key={d.name}
-                                onClick={() => onSelect(d.name)}
-                                className="flex items-center gap-2 rounded-xl border px-3 py-2 transition-all cursor-pointer"
-                                style={{
-                                    background: isSelected ? `${color}22` : `${color}0d`,
-                                    borderColor: isSelected ? color : `${color}33`,
-                                    borderWidth: isSelected ? 1.5 : 1,
-                                }}
-                            >
-                                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: color }} />
-                                <span className="text-xs font-bold text-slate-700">{d.name}</span>
-                                <span
-                                    className="text-[10px] font-black px-1.5 py-0.5 rounded-full"
-                                    style={{ background: `${color}22`, color }}
-                                >
-                                    {d.count.toLocaleString()} · {pct(d.count, total)}%
-                                </span>
-                            </button>
-                        );
-                    })}
+                <div className="h-56">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={data} margin={{ top: 20, right: 4, left: 4, bottom: 0 }}>
+                            <XAxis dataKey="name" tick={{ fontSize: 11, fontWeight: 700, fill: "#64748b" }} axisLine={{ stroke: "#e2e8f0" }} tickLine={false} />
+                            <YAxis hide />
+                            <Tooltip
+                                cursor={{ fill: "#f1f5f9" }}
+                                formatter={(v: any) => [`${v.toLocaleString()} (${pct(v, total)}%)`, "Candidates"]}
+                                contentStyle={{ borderRadius: "10px", border: "1px solid #e2e8f0", fontSize: "12px", fontWeight: 700 }}
+                            />
+                            <Bar dataKey="count" fill="#0d9488" radius={[6, 6, 0, 0]} />
+                        </BarChart>
+                    </ResponsiveContainer>
                 </div>
             )}
         </div>
@@ -267,6 +254,67 @@ function RankedListCard({
     );
 }
 
+// ── Org chart counts by industry group — rows on grey (matches Total Org),  ──
+// no bars, sub-industry breakdown revealed on hover (kept hidden by default) ─
+function OrgChartByGroupCard({
+    title, data, icon: Icon, uncategorizedCount = 0,
+}: { title: string; data: OrgChartGroupCount[]; icon: React.ElementType; uncategorizedCount?: number }) {
+    const total = data.reduce((s, d) => s + d.count, 0);
+    return (
+        <div className="bg-slate-50 rounded-2xl border-2 border-slate-300 shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-4">
+                <Icon className="h-3.5 w-3.5 text-slate-400" />
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">{title}</h3>
+                <span className="text-xs font-black text-slate-900">
+                    · Total: {total.toLocaleString()}
+                    {uncategorizedCount > 0 && (
+                        <span className="font-semibold text-slate-400"> ({uncategorizedCount.toLocaleString()} Uncategorized)</span>
+                    )}
+                </span>
+            </div>
+            {!data.length ? (
+                <div className="flex items-center justify-center h-40 text-slate-400 text-xs font-bold uppercase tracking-widest">
+                    No data
+                </div>
+            ) : (
+                <UiTooltipProvider delayDuration={150}>
+                    <div className="space-y-1">
+                        {data.map((d, i) => (
+                            <UiTooltip key={d.name}>
+                                <UiTooltipTrigger asChild>
+                                    <div className="w-full flex items-center gap-2.5 rounded-lg px-1 py-1.5 hover:bg-white/70 transition-colors cursor-default">
+                                        <span
+                                            className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[9px] font-black"
+                                            style={{ background: RANK_BADGE[i + 1] ?? "#c7d2fe", color: i < 3 ? "#fff" : "#4338ca" }}
+                                        >
+                                            {i + 1}
+                                        </span>
+                                        <span className="text-xs flex-1 truncate font-semibold text-slate-600" title={d.name}>{d.name}</span>
+                                        <span className="text-xs font-black text-slate-700 w-10 text-right shrink-0">{d.count.toLocaleString()}</span>
+                                    </div>
+                                </UiTooltipTrigger>
+                                {d.subIndustries.length > 0 && (
+                                    <UiTooltipContent side="right" className="max-w-xs">
+                                        <div className="text-[10px] font-black uppercase tracking-wide text-slate-400 mb-1">Sub-industries</div>
+                                        <div className="space-y-0.5">
+                                            {d.subIndustries.map(s => (
+                                                <div key={s.name} className="flex items-center justify-between gap-4 text-xs">
+                                                    <span className="text-slate-600">{s.name}</span>
+                                                    <span className="font-bold text-slate-900 shrink-0">{s.count.toLocaleString()}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </UiTooltipContent>
+                                )}
+                            </UiTooltip>
+                        ))}
+                    </div>
+                </UiTooltipProvider>
+            )}
+        </div>
+    );
+}
+
 // ── Active filter chips ──────────────────────────────────────────────────────
 const FILTER_LABELS: Record<keyof PopulationFilters, string> = {
     groups: "Industry Group",
@@ -314,6 +362,7 @@ export default function CandidateFunnelTab() {
     const [loading, setLoading] = useState(true);
     const [dataLoading, setDataLoading] = useState(false);
     const [siteStats, setSiteStats] = useState<{ totalCandidates: number; resumeCount: number; orgChartCount: number } | null>(null);
+    const [orgChartGroups, setOrgChartGroups] = useState<OrgChartGroupSummary>({ groups: [], uncategorizedCount: 0 });
 
     const [filters, setFilters] = useState<PopulationFilters>(EMPTY_FILTERS);
     const [listVisible, setListVisible] = useState(false);
@@ -340,11 +389,13 @@ export default function CandidateFunnelTab() {
             getCandidatePopulationData({}),
             getCascadingPopulationOptions({}),
             fetch('/api/stats').then(r => r.json()),
-        ]).then(([opts, d, c, stats]) => {
+            getOrgChartCountsByGroup(),
+        ]).then(([opts, d, c, stats, orgGroups]) => {
             setFilterOptions(opts);
             setData(d);
             setCascade(c);
             setSiteStats({ totalCandidates: stats.totalCandidates || 0, resumeCount: stats.resumeCount || 0, orgChartCount: stats.orgChartCount || 0 });
+            setOrgChartGroups(orgGroups);
         }).catch(console.error).finally(() => setLoading(false));
     }, []);
 
@@ -506,7 +557,7 @@ export default function CandidateFunnelTab() {
                     </div>
                 </Card>
 
-                <Card className="relative overflow-hidden group border-none bg-white ring-1 ring-slate-200 shadow-xl transition-all hover:shadow-2xl">
+                <Card className="relative overflow-hidden group bg-slate-100 border-2 border-slate-300 shadow-xl transition-all hover:shadow-2xl">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Total Org</CardTitle>
                     </CardHeader>
@@ -522,7 +573,29 @@ export default function CandidateFunnelTab() {
                 </Card>
             </div>
 
-            {/* ── Overview: donut (few categories) + badge grid (medium) ───── */}
+            {/* ── By Industry Group (candidates) + Org Charts by Group Industries ── */}
+            {data && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    <RankedListCard
+                        title="By Industry Group"
+                        data={data.by_group} icon={Layers} selected={filters.groups || []} onSelect={v => updateFilter('groups', v)}
+                        filterTotal={data.total_filtered}
+                        limit={6}
+                    />
+                    <OrgChartByGroupCard
+                        title="Organization Charts by Group Industries"
+                        data={orgChartGroups.groups} icon={Network}
+                        uncategorizedCount={orgChartGroups.uncategorizedCount}
+                    />
+                </div>
+            )}
+
+            {/* ── By Age Range — full width ──────────────────────────────────── */}
+            {data && (
+                <VerticalBarCard title="By Age Range" data={data.by_age_range} icon={Cake} filterTotal={data.total_filtered} />
+            )}
+
+            {/* ── By Continent + By Location ─────────────────────────────────── */}
             {data && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                     <DonutCard
@@ -531,19 +604,18 @@ export default function CandidateFunnelTab() {
                         data={data.by_continent} icon={Globe2} selected={filters.continents || []} onSelect={v => updateFilter('continents', v)}
                         filterTotal={data.total_filtered}
                     />
-                    <BadgeGridCard title="By Industry Group" data={data.by_group} icon={Layers} selected={filters.groups || []} onSelect={v => updateFilter('groups', v)} filterTotal={data.total_filtered} />
-                </div>
-            )}
-
-            {/* ── High-cardinality breakdowns: 7 ranked lists across two rows (4 + 3) ── */}
-            {data && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                     <RankedListCard
                         title="By Location"
                         subtitle="Work country when reliably known, else based-in location"
                         data={data.by_country} icon={Globe2} selected={filters.countries || []} onSelect={v => updateFilter('countries', v)}
                         filterTotal={data.total_filtered}
                     />
+                </div>
+            )}
+
+            {/* ── By Industry + By Position Keyword + By Job Family ──────────── */}
+            {data && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                     <RankedListCard title="By Industry" data={data.by_industry} icon={Building2} selected={filters.industries || []} onSelect={v => updateFilter('industries', v)} filterTotal={data.total_filtered} />
                     <RankedListCard title="By Position Keyword" data={data.by_position_keyword} icon={Briefcase} selected={filters.position_keywords || []} onSelect={v => updateFilter('position_keywords', v)} filterTotal={data.total_filtered} />
                     <RankedListCard title="By Job Family" data={data.by_job_grouping} icon={Users} selected={filters.job_groupings || []} onSelect={v => updateFilter('job_groupings', v)} filterTotal={data.total_filtered} />
@@ -568,16 +640,13 @@ export default function CandidateFunnelTab() {
                 </div>
             )}
 
-            {/* ── Age Range + Nationality — informational only (not filterable yet) ── */}
+            {/* ── Nationality — informational only (not filterable yet) ─────── */}
             {data && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                    <DonutCard title="By Age Range" data={data.by_age_range} icon={Cake} selected={[]} onSelect={() => {}} interactive={false} filterTotal={data.total_filtered} />
-                    <RankedListCard
-                        title={`By Nationality${data.nationality_unknown_count > 0 ? ` (${data.nationality_unknown_count.toLocaleString()} Unknown)` : ""}`}
-                        data={data.by_nationality} icon={Flag}
-                        filterTotal={data.total_filtered}
-                    />
-                </div>
+                <RankedListCard
+                    title={`By Nationality${data.nationality_unknown_count > 0 ? ` (${data.nationality_unknown_count.toLocaleString()} Unknown)` : ""}`}
+                    data={data.by_nationality} icon={Flag}
+                    filterTotal={data.total_filtered}
+                />
             )}
 
             {listVisible && <FunnelCandidateListSection filters={filters} />}

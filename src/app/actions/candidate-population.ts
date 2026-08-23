@@ -65,7 +65,21 @@ export interface CascadingOptions {
     job_functions: string[];
 }
 
-const SKIP = new Set(['Unknown', 'N/A', 'Not Found', 'No Match Found', 'Undetermined', 'Unclassified', 'Wait AI Check', 'Unassigned', '', 'null']);
+export interface OrgChartGroupCount {
+    name: string;
+    count: number;
+    subIndustries: { name: string; count: number }[];
+}
+
+export interface OrgChartGroupSummary {
+    groups: OrgChartGroupCount[];
+    // Uploads whose company has no group and no industry mapped at all, so
+    // they can't be bucketed into any of the 6 groups — kept out of `groups`
+    // but surfaced here so the total can be reconciled against Total Org.
+    uncategorizedCount: number;
+}
+
+const SKIP = new Set(['Unknown', 'N/A', 'Not Found', 'No Match Found', 'Undetermined', 'Unclassified', 'Wait AI Check', 'Unassigned', 'Uncategorized', '', 'null']);
 
 const AGE_BUCKET_ORDER = ["<30", "30–39", "40–49", "50–59", "60+", "Unknown"];
 
@@ -320,4 +334,66 @@ export async function getCandidatePopulationData(filters: PopulationFilters = {}
         by_job_grouping: data.by_job_grouping ?? [],
         by_job_function: data.by_job_function ?? [],
     };
+}
+
+// Each org_chart_uploads row is one org chart (matches the "Total Org" KPI
+// card's count). Group is resolved the same way as the Org Chart Directory
+// page: company_master.group first, falling back to industry_group's mapping
+// when a company has an industry but no group set directly.
+export async function getOrgChartCountsByGroup(): Promise<OrgChartGroupSummary> {
+    const supabase = adminAuthClient as any;
+    const empty: OrgChartGroupSummary = { groups: [], uncategorizedCount: 0 };
+
+    const { data: uploads, error: uploadsErr } = await supabase.from('org_chart_uploads').select('company_id');
+    if (uploadsErr || !uploads) {
+        console.error('getOrgChartCountsByGroup uploads error:', uploadsErr);
+        return empty;
+    }
+
+    const companyIds = [...new Set(uploads.map((u: any) => u.company_id).filter((id: any) => id != null))];
+    if (!companyIds.length) return { groups: [], uncategorizedCount: uploads.length };
+
+    const [{ data: companies }, { data: industryGroups }] = await Promise.all([
+        supabase.from('company_master').select('company_id, group, industry').in('company_id', companyIds),
+        supabase.from('industry_group').select('industry, group'),
+    ]);
+
+    const companyById = new Map<string, { group: string | null; industry: string | null }>(
+        (companies || []).map((c: any) => [String(c.company_id), { group: c.group, industry: c.industry }])
+    );
+    const groupByIndustry = new Map<string, string>((industryGroups || []).map((ig: any) => [ig.industry, ig.group]));
+
+    const groupCounts = new Map<string, number>();
+    const groupSubIndustries = new Map<string, Map<string, number>>();
+    let uncategorizedCount = 0;
+
+    for (const u of uploads as { company_id: string | number | null }[]) {
+        const company = u.company_id != null ? companyById.get(String(u.company_id)) : null;
+        const industry = company?.industry?.trim() || null;
+        const group = (company?.group?.trim() || (industry ? groupByIndustry.get(industry) : null) || '').trim();
+        if (!group || SKIP.has(group)) {
+            uncategorizedCount++;
+            continue;
+        }
+
+        groupCounts.set(group, (groupCounts.get(group) ?? 0) + 1);
+
+        if (industry && !SKIP.has(industry)) {
+            if (!groupSubIndustries.has(group)) groupSubIndustries.set(group, new Map());
+            const sub = groupSubIndustries.get(group)!;
+            sub.set(industry, (sub.get(industry) ?? 0) + 1);
+        }
+    }
+
+    const groups = [...groupCounts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, count]) => ({
+            name,
+            count,
+            subIndustries: [...(groupSubIndustries.get(name)?.entries() ?? [])]
+                .sort((a, b) => b[1] - a[1])
+                .map(([n, c]) => ({ name: n, count: c })),
+        }));
+
+    return { groups, uncategorizedCount };
 }
