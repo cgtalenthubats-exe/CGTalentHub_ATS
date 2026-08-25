@@ -473,7 +473,7 @@ export default function CandidateListPage() {
                             <Filter className="h-4 w-4" />
                             <span className="hidden sm:inline">Filters</span>
                             {/* Show count of active filters if hidden */}
-                            {!showFilters && Object.values(filters).some(v => Array.isArray(v) ? v.length > 0 : v) && (
+                            {!showFilters && (searchTerm || nameFilter || Object.values(filters).some(v => Array.isArray(v) ? v.length > 0 : v)) && (
                                 <span className="h-1.5 w-1.5 rounded-full bg-primary absolute top-1 right-1" />
                             )}
                         </Button>
@@ -609,6 +609,8 @@ export default function CandidateListPage() {
                         {/* Active Filter Chips */}
                         <div className="flex flex-wrap gap-2 min-h-[1.5rem] items-center">
                             <span className="text-[10px] font-medium text-muted-foreground mr-1">Active:</span>
+                            {searchTerm && <Chip label={`Search: "${searchTerm}"`} onRemove={() => setSearchTerm("")} color="cyan" />}
+                            {nameFilter && <Chip label={`Name: "${nameFilter}"`} onRemove={() => setNameFilter("")} color="emerald" />}
                             {filters.countries.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('countries', c)} color="blue" />)}
                             {filters.industries.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('industries', c)} color="purple" />)}
                             {filters.groups.map(c => <Chip key={c} label={c} onRemove={() => toggleFilter('groups', c)} color="orange" />)}
@@ -654,7 +656,7 @@ export default function CandidateListPage() {
                                     />
                                 </Badge>
                             )}
-                            {(Object.values(filters).some(v => Array.isArray(v) ? v.length > 0 : v)) && (
+                            {(searchTerm || nameFilter || Object.values(filters).some(v => Array.isArray(v) ? v.length > 0 : v)) && (
                                 <Button variant="ghost" size="icon" className="h-5 w-5 ml-auto text-destructive hover:bg-destructive/10 rounded-full" onClick={clearAll} title="Clear All">
                                     <X className="h-3 w-3" />
                                 </Button>
