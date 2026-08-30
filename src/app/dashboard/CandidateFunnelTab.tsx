@@ -315,6 +315,93 @@ function OrgChartByGroupCard({
     );
 }
 
+// ── Industry Group card with an inline drill-down into Position Keyword ────
+// Clicking a group expands it accordion-style — the group list stays put,
+// its row shows the position-keyword breakdown nested underneath (already
+// scoped to that group, since expanding also drives the page-wide `groups`
+// filter). Position keyword rows are themselves selectable, toggling the
+// page's position_keywords filter same as the (now-removed) standalone card.
+function IndustryGroupCard({
+    groupData, positionData, activeGroup, onToggleGroup, selectedPositionKeywords, onSelectPositionKeyword, filterTotal,
+}: {
+    groupData: { name: string; count: number }[];
+    positionData: { name: string; count: number }[];
+    activeGroup: string | null;
+    onToggleGroup: (name: string) => void;
+    selectedPositionKeywords: string[];
+    onSelectPositionKeyword: (name: string) => void;
+    filterTotal?: number;
+}) {
+    const rows = groupData.slice(0, 6);
+
+    return (
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+            <div className="flex items-center gap-2 mb-1">
+                <Layers className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 truncate">By Industry Group</h3>
+                {filterTotal != null && <span className="text-xs font-black text-slate-900 shrink-0">· Total: {filterTotal.toLocaleString()}</span>}
+                <span className="text-xs text-indigo-500 font-bold ml-auto shrink-0">click to expand</span>
+            </div>
+            <div className="mb-3" />
+            {!rows.length ? (
+                <div className="flex items-center justify-center h-40 text-slate-400 text-xs font-bold uppercase tracking-widest">
+                    No data
+                </div>
+            ) : (
+                <div className="space-y-1">
+                    {rows.map((d, i) => {
+                        const expanded = activeGroup === d.name;
+                        return (
+                            <div key={d.name}>
+                                <button
+                                    onClick={() => onToggleGroup(d.name)}
+                                    className={cn(
+                                        "w-full flex items-center gap-2.5 rounded-lg px-1 py-1 transition-colors text-left cursor-pointer",
+                                        expanded ? "bg-indigo-50" : "hover:bg-slate-50"
+                                    )}
+                                >
+                                    <span
+                                        className="w-5 h-5 rounded-full shrink-0 flex items-center justify-center text-[9px] font-black"
+                                        style={{ background: RANK_BADGE[i + 1] ?? "#c7d2fe", color: i < 3 ? "#fff" : "#4338ca" }}
+                                    >
+                                        {i + 1}
+                                    </span>
+                                    <span className={cn("text-xs flex-1 truncate text-left", expanded ? "font-black text-indigo-700" : "font-semibold text-slate-600")} title={d.name}>{d.name}</span>
+                                    <span className="text-xs font-black text-slate-700 w-10 text-right shrink-0">{d.count.toLocaleString()}</span>
+                                    <ChevronDown className={cn("h-3 w-3 text-slate-300 shrink-0 transition-transform", expanded && "rotate-180")} />
+                                </button>
+                                {expanded && (
+                                    <div className="ml-6 mt-1 mb-1 pl-2 border-l-2 border-indigo-100 space-y-0.5">
+                                        {positionData.length === 0 ? (
+                                            <p className="text-[10px] text-slate-400 py-1">No position keyword data</p>
+                                        ) : positionData.map(pk => {
+                                            const pkSelected = selectedPositionKeywords.includes(pk.name);
+                                            return (
+                                                <button
+                                                    key={pk.name}
+                                                    onClick={() => onSelectPositionKeyword(pk.name)}
+                                                    className={cn(
+                                                        "w-full flex items-center gap-2 rounded-lg px-1.5 py-1 transition-colors text-left cursor-pointer",
+                                                        pkSelected ? "bg-indigo-50" : "hover:bg-slate-50"
+                                                    )}
+                                                >
+                                                    <Briefcase className="h-3 w-3 text-slate-300 shrink-0" />
+                                                    <span className={cn("text-xs flex-1 truncate text-left", pkSelected ? "font-black text-indigo-700" : "font-semibold text-slate-500")} title={pk.name}>{pk.name}</span>
+                                                    <span className="text-xs font-black text-slate-600 w-10 text-right shrink-0">{pk.count.toLocaleString()}</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ── Active filter chips ──────────────────────────────────────────────────────
 const FILTER_LABELS: Record<keyof PopulationFilters, string> = {
     groups: "Industry Group",
@@ -416,6 +503,16 @@ export default function CandidateFunnelTab() {
         setFilters(EMPTY_FILTERS);
         loadData(EMPTY_FILTERS);
     };
+
+    // Replaces (not toggles) the groups filter — drives the By Industry Group
+    // card's drill-down into By Position Keyword. A single active group means
+    // "drilled in"; passing null clears it back to the group overview.
+    const setGroupFilter = useCallback((group: string | null) => {
+        const next = { ...filters };
+        if (group) next.groups = [group]; else delete next.groups;
+        setFilters(next);
+        loadData(next);
+    }, [filters, loadData]);
 
     const hasFilters = Object.values(filters).some(v => Array.isArray(v) && v.length > 0);
     const activeFilterCount = Object.values(filters).reduce<number>((acc, v) => acc + (Array.isArray(v) ? v.length : 0), 0);
@@ -576,11 +673,14 @@ export default function CandidateFunnelTab() {
             {/* ── By Industry Group (candidates) + Org Charts by Group Industries ── */}
             {data && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                    <RankedListCard
-                        title="By Industry Group"
-                        data={data.by_group} icon={Layers} selected={filters.groups || []} onSelect={v => updateFilter('groups', v)}
+                    <IndustryGroupCard
+                        groupData={data.by_group}
+                        positionData={data.by_position_keyword}
+                        activeGroup={filters.groups?.length === 1 ? filters.groups[0] : null}
+                        onToggleGroup={g => setGroupFilter(filters.groups?.length === 1 && filters.groups[0] === g ? null : g)}
+                        selectedPositionKeywords={filters.position_keywords || []}
+                        onSelectPositionKeyword={v => updateFilter('position_keywords', v)}
                         filterTotal={data.total_filtered}
-                        limit={6}
                     />
                     <OrgChartByGroupCard
                         title="Organization Charts by Group Industries"
@@ -590,9 +690,16 @@ export default function CandidateFunnelTab() {
                 </div>
             )}
 
-            {/* ── By Age Range — full width ──────────────────────────────────── */}
+            {/* ── By Age Range + By Gender ────────────────────────────────────── */}
             {data && (
-                <VerticalBarCard title="By Age Range" data={data.by_age_range} icon={Cake} filterTotal={data.total_filtered} />
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    <VerticalBarCard title="By Age Range" data={data.by_age_range} icon={Cake} filterTotal={data.total_filtered} />
+                    <DonutCard
+                        title={`By Gender${data.gender_unknown_count > 0 ? ` (${data.gender_unknown_count.toLocaleString()} Unknown)` : ""}`}
+                        data={data.by_gender} icon={Users} selected={[]} onSelect={() => {}} interactive={false}
+                        filterTotal={data.total_filtered}
+                    />
+                </div>
             )}
 
             {/* ── By Continent + By Location ─────────────────────────────────── */}
@@ -613,21 +720,27 @@ export default function CandidateFunnelTab() {
                 </div>
             )}
 
-            {/* ── By Industry + By Position Keyword + By Job Family ──────────── */}
+            {/* ── By Industry + By Job Family + By Job Function — Position    ── */}
+            {/*    Keyword now lives inline as the By Industry Group card's   ── */}
+            {/*    drill-down, so it's out of this row entirely               ── */}
             {data && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
                     <RankedListCard title="By Industry" data={data.by_industry} icon={Building2} selected={filters.industries || []} onSelect={v => updateFilter('industries', v)} filterTotal={data.total_filtered} />
-                    <RankedListCard title="By Position Keyword" data={data.by_position_keyword} icon={Briefcase} selected={filters.position_keywords || []} onSelect={v => updateFilter('position_keywords', v)} filterTotal={data.total_filtered} />
                     <RankedListCard title="By Job Family" data={data.by_job_grouping} icon={Users} selected={filters.job_groupings || []} onSelect={v => updateFilter('job_groupings', v)} filterTotal={data.total_filtered} />
+                    <RankedListCard title="By Job Function" data={data.by_job_function} icon={Target} selected={filters.job_functions || []} onSelect={v => updateFilter('job_functions', v)} filterTotal={data.total_filtered} />
                 </div>
             )}
 
-            {/* ── Job Function + Hotel Chain + SET Company — Hotel Chain/SET Company are */}
-            {/*    both "ever worked there" career-history cross-cuts, not mutually-     */}
-            {/*    exclusive demographic buckets                                         */}
+            {/* ── Nationality + Hotel Chain + SET Company — Hotel Chain/SET   ── */}
+            {/*    Company are both "ever worked there" career-history        ── */}
+            {/*    cross-cuts, not mutually-exclusive demographic buckets      ── */}
             {data && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                    <RankedListCard title="By Job Function" data={data.by_job_function} icon={Target} selected={filters.job_functions || []} onSelect={v => updateFilter('job_functions', v)} filterTotal={data.total_filtered} />
+                    <RankedListCard
+                        title={`By Nationality${data.nationality_unknown_count > 0 ? ` (${data.nationality_unknown_count.toLocaleString()} Unknown)` : ""}`}
+                        data={data.by_nationality} icon={Flag}
+                        filterTotal={data.total_filtered}
+                    />
                     <RankedListCard title="By Hotel Chain" data={data.by_hotel_chain} icon={Building2} selected={filters.hotel_chains || []} onSelect={v => updateFilter('hotel_chains', v)} filterTotal={data.total_filtered} />
                     <RankedListCard
                         title="By SET Company"
@@ -638,15 +751,6 @@ export default function CandidateFunnelTab() {
                         filterTotal={data.total_filtered}
                     />
                 </div>
-            )}
-
-            {/* ── Nationality — informational only (not filterable yet) ─────── */}
-            {data && (
-                <RankedListCard
-                    title={`By Nationality${data.nationality_unknown_count > 0 ? ` (${data.nationality_unknown_count.toLocaleString()} Unknown)` : ""}`}
-                    data={data.by_nationality} icon={Flag}
-                    filterTotal={data.total_filtered}
-                />
             )}
 
             {listVisible && <FunnelCandidateListSection filters={filters} />}

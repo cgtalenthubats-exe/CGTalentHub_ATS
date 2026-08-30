@@ -27,6 +27,8 @@ export interface PopulationData {
     by_age_range: { name: string; count: number }[];
     by_nationality: { name: string; count: number }[];
     nationality_unknown_count: number;
+    by_gender: { name: string; count: number }[];
+    gender_unknown_count: number;
     by_hotel_chain: { name: string; count: number }[];
     by_set_company: { name: string; count: number }[];
     by_job_grouping: { name: string; count: number }[];
@@ -269,6 +271,7 @@ const EMPTY_POPULATION_DATA: PopulationData = {
     total_db: 0, total_filtered: 0, currently_employed: 0, set_experienced: 0,
     by_group: [], by_industry: [], by_country: [], by_continent: [], by_position_keyword: [],
     by_age_range: [], by_nationality: [], nationality_unknown_count: 0,
+    by_gender: [], gender_unknown_count: 0,
     by_hotel_chain: [], by_set_company: [],
     by_job_grouping: [], by_job_function: [],
 };
@@ -329,6 +332,8 @@ export async function getCandidatePopulationData(filters: PopulationFilters = {}
         by_age_range,
         by_nationality: data.by_nationality ?? [],
         nationality_unknown_count: data.nationality_unknown_count ?? 0,
+        by_gender: data.by_gender ?? [],
+        gender_unknown_count: data.gender_unknown_count ?? 0,
         by_hotel_chain: data.by_hotel_chain ?? [],
         by_set_company,
         by_job_grouping: data.by_job_grouping ?? [],
