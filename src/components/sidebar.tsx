@@ -27,9 +27,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
 const menuItems = [
-    { name: "Overview", icon: LayoutDashboard, path: "/" },
-    { name: "Pending Task for Recruiter", icon: ClipboardList, path: "/pending-tasks" },
     { name: "Dashboard", icon: BarChart3, path: "/dashboard" },
+    { name: "Pending Task for Recruiter", icon: ClipboardList, path: "/pending-tasks" },
     { name: "Candidates", icon: Users, path: "/candidates" },
     { name: "Job Requisitions", icon: Briefcase, path: "/requisitions" },
     { name: "Org Chart", icon: Network, path: "/org-chart" },
