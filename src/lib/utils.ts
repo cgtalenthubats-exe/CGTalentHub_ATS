@@ -31,6 +31,17 @@ export function parseNumberFromCommas(value: string): string {
 }
 
 /**
+ * Initials for an avatar fallback, e.g. "Sumeth Preechawuttiwong" -> "SP", "Somchai" -> "SO"
+ */
+export function getInitials(name: string | null | undefined): string {
+    if (!name) return "?";
+    const parts = name.trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "?";
+    if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+/**
  * JR aging in days: request_date -> closed_date (if the JR is closed) or now.
  * Once closed_date is set, aging is frozen at that point instead of continuing to grow.
  */

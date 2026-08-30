@@ -4,8 +4,8 @@ import React, { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
-    Bot, User, Send, Loader2, Sparkles, ChevronDown, ChevronUp,
-    RotateCcw, Search, UserPlus, Trash2, Users, TrendingUp, Building2, Globe, Filter, AlertCircle, X, Download,
+    Bot, Send, Loader2, Sparkles, ChevronDown, ChevronUp,
+    RotateCcw, Search, UserPlus, Users, TrendingUp, Building2, Globe, Filter, AlertCircle, X, Download,
     Copy, Check, Table2
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -14,7 +14,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { cn, getInitials } from "@/lib/utils";
+import { getV3ChatHistory, sendV3ChatMessage } from "@/app/actions/ai-search-v3-chat";
+import { V3_SESSION_ID } from "@/lib/ai-search-v3-constants";
+import { useChatRealtime, type RealtimeChatMessage } from "@/hooks/use-chat-realtime";
 import { FilterPanel } from "@/app/ai-search-demo/FilterPanel";
 import { ChainRatingPicker } from "@/app/ai-search-demo/ChainRatingPicker";
 import { CandidateTableView } from "@/app/candidates/list/table-view";
@@ -120,11 +124,9 @@ const MODELS = [
 ];
 
 const PAGE_SIZE = 20;
-const STORAGE_KEY = "ai-search-v3-messages-v2";
-const N8N_WEBHOOK = "https://n8n.srv1212906.hstgr.cloud/webhook/0777f5b4-867c-499e-b412-d5daecefefb5";
 const VECTOR_RANK_WEBHOOK = "https://n8n.srv1212906.hstgr.cloud/webhook/vector-rank";
 
-type ChatMsg = { id: string; role: "user" | "assistant"; content: string; filters?: any; sessionId?: string; jdText?: string };
+type ChatMsg = { id: string; role: "user" | "assistant"; content: string; filters?: any; sessionId?: string; jdText?: string; sender?: string };
 
 function hasMeaningfulFilters(f: any): boolean {
     if (!f) return false;
@@ -273,13 +275,26 @@ export default function AISearchV3Page() {
     const [filtersChangedSinceSearch, setFiltersChangedSinceSearch] = useState(false);
     const [searchError, setSearchError] = useState<string | null>(null);
 
-    // Load from localStorage after mount
+    // Load shared team chat history from the server after mount
     useEffect(() => {
-        try {
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved) setMessages(JSON.parse(saved));
-        } catch {}
-        setHasLoaded(true);
+        getV3ChatHistory().then(history => {
+            if (history.length > 0) {
+                let lastUserText = "";
+                const hydrated: ChatMsg[] = history.map((h, i) => {
+                    if (h.role === "user") lastUserText = h.text;
+                    return {
+                        id: `${Date.now()}-${i}`,
+                        role: h.role === "user" ? "user" : "assistant",
+                        content: h.text,
+                        sender: h.sender,
+                        filters: hasMeaningfulFilters(h.filters) ? h.filters : undefined,
+                        sessionId: h.sessionId,
+                        jdText: h.sessionId ? lastUserText : undefined,
+                    };
+                });
+                setMessages(hydrated);
+            }
+        }).finally(() => setHasLoaded(true));
     }, []);
 
     // Auto-scroll chat container (not full page) to bottom on new messages or after initial load
@@ -289,10 +304,16 @@ export default function AISearchV3Page() {
         el.scrollTop = el.scrollHeight;
     }, [messages, hasLoaded]);
 
-    useEffect(() => {
-        if (!hasLoaded) return;
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(messages)); } catch {}
-    }, [messages, hasLoaded]);
+    // Live-update: pick up messages other recruiters post to this shared thread
+    const handleRealtimeInsert = useCallback((msg: RealtimeChatMessage) => {
+        setMessages(prev => {
+            const role = msg.role === "user" ? "user" : "assistant";
+            const exists = prev.some(m => m.role === role && m.content.trim() === msg.text.trim());
+            if (exists) return prev;
+            return [...prev, { id: `${Date.now()}-${Math.random()}`, role, content: msg.text, sender: msg.sender }];
+        });
+    }, []);
+    useChatRealtime(V3_SESSION_ID, handleRealtimeInsert, "B");
 
     useEffect(() => {
         getDemoFilterOptions().then((opts) => {
@@ -495,17 +516,11 @@ export default function AISearchV3Page() {
         setTimeout(() => setCopiedTableMsgId(null), 2000);
     };
 
-    const clearChat = () => {
-        setMessages([]);
-        localStorage.removeItem(STORAGE_KEY);
-    };
-
     const handleSend = async () => {
         if (!input.trim() || isLoading) return;
         const jdText = input;
         const userMsg: ChatMsg = { id: Date.now().toString(), role: "user", content: input };
-        const newMessages = [...messages, userMsg];
-        setMessages(newMessages);
+        setMessages(prev => [...prev, userMsg]);
         setInput("");
         setIsLoading(true);
 
@@ -513,35 +528,15 @@ export default function AISearchV3Page() {
         setMessages(prev => [...prev, { id: assistantId, role: "assistant", content: "…" }]);
 
         try {
-            const res = await fetch(N8N_WEBHOOK, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ message: jdText, sessionId: "ai-search-v3" }),
-                signal: AbortSignal.timeout(120000),
-            });
-
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const rawText = await res.text();
-            let content = "";
-            let aiFilters: any = {};
-            let sessionId: string | undefined;
-
-            try {
-                const data = JSON.parse(rawText);
-                const first = Array.isArray(data) ? data[0] : data;
-                content = first.answer ?? first.output ?? first.text ?? rawText;
-                content = content.replace(/\\n/g, '\n').replace(/\\t/g, '\t').replace(/\\"/g, '"');
-                if (first?.filters) aiFilters = first.filters;
-                if (first?.session_id) sessionId = first.session_id;
-            } catch { content = rawText; }
-
+            const { answer, filters: aiFilters, sessionId, sender } = await sendV3ChatMessage(jdText);
+            setMessages(prev => prev.map(m => m.id === userMsg.id ? { ...m, sender } : m));
             setMessages(prev => prev.map(m =>
                 m.id === assistantId
                     ? {
                         ...m,
-                        content: content || "⚠️ No response",
+                        content: answer,
                         filters: hasMeaningfulFilters(aiFilters) ? aiFilters : undefined,
-                        sessionId: sessionId?.startsWith("v2_") ? sessionId : undefined,
+                        sessionId,
                         jdText,
                     }
                     : m
@@ -670,7 +665,10 @@ export default function AISearchV3Page() {
                                             <Bot className="h-3 w-3 text-indigo-600" />
                                         </div>
                                     )}
-                                    <div className="flex flex-col gap-1.5 max-w-[75%]">
+                                    <div className={cn("flex flex-col gap-1.5 max-w-[75%]", m.role === "user" && "items-end")}>
+                                        {m.role === "user" && m.sender && (
+                                            <span className="text-[10px] text-slate-400 pr-1">{m.sender}</span>
+                                        )}
                                         <div className={cn(
                                             "rounded-2xl px-3.5 py-2 text-sm leading-relaxed",
                                             m.role === "user"
@@ -735,9 +733,11 @@ export default function AISearchV3Page() {
                                         )}
                                     </div>
                                     {m.role === "user" && (
-                                        <div className="w-6 h-6 rounded-full bg-slate-200 flex items-center justify-center shrink-0 mt-0.5">
-                                            <User className="h-3 w-3 text-slate-500" />
-                                        </div>
+                                        <Avatar className="w-6 h-6 shrink-0 mt-0.5">
+                                            <AvatarFallback className="bg-slate-200 text-slate-600 text-[9px] font-semibold">
+                                                {getInitials(m.sender)}
+                                            </AvatarFallback>
+                                        </Avatar>
                                     )}
                                 </div>
                             ))}
@@ -755,11 +755,6 @@ export default function AISearchV3Page() {
                                 <Button onClick={handleSend} disabled={isLoading || !input.trim()} size="sm" className="h-9 w-9 p-0 rounded-xl">
                                     {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                                 </Button>
-                                {messages.length > 0 && (
-                                    <Button onClick={clearChat} variant="ghost" size="sm" className="h-9 w-9 p-0 rounded-xl text-slate-400 hover:text-red-500">
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
-                                )}
                             </div>
                         </div>
                     </div>

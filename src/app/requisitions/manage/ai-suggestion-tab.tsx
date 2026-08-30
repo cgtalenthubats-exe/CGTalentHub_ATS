@@ -1,13 +1,16 @@
 "use client";
 
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Sparkles, Loader2, RotateCcw, ChevronDown, ChevronUp, Briefcase, Target, Globe, Wrench, BarChart3, History, Clock, MessageSquare, Send, Bot, User, MapPin, Cake, Linkedin, ExternalLink, Download, Maximize2, Minimize2, Copy, Check, FileDown, Table2 } from "lucide-react";
+import { Sparkles, Loader2, RotateCcw, ChevronDown, ChevronUp, Briefcase, Target, Globe, Wrench, BarChart3, History, Clock, MessageSquare, Send, Bot, MapPin, Cake, Linkedin, ExternalLink, Download, Maximize2, Minimize2, Copy, Check, FileDown, Table2 } from "lucide-react";
 import { CandidateAvatar } from "@/components/candidate-avatar";
 import { CandidateProfileSheet } from "@/components/candidate-profile-sheet";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { getInitials } from "@/lib/utils";
 import { triggerStage3Ranking, getStage3JobStatus, getLatestJobForJR, getJobHistoryForJR, type Stage3JobData, type Stage3Result, type JobHistoryItem } from "@/app/actions/ai-ranking";
 import { sendJrChatMessage, getJrChatHistory } from "@/app/actions/jr-ai-chat";
+import { useChatRealtime, type RealtimeChatMessage } from "@/hooks/use-chat-realtime";
 import { generateAssessmentPPTX, generateChatMatrixPPTX } from "@/app/actions/export-pptx";
 import { shareAssessmentReport } from "@/app/actions/share-report";
 import { ShareReportDialog } from "@/components/share-report-dialog";
@@ -583,7 +586,7 @@ function OriginalResultRow({ r }: { r: Stage3Result }) {
 }
 
 // ── Chat Message Types ──────────────────────────
-type ChatMessage = { role: "user" | "ai"; text: string; id: number };
+type ChatMessage = { role: "user" | "ai"; text: string; id: number; sender?: string };
 
 // ── Chat Section ────────────────────────────────
 function ChatSection({ jrId, jrTitle }: { jrId: string; jrTitle?: string }) {
@@ -670,10 +673,20 @@ function ChatSection({ jrId, jrTitle }: { jrId: string; jrTitle?: string }) {
         setHistoryLoading(true);
         getJrChatHistory(jrId).then(history => {
             if (history.length > 0) {
-                setMessages(history.map(h => ({ role: h.role, text: h.text, id: ++msgIdRef.current })));
+                setMessages(history.map(h => ({ role: h.role, text: h.text, id: ++msgIdRef.current, sender: h.sender })));
             }
         }).finally(() => setHistoryLoading(false));
     }, [jrId]);
+
+    // Live-update: pick up messages other recruiters post to this JR's chat
+    const handleRealtimeInsert = useCallback((msg: RealtimeChatMessage) => {
+        setMessages(prev => {
+            const exists = prev.some(m => m.role === msg.role && m.text.trim() === msg.text.trim());
+            if (exists) return prev;
+            return [...prev, { role: msg.role, text: msg.text, sender: msg.sender, id: ++msgIdRef.current }];
+        });
+    }, []);
+    useChatRealtime(`jr_${jrId}`, handleRealtimeInsert);
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -691,7 +704,8 @@ function ChatSection({ jrId, jrTitle }: { jrId: string; jrTitle?: string }) {
         setLoading(true);
 
         try {
-            const { answer } = await sendJrChatMessage(text, jrId, jrTitle ?? jrId);
+            const { answer, sender } = await sendJrChatMessage(text, jrId, jrTitle ?? jrId);
+            setMessages(prev => prev.map(m => m.id === userMsg.id ? { ...m, sender } : m));
             const aiMsg: ChatMessage = { role: "ai", text: answer, id: ++msgIdRef.current };
             setMessages(prev => [...prev, aiMsg]);
         } catch (err: any) {
@@ -745,17 +759,25 @@ function ChatSection({ jrId, jrTitle }: { jrId: string; jrTitle?: string }) {
 
                 {messages.map(msg => (
                     <div key={msg.id} className={`flex gap-2.5 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
-                            msg.role === "user" ? "bg-indigo-600" : "bg-slate-100"
-                        }`}>
-                            {msg.role === "user"
-                                ? <User className="w-3.5 h-3.5 text-white" />
-                                : <Bot className="w-3.5 h-3.5 text-slate-500" />
-                            }
-                        </div>
                         {msg.role === "user" ? (
-                            <div className="max-w-[80%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap bg-indigo-600 text-white rounded-tr-sm">
-                                {msg.text}
+                            <Avatar className="w-7 h-7 shrink-0 mt-0.5">
+                                <AvatarFallback className="bg-indigo-600 text-white text-[10px] font-semibold">
+                                    {getInitials(msg.sender)}
+                                </AvatarFallback>
+                            </Avatar>
+                        ) : (
+                            <div className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 bg-slate-100">
+                                <Bot className="w-3.5 h-3.5 text-slate-500" />
+                            </div>
+                        )}
+                        {msg.role === "user" ? (
+                            <div className="max-w-[80%] flex flex-col gap-0.5 items-end">
+                                {msg.sender && (
+                                    <span className="text-[10px] text-slate-400 pr-1">{msg.sender}</span>
+                                )}
+                                <div className="rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed whitespace-pre-wrap bg-indigo-600 text-white rounded-tr-sm">
+                                    {msg.text}
+                                </div>
                             </div>
                         ) : (
                             <div className="max-w-[85%] flex flex-col gap-1">
