@@ -5,7 +5,7 @@ import { getKPIData, KPIRawData } from "@/app/actions/kpi-actions";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
 import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
 import {
-    ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
+    ComposedChart, BarChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 import { Loader2, Search, ClipboardCheck, MessageSquare, FolderOpen, RotateCcw, ArrowUpRight, Trophy } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -48,7 +48,10 @@ export default function RecruiterPerformanceTab() {
         return map;
     }, [rawData]);
 
-    const ALIASES: Record<string, string> = { "system import": "Admin2", "admin@cgtalent.com": "Admin2", "admin2": "Admin2" };
+    const ALIASES: Record<string, string> = {
+        "system import": "Admin", "admin@cgtalent.com": "Admin", "admin2": "Admin", "admin1": "Admin",
+        "tanyajiitra": "Tanyajittra",
+    };
 
     const resolve = (id: string | null): string => {
         const s = (id || "Unknown").toLowerCase().trim();
@@ -114,6 +117,19 @@ export default function RecruiterPerformanceTab() {
         fInterviews.forEach((i: any) => { const d = parseDate(i.interview_date); if (d) base[d.getMonth()].interviews++; });
         return base;
     }, [fSourcing, fPrescreens, fInterviews]);
+
+    // ── JR by Business Unit — moved here from the removed Pipeline tab; ──
+    // uses the same FY/recruiter-filtered JR set as the rest of this page ──
+    const buChartData = useMemo(() => {
+        const counts = new Map<string, number>();
+        fJRs.forEach((j: any) => {
+            const bu = j.bu || "Unknown";
+            counts.set(bu, (counts.get(bu) || 0) + 1);
+        });
+        return [...counts.entries()]
+            .map(([bu, count]) => ({ bu, count }))
+            .sort((a, b) => b.count - a.count);
+    }, [fJRs]);
 
     // ── Per-recruiter table data ────────────────────────────────────
 
@@ -244,6 +260,31 @@ export default function RecruiterPerformanceTab() {
                         <Line yAxisId="right" dataKey="prescreens" stroke="#f59e0b" strokeWidth={2.5} dot={false} name="Pre-Screens" />
                         <Line yAxisId="right" dataKey="interviews" stroke="#10b981" strokeWidth={2.5} dot={false} name="Interviews" />
                     </ComposedChart>
+                </ResponsiveContainer>
+            </div>
+
+            {/* ── JR by Business Unit (moved here from the removed Pipeline tab) ── */}
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+                <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest mb-4">
+                    JR by Business Unit — {fyLabel}
+                </h3>
+                <ResponsiveContainer width="100%" height={240}>
+                    <BarChart data={buChartData} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                        <XAxis
+                            dataKey="bu"
+                            tick={{ fontSize: 11, fontWeight: 600, fill: "#94a3b8" }}
+                            axisLine={false} tickLine={false}
+                        />
+                        <YAxis
+                            tick={{ fontSize: 11, fill: "#94a3b8" }}
+                            allowDecimals={false} axisLine={false} tickLine={false}
+                        />
+                        <Tooltip
+                            contentStyle={{ borderRadius: "12px", border: "1px solid #e2e8f0", fontSize: "12px", fontWeight: 700 }}
+                        />
+                        <Bar dataKey="count" fill="#6366f1" radius={[6, 6, 0, 0]} name="JRs" maxBarSize={40} />
+                    </BarChart>
                 </ResponsiveContainer>
             </div>
 

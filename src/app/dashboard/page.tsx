@@ -12,7 +12,6 @@ import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
 import { Button } from "@/components/ui/button";
 import { Tooltip as ReactTooltip } from "react-tooltip";
 import { cn } from "@/lib/utils";
-import PipelineTab from "./PipelineTab";
 import PlacementTab from "./PlacementTab";
 import PackageInfoTab from "./PackageInfoTab";
 import RecruiterPerformanceTab from "./RecruiterPerformanceTab";
@@ -47,7 +46,7 @@ export default function DashboardPage() {
             try { setGlobalData(await getGlobalPoolDisplay()); } catch (e) { console.error(e); }
             setGlobalLoading(false);
         }
-        // pipeline & placement tabs handle their own data internally
+        // placement, recruiter, and package tabs handle their own data internally
     }, []);
 
     useEffect(() => { loadTab("funnel"); }, [loadTab]);
@@ -226,7 +225,6 @@ export default function DashboardPage() {
                 <TabsList className="bg-slate-100 p-1 rounded-lg">
                     <TabsTrigger value="funnel" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Candidate Funnel</TabsTrigger>
                     <TabsTrigger value="global" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Global Candidate Pool</TabsTrigger>
-                    <TabsTrigger value="pipeline" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Recruitment Pipeline</TabsTrigger>
                     <TabsTrigger value="placement" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Search & Placement</TabsTrigger>
                     <TabsTrigger value="recruiter" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Recruiter Performance</TabsTrigger>
                     <TabsTrigger value="package" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Package Info</TabsTrigger>
@@ -376,11 +374,6 @@ export default function DashboardPage() {
                             </Card>
                         </div>
                     </div>
-                </TabsContent>
-
-                {/* --- TAB 3: RECRUITMENT PIPELINE --- */}
-                <TabsContent value="pipeline" className="space-y-6 outline-none">
-                    <PipelineTab />
                 </TabsContent>
 
                 {/* --- TAB 4: SEARCH & PLACEMENT --- */}
