@@ -223,6 +223,7 @@ export default function PlacementsPage() {
                     toMonth={toMonth}
                     onFromChange={setFromMonth}
                     onToChange={setToMonth}
+                    yearOnly
                 />
             </div>
 

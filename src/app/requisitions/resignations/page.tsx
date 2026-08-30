@@ -160,6 +160,7 @@ export default function ResignationsPage() {
                         toMonth={toMonth}
                         onFromChange={setFromMonth}
                         onToChange={setToMonth}
+                        yearOnly
                     />
 
                     <div className="relative w-full md:w-80">
