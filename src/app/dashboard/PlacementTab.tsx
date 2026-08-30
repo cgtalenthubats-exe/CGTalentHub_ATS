@@ -17,6 +17,30 @@ import { toast } from "sonner";
 
 const COLORS = ["#4f46e5", "#7c3aed", "#0891b2", "#0d9488", "#dc2626", "#ea580c", "#ca8a04", "#15803d"];
 
+// Pie label as a solid box (slice color fill, black border, white text) instead
+// of plain colored text — mirrors the same box style applied to the PPTX export.
+function ColoredPieLabel(props: any) {
+    const { cx, cy, midAngle, outerRadius, percent, name, index } = props;
+    const RADIAN = Math.PI / 180;
+    const radius = outerRadius + 28;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+    const text = `${name} (${(percent * 100).toFixed(0)}%)`;
+    const boxW = text.length * 6.2 + 14;
+    const boxH = 18;
+    return (
+        <g>
+            <rect
+                x={x - boxW / 2} y={y - boxH / 2} width={boxW} height={boxH} rx={4}
+                fill={COLORS[index % COLORS.length]} stroke="#000000" strokeWidth={1}
+            />
+            <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fill="#ffffff" fontSize={11} fontWeight={700}>
+                {text}
+            </text>
+        </g>
+    );
+}
+
 function parseYear(dateStr: string | null): number | null {
     if (!dateStr) return null;
     if (dateStr.includes('-') && dateStr.length >= 7) {
@@ -377,10 +401,10 @@ export default function PlacementTab() {
                             </tr>
                             <tr className="bg-slate-700 text-[10px] uppercase tracking-wider text-slate-300">
                                 <th className="px-4 py-2"></th>
-                                {["Search", "Placement", "Saving"].map(h => (
+                                {["Search", "Place", "Saving"].map(h => (
                                     <th key={`all-${h}`} className={cn("px-3 py-3 text-center font-medium text-indigo-300", h === "Search" ? "border-l-2 border-indigo-400" : "border-l border-slate-500", h === "Saving" ? "w-[100px]" : "w-[80px]")}>{h}</th>
                                 ))}
-                                {buList.flatMap(bu => ["Search", "Placement", "Saving"].map(h => (
+                                {buList.flatMap(bu => ["Search", "Place", "Saving"].map(h => (
                                     <th key={`${bu}-${h}`} className={cn("px-3 py-3 text-center font-medium", h === "Search" ? "border-l-2 border-slate-500" : "border-l border-slate-600", h === "Saving" ? "w-[100px]" : "w-[80px]")}>{h}</th>
                                 )))}
                             </tr>
@@ -455,7 +479,7 @@ export default function PlacementTab() {
                             <ResponsiveContainer width="100%" height={240}>
                                 <PieChart>
                                     <Pie data={buChartData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="value"
-                                        label={({ name, percent }) => `${name} (${(percent! * 100).toFixed(0)}%)`} labelLine={false} paddingAngle={3}>
+                                        label={ColoredPieLabel} labelLine={false} paddingAngle={3}>
                                         {buChartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                                     </Pie>
                                     <Tooltip formatter={(v: any) => [`${v} PPL.`]} />
@@ -472,7 +496,7 @@ export default function PlacementTab() {
                             <ResponsiveContainer width="100%" height={240}>
                                 <PieChart>
                                     <Pie data={jgChartData} cx="50%" cy="50%" innerRadius={55} outerRadius={85} dataKey="value"
-                                        label={({ name, percent }) => `${name} (${(percent! * 100).toFixed(0)}%)`} labelLine={false} paddingAngle={3}>
+                                        label={ColoredPieLabel} labelLine={false} paddingAngle={3}>
                                         {jgChartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                                     </Pie>
                                     <Tooltip formatter={(v: any) => [`${v} PPL.`]} />

@@ -109,12 +109,14 @@ function fmtSalary(val: number): string {
     return val.toLocaleString();
 }
 
-// pptxgenjs only exposes a single uniform `dataLabelColor` for a whole chart,
-// but it already emits one <c:dLbl> per data point internally — so the pie
-// slice labels come out black regardless of `chartColors`, which is why the
-// PPTX text doesn't match the dashboard (where each label inherits its
-// slice's fill). Post-process the generated chart XML to recolor each
-// point's label text to match its own slice.
+// pptxgenjs only exposes a single uniform `dataLabelColor`/`dataLabelBkgrdColors`
+// for a whole chart, and even `dataLabelBkgrdColors` is a no-op for pie/doughnut
+// charts specifically — its per-point <c:dLbl> generator always emits an empty
+// <c:spPr/> regardless of that option (see its chart-gen source). So the pie
+// labels render as plain black text with no fill, unlike the dashboard where
+// each label is a box colored to match its slice. Post-process the generated
+// chart XML to turn each label into that same colored box: solid fill = the
+// slice's own color, black border, white text.
 //
 // Read each slice's ACTUAL rendered fill from its <c:dPt> rather than
 // recomputing from the `chartColors` array we passed in: when a chart has
@@ -122,7 +124,22 @@ function fmtSalary(val: number): string {
 // the overflow slices (see its chart-gen source, the `_dataIndex + 1 >
 // chartColors.length` branch) — so the only reliable source of truth for
 // "what color is this slice" is the XML pptxgenjs already wrote.
-function recolorDoughnutLabels(xml: string): string {
+function escapeXml(s: string): string {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// `labels`, when given, replaces the native showCatName/showPercent text with
+// our own "Name (XX%)" string per point (via <c:tx>, the OOXML mechanism for
+// custom per-label text) — matching the dashboard's label format exactly
+// instead of PowerPoint's own two-line "Name / XX%" rendering.
+//
+// Deliberately does NOT add <c:dLblPos> here: pptxgenjs's own chart-gen code
+// only ever emits dLblPos for CHART_TYPE.PIE, never DOUGHNUT — forcing it in
+// (even "ctr", nominally the one doughnut supports) produced a file
+// PowerPoint flagged as corrupted and offered to repair, so leave position
+// unset and let PowerPoint apply its own default for doughnut, same as
+// pptxgenjs does when you don't pass dataLabelPosition.
+function recolorDoughnutLabels(xml: string, labels?: string[]): string {
     const dPtColors = new Map<number, string>();
     const dPtRe = /<c:dPt>\s*<c:idx val="(\d+)"\/>[\s\S]*?srgbClr val="([0-9A-Fa-f]{6})"/g;
     let dm: RegExpExecArray | null;
@@ -132,19 +149,33 @@ function recolorDoughnutLabels(xml: string): string {
     return xml.replace(
         /<c:dLbl>\s*<c:idx val="(\d+)"\/>([\s\S]*?)<\/c:dLbl>/g,
         (_whole, idxStr: string, inner: string) => {
-            const color = dPtColors.get(parseInt(idxStr, 10));
-            const recolored = color ? inner.replace(/srgbClr val="000000"/, `srgbClr val="${color}"`) : inner;
-            return `<c:dLbl><c:idx val="${idxStr}"/>${recolored}</c:dLbl>`;
+            const idx = parseInt(idxStr, 10);
+            const color = dPtColors.get(idx);
+            if (!color) return `<c:dLbl><c:idx val="${idxStr}"/>${inner}</c:dLbl>`;
+            const boxed = inner
+                .replace(
+                    "<c:spPr/>",
+                    `<c:spPr><a:solidFill><a:srgbClr val="${color}"/></a:solidFill><a:ln w="9525"><a:solidFill><a:srgbClr val="000000"/></a:solidFill></a:ln></c:spPr>`
+                )
+                .replace(/srgbClr val="000000"\/><\/a:solidFill>(\s*)<a:latin/, 'srgbClr val="FFFFFF"/></a:solidFill>$1<a:latin');
+            const labelText = labels?.[idx];
+            const tx = labelText
+                ? `<c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="900" b="0"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:latin typeface="Arial"/></a:defRPr></a:pPr><a:r><a:rPr lang="en-US" sz="900" b="0"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill><a:latin typeface="Arial"/></a:rPr><a:t>${escapeXml(labelText)}</a:t></a:r></a:p></c:rich></c:tx>`
+                : "";
+            return `<c:dLbl><c:idx val="${idxStr}"/>${tx}${boxed}</c:dLbl>`;
         }
     );
 }
 
-async function recolorChartLabelsInPptx(buffer: Buffer): Promise<Buffer> {
+async function recolorChartLabelsInPptx(buffer: Buffer, chartLabelSets: string[][]): Promise<Buffer> {
     const zip = await JSZip.loadAsync(buffer);
-    const chartFiles = Object.keys(zip.files).filter(f => /^ppt\/charts\/chart\d+\.xml$/.test(f));
-    for (const file of chartFiles) {
+    const chartFiles = Object.keys(zip.files)
+        .filter(f => /^ppt\/charts\/chart\d+\.xml$/.test(f))
+        .sort((a, b) => parseInt(a.match(/\d+/)![0], 10) - parseInt(b.match(/\d+/)![0], 10));
+    for (let i = 0; i < chartFiles.length; i++) {
+        const file = chartFiles[i];
         const xml = await zip.file(file)!.async("string");
-        zip.file(file, recolorDoughnutLabels(xml));
+        zip.file(file, recolorDoughnutLabels(xml, chartLabelSets[i]));
     }
     return zip.generateAsync({ type: "nodebuffer" });
 }
@@ -155,7 +186,12 @@ async function addPlacementOverviewSlide(
     placements: PlacementRec[],
     jrs: JRRec[],
     params: { selectedBU: string[]; selectedYear: string[]; selectedStatus: string }
-) {
+): Promise<string[][]> {
+    // Label text per doughnut chart, in the same order charts get added below —
+    // consumed by recolorChartLabelsInPptx() to override each slice's label
+    // text to match the dashboard's "Name (XX%)" format.
+    const chartLabelSets: string[][] = [];
+
     const slide = pptx.addSlide();
     slide.background = { color: C.slate50 };
 
@@ -510,6 +546,8 @@ async function addPlacementOverviewSlide(
     const buActive = buList.filter(bu => (totalByBU[bu]?.placement || 0) > 0);
     const buValues = buActive.map(bu => totalByBU[bu].placement);
     if (buValues.length > 0) {
+        const buTotal = buValues.reduce((s, v) => s + v, 0);
+        chartLabelSets.push(buActive.map((name, i) => `${name} (${Math.round((buValues[i] / buTotal) * 100)}%)`));
         slide.addChart(pptx.ChartType.doughnut, [{
             name: "Placements",
             labels: buActive,
@@ -542,6 +580,8 @@ async function addPlacementOverviewSlide(
     });
     const jgEntries = Object.entries(jgMap).sort(([a], [b]) => a.localeCompare(b));
     if (jgEntries.length > 0) {
+        const jgTotal = jgEntries.reduce((s, [, v]) => s + v, 0);
+        chartLabelSets.push(jgEntries.map(([name, v]) => `${name} (${Math.round((v / jgTotal) * 100)}%)`));
         slide.addChart(pptx.ChartType.doughnut, [{
             name: "Placements",
             labels: jgEntries.map(([k]) => k),
@@ -559,6 +599,8 @@ async function addPlacementOverviewSlide(
             legendFontSize: 9,
         } as any);
     }
+
+    return chartLabelSets;
 }
 
 // ── Slide 2+: Candidate List ───────────────────────────────────────────────────
@@ -711,13 +753,13 @@ export async function generatePlacementReportPPTX(params: {
     pptx.layout = "LAYOUT_WIDE";
     pptx.theme  = { headFontFace: "Calibri", bodyFontFace: "Calibri" };
 
-    await addPlacementOverviewSlide(pptx, filteredPlacements, filteredJRs, {
+    const chartLabelSets = await addPlacementOverviewSlide(pptx, filteredPlacements, filteredJRs, {
         selectedBU, selectedYear, selectedStatus,
     });
     addCandidateListSlides(pptx, filteredPlacements);
 
     const rawBuffer = await pptx.write({ outputType: "nodebuffer" }) as Buffer;
-    const recoloredBuffer = await recolorChartLabelsInPptx(rawBuffer);
+    const recoloredBuffer = await recolorChartLabelsInPptx(rawBuffer, chartLabelSets);
     const base64 = recoloredBuffer.toString("base64");
     const yearStr = selectedYear.length > 0 ? `_${selectedYear.join("-")}` : "";
     const buStr   = selectedBU.length   > 0 ? `_${selectedBU.join("-").replace(/\s+/g, "")}` : "";
