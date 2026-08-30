@@ -53,8 +53,20 @@ export function EditButton({ id }: { id: string }) {
     );
 }
 
-export function AddPrescreenDialog({ candidateId }: { candidateId: string }) {
-    const [open, setOpen] = useState(false);
+export function AddPrescreenDialog({
+    candidateId, candidateName, open: controlledOpen, onOpenChange: controlledOnOpenChange, showTrigger = true, onSuccess,
+}: {
+    candidateId: string;
+    candidateName?: string;
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+    showTrigger?: boolean;
+    onSuccess?: () => void;
+}) {
+    const [internalOpen, setInternalOpen] = useState(false);
+    const isControlled = controlledOpen !== undefined;
+    const open = isControlled ? controlledOpen : internalOpen;
+    const setOpen = isControlled ? (controlledOnOpenChange ?? (() => {})) : setInternalOpen;
     const [isPending, startTransition] = useTransition();
     const router = useRouter();
     const [isDraggingAdd, setIsDraggingAdd] = useState(false);
@@ -74,22 +86,28 @@ export function AddPrescreenDialog({ candidateId }: { candidateId: string }) {
             } else {
                 toast.success("Pre-Screen Log saved successfully!");
                 setOpen(false);
-                scrollWithReload(candidateId);
+                if (onSuccess) onSuccess(); else scrollWithReload(candidateId);
             }
         });
     };
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button size="sm" variant="outline" className="gap-2 h-8">
-                    <Plus className="h-3 w-3" /> Add Log
-                </Button>
-            </DialogTrigger>
+            {showTrigger && (
+                <DialogTrigger asChild>
+                    <Button size="sm" variant="outline" className="gap-2 h-8">
+                        <Plus className="h-3 w-3" /> Add Log
+                    </Button>
+                </DialogTrigger>
+            )}
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                     <DialogTitle>Add Pre-Screen Log</DialogTitle>
-                    <DialogDescription>Record a new screening session for this candidate.</DialogDescription>
+                    <DialogDescription>
+                        {candidateName
+                            ? <>Record a new screening session for <strong>{candidateName}</strong> ({candidateId}).</>
+                            : "Record a new screening session for this candidate."}
+                    </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4 py-4">
                     <div className="grid grid-cols-2 gap-4">

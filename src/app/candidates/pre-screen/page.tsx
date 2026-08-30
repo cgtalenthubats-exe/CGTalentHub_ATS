@@ -1,44 +1,53 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase/client";
+import React, { useEffect, useState, useMemo } from "react";
+import { getPreScreenLogs, PreScreenLogRow } from "@/app/actions/pre-screen-actions";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2, Search, FileText, ExternalLink, RefreshCw } from "lucide-react";
+import { Loader2, Search, FileText, ExternalLink, RefreshCw, Plus, ArrowUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { AddPrescreenDialog } from "@/components/candidate-client-actions";
+import { SelectCandidateDialog, PickedCandidate } from "@/components/select-candidate-dialog";
+import { parseAnyDate, formatDateForDisplay } from "@/lib/date-utils";
+import { cn } from "@/lib/utils";
 
-type PreScreenLog = {
-    pre_screen_id: number;
-    candidate_id: string;
-    name: string;
-    screening_date: string;
-    screener_Name: string;
-    overall_impression: string;
-    rating_score: number;
-    feedback_text: string;
-    feedback_file: string;
-};
+type PreScreenLog = PreScreenLogRow;
+
+type SortKey = "name" | "screener_Name" | "screening_date" | "overall_impression" | "rating_score";
+type SortConfig = { key: SortKey; direction: "asc" | "desc" };
+
+function SortableTableHead({ label, sortKey, currentSort, onSort }: { label: string; sortKey: SortKey; currentSort: SortConfig | null; onSort: (key: SortKey) => void }) {
+    return (
+        <TableHead className="cursor-pointer select-none hover:text-slate-900 group" onClick={() => onSort(sortKey)}>
+            <div className="flex items-center gap-1">
+                {label}
+                <ArrowUpDown className={cn("h-3 w-3", currentSort?.key === sortKey ? "text-indigo-600" : "text-transparent group-hover:text-slate-400")} />
+            </div>
+        </TableHead>
+    );
+}
 
 export default function PreScreenTablePage() {
     const [logs, setLogs] = useState<PreScreenLog[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedLog, setSelectedLog] = useState<PreScreenLog | null>(null);
+    const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
+
+    // Add flow: step 1 pick a candidate, step 2 the existing Add Pre-Screen Log dialog
+    const [pickerOpen, setPickerOpen] = useState(false);
+    const [pickedCandidate, setPickedCandidate] = useState<PickedCandidate | null>(null);
+    const [logDialogOpen, setLogDialogOpen] = useState(false);
 
     const fetchLogs = async () => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
-                .from('pre_screen_log')
-                .select('*')
-                .order('pre_screen_id', { ascending: false });
-
-            if (error) throw error;
-            setLogs(data || []);
+            const data = await getPreScreenLogs();
+            setLogs(data);
         } catch (error) {
             console.error("Error fetching pre-screen logs:", error);
         } finally {
@@ -50,11 +59,51 @@ export default function PreScreenTablePage() {
         fetchLogs();
     }, []);
 
-    const filteredLogs = logs.filter(log => 
+    const requestSort = (key: SortKey) => {
+        setSortConfig(prev => {
+            if (prev?.key === key) return { key, direction: prev.direction === "asc" ? "desc" : "asc" };
+            return { key, direction: "asc" };
+        });
+    };
+
+    const filteredLogs = logs.filter(log =>
         (log.name?.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (log.candidate_id?.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (log.screener_Name?.toLowerCase().includes(searchTerm.toLowerCase()))
     );
+
+    const sortedLogs = useMemo(() => {
+        if (!sortConfig) return filteredLogs;
+        const { key, direction } = sortConfig;
+        const dir = direction === "asc" ? 1 : -1;
+        return [...filteredLogs].sort((a, b) => {
+            if (key === "rating_score") {
+                return ((a.rating_score ?? 0) - (b.rating_score ?? 0)) * dir;
+            }
+            if (key === "screening_date") {
+                const da = parseAnyDate(a.screening_date)?.getTime() ?? -Infinity;
+                const db = parseAnyDate(b.screening_date)?.getTime() ?? -Infinity;
+                return (da - db) * dir;
+            }
+            const va = (a[key] || "").toString().toLowerCase();
+            const vb = (b[key] || "").toString().toLowerCase();
+            if (va < vb) return -1 * dir;
+            if (va > vb) return 1 * dir;
+            return 0;
+        });
+    }, [filteredLogs, sortConfig]);
+
+    const handleCandidatePicked = (candidate: PickedCandidate) => {
+        setPickedCandidate(candidate);
+        setPickerOpen(false);
+        setLogDialogOpen(true);
+    };
+
+    const handleLogSaved = () => {
+        setLogDialogOpen(false);
+        setPickedCandidate(null);
+        fetchLogs();
+    };
 
     const getImpressionColor = (impression: string) => {
         switch (impression?.toLowerCase()) {
@@ -79,6 +128,9 @@ export default function PreScreenTablePage() {
                     <h1 className="text-3xl font-extrabold tracking-tight">Pre-Screen Logs</h1>
                     <p className="text-muted-foreground">Review initial screening results and feedback.</p>
                 </div>
+                <Button onClick={() => setPickerOpen(true)} className="gap-2">
+                    <Plus className="w-4 h-4" /> Add Pre-Screen
+                </Button>
             </div>
 
             <Card className="border-none shadow-xl bg-white/50 backdrop-blur-sm">
@@ -105,7 +157,7 @@ export default function PreScreenTablePage() {
                             <Loader2 className="w-8 h-8 animate-spin text-primary" />
                             <span className="text-xs font-bold uppercase tracking-widest">Loading Logs...</span>
                         </div>
-                    ) : filteredLogs.length === 0 ? (
+                    ) : sortedLogs.length === 0 ? (
                         <div className="h-[200px] flex flex-col items-center justify-center gap-2 text-slate-400">
                             <Search className="w-8 h-8 opacity-20" />
                             <span className="text-xs">No matching records found</span>
@@ -114,16 +166,16 @@ export default function PreScreenTablePage() {
                         <Table>
                             <TableHeader className="bg-slate-50 sticky top-0">
                                 <TableRow>
-                                    <TableHead>Candidate</TableHead>
-                                    <TableHead>Screener</TableHead>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead>Impression</TableHead>
-                                    <TableHead>Score</TableHead>
+                                    <SortableTableHead label="Candidate" sortKey="name" currentSort={sortConfig} onSort={requestSort} />
+                                    <SortableTableHead label="Screener" sortKey="screener_Name" currentSort={sortConfig} onSort={requestSort} />
+                                    <SortableTableHead label="Date" sortKey="screening_date" currentSort={sortConfig} onSort={requestSort} />
+                                    <SortableTableHead label="Impression" sortKey="overall_impression" currentSort={sortConfig} onSort={requestSort} />
+                                    <SortableTableHead label="Score" sortKey="rating_score" currentSort={sortConfig} onSort={requestSort} />
                                     <TableHead className="text-right">Action</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {filteredLogs.map((log) => (
+                                {sortedLogs.map((log) => (
                                     <TableRow key={log.pre_screen_id} className="hover:bg-slate-50">
                                         <TableCell>
                                             <div className="flex flex-col">
@@ -135,7 +187,7 @@ export default function PreScreenTablePage() {
                                             <span className="text-sm text-slate-600">{log.screener_Name || 'N/A'}</span>
                                         </TableCell>
                                         <TableCell>
-                                            <span className="text-sm text-slate-600">{log.screening_date || 'N/A'}</span>
+                                            <span className="text-sm text-slate-600">{formatDateForDisplay(log.screening_date)}</span>
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant="outline" className={`${getImpressionColor(log.overall_impression)} font-bold`}>
@@ -187,7 +239,7 @@ export default function PreScreenTablePage() {
                                 </div>
                                 <div className="flex flex-col gap-1">
                                     <span className="text-xs font-semibold text-slate-500 uppercase">Date</span>
-                                    <span className="text-sm font-medium">{selectedLog.screening_date || '-'}</span>
+                                    <span className="text-sm font-medium">{formatDateForDisplay(selectedLog.screening_date)}</span>
                                 </div>
                                 <div className="flex flex-col gap-1">
                                     <span className="text-xs font-semibold text-slate-500 uppercase">Impression</span>
@@ -224,6 +276,27 @@ export default function PreScreenTablePage() {
                     )}
                 </DialogContent>
             </Dialog>
+
+            {/* Add flow — step 1: pick a candidate */}
+            <SelectCandidateDialog
+                open={pickerOpen}
+                onOpenChange={setPickerOpen}
+                onSelect={handleCandidatePicked}
+                title="Add Pre-Screen — Select Candidate"
+                description="Search and pick the candidate to log a pre-screen for."
+            />
+
+            {/* Add flow — step 2: the same Add Pre-Screen Log dialog used on the candidate profile page */}
+            {pickedCandidate && (
+                <AddPrescreenDialog
+                    candidateId={pickedCandidate.candidate_id}
+                    candidateName={pickedCandidate.name}
+                    open={logDialogOpen}
+                    onOpenChange={setLogDialogOpen}
+                    showTrigger={false}
+                    onSuccess={handleLogSaved}
+                />
+            )}
         </div>
     );
 }

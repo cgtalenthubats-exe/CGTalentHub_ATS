@@ -3,6 +3,51 @@
 import { adminAuthClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 
+export interface PreScreenLogRow {
+    pre_screen_id: number;
+    candidate_id: string;
+    name: string;
+    screening_date: string;
+    screener_Name: string;
+    overall_impression: string;
+    rating_score: number;
+    feedback_text: string;
+    feedback_file: string;
+}
+
+// pre_screen_log.name is a snapshot column createPreScreenLog() never writes
+// (it only sets screener_Name/date/score/feedback/file) — every row shows
+// "Unknown" unless something else backfilled it. Live-join the current name
+// from Candidate Profile instead, same fix already applied to placements.
+export async function getPreScreenLogs(): Promise<PreScreenLogRow[]> {
+    const client = adminAuthClient as any;
+
+    const { data: logs, error } = await client
+        .from("pre_screen_log")
+        .select("*")
+        .order("pre_screen_id", { ascending: false });
+
+    if (error) {
+        console.error("getPreScreenLogs error:", error);
+        return [];
+    }
+
+    const candidateIds = [...new Set((logs || []).map((l: any) => l.candidate_id).filter(Boolean))];
+    const nameByCandidateId = new Map<string, string>();
+    if (candidateIds.length > 0) {
+        const { data: profiles } = await client
+            .from("Candidate Profile")
+            .select("candidate_id, name")
+            .in("candidate_id", candidateIds);
+        (profiles || []).forEach((p: any) => { if (p.name) nameByCandidateId.set(p.candidate_id, p.name); });
+    }
+
+    return (logs || []).map((l: any) => ({
+        ...l,
+        name: (l.candidate_id && nameByCandidateId.get(l.candidate_id)) || l.name,
+    }));
+}
+
 export async function createPreScreenLog(formData: FormData) {
     const candidateId = formData.get("candidate_id") as string;
     const screenerName = formData.get("screener_name") as string;
