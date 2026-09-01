@@ -24,7 +24,6 @@ export interface KPIInterview {
 export interface KPIJobRequisition {
     jr_id: string;
     create_by: string;
-    status_jr: string;
     created_at: string;
     bu: string | null;
 }
@@ -78,7 +77,7 @@ export async function getKPIData(): Promise<KPIRawData> {
         fetchAll('Candidate Profile', 'candidate_id, created_by, created_date'),
         fetchAll('pre_screen_log', 'candidate_id, "screener_Name", screening_date'),
         fetchAll('interview_feedback', 'jr_candidate_id, "Interviewer_name", interview_date, "Interviewer_type"'),
-        fetchAll('job_requisitions', 'jr_id, create_by, status_jr, created_at, bu'),
+        fetchAll('job_requisitions', 'jr_id, create_by, created_at, bu'),
         supabase.from('user_profiles').select('email, real_name')
     ]);
 
