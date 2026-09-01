@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { createPreScreenLog, deletePreScreenLog, updatePreScreenLog } from "@/app/actions/pre-screen-actions";
+import { formatDateForInput } from "@/lib/date-utils";
 import {
     Select,
     SelectContent,
@@ -206,8 +207,20 @@ export function AddPrescreenDialog({
     );
 }
 
-export function EditPrescreenDialog({ candidateId, log }: { candidateId: string, log: any }) {
-    const [open, setOpen] = useState(false);
+export function EditPrescreenDialog({
+    candidateId, log, open: controlledOpen, onOpenChange: controlledOnOpenChange, showTrigger = true, onSuccess,
+}: {
+    candidateId: string;
+    log: any;
+    open?: boolean;
+    onOpenChange?: (open: boolean) => void;
+    showTrigger?: boolean;
+    onSuccess?: () => void;
+}) {
+    const [internalOpen, setInternalOpen] = useState(false);
+    const isControlled = controlledOpen !== undefined;
+    const open = isControlled ? controlledOpen : internalOpen;
+    const setOpen = isControlled ? (controlledOnOpenChange ?? (() => {})) : setInternalOpen;
     const [isPending, startTransition] = useTransition();
     const router = useRouter();
     const [isDraggingEdit, setIsDraggingEdit] = useState(false);
@@ -231,18 +244,20 @@ export function EditPrescreenDialog({ candidateId, log }: { candidateId: string,
             } else {
                 toast.success("Pre-Screen Log updated successfully!");
                 setOpen(false);
-                scrollWithReload(candidateId);
+                if (onSuccess) onSuccess(); else scrollWithReload(candidateId);
             }
         });
     };
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-indigo-600">
-                    <Pencil className="h-3.5 w-3.5" />
-                </Button>
-            </DialogTrigger>
+            {showTrigger && (
+                <DialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-indigo-600">
+                        <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                </DialogTrigger>
+            )}
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                     <DialogTitle>Edit Pre-Screen Log</DialogTitle>
@@ -257,7 +272,7 @@ export function EditPrescreenDialog({ candidateId, log }: { candidateId: string,
                         <div className="space-y-2">
                             <Label htmlFor="screening_date">Date</Label>
                             <Input id="screening_date" name="screening_date" type="date" required 
-                                defaultValue={log.screening_date ? new Date(log.screening_date).toISOString().split('T')[0] : ""} 
+                                defaultValue={formatDateForInput(log.screening_date)} 
                             />
                         </div>
                     </div>

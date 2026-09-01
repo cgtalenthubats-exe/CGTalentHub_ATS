@@ -7,10 +7,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2, Search, FileText, ExternalLink, RefreshCw, Plus, ArrowUpDown } from "lucide-react";
+import { Loader2, Search, FileText, ExternalLink, RefreshCw, Plus, ArrowUpDown, Pencil } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { AddPrescreenDialog } from "@/components/candidate-client-actions";
+import { AddPrescreenDialog, EditPrescreenDialog } from "@/components/candidate-client-actions";
 import { SelectCandidateDialog, PickedCandidate } from "@/components/select-candidate-dialog";
 import { parseAnyDate, formatDateForDisplay } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
@@ -42,6 +42,11 @@ export default function PreScreenTablePage() {
     const [pickerOpen, setPickerOpen] = useState(false);
     const [pickedCandidate, setPickedCandidate] = useState<PickedCandidate | null>(null);
     const [logDialogOpen, setLogDialogOpen] = useState(false);
+
+    // Edit flow — the list page never had an edit affordance at all, only
+    // the read-only "View Details" dialog below
+    const [editingLog, setEditingLog] = useState<PreScreenLog | null>(null);
+    const [editDialogOpen, setEditDialogOpen] = useState(false);
 
     const fetchLogs = async () => {
         setLoading(true);
@@ -102,6 +107,17 @@ export default function PreScreenTablePage() {
     const handleLogSaved = () => {
         setLogDialogOpen(false);
         setPickedCandidate(null);
+        fetchLogs();
+    };
+
+    const handleEditClick = (log: PreScreenLog) => {
+        setEditingLog(log);
+        setEditDialogOpen(true);
+    };
+
+    const handleEditSaved = () => {
+        setEditDialogOpen(false);
+        setEditingLog(null);
         fetchLogs();
     };
 
@@ -201,14 +217,24 @@ export default function PreScreenTablePage() {
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-right">
-                                            <Button 
-                                                variant="ghost" 
-                                                size="sm" 
-                                                className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
-                                                onClick={() => setSelectedLog(log)}
-                                            >
-                                                <FileText className="w-4 h-4 mr-2" /> View Details
-                                            </Button>
+                                            <div className="flex items-center justify-end gap-1">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                                                    onClick={() => setSelectedLog(log)}
+                                                >
+                                                    <FileText className="w-4 h-4 mr-2" /> View Details
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="text-slate-500 hover:text-indigo-700 hover:bg-indigo-50"
+                                                    onClick={() => handleEditClick(log)}
+                                                >
+                                                    <Pencil className="w-4 h-4 mr-2" /> Edit
+                                                </Button>
+                                            </div>
                                         </TableCell>
                                     </TableRow>
                                 ))}
@@ -295,6 +321,18 @@ export default function PreScreenTablePage() {
                     onOpenChange={setLogDialogOpen}
                     showTrigger={false}
                     onSuccess={handleLogSaved}
+                />
+            )}
+
+            {/* Edit an existing log — same dialog used on the candidate profile page */}
+            {editingLog && (
+                <EditPrescreenDialog
+                    candidateId={editingLog.candidate_id}
+                    log={editingLog}
+                    open={editDialogOpen}
+                    onOpenChange={setEditDialogOpen}
+                    showTrigger={false}
+                    onSuccess={handleEditSaved}
                 />
             )}
         </div>
