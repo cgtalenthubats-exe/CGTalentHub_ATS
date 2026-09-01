@@ -36,7 +36,7 @@ const C = {
 // ── Constants ─────────────────────────────────────────────────────────────────
 const SHORT_PROFILE_PAGE_SIZE = 6;
 const LONGLIST_PAGE_SIZE = 20;
-const CHARS_PER_INCH_7PT = 20;
+const CHARS_PER_INCH_7_5PT = 18; // was tuned for 7pt (20/inch); scaled down for the bumped 7.5pt info text
 
 const FIXED_GROUP_ORDER = [
     "Retail / FMCG / F&B",
@@ -63,6 +63,7 @@ type JRInfo = {
     jr_id: string;
     jr_type: string | null;
     job_description: string | null;
+    feedback_file: string | null;
 };
 
 type CandidateForReport = {
@@ -225,16 +226,39 @@ function addBriefSlide(pptx: PptxGenJS, jr: JRInfo) {
         curY += (CHIP_H + 0.15) * Math.ceil(chips.length / 3) + 0.2;
     }
 
-    if (jr.job_description) {
+    // "feedback_file" is the JD source file uploaded on the JR form (labelled
+    // "Job Description File" there) — a misleading column name from an older
+    // feature, but it's the only place the original PDF/Drive link lives.
+    const jdFileUrl = sanitizeHyperlinkUrl(jr.feedback_file);
+
+    if (jr.job_description || jdFileUrl) {
         slide.addShape(pptx.ShapeType.line, { x: 0.3, y: curY, w: 12.75, h: 0, line: { color: C.slate200, width: 0.75 } });
         curY += 0.2;
         slide.addText("JOB DESCRIPTION", {
-            x: 0.3, y: curY, w: 12.75, h: 0.24, fontSize: 8, bold: true, color: C.slate500, charSpacing: 1.5,
+            x: 0.3, y: curY, w: 8, h: 0.24, fontSize: 8, bold: true, color: C.slate500, charSpacing: 1.5,
         });
+        // Link to the full original file — the text preview below is capped at
+        // 1400 chars and most JDs run much longer, so this is the only way to
+        // see the whole thing.
+        if (jdFileUrl) {
+            const linkW = 2.6, linkH = 0.28;
+            const linkX = 0.3 + 12.75 - linkW, linkY = curY - 0.03;
+            slide.addShape(pptx.ShapeType.roundRect, {
+                x: linkX, y: linkY, w: linkW, h: linkH,
+                fill: { color: C.indigo50 }, line: { color: C.indigo, width: 0.75 }, rectRadius: linkH / 2,
+                hyperlink: { url: jdFileUrl },
+            });
+            slide.addText("View Original JD File  ↗", {
+                x: linkX, y: linkY, w: linkW, h: linkH, fontSize: 8, bold: true, color: C.indigo,
+                align: "center", valign: "middle", hyperlink: { url: jdFileUrl },
+            });
+        }
         curY += 0.3;
-        slide.addText(trunc(jr.job_description, 1400), {
-            x: 0.3, y: curY, w: 12.75, h: 7.2 - curY, fontSize: 11, color: C.slate700, wrap: true, valign: "top", lineSpacingMultiple: 1.35,
-        });
+        if (jr.job_description) {
+            slide.addText(trunc(jr.job_description, 1400), {
+                x: 0.3, y: curY, w: 12.75, h: 7.2 - curY, fontSize: 11, color: C.slate700, wrap: true, valign: "top", lineSpacingMultiple: 1.35,
+            });
+        }
     }
 }
 
@@ -307,24 +331,43 @@ function addSummaryMappingSlide(
         x: 0.28, y: 0.35, w: 13, h: 0.5, fontSize: 18, bold: true, color: C.slate900, wrap: true, valign: "top",
     });
 
-    // Stats row
-    const statsRuns: { text: string; options: any }[] = [
-        { text: `Total ${totalCandidates} candidates`, options: { bold: true, color: C.slate900 } },
-        { text: `  /  `, options: { color: C.slate300 } },
-        { text: `${totalCompanies} companies`, options: { bold: true, color: C.slate700 } },
-        { text: `     ·     `, options: { color: C.slate300 } },
-        { text: `Top ${topProfileCount} profiles`, options: { bold: true, color: C.indigo } },
-        { text: `     ·     `, options: { color: C.slate300 } },
-        { text: `Key: `, options: { color: C.slate500 } },
+    // Top Profile legend — a visible chip in the top-right corner, read before
+    // the "**" marks scattered through the columns below (was a faint caption
+    // buried at the bottom of the slide, easy to miss).
+    const legendW = 1.9, legendH = 0.3;
+    const legendX = 0.28 + 12.9 - legendW, legendY = 0.13;
+    slide.addShape(pptx.ShapeType.roundRect, {
+        x: legendX, y: legendY, w: legendW, h: legendH,
+        fill: { color: C.indigo50 }, line: { color: C.indigo, width: 0.75 }, rectRadius: legendH / 2,
+    });
+    slide.addText([
+        { text: "** ", options: { bold: true, color: C.indigo } },
+        { text: "= Top Profile", options: { color: C.indigo } },
+    ], {
+        x: legendX, y: legendY, w: legendW, h: legendH, fontSize: 8, align: "center", valign: "middle",
+    });
+
+    // Narrative summary line — restores the framing sentence from the legacy
+    // n8n slide ("We have the Top N profiles out of M candidates...") while
+    // keeping the same underlying counts/groups the old compact stat row used.
+    const narrativeRuns: { text: string; options: any }[] = [
+        { text: `We have the Top `, options: { color: C.slate700 } },
+        { text: `${topProfileCount}`, options: { bold: true, color: C.indigo } },
+        { text: ` profiles out of `, options: { color: C.slate700 } },
+        { text: `${totalCandidates}`, options: { bold: true, color: C.slate900 } },
+        { text: ` candidates across `, options: { color: C.slate700 } },
+        { text: `${totalCompanies}`, options: { bold: true, color: C.slate700 } },
+        { text: ` companies, from key groups including `, options: { color: C.slate700 } },
         { text: activeGroups.join(", "), options: { color: C.slate600, italic: true } },
+        { text: `.`, options: { color: C.slate700 } },
     ];
-    slide.addText(statsRuns, {
-        x: 0.28, y: 0.88, w: 13, h: 0.28, fontSize: 9, wrap: true, valign: "top",
+    slide.addText(narrativeRuns, {
+        x: 0.28, y: 0.86, w: 12.9, h: 0.4, fontSize: 9.5, wrap: true, valign: "top",
     });
 
     // Divider
     slide.addShape(pptx.ShapeType.line, {
-        x: 0.28, y: 1.22, w: 12.9, h: 0, line: { color: C.slate200, width: 0.75 },
+        x: 0.28, y: 1.3, w: 12.9, h: 0, line: { color: C.slate300, width: 1 },
     });
 
     // ── Group columns ────────────────────────────────────────────────────────
@@ -333,7 +376,7 @@ function addSummaryMappingSlide(
     const BODY_W = 12.9;
     const COL_GAP = 0.14;
     const colW = (BODY_W - COL_GAP * (COLS - 1)) / COLS;
-    const BODY_Y = 1.3;
+    const BODY_Y = 1.38;
     const BODY_BOTTOM = 7.3;   // leave room for legend
 
     const LH_XS  = 0.112;   // 7pt line height
@@ -351,21 +394,28 @@ function addSummaryMappingSlide(
         if (idx > 0) {
             slide.addShape(pptx.ShapeType.line, {
                 x: x - COL_GAP / 2, y: BODY_Y, w: 0, h: BODY_BOTTOM - BODY_Y,
-                line: { color: C.slate200, width: 0.5 },
+                line: { color: C.slate300, width: 1 },
             });
         }
 
         let curY = BODY_Y;
         const safeAdd = (y: number) => y < BODY_BOTTOM;
 
-        // Group name (wrap up to 2 lines)
+        // Group name — solid header bar (slate900, not indigo) so it reads as a
+        // clear column divider and never gets confused with the indigo used to
+        // highlight Top Profile companies further down the same column.
         if (safeAdd(curY)) {
-            slide.addText(groupName, {
-                x, y: curY, w: colW, h: LH_MD * 2, fontSize: 8, bold: true, color: C.indigo, wrap: true, valign: "top",
-            });
-            // Estimate if name wraps (rough: >22 chars per line)
             const nameLines = Math.max(1, Math.ceil(groupName.length / Math.floor(colW * 12)));
-            curY += LH_MD * nameLines + GAP_XS;
+            const headerPad = 0.05;
+            const headerH = LH_MD * nameLines + headerPad * 2;
+            slide.addShape(pptx.ShapeType.rect, {
+                x, y: curY, w: colW, h: headerH, fill: { color: C.slate900 },
+            });
+            slide.addText(groupName, {
+                x: x + 0.07, y: curY, w: colW - 0.14, h: headerH,
+                fontSize: 8, bold: true, color: C.white, wrap: true, valign: "middle",
+            });
+            curY += headerH + GAP_SM;
         }
 
         // People / companies count
@@ -385,8 +435,17 @@ function addSummaryMappingSlide(
             return locA.localeCompare(locB);
         });
 
+        // Reserve room at the bottom of the column for a "+N more" note in case
+        // the company list doesn't fit — a group like "Retail / FMCG / F&B" can
+        // easily outgrow the column, and silently dropping the tail is worse
+        // than saying so.
+        const OVERFLOW_NOTE_H = 0.15;
+        const LOC_LIMIT = BODY_BOTTOM - OVERFLOW_NOTE_H - 0.03;
+        let renderedCompanies = 0;
+        let truncated = false;
+
         for (const [locName, companies] of sortedLocs) {
-            if (!safeAdd(curY + LH_SM)) break;
+            if (curY + LH_SM > LOC_LIMIT) { truncated = true; break; }
 
             // Location header
             slide.addText(`${locName}  (${companies.size})`, {
@@ -403,21 +462,43 @@ function addSummaryMappingSlide(
                 return a.localeCompare(b);
             });
 
+            // Full company names, wrapped to fit the column instead of "…" truncated
+            // — column width varies with how many groups are active, so a fixed
+            // char limit either cut names short in wide columns or overflowed in
+            // narrow ones.
+            const CHARS_PER_INCH_7PT = 20;
             for (const co of sortedCos) {
-                if (!safeAdd(curY)) break;
                 const isTop = topCompanyKeys.has(`${co}|${locName}`);
-                slide.addText(`• ${trunc(co, 35)}${isTop ? " **" : ""}`, {
-                    x: x + 0.06, y: curY, w: colW - 0.06, h: LH_XS,
+                const label = `• ${co}${isTop ? " **" : ""}`;
+                const availW = colW - 0.06;
+                const charsPerLine = Math.max(10, Math.floor(availW * CHARS_PER_INCH_7PT));
+                const lineCount = Math.max(1, Math.ceil(label.length / charsPerLine));
+                const lineH = LH_XS * lineCount;
+                if (curY + lineH > LOC_LIMIT) { truncated = true; break; }
+                slide.addText(label, {
+                    x: x + 0.06, y: curY, w: availW, h: lineH,
                     fontSize: 7,
                     color: isTop ? C.indigo : C.slate600,
                     bold: isTop,
+                    wrap: true,
+                    valign: "top",
                 });
-                curY += LH_XS;
+                curY += lineH;
+                renderedCompanies++;
             }
+            if (truncated) break;
             curY += GAP_SM;
         }
 
-        curY += GAP_SM;
+        if (truncated) {
+            const remaining = Math.max(1, stats.companies.size - renderedCompanies);
+            slide.addText(`+ ${remaining} more compan${remaining === 1 ? "y" : "ies"} not shown`, {
+                x, y: LOC_LIMIT + 0.03, w: colW, h: OVERFLOW_NOTE_H, fontSize: 6.5, italic: true, color: C.amber,
+            });
+            curY = BODY_BOTTOM; // no room left in this column — skip Nationality below
+        } else {
+            curY += GAP_SM;
+        }
 
         // Nationality breakdown
         if (safeAdd(curY + LH_SM)) {
@@ -437,10 +518,7 @@ function addSummaryMappingSlide(
         }
     });
 
-    // Legend
-    slide.addText("** = Top Profile", {
-        x: 0.28, y: 7.33, w: 4, h: 0.15, fontSize: 7, italic: true, color: C.slate400,
-    });
+    // Footer tag (Top Profile legend now lives as a chip up near the title)
     slide.addText(`${jrId}`, {
         x: 10.5, y: 7.33, w: 2.73, h: 0.15, fontSize: 7, color: C.slate400, align: "right",
     });
@@ -482,19 +560,26 @@ async function addShortProfileCardsSlides(
 
             // Header: rank + name
             slide.addText(`${displayRank}. ${c.name}`, {
-                x: cx + 0.15, y: cy + 0.08, w: CARD_W - 1.6, h: 0.4,
-                fontSize: 12, bold: true, color: C.slate900, wrap: true, valign: "top",
+                x: cx + 0.15, y: cy + 0.08, w: CARD_W - 1.9, h: 0.4,
+                fontSize: 13, bold: true, color: C.slate900, wrap: true, valign: "top",
             });
 
-            // Status badge (top-right) — color from status_master
+            // Status badge (top-right) — filled pill matching the status chip
+            // style on JR Manage's candidate list (bg_color fill, font_color text)
             if (c.latest_status) {
                 const sc = statusColors.get(c.latest_status);
-                const badgeColor = sc?.font_color ? sc.font_color.replace("#", "") : C.slate600;
+                const chipBg = sc?.bg_color ? sc.bg_color.replace("#", "") : "e2e8f0";
+                const chipText = sc?.font_color ? sc.font_color.replace("#", "") : C.slate600;
+                const chipW = 1.55, chipH = 0.28;
+                const chipX = cx + CARD_W - chipW - 0.15, chipY = cy + 0.12;
+                slide.addShape(pptx.ShapeType.roundRect, {
+                    x: chipX, y: chipY, w: chipW, h: chipH,
+                    fill: { color: chipBg }, rectRadius: chipH / 2,
+                });
                 slide.addText(c.latest_status, {
-                    x: cx + CARD_W - 1.45, y: cy + 0.08, w: 1.3, h: 0.18,
-                    fontSize: 6.5, bold: !!(sc?.row_color_enabled),
-                    color: badgeColor,
-                    align: "right",
+                    x: chipX, y: chipY, w: chipW, h: chipH,
+                    fontSize: 8, bold: true, color: chipText,
+                    align: "center", valign: "middle",
                 });
             }
 
@@ -521,9 +606,8 @@ async function addShortProfileCardsSlides(
                 { label: "Location",    value: c.location    || "-" },
                 { label: "Age",         value: c.age != null ? `${c.age}` : "-" },
                 { label: "Education",   value: c.education   || "-" },
-                { label: "Function",    value: c.job_function || "-" },
             ];
-            const charsPerLine = Math.max(10, Math.floor(infoW * CHARS_PER_INCH_7PT));
+            const charsPerLine = Math.max(10, Math.floor(infoW * CHARS_PER_INCH_7_5PT));
             let estLines = 0;
             const infoRuns: { text: string; options: any }[] = [];
             fields.forEach(f => {
@@ -531,10 +615,10 @@ async function addShortProfileCardsSlides(
                 infoRuns.push({ text: f.value, options: { breakLine: true } });
                 estLines += Math.max(1, Math.ceil((f.label.length + 2 + f.value.length) / charsPerLine));
             });
-            const infoH = estLines * 0.13;
+            const infoH = estLines * 0.14;
             slide.addText(infoRuns, {
                 x: photoX + photoS + 0.15, y: photoY, w: infoW, h: Math.max(photoS, infoH),
-                fontSize: 7, color: C.slate600, wrap: true, valign: "top", lineSpacingMultiple: 1.15,
+                fontSize: 7.5, color: C.slate600, wrap: true, valign: "top", lineSpacingMultiple: 1.15,
             });
 
             // LinkedIn + Rating row
@@ -555,7 +639,7 @@ async function addShortProfileCardsSlides(
                 });
                 slide.addText(`★ ${c.rating}`, {
                     x: ratingX, y: badgeY, w: 0.95, h: 0.26,
-                    align: "center", valign: "middle", fontSize: 7, bold: true, color: C.amber,
+                    align: "center", valign: "middle", fontSize: 7.5, bold: true, color: C.amber,
                 });
             }
 
@@ -564,12 +648,12 @@ async function addShortProfileCardsSlides(
                 const expY = badgeY + 0.34;
                 slide.addText("EXPERIENCE", {
                     x: cx + 0.15, y: expY, w: CARD_W - 0.3, h: 0.18,
-                    fontSize: 6.5, bold: true, color: C.slate500, charSpacing: 0.5,
+                    fontSize: 7, bold: true, color: C.slate500, charSpacing: 0.5,
                 });
                 slide.addText(c.experience_history.slice(0, 3).join("\n"), {
                     x: cx + 0.15, y: expY + 0.2, w: CARD_W - 0.3,
                     h: Math.max(0.3, cy + CARD_H - 0.1 - (expY + 0.24)),
-                    fontSize: 6.5, color: C.slate600, wrap: true, valign: "top", lineSpacingMultiple: 1.15,
+                    fontSize: 7, color: C.slate600, wrap: true, valign: "top", lineSpacingMultiple: 1.15,
                 });
             }
         });
@@ -683,7 +767,7 @@ async function fetchJRReportData(jrId: string): Promise<JRReportData> {
     const [jrRes, jrCandidatesRes] = await Promise.all([
         adminAuthClient
             .from("job_requisitions")
-            .select("position_jr, bu, sub_bu, jr_id, jr_type, job_description")
+            .select("position_jr, bu, sub_bu, jr_id, jr_type, job_description, feedback_file")
             .eq("jr_id", jrId)
             .single(),
         adminAuthClient
@@ -692,7 +776,7 @@ async function fetchJRReportData(jrId: string): Promise<JRReportData> {
             .eq("jr_id", jrId),
     ]);
 
-    const jr = (jrRes.data ?? { position_jr: null, bu: null, sub_bu: null, jr_id: jrId, jr_type: null, job_description: null }) as JRInfo;
+    const jr = (jrRes.data ?? { position_jr: null, bu: null, sub_bu: null, jr_id: jrId, jr_type: null, job_description: null, feedback_file: null }) as JRInfo;
     const jrCandidates = (jrCandidatesRes.data ?? []) as any[];
 
     // Always fetch status_master for coloring (needed even for empty JR)

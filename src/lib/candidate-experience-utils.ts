@@ -77,5 +77,16 @@ export function formatEducationHeadline(educationSummary: string | null | undefi
     return first
         .replace(/\s*\(\s*\d{0,4}\s*-?\s*\d{0,4}\s*\)/g, "")
         .replace(/\n+/g, " — ")
+        // Some rows have the literal string "null" baked into education_summary
+        // where a field was missing at import time (e.g. "Institute — null,
+        // Metals / Art History") — strip it and the punctuation left dangling
+        // around it rather than surfacing "null" as if it were real data.
+        .replace(/\bnull\b/gi, "")
+        .replace(/—\s*,/g, "—")
+        .replace(/,\s*—/g, " —")
+        .replace(/,\s*,/g, ",")
+        .replace(/^\s*,\s*/, "")
+        .replace(/,\s*$/, "")
+        .replace(/\s{2,}/g, " ")
         .trim();
 }
