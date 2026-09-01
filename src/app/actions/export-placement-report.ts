@@ -6,6 +6,12 @@ import path from "path";
 import sharp from "sharp";
 import JSZip from "jszip";
 import { adminAuthClient } from "@/lib/supabase/admin";
+import {
+    groupExperiencesByCandidate,
+    formatExperienceHistory,
+    formatEducationHeadline,
+    type ExperienceRow,
+} from "@/lib/candidate-experience-utils";
 
 // ── Palette ───────────────────────────────────────────────────────────────────
 const C = {
@@ -54,8 +60,60 @@ type JRRec = {
     request_date: string;
 };
 
+// Enriched profile card view of a placement — same shape of information as
+// the "Short Profile" cards on the JR Report (photo, nationality, prior
+// experience, education), joined on top of the placement facts already
+// shown in the Placement List table.
+type PlacementCard = PlacementRec & {
+    photo_url: string | null;
+    linkedin: string | null;
+    age: number | null;
+    nationality: string | null;
+    education: string | null;
+    experience_history: string[];
+};
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 type BuLogo = { data: string; aspect: number };
+
+async function fetchImageBase64(url: string | null): Promise<string | null> {
+    if (!url) return null;
+    try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+        if (!res.ok) return null;
+        const buf = Buffer.from(await res.arrayBuffer());
+        try {
+            const resized = await sharp(buf).resize(500, 500, { fit: "cover" }).jpeg({ quality: 78 }).toBuffer();
+            return `data:image/jpeg;base64,${resized.toString("base64")}`;
+        } catch {
+            return null;
+        }
+    } catch { return null; }
+}
+
+let _linkedinIconUri: string | null = null;
+function getLinkedinIconUri(): string | null {
+    if (_linkedinIconUri !== null) return _linkedinIconUri;
+    try {
+        _linkedinIconUri = `data:image/png;base64,${fs.readFileSync(
+            path.join(process.cwd(), "public", "linkedin-logo.png")
+        ).toString("base64")}`;
+    } catch (e) {
+        console.error("Failed to load LinkedIn icon for Placement Report PPTX", e);
+        _linkedinIconUri = "";
+    }
+    return _linkedinIconUri;
+}
+
+function sanitizeHyperlinkUrl(url: string | null | undefined): string | null {
+    if (!url) return null;
+    try {
+        const parsed = new URL(url.startsWith("http") ? url : `https://${url}`);
+        return `${parsed.protocol}//${parsed.host}${parsed.pathname}`;
+    } catch {
+        return null;
+    }
+}
 
 async function loadBuLogo(bu: string): Promise<BuLogo | null> {
     const base = bu.toLowerCase().replace(/\s+/g, "");
@@ -690,6 +748,148 @@ function addCandidateListSlides(pptx: PptxGenJS, placements: PlacementRec[]) {
     }
 }
 
+// ── Slide N+: Placement Profile Cards (short-profile style) ────────────────────
+const PROFILE_CARD_PAGE_SIZE = 6;
+const CHARS_PER_INCH_7_5PT = 18;
+
+const HIRING_STATUS_COLORS: Record<string, { bg: string; text: string }> = {
+    Active:   { bg: C.green50,  text: C.green700 },
+    Resigned: { bg: C.slate100, text: C.slate600 },
+};
+
+async function addPlacementProfileCardsSlides(pptx: PptxGenJS, cards: PlacementCard[]) {
+    if (cards.length === 0) return;
+
+    const sorted = [...cards].sort((a, b) => (b.hire_date || "").localeCompare(a.hire_date || ""));
+    const totalPages = Math.max(1, Math.ceil(sorted.length / PROFILE_CARD_PAGE_SIZE));
+    const photos = await Promise.all(sorted.map(c => fetchImageBase64(c.photo_url)));
+
+    for (let page = 0; page < totalPages; page++) {
+        const pageItems = sorted.slice(page * PROFILE_CARD_PAGE_SIZE, (page + 1) * PROFILE_CARD_PAGE_SIZE);
+        const photoOffset = page * PROFILE_CARD_PAGE_SIZE;
+
+        const slide = pptx.addSlide();
+        slide.background = { color: C.white };
+        const title = totalPages > 1 ? `PLACEMENT PROFILES (${page + 1}/${totalPages})` : "PLACEMENT PROFILES";
+        slide.addText(title, { x: 0.3, y: 0.18, w: 12.75, h: 0.45, fontSize: 20, bold: true, color: C.slate900 });
+
+        const GRID_X = 0.3, GRID_Y = 0.78, GAP = 0.2;
+        const CARD_W = (12.7 - 2 * GAP) / 3;
+        const CARD_H = (6.5 - GAP) / 2;
+
+        pageItems.forEach((c, i) => {
+            const col = i % 3, row = Math.floor(i / 3);
+            const cx = GRID_X + col * (CARD_W + GAP), cy = GRID_Y + row * (CARD_H + GAP);
+            const photo = photos[photoOffset + i];
+
+            slide.addShape(pptx.ShapeType.roundRect, {
+                x: cx, y: cy, w: CARD_W, h: CARD_H,
+                fill: { color: C.slate100 }, line: { color: "e2e8f0", width: 0.5 }, rectRadius: 0.08,
+            });
+
+            // Header: name
+            slide.addText(c.candidate_name || "-", {
+                x: cx + 0.15, y: cy + 0.08, w: CARD_W - 1.9, h: 0.4,
+                fontSize: 13, bold: true, color: C.slate900, wrap: true, valign: "top",
+            });
+
+            // Status badge (top-right) — hiring_status (Active/Resigned)
+            if (c.hiring_status) {
+                const sc = HIRING_STATUS_COLORS[c.hiring_status] ?? { bg: "e2e8f0", text: C.slate600 };
+                const chipW = 1.55, chipH = 0.28;
+                const chipX = cx + CARD_W - chipW - 0.15, chipY = cy + 0.12;
+                slide.addShape(pptx.ShapeType.roundRect, {
+                    x: chipX, y: chipY, w: chipW, h: chipH,
+                    fill: { color: sc.bg }, rectRadius: chipH / 2,
+                });
+                slide.addText(c.hiring_status, {
+                    x: chipX, y: chipY, w: chipW, h: chipH,
+                    fontSize: 8, bold: true, color: sc.text,
+                    align: "center", valign: "middle",
+                });
+            }
+
+            // Photo
+            const photoX = cx + 0.15, photoY = cy + 0.5, photoS = 0.85;
+            if (photo) {
+                slide.addImage({ data: photo, x: photoX, y: photoY, w: photoS, h: photoS, rounding: true });
+            } else {
+                slide.addShape(pptx.ShapeType.roundRect, {
+                    x: photoX, y: photoY, w: photoS, h: photoS, fill: { color: "dde1f0" }, rectRadius: photoS / 2,
+                });
+                slide.addText((c.candidate_name || "?").charAt(0).toUpperCase(), {
+                    x: photoX, y: photoY, w: photoS, h: photoS,
+                    align: "center", valign: "middle", fontSize: 22, bold: true, color: C.indigo,
+                });
+            }
+
+            // Info lines
+            const infoW = CARD_W - photoS - 0.45;
+            const client = [c.bu, c.sub_bu].filter((v, idx, arr) => v && arr.indexOf(v) === idx).join(" / ");
+            const fields: { label: string; value: string }[] = [
+                { label: "Position",    value: c.position || "-" },
+                { label: "Client",      value: client || "-" },
+                { label: "Hire Date",   value: fmtDate(c.hire_date) },
+                { label: "Nationality", value: c.nationality || "-" },
+                { label: "Age",         value: c.age != null ? `${c.age}` : "-" },
+                { label: "Education",   value: c.education || "-" },
+            ];
+            const charsPerLine = Math.max(10, Math.floor(infoW * CHARS_PER_INCH_7_5PT));
+            let estLines = 0;
+            const infoRuns: { text: string; options: any }[] = [];
+            fields.forEach(f => {
+                infoRuns.push({ text: `${f.label}: `, options: { bold: true } });
+                infoRuns.push({ text: f.value, options: { breakLine: true } });
+                estLines += Math.max(1, Math.ceil((f.label.length + 2 + f.value.length) / charsPerLine));
+            });
+            const infoH = estLines * 0.14;
+            slide.addText(infoRuns, {
+                x: photoX + photoS + 0.15, y: photoY, w: infoW, h: Math.max(photoS, infoH),
+                fontSize: 7.5, color: C.slate600, wrap: true, valign: "top", lineSpacingMultiple: 1.15,
+            });
+
+            // LinkedIn + Job Grade / Salary badges
+            const contentBottom = photoY + Math.max(photoS, infoH);
+            const badgeY = contentBottom + 0.1;
+            const linkedinIconUri = c.linkedin ? getLinkedinIconUri() : null;
+            if (c.linkedin && linkedinIconUri) {
+                slide.addImage({
+                    data: linkedinIconUri,
+                    x: cx + 0.15, y: badgeY, w: 0.26, h: 0.26,
+                    hyperlink: { url: sanitizeHyperlinkUrl(c.linkedin)! },
+                });
+            }
+            const jgLabel = c.job_grade != null ? `JG${c.job_grade}` : null;
+            const badgeText = [jgLabel, fmtSalary(c.annual_salary)].filter(Boolean).join("  ·  ");
+            if (badgeText) {
+                const badgeX = cx + (c.linkedin ? 0.48 : 0.15);
+                const badgeW = CARD_W - (badgeX - cx) - 0.15;
+                slide.addShape(pptx.ShapeType.roundRect, {
+                    x: badgeX, y: badgeY, w: badgeW, h: 0.26, fill: { color: C.indigo50 }, rectRadius: 0.05,
+                });
+                slide.addText(badgeText, {
+                    x: badgeX, y: badgeY, w: badgeW, h: 0.26,
+                    align: "center", valign: "middle", fontSize: 7.5, bold: true, color: C.indigo700,
+                });
+            }
+
+            // Prior experience (work history before this placement)
+            if (c.experience_history.length) {
+                const expY = badgeY + 0.34;
+                slide.addText("PRIOR EXPERIENCE", {
+                    x: cx + 0.15, y: expY, w: CARD_W - 0.3, h: 0.18,
+                    fontSize: 7, bold: true, color: C.slate500, charSpacing: 0.5,
+                });
+                slide.addText(c.experience_history.slice(0, 3).join("\n"), {
+                    x: cx + 0.15, y: expY + 0.2, w: CARD_W - 0.3,
+                    h: Math.max(0.3, cy + CARD_H - 0.1 - (expY + 0.24)),
+                    fontSize: 7, color: C.slate600, wrap: true, valign: "top", lineSpacingMultiple: 1.15,
+                });
+            }
+        });
+    }
+}
+
 // ── Main export function ──────────────────────────────────────────────────────
 export async function generatePlacementReportPPTX(params: {
     selectedBU: string[];
@@ -716,12 +916,32 @@ export async function generatePlacementReportPPTX(params: {
     // with the dashboard tab and with requisitions/placements.
     const candidateIds = [...new Set(rawErData.map((r: any) => r.candidate_id).filter(Boolean))];
     const nameByCandidateId = new Map<string, string>();
+    const profileMap = new Map<string, any>();
+    const expByCandidate = new Map<string, ExperienceRow[]>();
+    const enhanceMap = new Map<string, any>();
     if (candidateIds.length > 0) {
-        const { data: profiles } = await supabase
-            .from("Candidate Profile")
-            .select("candidate_id, name")
-            .in("candidate_id", candidateIds);
-        (profiles || []).forEach((p: any) => { if (p.name) nameByCandidateId.set(p.candidate_id, p.name); });
+        const [profilesRes, expRes, enhanceRes] = await Promise.all([
+            supabase
+                .from("Candidate Profile")
+                .select("candidate_id, name, photo, linkedin, age, nationality")
+                .in("candidate_id", candidateIds),
+            supabase
+                .from("candidate_experiences")
+                .select("candidate_id, position, company, company_id, country, start_date, end_date, is_current_job")
+                .in("candidate_id", candidateIds),
+            supabase
+                .from("candidate_profile_enhance")
+                .select("candidate_id, education_summary")
+                .in("candidate_id", candidateIds),
+        ]);
+        (profilesRes.data || []).forEach((p: any) => {
+            if (p.name) nameByCandidateId.set(p.candidate_id, p.name);
+            profileMap.set(p.candidate_id, p);
+        });
+        for (const [id, list] of groupExperiencesByCandidate((expRes.data ?? []) as ExperienceRow[])) {
+            expByCandidate.set(id, list);
+        }
+        (enhanceRes.data || []).forEach((e: any) => enhanceMap.set(e.candidate_id, e));
     }
 
     const rawPlacements: PlacementRec[] = rawErData.map((r: any) => ({
@@ -753,10 +973,26 @@ export async function generatePlacementReportPPTX(params: {
     pptx.layout = "LAYOUT_WIDE";
     pptx.theme  = { headFontFace: "Calibri", bodyFontFace: "Calibri" };
 
+    const filteredCards: PlacementCard[] = filteredPlacements.map(p => {
+        const profile = profileMap.get(p.candidate_id) ?? {};
+        const exps = expByCandidate.get(p.candidate_id) ?? [];
+        const enhance = enhanceMap.get(p.candidate_id);
+        return {
+            ...p,
+            photo_url:          profile.photo ?? null,
+            linkedin:           profile.linkedin ?? null,
+            age:                profile.age ?? null,
+            nationality:        profile.nationality ?? null,
+            education:          formatEducationHeadline(enhance?.education_summary) || null,
+            experience_history: formatExperienceHistory(exps, 3),
+        };
+    });
+
     const chartLabelSets = await addPlacementOverviewSlide(pptx, filteredPlacements, filteredJRs, {
         selectedBU, selectedYear, selectedStatus,
     });
     addCandidateListSlides(pptx, filteredPlacements);
+    await addPlacementProfileCardsSlides(pptx, filteredCards);
 
     const rawBuffer = await pptx.write({ outputType: "nodebuffer" }) as Buffer;
     const recoloredBuffer = await recolorChartLabelsInPptx(rawBuffer, chartLabelSets);
