@@ -16,6 +16,7 @@ import { shareAssessmentReport } from "@/app/actions/share-report";
 import { ShareReportDialog } from "@/components/share-report-dialog";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { linkifyCandidateIds, CandidateIdLink } from "@/components/chat/candidate-id-link";
 
 interface Props {
     jrId: string;
@@ -786,8 +787,8 @@ function ChatSection({ jrId, jrTitle }: { jrId: string; jrTitle?: string }) {
                                     prose-ul:my-1 prose-ol:my-1 prose-li:my-0
                                     prose-table:text-xs prose-th:px-2 prose-th:py-1 prose-td:px-2 prose-td:py-1
                                     prose-strong:font-bold prose-code:text-xs prose-code:bg-slate-200 prose-code:px-1 prose-code:rounded">
-                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                        {msg.text}
+                                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: CandidateIdLink }}>
+                                        {linkifyCandidateIds(msg.text)}
                                     </ReactMarkdown>
                                 </div>
                                 <div className="flex gap-1.5 pl-1">

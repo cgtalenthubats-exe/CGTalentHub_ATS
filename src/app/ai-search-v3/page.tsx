@@ -3,8 +3,9 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { linkifyCandidateIds, CandidateIdLink } from "@/components/chat/candidate-id-link";
 import {
-    Bot, Send, Loader2, Sparkles, ChevronDown, ChevronUp,
+    Bot, Send, Loader2, Sparkles, ChevronDown, ChevronUp, Maximize2, Minimize2,
     RotateCcw, Search, UserPlus, Users, TrendingUp, Building2, Globe, Filter, AlertCircle, X, Download,
     Copy, Check, Table2
 } from "lucide-react";
@@ -162,6 +163,7 @@ export default function AISearchV3Page() {
     const [hasLoaded, setHasLoaded] = useState(false);
     const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
     const [copiedTableMsgId, setCopiedTableMsgId] = useState<string | null>(null);
+    const [chatInputExpanded, setChatInputExpanded] = useState(false);
 
     const [filters, setFilters] = useState<DemoFilterState>(EMPTY_FILTERS);
     const [staticOptions, setStaticOptions] = useState<any>(null);
@@ -677,7 +679,7 @@ export default function AISearchV3Page() {
                                         )}>
                                             {m.role === "user"
                                                 ? m.content
-                                                : <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                                                : <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ a: CandidateIdLink }}>{linkifyCandidateIds(m.content)}</ReactMarkdown>
                                             }
                                         </div>
                                         {m.role === "assistant" && (
@@ -742,16 +744,23 @@ export default function AISearchV3Page() {
                                 </div>
                             ))}
                         </div>
-                        <div className="flex gap-2 pt-2 border-t">
+                        <div className="flex gap-2 pt-2 border-t items-end">
                             <Textarea
                                 value={input}
                                 onChange={(e) => setInput(e.target.value)}
                                 onKeyDown={handleKeyDown}
                                 placeholder="Ask AI to find candidates... (Enter to send)"
-                                className="min-h-[36px] max-h-20 resize-none text-sm rounded-xl border-slate-200"
-                                rows={1}
+                                className="resize-none text-sm rounded-xl border-slate-200 transition-all duration-150"
+                                rows={chatInputExpanded ? 8 : 1}
                             />
-                            <div className="flex flex-col gap-1">
+                            <div className="flex flex-col gap-1.5">
+                                <button
+                                    onClick={() => setChatInputExpanded(v => !v)}
+                                    className="h-7 w-9 flex items-center justify-center rounded-md border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 transition-colors"
+                                    title={chatInputExpanded ? "Collapse" : "Expand"}
+                                >
+                                    {chatInputExpanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+                                </button>
                                 <Button onClick={handleSend} disabled={isLoading || !input.trim()} size="sm" className="h-9 w-9 p-0 rounded-xl">
                                     {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                                 </Button>
