@@ -7,11 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2, Search, FileText, ExternalLink, RefreshCw, Plus, ArrowUpDown, Pencil } from "lucide-react";
+import { Loader2, Search, FileText, ExternalLink, RefreshCw, Plus, ArrowUpDown, Pencil, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AddPrescreenDialog, EditPrescreenDialog } from "@/components/candidate-client-actions";
 import { SelectCandidateDialog, PickedCandidate } from "@/components/select-candidate-dialog";
+import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
+import { CandidateProfileSheet } from "@/components/candidate-profile-sheet";
 import { parseAnyDate, formatDateForDisplay } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +39,10 @@ export default function PreScreenTablePage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedLog, setSelectedLog] = useState<PreScreenLog | null>(null);
     const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
+    const [screenerFilter, setScreenerFilter] = useState<string[]>([]);
+    const [dateFrom, setDateFrom] = useState<string>("");
+    const [dateTo, setDateTo] = useState<string>("");
+    const [profileCandidateId, setProfileCandidateId] = useState<string | null>(null);
 
     // Add flow: step 1 pick a candidate, step 2 the existing Add Pre-Screen Log dialog
     const [pickerOpen, setPickerOpen] = useState(false);
@@ -71,11 +77,26 @@ export default function PreScreenTablePage() {
         });
     };
 
-    const filteredLogs = logs.filter(log =>
-        (log.name?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (log.candidate_id?.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (log.screener_Name?.toLowerCase().includes(searchTerm.toLowerCase()))
+    const screenerOptions = useMemo(() =>
+        [...new Set(logs.map(l => l.screener_Name).filter(Boolean))].sort() as string[],
+        [logs]
     );
+
+    const filteredLogs = logs.filter(log => {
+        const matchesSearch = !searchTerm ||
+            log.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            log.candidate_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            log.screener_Name?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesScreener = screenerFilter.length === 0 || screenerFilter.includes(log.screener_Name || "");
+        const logDate = parseAnyDate(log.screening_date);
+        const from = dateFrom ? new Date(dateFrom) : null;
+        const to = dateTo ? new Date(dateTo + "T23:59:59") : null;
+        const matchesDate = (!from || (logDate && logDate >= from)) && (!to || (logDate && logDate <= to));
+        return matchesSearch && matchesScreener && matchesDate;
+    });
+
+    const hasActiveFilters = screenerFilter.length > 0 || dateFrom || dateTo;
+    const clearAllFilters = () => { setScreenerFilter([]); setDateFrom(""); setDateTo(""); };
 
     const sortedLogs = useMemo(() => {
         if (!sortConfig) return filteredLogs;
@@ -151,20 +172,79 @@ export default function PreScreenTablePage() {
 
             <Card className="border-none shadow-xl bg-white/50 backdrop-blur-sm">
                 <CardHeader className="bg-slate-50/50 border-b border-slate-100/50 pb-4">
-                    <div className="flex flex-col sm:flex-row justify-between gap-4 items-center">
-                        <div className="relative w-full sm:w-96">
-                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                            <Input
-                                placeholder="Search by name, ID, or screener..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="pl-10 h-10 bg-white border-slate-200 rounded-xl"
-                            />
+                    <div className="flex flex-col gap-3">
+                        <div className="flex flex-col sm:flex-row justify-between gap-3 items-start sm:items-center">
+                            <div className="relative w-full sm:w-80">
+                                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                                <Input
+                                    placeholder="Search by name, ID, or screener..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="pl-10 h-10 bg-white border-slate-200 rounded-xl"
+                                />
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <FilterMultiSelect
+                                    label="Screener"
+                                    options={screenerOptions}
+                                    selected={screenerFilter}
+                                    onChange={v => setScreenerFilter(prev => prev.includes(v) ? prev.filter(x => x !== v) : [...prev, v])}
+                                />
+                                <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                                    <span>Date</span>
+                                    <Input
+                                        type="date"
+                                        value={dateFrom}
+                                        onChange={e => setDateFrom(e.target.value)}
+                                        className="h-9 w-36 bg-white border-slate-200 rounded-lg text-xs"
+                                    />
+                                    <span>→</span>
+                                    <Input
+                                        type="date"
+                                        value={dateTo}
+                                        onChange={e => setDateTo(e.target.value)}
+                                        className="h-9 w-36 bg-white border-slate-200 rounded-lg text-xs"
+                                    />
+                                </div>
+                                <Button variant="outline" size="sm" onClick={fetchLogs} disabled={loading} className="gap-2">
+                                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                                    Refresh
+                                </Button>
+                            </div>
                         </div>
-                        <Button variant="outline" size="sm" onClick={fetchLogs} disabled={loading} className="gap-2">
-                            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                            Refresh
-                        </Button>
+
+                        {/* Active filter chips */}
+                        {hasActiveFilters && (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mr-1">Active:</span>
+                                {screenerFilter.map(s => (
+                                    <button
+                                        key={s}
+                                        onClick={() => setScreenerFilter(prev => prev.filter(x => x !== s))}
+                                        className="inline-flex items-center gap-1 text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full pl-2.5 pr-1.5 py-0.5 hover:bg-indigo-100 transition-colors"
+                                    >
+                                        <span className="text-indigo-400">Screener:</span> {s}
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                ))}
+                                {(dateFrom || dateTo) && (
+                                    <button
+                                        onClick={() => { setDateFrom(""); setDateTo(""); }}
+                                        className="inline-flex items-center gap-1 text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-full pl-2.5 pr-1.5 py-0.5 hover:bg-indigo-100 transition-colors"
+                                    >
+                                        <span className="text-indigo-400">Date:</span>
+                                        {dateFrom || "…"} → {dateTo || "…"}
+                                        <X className="h-3 w-3" />
+                                    </button>
+                                )}
+                                <button
+                                    onClick={clearAllFilters}
+                                    className="text-[11px] font-semibold text-slate-400 hover:text-red-500 ml-1 transition-colors"
+                                >
+                                    Clear all
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </CardHeader>
                 <CardContent className="p-0">
@@ -196,7 +276,12 @@ export default function PreScreenTablePage() {
                                         <TableCell>
                                             <div className="flex flex-col">
                                                 <span className="font-semibold text-slate-900">{log.name || 'Unknown'}</span>
-                                                <span className="text-xs text-slate-500">{log.candidate_id}</span>
+                                                <button
+                                                    onClick={() => setProfileCandidateId(log.candidate_id)}
+                                                    className="text-xs text-indigo-500 hover:text-indigo-700 hover:underline font-mono text-left w-fit"
+                                                >
+                                                    {log.candidate_id}
+                                                </button>
                                             </div>
                                         </TableCell>
                                         <TableCell>
@@ -335,6 +420,13 @@ export default function PreScreenTablePage() {
                     onSuccess={handleEditSaved}
                 />
             )}
+
+            {/* Candidate profile slide-over — triggered by clicking candidate_id */}
+            <CandidateProfileSheet
+                candidateId={profileCandidateId}
+                open={!!profileCandidateId}
+                onOpenChange={(open) => { if (!open) setProfileCandidateId(null); }}
+            />
         </div>
     );
 }
