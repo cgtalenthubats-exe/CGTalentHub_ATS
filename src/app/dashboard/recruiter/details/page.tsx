@@ -330,7 +330,14 @@ function KPIDetailContent() {
                                                                 <CandidateIdChip candidateId={item.candidate_id} onClick={setProfileId} />
                                                             </div>
                                                         </TableCell>
-                                                        <TableCell>{item.jr_title}</TableCell>
+                                                        <TableCell>
+                                                            <div className="flex items-center gap-2">
+                                                                <span>{item.jr_title}</span>
+                                                                {item.jr_id && (
+                                                                    <span className="text-xs font-mono text-slate-400">{item.jr_id}</span>
+                                                                )}
+                                                            </div>
+                                                        </TableCell>
                                                         <TableCell>{formatDate(item.interview_date)}</TableCell>
                                                         <TableCell className="text-right">
                                                             <Button variant="ghost" size="sm" asChild>
