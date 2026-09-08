@@ -115,18 +115,21 @@ function sanitizeHyperlinkUrl(url: string | null | undefined): string | null {
     }
 }
 
+const SUPABASE_STORAGE_URL = "https://ddeqeaicjyrevqdognbn.supabase.co/storage/v1/object/public/bu-logos";
+
 async function loadBuLogo(bu: string): Promise<BuLogo | null> {
     const base = bu.toLowerCase().replace(/\s+/g, "");
     for (const ext of ["png", "jpg"]) {
-        const filePath = path.join(process.cwd(), "public", "images", "bu-logos", `${base}.${ext}`);
         try {
-            if (fs.existsSync(filePath)) {
-                const buf = fs.readFileSync(filePath);
-                const meta = await sharp(buf).metadata();
-                const aspect = (meta.width || 1) / (meta.height || 1);
-                const mime = ext === "jpg" ? "jpeg" : ext;
-                return { data: `data:image/${mime};base64,${buf.toString("base64")}`, aspect };
-            }
+            const url = `${SUPABASE_STORAGE_URL}/${base}.${ext}`;
+            const res = await fetch(url);
+            if (!res.ok) continue;
+            const arrayBuffer = await res.arrayBuffer();
+            const buf = Buffer.from(arrayBuffer);
+            const meta = await sharp(buf).metadata();
+            const aspect = (meta.width || 1) / (meta.height || 1);
+            const mime = ext === "jpg" ? "jpeg" : ext;
+            return { data: `data:image/${mime};base64,${buf.toString("base64")}`, aspect };
         } catch { /* no logo */ }
     }
     return null;

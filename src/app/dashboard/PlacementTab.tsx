@@ -380,14 +380,14 @@ export default function PlacementTab() {
                                 <th key={bu} className="text-center px-2 py-6 text-xs font-bold text-slate-300 border-l-2 border-slate-500" colSpan={3}>
                                         <div className="flex flex-col items-center gap-2">
                                             <div className="w-32 h-16 relative bg-white/5 rounded-lg flex items-center justify-center overflow-hidden border border-white/10 group">
-                                                <img 
-                                                    src={`/images/bu-logos/${bu.toLowerCase()}.png`} 
+                                                <img
+                                                    src={`https://ddeqeaicjyrevqdognbn.supabase.co/storage/v1/object/public/bu-logos/${bu.toLowerCase()}.png`}
                                                     alt={bu}
                                                     className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-110"
                                                     onError={(e: any) => {
                                                         const target = e.target as HTMLImageElement;
                                                         if (!target.src.endsWith('.jpg')) {
-                                                            target.src = `/images/bu-logos/${bu.toLowerCase()}.jpg`;
+                                                            target.src = `https://ddeqeaicjyrevqdognbn.supabase.co/storage/v1/object/public/bu-logos/${bu.toLowerCase()}.jpg`;
                                                         } else {
                                                             target.style.display = 'none';
                                                         }
