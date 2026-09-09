@@ -127,7 +127,7 @@ const MODELS = [
 const PAGE_SIZE = 20;
 const VECTOR_RANK_WEBHOOK = "https://n8n.srv1212906.hstgr.cloud/webhook/vector-rank";
 
-type ChatMsg = { id: string; role: "user" | "assistant"; content: string; filters?: any; sessionId?: string; jdText?: string; sender?: string };
+type ChatMsg = { id: string; role: "user" | "assistant"; content: string; filters?: any; sessionId?: string; jdText?: string; sender?: string; timestamp?: Date };
 
 function hasMeaningfulFilters(f: any): boolean {
     if (!f) return false;
@@ -521,13 +521,14 @@ export default function AISearchV3Page() {
     const handleSend = async () => {
         if (!input.trim() || isLoading) return;
         const jdText = input;
-        const userMsg: ChatMsg = { id: Date.now().toString(), role: "user", content: input };
+        const now = new Date();
+        const userMsg: ChatMsg = { id: Date.now().toString(), role: "user", content: input, timestamp: now };
         setMessages(prev => [...prev, userMsg]);
         setInput("");
         setIsLoading(true);
 
         const assistantId = (Date.now() + 1).toString();
-        setMessages(prev => [...prev, { id: assistantId, role: "assistant", content: "…" }]);
+        setMessages(prev => [...prev, { id: assistantId, role: "assistant", content: "…", timestamp: new Date() }]);
 
         try {
             const { answer, filters: aiFilters, sessionId, sender } = await sendV3ChatMessage(jdText);
@@ -660,8 +661,29 @@ export default function AISearchV3Page() {
                                     <p className="text-sm">"Find GM of 5-star hotels in Thailand"</p>
                                 </div>
                             )}
-                            {messages.map((m) => (
-                                <div key={m.id} className={cn("flex gap-2", m.role === "user" ? "justify-end" : "justify-start")}>
+                            {messages.map((m, i) => {
+                                const prev = messages[i - 1];
+                                const showDateSep = m.timestamp && (!prev?.timestamp || new Date(prev.timestamp).toDateString() !== new Date(m.timestamp).toDateString());
+                                const timeStr = m.timestamp ? new Date(m.timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) : null;
+                                const dateLabel = (() => {
+                                    if (!m.timestamp) return null;
+                                    const d = new Date(m.timestamp);
+                                    const today = new Date();
+                                    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+                                    if (d.toDateString() === today.toDateString()) return 'วันนี้';
+                                    if (d.toDateString() === yesterday.toDateString()) return 'เมื่อวาน';
+                                    return d.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' });
+                                })();
+                                return (
+                                <React.Fragment key={m.id}>
+                                {showDateSep && (
+                                    <div className="flex items-center gap-2 my-1">
+                                        <div className="flex-1 h-px bg-slate-200" />
+                                        <span className="text-[10px] text-slate-400 font-medium shrink-0">{dateLabel}</span>
+                                        <div className="flex-1 h-px bg-slate-200" />
+                                    </div>
+                                )}
+                                <div className={cn("flex gap-2", m.role === "user" ? "justify-end" : "justify-start")}>
                                     {m.role === "assistant" && (
                                         <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center shrink-0 mt-0.5">
                                             <Bot className="h-3 w-3 text-indigo-600" />
@@ -742,7 +764,14 @@ export default function AISearchV3Page() {
                                         </Avatar>
                                     )}
                                 </div>
-                            ))}
+                                {timeStr && (
+                                    <div className={cn("text-[9px] text-slate-400 px-8 mt-0.5", m.role === "user" ? "text-right" : "text-left")}>
+                                        {timeStr}
+                                    </div>
+                                )}
+                                </React.Fragment>
+                                );
+                            })}
                         </div>
                         <div className="flex gap-2 pt-2 border-t items-end">
                             <Textarea
