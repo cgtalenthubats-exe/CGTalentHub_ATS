@@ -363,3 +363,67 @@ export async function deleteScrapingUploadLogs(ids: number[]) {
         profilesKept: candidateIds.length - emptyShellIds.length,
     };
 }
+
+// Fully deletes upload log rows the user picked (e.g. a mis-entered import) and, when a row is
+// linked to a candidate_id, purges that candidate everywhere: JR pool (jr_candidates +
+// status_log), candidate_experiences, candidate_profile_enhance, and the Candidate Profile
+// itself. Unlike deleteScrapingUploadLogs above, this is intentionally unconditional — the user
+// explicitly wants a "wrong data, remove it all" action regardless of upload status or how much
+// data has already been attached (JR pipeline included).
+export async function deleteUploadRecordsCompletely(ids: (number | string)[], type: 'resume' | 'csv') {
+    if (!ids || ids.length === 0) {
+        return { success: false, error: "No ids provided" };
+    }
+
+    const tableName = type === 'csv' ? 'csv_upload_logs' : 'resume_uploads';
+
+    const { data: targetLogs, error: fetchError } = await supabase
+        .from(tableName)
+        .select('id, candidate_id')
+        .in('id', ids as any[]);
+
+    if (fetchError) {
+        return { success: false, error: fetchError.message };
+    }
+    if (!targetLogs || targetLogs.length === 0) {
+        return { success: true, deletedCount: 0, candidatesRemoved: 0 };
+    }
+
+    const candidateIds = Array.from(
+        new Set(targetLogs.map((l: any) => l.candidate_id).filter((id: any): id is string => !!id))
+    );
+
+    if (candidateIds.length > 0) {
+        const { data: jrRows } = await supabase
+            .from('jr_candidates')
+            .select('jr_candidate_id')
+            .in('candidate_id', candidateIds);
+
+        const jrCandidateIds = (jrRows || []).map((r: any) => r.jr_candidate_id);
+
+        if (jrCandidateIds.length > 0) {
+            await supabase.from('status_log').delete().in('jr_candidate_id', jrCandidateIds);
+            await supabase.from('jr_candidates').delete().in('jr_candidate_id', jrCandidateIds);
+        }
+
+        await supabase.from('candidate_profile_enhance').delete().in('candidate_id', candidateIds);
+        await supabase.from('candidate_experiences').delete().in('candidate_id', candidateIds);
+        await supabase.from('Candidate Profile' as any).delete().in('candidate_id', candidateIds);
+    }
+
+    const { data, error } = await supabase
+        .from(tableName)
+        .delete()
+        .in('id', targetLogs.map((l: any) => l.id))
+        .select('id');
+
+    if (error) {
+        return { success: false, error: error.message };
+    }
+
+    return {
+        success: true,
+        deletedCount: data?.length || 0,
+        candidatesRemoved: candidateIds.length,
+    };
+}

@@ -458,7 +458,22 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
             .eq('candidate_id', candidateId);
         if (profileDeleteError) throw new Error('Failed to delete Candidate Profile: ' + profileDeleteError.message);
 
-        console.log(`[API] Cascade deleted candidate ${candidateId}: ${jrCandidateIds.length} jr_candidates, status_logs, experiences, enhance, pre_screen_log`);
+        // Step 8: Delete matching import log rows (csv_upload_logs / resume_uploads) so the
+        // upload history doesn't keep a "completed" record pointing at a candidate that no
+        // longer exists — mirrors the full-delete behavior on /candidates/import.
+        const { error: csvLogDeleteError } = await adminAuthClient
+            .from('csv_upload_logs')
+            .delete()
+            .eq('candidate_id', candidateId);
+        if (csvLogDeleteError) console.error('Failed to delete csv_upload_logs:', csvLogDeleteError.message);
+
+        const { error: resumeLogDeleteError } = await adminAuthClient
+            .from('resume_uploads')
+            .delete()
+            .eq('candidate_id', candidateId);
+        if (resumeLogDeleteError) console.error('Failed to delete resume_uploads:', resumeLogDeleteError.message);
+
+        console.log(`[API] Cascade deleted candidate ${candidateId}: ${jrCandidateIds.length} jr_candidates, status_logs, experiences, enhance, pre_screen_log, upload logs`);
         return NextResponse.json({ success: true, message: 'Candidate and all related data deleted successfully' });
 
     } catch (error: any) {

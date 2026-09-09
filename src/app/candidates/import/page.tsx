@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Papa from "papaparse";
-import { processCsvUpload, deleteScrapingUploadLogs } from "@/app/actions/csv-actions";
+import { processCsvUpload, deleteScrapingUploadLogs, deleteUploadRecordsCompletely } from "@/app/actions/csv-actions";
 import { createUploadRecord, handleDuplicateResume, logSkippedResume } from "@/app/actions/resume-actions";
 import { bulkAddCandidatesToJR } from "@/app/actions/jr-candidates";
 import { AddCandidateDialog } from "@/components/ai-search/AddCandidateDialog";
@@ -125,6 +125,8 @@ export default function CandidateImportPage() {
     const [selectedIds, setSelectedIds] = useState<(number | string)[]>([]);
     const [deleteScrapingDialogOpen, setDeleteScrapingDialogOpen] = useState(false);
     const [isDeletingScraping, setIsDeletingScraping] = useState(false);
+    const [deleteFullDialogOpen, setDeleteFullDialogOpen] = useState(false);
+    const [isDeletingFull, setIsDeletingFull] = useState(false);
     const [openJrDialog, setOpenJrDialog] = useState(false);
     
     // Pagination State
@@ -675,6 +677,33 @@ export default function CandidateImportPage() {
         }
     };
 
+    // Unconditional delete — removes the selected upload records AND, if linked to a
+    // candidate_id, the entire candidate (profile, experiences, JR pool entries, status log).
+    // Used for cleaning up records the user entered incorrectly, regardless of status.
+    const handleDeleteFullConfirm = async () => {
+        if (selectedIds.length === 0) return;
+        setIsDeletingFull(true);
+        try {
+            const result = await deleteUploadRecordsCompletely(selectedIds, viewMode);
+            if (result.success) {
+                const candidateNote = result.candidatesRemoved
+                    ? ` (${result.candidatesRemoved} candidate profile${result.candidatesRemoved > 1 ? 's' : ''} removed, including any JR pool entries)`
+                    : "";
+                toast.success(`Deleted ${result.deletedCount} record(s).${candidateNote}`);
+                setSelectedIds([]);
+                fetchLogs();
+            } else {
+                toast.error(result.error || "Failed to delete records");
+            }
+        } catch (error) {
+            console.error("Error deleting records:", error);
+            toast.error("Failed to delete records");
+        } finally {
+            setIsDeletingFull(false);
+            setDeleteFullDialogOpen(false);
+        }
+    };
+
 
     const isAnyFilterActive = React.useMemo(() => {
         return statusFilters.length > 0 || 
@@ -1079,7 +1108,7 @@ export default function CandidateImportPage() {
                     </div>
 
                     {/* Statistics Summary (filtered views only) + Selection Actions (always, when relevant) */}
-                    {(filteredSummary || validSelectedCount > 0 || (viewMode === 'csv' && selectedScrapingIds.length > 0)) && (
+                    {(filteredSummary || selectedIds.length > 0) && (
                         <div className="mt-1 flex items-center justify-between bg-indigo-50/50 border border-indigo-100/50 p-4 rounded-2xl animate-in fade-in slide-in-from-top-2">
                             <div className="flex items-center gap-10">
                                 {filteredSummary ? (
@@ -1107,7 +1136,7 @@ export default function CandidateImportPage() {
                                     </>
                                 ) : (
                                     <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest">
-                                        {validSelectedCount} record(s) selected
+                                        {selectedIds.length} record(s) selected
                                     </span>
                                 )}
                             </div>
@@ -1120,6 +1149,15 @@ export default function CandidateImportPage() {
                                         onClick={() => setDeleteScrapingDialogOpen(true)}
                                     >
                                         <Trash2 className="w-4 h-4 mr-2" /> Delete {selectedScrapingIds.length} Stuck
+                                    </Button>
+                                )}
+                                {selectedIds.length > 0 && (
+                                    <Button
+                                        variant="outline"
+                                        className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 rounded-2xl font-bold h-12"
+                                        onClick={() => setDeleteFullDialogOpen(true)}
+                                    >
+                                        <Trash2 className="w-4 h-4 mr-2" /> Delete {selectedIds.length} Selected
                                     </Button>
                                 )}
                                 {validSelectedCount > 0 && (
@@ -1252,6 +1290,31 @@ export default function CandidateImportPage() {
                             className="bg-red-600 hover:bg-red-700"
                         >
                             {isDeletingScraping ? 'Deleting...' : 'Confirm Delete'}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Full Delete Confirm Dialog */}
+            <AlertDialog open={deleteFullDialogOpen} onOpenChange={setDeleteFullDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete {selectedIds.length} record(s) completely?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This permanently removes the selected upload record(s) from this log. For any record already
+                            linked to a Candidate ID, it also deletes the Candidate Profile, work experiences, and — if the
+                            candidate was added to any Job Requisition pool — those JR pool entries and their status history.
+                            <span className="block mt-2 font-semibold text-destructive">This action cannot be undone.</span>
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeletingFull}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleDeleteFullConfirm}
+                            disabled={isDeletingFull}
+                            className="bg-red-600 hover:bg-red-700"
+                        >
+                            {isDeletingFull ? 'Deleting...' : 'Confirm Delete'}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
