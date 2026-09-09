@@ -56,9 +56,6 @@ export function OrgChartV2PageContent({
                                 uploads={uploads}
                                 existingNodes={rawNodes.map((n) => ({ name: n.name, parent_name: n.parent_name }))}
                             />
-                            <Link href={`/org-chart/${uploadId}`} className="text-xs text-slate-400 hover:text-indigo-600">
-                                View V1 &rarr;
-                            </Link>
                         </div>
                     </div>
 

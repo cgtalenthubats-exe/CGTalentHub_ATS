@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useMemo, type ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { OrgChart } from 'd3-org-chart'
-import { Download, Loader2, Plus, UserPlus, Focus, User, Building2, Trash2, Users, X, Maximize2, Minimize2, ZoomIn, ZoomOut, Sparkles, UserCheck, UploadCloud, Target, Search, ExternalLink, Info } from 'lucide-react'
+import { Download, Loader2, Plus, UserPlus, Focus, User, Building2, Trash2, Users, X, Maximize2, Minimize2, ZoomIn, ZoomOut, Sparkles, UserCheck, UploadCloud, Target, Search, ExternalLink, Info, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
     Dialog,
@@ -31,6 +31,7 @@ import { toast } from '@/lib/notifications'
 import { exportOrgChartPptx } from '@/lib/org-chart-pptx'
 import { createSingleOrgProfile, verifyOrgNode, deleteOrgNode, clearOrgNode, toggleGroupNode, moveOrgNode, bulkCreateOrgProfiles, verifyOrgChart, deleteOrgChart, updateMasterCompanyLogo, type RawOrgNode } from '@/app/actions/org-chart-actions'
 import { VerificationDialog } from '@/components/org-chart/verification-dialog'
+import { RefreshAllProfilesDialog } from '@/components/org-chart/refresh-all-profiles-dialog'
 import { CandidateProfileSheet } from '@/components/candidate-profile-sheet'
 import { NodeFormDialog } from '@/components/org-chart/node-form-dialog'
 import { CandidateAvatar } from '@/components/candidate-avatar'
@@ -255,6 +256,7 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
     const router = useRouter()
 
     const [isExporting, setIsExporting] = useState(false)
+    const [refreshAllOpen, setRefreshAllOpen] = useState(false)
     const [profileSheetCandidateId, setProfileSheetCandidateId] = useState<string | null>(null)
     const [verifyNode, setVerifyNode] = useState<(OrgNodeV2 & { node_id: string }) | null>(null)
     const [isVerifying, setIsVerifying] = useState(false)
@@ -312,6 +314,14 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
         () => rawNodes.filter((n) => !n.matched_candidate_id).length,
         [rawNodes]
     )
+
+    // Every matched candidate on this chart, deduped — feeds the "Refresh All Profiles" dialog
+    const refreshableCandidates = useMemo(() => {
+        const seen = new Set<string>()
+        return data
+            .filter((n) => n.candidate_id && !seen.has(n.candidate_id) && seen.add(n.candidate_id))
+            .map((n) => ({ id: n.candidate_id as string, name: n.name, linkedin: n.linkedin }))
+    }, [data])
 
     // "Focus on this Team" — when active, render only the focused node + its descendants as a new root
     const focusedData = useMemo(() => {
@@ -1011,6 +1021,17 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
                         EXPORT PPTX
                     </Button>
 
+                    {/* Refresh All Profiles */}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 px-4 gap-2 border-indigo-100 text-indigo-600 hover:bg-indigo-50 shadow-sm bg-white rounded-full font-bold text-[11px]"
+                        onClick={() => setRefreshAllOpen(true)}
+                    >
+                        <RefreshCw size={14} />
+                        REFRESH ALL PROFILES
+                    </Button>
+
                     {/* Add Standalone Node */}
                     <Button
                         variant="outline"
@@ -1198,6 +1219,11 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
                 candidateId={profileSheetCandidateId}
                 open={!!profileSheetCandidateId}
                 onOpenChange={(open) => !open && setProfileSheetCandidateId(null)}
+            />
+            <RefreshAllProfilesDialog
+                open={refreshAllOpen}
+                onOpenChange={setRefreshAllOpen}
+                candidates={refreshableCandidates}
             />
 
             {menuState && (() => {

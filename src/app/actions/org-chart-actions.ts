@@ -7,6 +7,12 @@ import { triggerCandidateRefresh } from '@/app/actions/n8n-actions'
 import { getCheckedStatus } from '@/lib/candidate-utils'
 import { getN8nUrl } from './admin-actions'
 import { v4 as uuidv4 } from 'uuid'
+import {
+    groupExperiencesByCandidate,
+    formatExperienceHistory,
+    formatEducationHeadline,
+    type ExperienceRow,
+} from '@/lib/candidate-experience-utils'
 
 const supabase = adminAuthClient as any
 
@@ -924,6 +930,176 @@ export async function importOrgChart(uploadId: string, companyName: string, file
         console.error('[ImportOrg] Error:', err)
         return { success: false, error: err.message }
     }
+}
+
+export type OrgChartProfileCard = {
+    candidate_id: string
+    name: string
+    photo_url: string | null
+    linkedin: string | null
+    age: number | null
+    nationality: string | null
+    position: string | null
+    company: string | null
+    location: string | null
+    rating: string | null
+    education: string | null
+    experience_history: string[]
+}
+
+/**
+ * Enriches a set of matched org-chart candidate_ids with the extra fields the
+ * "Short Profile" PPTX card needs (nationality, location, age, education, rating,
+ * experience history) that aren't part of the lightweight OrgNodeV2 shape used
+ * by the interactive chart. Mirrors the same query pattern as the JR/AI Search
+ * report cards (export-jr-report.ts) so the exported card looks identical.
+ */
+export async function getOrgChartProfileCards(candidateIds: string[]): Promise<OrgChartProfileCard[]> {
+    if (!candidateIds.length) return []
+
+    const [profilesRes, expRes, enhanceRes] = await Promise.all([
+        supabase
+            .from('Candidate Profile')
+            .select('candidate_id, name, photo, linkedin, age, nationality')
+            .in('candidate_id', candidateIds),
+        supabase
+            .from('candidate_experiences')
+            .select('candidate_id, position, company, company_id, country, start_date, end_date, is_current_job')
+            .in('candidate_id', candidateIds),
+        supabase
+            .from('candidate_profile_enhance')
+            .select('candidate_id, education_summary')
+            .in('candidate_id', candidateIds),
+    ])
+
+    const profileMap = new Map<string, any>((profilesRes.data ?? []).map((p: any) => [p.candidate_id, p]))
+    const expByCandidate = groupExperiencesByCandidate((expRes.data ?? []) as ExperienceRow[])
+    const enhanceMap = new Map<string, any>((enhanceRes.data ?? []).map((e: any) => [e.candidate_id, e]))
+
+    const companyIds = [...new Set(
+        candidateIds.flatMap((cId) => {
+            const exps = expByCandidate.get(cId) ?? []
+            return exps[0]?.company_id != null ? [(exps[0] as any).company_id as number] : []
+        })
+    )]
+
+    const companyMasterRes = companyIds.length
+        ? await supabase.from('company_master').select('company_id, rating').in('company_id', companyIds)
+        : { data: [] as any[] }
+    const companyMap = new Map<number, any>((companyMasterRes.data ?? []).map((c: any) => [c.company_id, c]))
+
+    return candidateIds.map((cId) => {
+        const profile = profileMap.get(cId) ?? {}
+        const exps = expByCandidate.get(cId) ?? []
+        const latest = exps[0] as (ExperienceRow & { company_id?: number }) | undefined
+        const company = latest?.company_id != null ? companyMap.get(latest.company_id as number) : null
+        const enhance = enhanceMap.get(cId)
+
+        return {
+            candidate_id: cId,
+            name: profile.name ?? cId,
+            photo_url: profile.photo ?? null,
+            linkedin: profile.linkedin ?? null,
+            age: profile.age ?? null,
+            nationality: profile.nationality ?? null,
+            position: latest?.position ?? null,
+            company: latest?.company ?? null,
+            location: latest?.country ?? null,
+            rating: company?.rating ?? null,
+            education: formatEducationHeadline(enhance?.education_summary) || null,
+            experience_history: formatExperienceHistory(exps, 4),
+        }
+    })
+}
+
+/**
+ * Replaces the source PDF of an existing org chart.
+ * mode = 'pdf_only'  -> just swaps chart_file, all_org_nodes untouched (verified nodes stay verified)
+ * mode = 'reextract' -> swaps chart_file AND wipes all_org_nodes, re-triggers n8n extraction on the same
+ *                       upload_id. Since we cannot reliably diff old vs new nodes by name alone, every
+ *                       node (including previously verified ones) starts over in the verify queue.
+ */
+export async function replaceOrgChartPdf(
+    uploadId: string,
+    publicUrl: string,
+    mode: 'pdf_only' | 'reextract'
+) {
+    if (!uploadId || !publicUrl) return { success: false, error: 'Missing data' }
+
+    const { data: upload, error: fetchErr } = await supabase
+        .from('org_chart_uploads')
+        .select('company_name, company_id')
+        .eq('upload_id', uploadId)
+        .single()
+
+    if (fetchErr || !upload) {
+        return { success: false, error: 'Org chart not found' }
+    }
+
+    if (mode === 'pdf_only') {
+        const { error } = await supabase
+            .from('org_chart_uploads')
+            .update({ chart_file: publicUrl, modify_date: new Date().toISOString() })
+            .eq('upload_id', uploadId)
+
+        if (error) return { success: false, error: error.message }
+        revalidatePath('/org-chart')
+        revalidatePath(`/org-chart-v2/${uploadId}`)
+        return { success: true }
+    }
+
+    // mode === 'reextract'
+    const { error: updateErr } = await supabase
+        .from('org_chart_uploads')
+        .update({ chart_file: publicUrl, status: 'Processing', modify_date: new Date().toISOString() })
+        .eq('upload_id', uploadId)
+
+    if (updateErr) return { success: false, error: updateErr.message }
+
+    const { error: wipeErr } = await supabase
+        .from('all_org_nodes')
+        .delete()
+        .eq('upload_id', uploadId)
+
+    if (wipeErr) return { success: false, error: `Failed to clear old nodes: ${wipeErr.message}` }
+
+    const config = await getN8nUrl('OrgChart Workflow')
+    if (config) {
+        const payload = {
+            upload_id: uploadId,
+            company_master: upload.company_name,
+            company_id: upload.company_id,
+            image_filename: publicUrl
+        }
+
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 10000)
+        try {
+            const response = await fetch(config.url, {
+                method: config.method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            })
+            clearTimeout(timeoutId)
+            if (!response.ok) {
+                console.error('[ReplacePdf] Webhook Failed:', response.status)
+            }
+        } catch (fetchErr: any) {
+            clearTimeout(timeoutId)
+            if (fetchErr.name === 'AbortError') {
+                console.warn('[ReplacePdf] Webhook trigger timed out (10s), but assumed received by n8n.')
+            } else {
+                console.error('[ReplacePdf] Webhook fetch error:', fetchErr)
+            }
+        }
+    } else {
+        console.warn('[ReplacePdf] Webhook "OrgChart Workflow" not configured')
+    }
+
+    revalidatePath('/org-chart')
+    revalidatePath(`/org-chart-v2/${uploadId}`)
+    return { success: true }
 }
 
 export async function fetchOrgChartData(uploadId: string) {

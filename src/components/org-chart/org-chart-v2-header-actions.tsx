@@ -3,9 +3,9 @@
 import React, { useState } from 'react'
 import { AddNodeDialog } from './add-node-dialog'
 import { CloneOrgDialog } from './clone-org-dialog'
-import { ParseImageDialog } from './parse-image-dialog'
+import { UploadNewPdfDialog } from './upload-new-pdf-dialog'
 import { Button } from '@/components/ui/button'
-import { Plus, GitFork, ScanLine } from 'lucide-react'
+import { Plus, GitFork, UploadCloud } from 'lucide-react'
 
 type Props = {
     uploadId: string
@@ -16,7 +16,7 @@ type Props = {
 export function OrgChartV2HeaderActions({ uploadId, uploads, existingNodes }: Props) {
     const [addNodeOpen, setAddNodeOpen] = useState(false)
     const [cloneOrgOpen, setCloneOrgOpen] = useState(false)
-    const [parseImageOpen, setParseImageOpen] = useState(false)
+    const [uploadPdfOpen, setUploadPdfOpen] = useState(false)
 
     return (
         <div className="flex items-center gap-2">
@@ -39,10 +39,10 @@ export function OrgChartV2HeaderActions({ uploadId, uploads, existingNodes }: Pr
             <Button
                 variant="outline"
                 size="sm"
-                className="h-8 px-3 text-xs font-bold gap-1.5 border-slate-200 text-slate-600 hover:text-violet-600 hover:border-violet-200"
-                onClick={() => setParseImageOpen(true)}
+                className="h-8 px-3 text-xs font-bold gap-1.5 border-slate-200 text-slate-600 hover:text-amber-600 hover:border-amber-200"
+                onClick={() => setUploadPdfOpen(true)}
             >
-                <ScanLine size={13} /> Parse Image
+                <UploadCloud size={13} /> Upload New PDF
             </Button>
 
             <AddNodeDialog
@@ -56,11 +56,10 @@ export function OrgChartV2HeaderActions({ uploadId, uploads, existingNodes }: Pr
                 targetUploadId={uploadId}
                 allUploads={uploads}
             />
-            <ParseImageDialog
-                open={parseImageOpen}
-                onOpenChange={setParseImageOpen}
+            <UploadNewPdfDialog
+                open={uploadPdfOpen}
+                onOpenChange={setUploadPdfOpen}
                 uploadId={uploadId}
-                existingNodes={existingNodes}
             />
         </div>
     )
