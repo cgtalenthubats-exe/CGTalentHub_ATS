@@ -152,16 +152,40 @@ export function ChatWidget() {
                             </div>
                         )}
 
-                        {messages.map((msg, i) => (
-                            <div key={msg.id || `msg_legacy_${i}`} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap ${msg.role === 'user'
-                                        ? 'bg-violet-600 text-white rounded-br-sm'
-                                        : 'bg-white border border-slate-200 text-slate-700 rounded-bl-sm shadow-sm'
-                                    }`}>
-                                    {msg.content}
+                        {messages.map((msg, i) => {
+                            const ts = msg.timestamp;
+                            const prev = messages[i - 1];
+                            const showDateSep = !prev || new Date(prev.timestamp).toDateString() !== new Date(ts).toDateString();
+                            const timeStr = new Date(ts).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                            const dateStr = (() => {
+                                const d = new Date(ts);
+                                const today = new Date();
+                                const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+                                if (d.toDateString() === today.toDateString()) return 'วันนี้';
+                                if (d.toDateString() === yesterday.toDateString()) return 'เมื่อวาน';
+                                return d.toLocaleDateString('th-TH', { weekday: 'short', day: 'numeric', month: 'short' });
+                            })();
+                            return (
+                                <div key={msg.id || `msg_legacy_${i}`}>
+                                    {showDateSep && (
+                                        <div className="flex items-center gap-2 my-2">
+                                            <div className="flex-1 h-px bg-slate-200" />
+                                            <span className="text-[10px] text-slate-400 font-medium shrink-0">{dateStr}</span>
+                                            <div className="flex-1 h-px bg-slate-200" />
+                                        </div>
+                                    )}
+                                    <div className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                                        <div className={`max-w-[85%] rounded-2xl px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap ${msg.role === 'user'
+                                            ? 'bg-violet-600 text-white rounded-br-sm'
+                                            : 'bg-white border border-slate-200 text-slate-700 rounded-bl-sm shadow-sm'
+                                        }`}>
+                                            {msg.content}
+                                        </div>
+                                        <span className="text-[9px] text-slate-400 mt-0.5 px-1">{timeStr}</span>
+                                    </div>
                                 </div>
-                            </div>
-                        ))}
+                            );
+                        })}
 
                         {loading && (
                             <div className="flex justify-start">
