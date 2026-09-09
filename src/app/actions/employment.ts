@@ -57,7 +57,7 @@ export async function markAsResigned(id: string, resignData: {
     resignation_reason?: string
 }) {
     const supabase = adminAuthClient;
-    const { error } = await (supabase
+    const { data: updated, error } = await (supabase
         .from('employment_record' as any) as any)
         .update({
             hiring_status: 'Resigned',
@@ -66,15 +66,43 @@ export async function markAsResigned(id: string, resignData: {
             // use resignation_reason column
             resignation_reason: resignData.resignation_reason
         })
-        .eq('employment_record_id', id);
+        .eq('employment_record_id', id)
+        .select('candidate_id')
+        .single();
 
     if (error) {
         console.error('Error marking as resigned:', error);
         return { success: false, error: error.message };
     }
 
+    // Tag the candidate as Ex-Central — candidate_status is an array and may already
+    // hold other tags (e.g. "Too Senior"), so append rather than overwrite, and only
+    // if it isn't already there.
+    const candidateId = updated?.candidate_id;
+    if (candidateId) {
+        const { data: profile, error: profileErr } = await (supabase
+            .from('Candidate Profile' as any) as any)
+            .select('candidate_status')
+            .eq('candidate_id', candidateId)
+            .single();
+
+        if (!profileErr) {
+            const currentStatus: string[] = Array.isArray(profile?.candidate_status) ? profile.candidate_status : [];
+            if (!currentStatus.includes('Ex-Central')) {
+                const { error: statusErr } = await (supabase
+                    .from('Candidate Profile' as any) as any)
+                    .update({ candidate_status: [...currentStatus, 'Ex-Central'] })
+                    .eq('candidate_id', candidateId);
+                if (statusErr) console.error('Error tagging candidate as Ex-Central:', statusErr);
+            }
+        } else {
+            console.error('Error fetching candidate_status for Ex-Central tagging:', profileErr);
+        }
+    }
+
     revalidatePath('/requisitions/placements');
     revalidatePath('/requisitions/resignations');
+    revalidatePath('/internal');
     return { success: true };
 }
 
