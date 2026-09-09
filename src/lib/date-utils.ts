@@ -47,6 +47,26 @@ export function parseAnyDate(dateStr: string | null | undefined): Date | null {
 }
 
 /**
+ * Years/months of service between a start date and an end date (or today if the
+ * end date is omitted/unparseable — i.e. still ongoing). Returns "Xy Ym", or null
+ * if the start date can't be parsed at all.
+ */
+export function calculateYoS(startDateStr: string | null | undefined, endDateStr?: string | null): string | null {
+    const start = parseAnyDate(startDateStr);
+    if (!start) return null;
+    const end = (endDateStr && parseAnyDate(endDateStr)) || new Date();
+
+    let years = end.getFullYear() - start.getFullYear();
+    let months = end.getMonth() - start.getMonth();
+    if (months < 0) {
+        years--;
+        months += 12;
+    }
+    if (years < 0) return null;
+    return `${years}y ${months}m`;
+}
+
+/**
  * Safely extracts a year from a string that might be a year only or a full date.
  */
 export function extractYear(val: string | number | null | undefined): number | null {

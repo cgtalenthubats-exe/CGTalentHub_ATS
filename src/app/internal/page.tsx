@@ -322,6 +322,7 @@ export default function InternalCandidatePage() {
                                         <th className="text-left px-4 py-3 min-w-[160px]">BU / Sub-BU</th>
                                         <th className="text-left px-4 py-3 w-16">JG</th>
                                         <th className="text-left px-4 py-3 min-w-[110px]">Hire Date</th>
+                                        <th className="text-left px-4 py-3 w-20">YOS</th>
                                         <th className="text-left px-4 py-3 w-24">Status</th>
                                         <th className="text-right px-4 py-3 w-20">Actions</th>
                                     </tr>
@@ -444,9 +445,23 @@ export default function InternalCandidatePage() {
                                                         : <span className="text-slate-300">—</span>}
                                                 </td>
                                                 <td className="px-4 py-3 text-slate-600 text-xs">
-                                                    {c.hire_date
-                                                        ? new Date(c.hire_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-                                                        : <span className="text-slate-300">—</span>}
+                                                    {c.hire_date ? (
+                                                        <span title={c.hire_date_source === 'experience' ? 'Estimated from work history' : undefined}>
+                                                            {new Date(c.hire_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                            {c.hire_date_source === 'experience' && <span className="text-slate-400 italic"> (est.)</span>}
+                                                        </span>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => { setSheetCandidateId(c.candidate_id); setIsSheetOpen(true); }}
+                                                            title="No hire date on file — click to update via profile"
+                                                            className="text-amber-500 hover:text-amber-600 transition-colors"
+                                                        >
+                                                            <AlertTriangle className="h-4 w-4" />
+                                                        </button>
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3 text-slate-600 text-xs whitespace-nowrap">
+                                                    {c.yos || <span className="text-slate-300">—</span>}
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center gap-1.5">

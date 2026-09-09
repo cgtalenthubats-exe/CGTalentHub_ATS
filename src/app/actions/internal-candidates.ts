@@ -3,6 +3,7 @@
 import { adminAuthClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { cgCompanyMatch } from "@/lib/cg-company-match";
+import { parseAnyDate, calculateYoS } from "@/lib/date-utils";
 
 export interface InternalCandidate {
     candidate_id: string;
@@ -19,6 +20,8 @@ export interface InternalCandidate {
     sub_bu: string | null;
     job_grade: number | null;
     hire_date: string | null;
+    hire_date_source: 'employment_record' | 'experience' | null;
+    yos: string | null;
     hiring_status: string | null;
     resign_date: string | null;
     resignation_reason: string | null;
@@ -129,7 +132,7 @@ export async function getInternalCandidates(filters?: {
     // ── Experiences: ดึงของทุก candidate (ทั้ง group1 + group2) ──────────────
     const { data: allExps } = await (supabase as any)
         .from('candidate_experiences')
-        .select('candidate_id, position, company, company_id, is_current_job, start_date')
+        .select('candidate_id, position, company, company_id, is_current_job, start_date, end_date')
         .in('candidate_id', candidateIds);
 
     // Best exp per candidate: Current first → latest start_date
@@ -178,6 +181,31 @@ export async function getInternalCandidates(filters?: {
         if (hasCurrentCgJob) currentlyAtCgSet.add(cid);
     }
 
+    // Best CG-matching experience per candidate (Group 2 only) — used to derive an
+    // "estimated hire date" from start_date when there's no employment_record.
+    // Current job wins; otherwise the one with the latest start_date.
+    const cgBestExpMap = new Map<string, { start_date: string | null; end_date: string | null; is_current: boolean }>();
+    for (const [cid, exps] of allExpsByCand) {
+        const cgMatches = exps.filter((e: any) => {
+            const compName = (e.company || '') as string;
+            if (!compName || compName.length < 3) return false;
+            return cgSubBuNames.some(cgName => cgCompanyMatch(cgName, compName));
+        });
+        if (!cgMatches.length) continue;
+        cgMatches.sort((a: any, b: any) => {
+            const aCurr = (a.is_current_job || '').toLowerCase() === 'current';
+            const bCurr = (b.is_current_job || '').toLowerCase() === 'current';
+            if (aCurr !== bCurr) return aCurr ? -1 : 1;
+            return (b.start_date || '').localeCompare(a.start_date || '');
+        });
+        const best = cgMatches[0];
+        cgBestExpMap.set(cid, {
+            start_date: best.start_date || null,
+            end_date: best.end_date || null,
+            is_current: (best.is_current_job || '').toLowerCase() === 'current',
+        });
+    }
+
     // CG mapping lookup ของทุก company ที่ candidate เคยทำ (สำหรับ Ex-Central history)
     const allCompanyIds = [...new Set((allExps || []).map((e: any) => e.company_id).filter(Boolean))] as number[];
     const { data: allMappings } = allCompanyIds.length ? await (supabase as any)
@@ -222,6 +250,29 @@ export async function getInternalCandidates(filters?: {
             else if (isExCentral && isCurrentlyAtCg) status_mismatch = 'should_be_active';
         }
 
+        // Hire date + YOS — Group 1 uses employment_record.hire_date, ended at resign_date
+        // if resigned. Group 2 has no employment_record at all, so estimate the hire date
+        // from the start_date of whichever experience row matched a CG group company.
+        let hire_date: string | null = null;
+        let hire_date_source: 'employment_record' | 'experience' | null = null;
+        let yos: string | null = null;
+
+        if (isGroup1) {
+            hire_date = er?.hire_date || null;
+            hire_date_source = hire_date ? 'employment_record' : null;
+            const yosEnd = er?.hiring_status === 'Resigned' ? er.resign_date : null;
+            yos = calculateYoS(hire_date, yosEnd);
+        } else {
+            const cgExp = cgBestExpMap.get(p.candidate_id);
+            if (cgExp?.start_date) {
+                const parsedStart = parseAnyDate(cgExp.start_date);
+                hire_date = parsedStart ? parsedStart.toISOString().slice(0, 10) : null;
+                hire_date_source = hire_date ? 'experience' : null;
+                const hasEnded = !cgExp.is_current && cgExp.end_date && parseAnyDate(cgExp.end_date);
+                yos = calculateYoS(cgExp.start_date, hasEnded ? cgExp.end_date : null);
+            }
+        }
+
         return {
             candidate_id: p.candidate_id,
             name: p.name,
@@ -236,7 +287,9 @@ export async function getInternalCandidates(filters?: {
             bu: er?.bu || null,
             sub_bu: er?.sub_bu || null,
             job_grade: er?.job_grade || null,
-            hire_date: er?.hire_date || null,
+            hire_date,
+            hire_date_source,
+            yos,
             hiring_status: er?.hiring_status || null,
             resign_date: er?.resign_date || null,
             resignation_reason: er?.resignation_reason || null,
