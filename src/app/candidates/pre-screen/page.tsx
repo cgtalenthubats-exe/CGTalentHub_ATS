@@ -265,7 +265,6 @@ export default function PreScreenTablePage() {
                                     <SortableTableHead label="Candidate" sortKey="name" currentSort={sortConfig} onSort={requestSort} />
                                     <SortableTableHead label="Screener" sortKey="screener_Name" currentSort={sortConfig} onSort={requestSort} />
                                     <SortableTableHead label="Date" sortKey="screening_date" currentSort={sortConfig} onSort={requestSort} />
-                                    <SortableTableHead label="Impression" sortKey="overall_impression" currentSort={sortConfig} onSort={requestSort} />
                                     <SortableTableHead label="Score" sortKey="rating_score" currentSort={sortConfig} onSort={requestSort} />
                                     <TableHead className="text-right">Action</TableHead>
                                 </TableRow>
@@ -289,11 +288,6 @@ export default function PreScreenTablePage() {
                                         </TableCell>
                                         <TableCell>
                                             <span className="text-sm text-slate-600">{formatDateForDisplay(log.screening_date)}</span>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline" className={`${getImpressionColor(log.overall_impression)} font-bold`}>
-                                                {log.overall_impression || 'N/A'}
-                                            </Badge>
                                         </TableCell>
                                         <TableCell>
                                             <div className="flex items-center gap-1">
