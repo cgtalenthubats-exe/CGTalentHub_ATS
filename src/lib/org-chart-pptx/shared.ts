@@ -183,10 +183,15 @@ export async function renderNodesToSlide(
         const leftMargin = (!isGroup && photoData) ? (PHOTO_MARGIN + PHOTO_SIZE + PHOTO_MARGIN) * scale * 72 : baseMargin
         const rightMargin = linkedinUrl ? (BADGE_SIZE + BADGE_MARGIN) * scale * 72 + Math.max(2 * scale, 0.5) : baseMargin
 
+        const exCentralRun = (!isGroup && d.is_ex_central)
+            ? [{ text: `EX-CENTRAL${d.ex_central_bu ? ` · ${d.ex_central_bu}` : ''}`, options: { bold: true, fontSize: scaledFont(8, scale), color: '9333EA', breakLine: true } }]
+            : []
+
         slide.addText(
             [
                 { text: d.name || '', options: { bold: true, fontSize: scaledFont(13, scale), color: isGroup ? '3730A3' : '1E293B', breakLine: true } },
                 { text: d.title || '', options: { fontSize: scaledFont(10, scale), color: isGroup ? '6366F1' : '64748B', breakLine: true } },
+                ...exCentralRun,
                 { text: idLabel, options: { fontSize: scaledFont(10, scale), color: '94A3B8' } },
             ],
             {

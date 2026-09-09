@@ -64,6 +64,10 @@ export type RawOrgNode = {
         linkedin?: string | null
         checked?: string | null
         candidate_id?: string | null
+        age?: number | null
+        nationality?: string | null
+        is_ex_central?: boolean
+        ex_central_bu?: string | null
     } | null
 }
 
@@ -210,7 +214,7 @@ async function fetchCandidatesRobust(ids: string[], names: string[]) {
     const allCandidates: any[] = []
 
     // Exact columns from DB: candidate_id, photo, name, linkedin, checked
-    const selectStr = 'candidate_id, photo, name, linkedin, checked'
+    const selectStr = 'candidate_id, photo, name, linkedin, checked, age, nationality, candidate_status'
 
     // 1. Fetch by IDs
     if (ids.length > 0) {
@@ -307,6 +311,23 @@ export async function getOrgNodesRaw(uploadId: string): Promise<RawOrgNode[]> {
         }
     }
 
+    // 3b. Fetch BU from employment_record — for the "Ex-Central" chip's BU suffix.
+    // Most recent row per candidate wins (a candidate can have >1 employment_record over time).
+    const exCentralBuMap = new Map<string, string>()
+    if (candidateIds.length > 0) {
+        const { data: empRecords } = await supabase
+            .from('employment_record')
+            .select('candidate_id, bu, resign_date')
+            .in('candidate_id', candidateIds)
+            .order('resign_date', { ascending: false, nullsFirst: false })
+
+        ;(empRecords || []).forEach((e: any) => {
+            if (e.candidate_id && e.bu && !exCentralBuMap.has(e.candidate_id)) {
+                exCentralBuMap.set(e.candidate_id, e.bu)
+            }
+        })
+    }
+
     // 4. Transform and Compare
     return (nodes as any[]).map((n: any) => {
         const targetId = n.matched_candidate_id?.trim().toUpperCase();
@@ -352,13 +373,21 @@ export async function getOrgNodesRaw(uploadId: string): Promise<RawOrgNode[]> {
                 photo: candidate.photo,
                 linkedin: candidate.linkedin || n.linkedin,
                 checked: candidate.checked,
-                candidate_id: candidate.candidate_id
+                candidate_id: candidate.candidate_id,
+                age: candidate.age ?? null,
+                nationality: candidate.nationality ?? null,
+                is_ex_central: Array.isArray(candidate.candidate_status) && candidate.candidate_status.includes('Ex-Central'),
+                ex_central_bu: exCentralBuMap.get(candidate.candidate_id) || null
             } : (n.linkedin ? {
                 name: n.name,
                 photo: null,
                 linkedin: n.linkedin,
                 checked: null,
-                candidate_id: null
+                candidate_id: null,
+                age: null,
+                nationality: null,
+                ex_central_bu: null,
+                is_ex_central: false
             } : null)
         };
     })
@@ -945,6 +974,8 @@ export type OrgChartProfileCard = {
     rating: string | null
     education: string | null
     experience_history: string[]
+    is_ex_central: boolean
+    ex_central_bu: string | null
 }
 
 /**
@@ -960,7 +991,7 @@ export async function getOrgChartProfileCards(candidateIds: string[]): Promise<O
     const [profilesRes, expRes, enhanceRes] = await Promise.all([
         supabase
             .from('Candidate Profile')
-            .select('candidate_id, name, photo, linkedin, age, nationality')
+            .select('candidate_id, name, photo, linkedin, age, nationality, candidate_status')
             .in('candidate_id', candidateIds),
         supabase
             .from('candidate_experiences')
@@ -988,6 +1019,16 @@ export async function getOrgChartProfileCards(candidateIds: string[]): Promise<O
         : { data: [] as any[] }
     const companyMap = new Map<number, any>((companyMasterRes.data ?? []).map((c: any) => [c.company_id, c]))
 
+    const { data: empRecords } = await supabase
+        .from('employment_record')
+        .select('candidate_id, bu, resign_date')
+        .in('candidate_id', candidateIds)
+        .order('resign_date', { ascending: false, nullsFirst: false })
+    const exCentralBuMap = new Map<string, string>()
+    ;(empRecords || []).forEach((e: any) => {
+        if (e.candidate_id && e.bu && !exCentralBuMap.has(e.candidate_id)) exCentralBuMap.set(e.candidate_id, e.bu)
+    })
+
     return candidateIds.map((cId) => {
         const profile = profileMap.get(cId) ?? {}
         const exps = expByCandidate.get(cId) ?? []
@@ -1008,8 +1049,63 @@ export async function getOrgChartProfileCards(candidateIds: string[]): Promise<O
             rating: company?.rating ?? null,
             education: formatEducationHeadline(enhance?.education_summary) || null,
             experience_history: formatExperienceHistory(exps, 4),
+            is_ex_central: Array.isArray(profile.candidate_status) && profile.candidate_status.includes('Ex-Central'),
+            ex_central_bu: exCentralBuMap.get(cId) || null,
         }
     })
+}
+
+/**
+ * Wipes all_org_nodes for this upload and re-triggers the n8n OrgChart Workflow against
+ * the given PDF url (which may be a brand-new file, or the chart's own existing chart_file
+ * when just re-scanning the same PDF for a missed extraction). Shared by replaceOrgChartPdf's
+ * 'reextract' mode and reextractOrgChartFromExistingPdf.
+ */
+async function runReextraction(uploadId: string, chartFileUrl: string, companyName: string, companyId: number | null) {
+    const { error: wipeErr } = await supabase
+        .from('all_org_nodes')
+        .delete()
+        .eq('upload_id', uploadId)
+
+    if (wipeErr) return { success: false, error: `Failed to clear old nodes: ${wipeErr.message}` }
+
+    const config = await getN8nUrl('OrgChart Workflow')
+    if (config) {
+        const payload = {
+            upload_id: uploadId,
+            company_master: companyName,
+            company_id: companyId,
+            image_filename: chartFileUrl
+        }
+
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 10000)
+        try {
+            const response = await fetch(config.url, {
+                method: config.method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            })
+            clearTimeout(timeoutId)
+            if (!response.ok) {
+                console.error('[Reextract] Webhook Failed:', response.status)
+            }
+        } catch (fetchErr: any) {
+            clearTimeout(timeoutId)
+            if (fetchErr.name === 'AbortError') {
+                console.warn('[Reextract] Webhook trigger timed out (10s), but assumed received by n8n.')
+            } else {
+                console.error('[Reextract] Webhook fetch error:', fetchErr)
+            }
+        }
+    } else {
+        console.warn('[Reextract] Webhook "OrgChart Workflow" not configured')
+    }
+
+    revalidatePath('/org-chart')
+    revalidatePath(`/org-chart-v2/${uploadId}`)
+    return { success: true }
 }
 
 /**
@@ -1056,50 +1152,34 @@ export async function replaceOrgChartPdf(
 
     if (updateErr) return { success: false, error: updateErr.message }
 
-    const { error: wipeErr } = await supabase
-        .from('all_org_nodes')
-        .delete()
+    return runReextraction(uploadId, publicUrl, upload.company_name, upload.company_id)
+}
+
+/**
+ * Re-scans the CURRENT chart_file (no new upload) — for when the AI missed people the
+ * first time and re-running extraction on the exact same PDF might catch them. Wipes
+ * all_org_nodes and re-triggers n8n the same way as replaceOrgChartPdf's reextract mode.
+ */
+export async function reextractOrgChartFromExistingPdf(uploadId: string) {
+    if (!uploadId) return { success: false, error: 'Missing upload id' }
+
+    const { data: upload, error: fetchErr } = await supabase
+        .from('org_chart_uploads')
+        .select('company_name, company_id, chart_file')
+        .eq('upload_id', uploadId)
+        .single()
+
+    if (fetchErr || !upload) return { success: false, error: 'Org chart not found' }
+    if (!upload.chart_file) return { success: false, error: 'This chart has no PDF on file to re-scan' }
+
+    const { error: updateErr } = await supabase
+        .from('org_chart_uploads')
+        .update({ status: 'Processing', modify_date: new Date().toISOString() })
         .eq('upload_id', uploadId)
 
-    if (wipeErr) return { success: false, error: `Failed to clear old nodes: ${wipeErr.message}` }
+    if (updateErr) return { success: false, error: updateErr.message }
 
-    const config = await getN8nUrl('OrgChart Workflow')
-    if (config) {
-        const payload = {
-            upload_id: uploadId,
-            company_master: upload.company_name,
-            company_id: upload.company_id,
-            image_filename: publicUrl
-        }
-
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 10000)
-        try {
-            const response = await fetch(config.url, {
-                method: config.method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-                signal: controller.signal
-            })
-            clearTimeout(timeoutId)
-            if (!response.ok) {
-                console.error('[ReplacePdf] Webhook Failed:', response.status)
-            }
-        } catch (fetchErr: any) {
-            clearTimeout(timeoutId)
-            if (fetchErr.name === 'AbortError') {
-                console.warn('[ReplacePdf] Webhook trigger timed out (10s), but assumed received by n8n.')
-            } else {
-                console.error('[ReplacePdf] Webhook fetch error:', fetchErr)
-            }
-        }
-    } else {
-        console.warn('[ReplacePdf] Webhook "OrgChart Workflow" not configured')
-    }
-
-    revalidatePath('/org-chart')
-    revalidatePath(`/org-chart-v2/${uploadId}`)
-    return { success: true }
+    return runReextraction(uploadId, upload.chart_file, upload.company_name, upload.company_id)
 }
 
 export async function fetchOrgChartData(uploadId: string) {

@@ -11,9 +11,10 @@ type Props = {
     uploadId: string
     uploads: { upload_id: string; company_name: string; branch_name?: string | null }[]
     existingNodes: { name: string; parent_name: string | null }[]
+    currentPdfUrl?: string | null
 }
 
-export function OrgChartV2HeaderActions({ uploadId, uploads, existingNodes }: Props) {
+export function OrgChartV2HeaderActions({ uploadId, uploads, existingNodes, currentPdfUrl }: Props) {
     const [addNodeOpen, setAddNodeOpen] = useState(false)
     const [cloneOrgOpen, setCloneOrgOpen] = useState(false)
     const [uploadPdfOpen, setUploadPdfOpen] = useState(false)
@@ -60,6 +61,7 @@ export function OrgChartV2HeaderActions({ uploadId, uploads, existingNodes }: Pr
                 open={uploadPdfOpen}
                 onOpenChange={setUploadPdfOpen}
                 uploadId={uploadId}
+                currentPdfUrl={currentPdfUrl}
             />
         </div>
     )

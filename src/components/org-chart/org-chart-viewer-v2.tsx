@@ -29,6 +29,7 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { toast } from '@/lib/notifications'
 import { exportOrgChartPptx } from '@/lib/org-chart-pptx'
+import { exportOrgChartCsv } from '@/lib/org-chart-pptx/csv-export'
 import { createSingleOrgProfile, verifyOrgNode, deleteOrgNode, clearOrgNode, toggleGroupNode, moveOrgNode, bulkCreateOrgProfiles, verifyOrgChart, deleteOrgChart, updateMasterCompanyLogo, type RawOrgNode } from '@/app/actions/org-chart-actions'
 import { VerificationDialog } from '@/components/org-chart/verification-dialog'
 import { RefreshAllProfilesDialog } from '@/components/org-chart/refresh-all-profiles-dialog'
@@ -190,6 +191,11 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
         mismatchIconHtml = `<span title="Position Mismatch: ${escapeHtml(data.current_experience?.position || 'Unknown')}" style="display:inline-flex;flex-shrink:0;color:#f59e0b;cursor:help;">${ICON_INFO}</span>`
     }
 
+    // "Ex-Central" alumni chip (+ BU from employment_record, if known) — sits next to the candidate ID badge
+    const exCentralHtml = data.is_ex_central
+        ? `<span title="Ex-Central (Alumni)${data.ex_central_bu ? ' — ' + escapeHtml(data.ex_central_bu) : ''}" style="display:inline-flex;align-items:center;flex-shrink:0;font-size:9px;font-weight:800;color:#9333ea;background:#f3e8ff;border:1px solid #e9d5ff;border-radius:5px;padding:2px 6px;line-height:1.2;letter-spacing:0.02em;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">EX-C${data.ex_central_bu ? ` · ${escapeHtml(data.ex_central_bu)}` : ''}</span>`
+        : ''
+
     return `
         <div draggable="true" data-drag-node="${escapeHtml(data.id)}" style="width:${width}px;height:${height}px;border:2px ${style.dashed ? 'dashed' : 'solid'} ${style.border};border-radius:10px;background:${style.bg};box-shadow:0 1px 3px rgba(0,0,0,0.06);font-family:${FONT_FAMILY};box-sizing:border-box;padding:10px;position:relative;cursor:grab;">
             ${renderKebabButton(data.id)}
@@ -210,7 +216,10 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
                 </div>
             </div>
             <div style="position:absolute;left:10px;right:10px;bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:6px;">
-                ${candidateIdHtml}
+                <div style="display:flex;align-items:center;gap:4px;min-width:0;overflow:hidden;">
+                    ${candidateIdHtml}
+                    ${exCentralHtml}
+                </div>
                 ${linkIconHtml}
             </div>
         </div>
@@ -1019,6 +1028,17 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
                     >
                         {isExporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
                         EXPORT PPTX
+                    </Button>
+
+                    {/* Export CSV */}
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-9 px-4 gap-2 border-indigo-100 text-indigo-600 hover:bg-indigo-50 shadow-sm bg-white rounded-full font-bold text-[11px]"
+                        onClick={() => exportOrgChartCsv(data, companyName)}
+                    >
+                        <Download size={14} />
+                        EXPORT CSV
                     </Button>
 
                     {/* Refresh All Profiles */}

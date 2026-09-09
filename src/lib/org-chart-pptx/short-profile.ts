@@ -98,9 +98,22 @@ export async function buildShortProfileCardsPptx(
             })
 
             slide.addText(`${displayRank}. ${c.name}`, {
-                x: cx + 0.15, y: cy + 0.08, w: CARD_W - 0.3, h: 0.4,
+                x: cx + 0.15, y: cy + 0.08, w: c.is_ex_central ? CARD_W - 1.1 : CARD_W - 0.3, h: 0.4,
                 fontSize: 12, bold: true, color: C.slate900, wrap: true, valign: 'top', fontFace: 'Tahoma',
             })
+
+            if (c.is_ex_central) {
+                const chipLabel = c.ex_central_bu ? `EX-C · ${c.ex_central_bu}` : 'EX-CENTRAL'
+                const chipW = c.ex_central_bu ? 1.1 : 0.85, chipH = 0.2
+                slide.addShape(pptx.ShapeType.roundRect, {
+                    x: cx + CARD_W - chipW - 0.15, y: cy + 0.1, w: chipW, h: chipH,
+                    fill: { color: 'f3e8ff' }, rectRadius: chipH / 2,
+                })
+                slide.addText(chipLabel, {
+                    x: cx + CARD_W - chipW - 0.15, y: cy + 0.1, w: chipW, h: chipH,
+                    fontSize: 6, bold: true, color: '9333ea', align: 'center', valign: 'middle', fontFace: 'Tahoma',
+                })
+            }
 
             const photoX = cx + 0.15, photoY = cy + 0.5, photoS = 0.85
             if (photo) {

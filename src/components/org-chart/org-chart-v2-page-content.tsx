@@ -55,6 +55,7 @@ export function OrgChartV2PageContent({
                                 uploadId={uploadId}
                                 uploads={uploads}
                                 existingNodes={rawNodes.map((n) => ({ name: n.name, parent_name: n.parent_name }))}
+                                currentPdfUrl={chartFileUrl}
                             />
                         </div>
                     </div>

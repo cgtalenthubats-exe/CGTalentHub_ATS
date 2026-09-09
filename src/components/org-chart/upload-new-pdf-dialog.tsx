@@ -9,9 +9,9 @@ import {
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { toast } from '@/lib/notifications'
-import { replaceOrgChartPdf } from '@/app/actions/org-chart-actions'
+import { replaceOrgChartPdf, reextractOrgChartFromExistingPdf } from '@/app/actions/org-chart-actions'
 import {
-    UploadCloud, FileText, Loader2, CheckCircle2, AlertTriangle, FileCheck2, Sparkles
+    UploadCloud, FileText, Loader2, CheckCircle2, AlertTriangle, FileCheck2, Sparkles, RefreshCw
 } from 'lucide-react'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -22,12 +22,13 @@ type Props = {
     open: boolean
     onOpenChange: (open: boolean) => void
     uploadId: string
+    currentPdfUrl?: string | null
 }
 
-type Step = 'upload' | 'choose' | 'confirm-reextract' | 'saving' | 'done'
-type Mode = 'pdf_only' | 'reextract'
+type Step = 'upload' | 'choose' | 'confirm-reextract' | 'confirm-rescan' | 'saving' | 'done'
+type Mode = 'pdf_only' | 'reextract' | 'rescan'
 
-export function UploadNewPdfDialog({ open, onOpenChange, uploadId }: Props) {
+export function UploadNewPdfDialog({ open, onOpenChange, uploadId, currentPdfUrl }: Props) {
     const [step, setStep] = useState<Step>('upload')
     const [isDragging, setIsDragging] = useState(false)
     const [file, setFile] = useState<File | null>(null)
@@ -59,7 +60,7 @@ export function UploadNewPdfDialog({ open, onOpenChange, uploadId }: Props) {
         setStep('choose')
     }
 
-    const runReplace = async (chosenMode: Mode) => {
+    const runReplace = async (chosenMode: 'pdf_only' | 'reextract') => {
         if (!file) return
         setMode(chosenMode)
         setStep('saving')
@@ -82,6 +83,20 @@ export function UploadNewPdfDialog({ open, onOpenChange, uploadId }: Props) {
         }
     }
 
+    const runRescan = async () => {
+        setMode('rescan')
+        setStep('saving')
+        try {
+            const result = await reextractOrgChartFromExistingPdf(uploadId)
+            if (!result.success) throw new Error(result.error)
+            setStep('done')
+            router.refresh()
+        } catch (err: any) {
+            toast.error('Failed: ' + err.message)
+            setStep('confirm-rescan')
+        }
+    }
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[480px]">
@@ -94,13 +109,14 @@ export function UploadNewPdfDialog({ open, onOpenChange, uploadId }: Props) {
                         {step === 'upload' && 'Replace the source PDF for this org chart.'}
                         {step === 'choose' && 'Choose how to apply the new file.'}
                         {step === 'confirm-reextract' && 'This will reset every node in this chart.'}
+                        {step === 'confirm-rescan' && 'This will reset every node in this chart.'}
                         {step === 'saving' && 'Applying your changes...'}
                         {step === 'done' && 'All set.'}
                     </DialogDescription>
                 </DialogHeader>
 
                 {step === 'upload' && (
-                    <div className="py-2">
+                    <div className="py-2 space-y-3">
                         <div
                             className={cn(
                                 "border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer transition-all duration-200",
@@ -116,6 +132,20 @@ export function UploadNewPdfDialog({ open, onOpenChange, uploadId }: Props) {
                             <span className="text-sm text-slate-600 font-medium">Click or drag to upload PDF</span>
                             <span className="text-[10px] text-slate-400 mt-1 uppercase font-bold tracking-wider">Only PDF · max 10MB</span>
                         </div>
+
+                        {currentPdfUrl && (
+                            <button
+                                type="button"
+                                onClick={() => setStep('confirm-rescan')}
+                                className="w-full text-left p-3 rounded-xl border border-slate-200 hover:border-violet-300 hover:bg-violet-50/40 transition-colors flex gap-3 items-center"
+                            >
+                                <RefreshCw size={16} className="text-violet-600 shrink-0" />
+                                <div>
+                                    <p className="text-xs font-bold text-slate-800">Re-scan the current PDF instead</p>
+                                    <p className="text-[11px] text-slate-500">No new file needed — just re-runs AI extraction on the same PDF, in case it missed people the first time.</p>
+                                </div>
+                            </button>
+                        )}
                     </div>
                 )}
 
@@ -169,11 +199,25 @@ export function UploadNewPdfDialog({ open, onOpenChange, uploadId }: Props) {
                     </div>
                 )}
 
+                {step === 'confirm-rescan' && (
+                    <div className="py-2 space-y-4">
+                        <div className="p-4 rounded-xl bg-violet-50 border border-violet-200 flex gap-3 items-start">
+                            <AlertTriangle size={18} className="text-violet-600 shrink-0 mt-0.5" />
+                            <div className="space-y-1">
+                                <p className="text-sm font-bold text-violet-800">This can't be undone</p>
+                                <p className="text-xs text-violet-700 leading-relaxed">
+                                    Every node on this chart — including ones already verified and matched — will be deleted and rebuilt by re-running AI extraction on the same PDF already on file. You'll need to run Verify Chart on this org again from scratch. Use this when the AI missed people on the original read.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {step === 'saving' && (
                     <div className="py-10 flex flex-col items-center gap-4">
                         <Loader2 size={40} className="text-indigo-500 animate-spin" />
                         <p className="text-sm font-semibold text-slate-700">
-                            {mode === 'reextract' ? 'Clearing old nodes and re-extracting...' : 'Updating PDF...'}
+                            {mode === 'pdf_only' ? 'Updating PDF...' : 'Clearing old nodes and re-extracting...'}
                         </p>
                     </div>
                 )}
@@ -186,9 +230,9 @@ export function UploadNewPdfDialog({ open, onOpenChange, uploadId }: Props) {
                         <div className="text-center">
                             <p className="text-lg font-bold text-slate-900">Done!</p>
                             <p className="text-sm text-slate-500 mt-1">
-                                {mode === 'reextract'
-                                    ? 'The new PDF is being processed. Nodes will appear shortly — run Verify Chart when ready.'
-                                    : 'The PDF has been updated.'}
+                                {mode === 'pdf_only'
+                                    ? 'The PDF has been updated.'
+                                    : 'The PDF is being re-processed. Nodes will appear shortly — run Verify Chart when ready.'}
                             </p>
                         </div>
                     </div>
@@ -203,6 +247,14 @@ export function UploadNewPdfDialog({ open, onOpenChange, uploadId }: Props) {
                             <Button variant="outline" onClick={() => setStep('choose')}>Back</Button>
                             <Button className="bg-amber-600 hover:bg-amber-700 text-white" onClick={() => runReplace('reextract')}>
                                 Yes, wipe &amp; re-extract
+                            </Button>
+                        </>
+                    )}
+                    {step === 'confirm-rescan' && (
+                        <>
+                            <Button variant="outline" onClick={() => setStep('upload')}>Back</Button>
+                            <Button className="bg-violet-600 hover:bg-violet-700 text-white" onClick={runRescan}>
+                                Yes, re-scan this PDF
                             </Button>
                         </>
                     )}

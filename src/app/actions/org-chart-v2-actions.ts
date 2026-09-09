@@ -15,6 +15,10 @@ export type OrgNodeV2 = {
     candidate_photo: string | null
     linkedin: string | null
     checked: string | null
+    age: number | null
+    nationality: string | null
+    is_ex_central: boolean
+    ex_central_bu: string | null
     current_experience?: {
         company: string
         position: string
@@ -51,6 +55,10 @@ export async function fetchOrgChartFlatData(uploadId: string, chartCompanyName =
         candidate_photo: n.candidate?.photo || null,
         linkedin: n.candidate?.linkedin || n.linkedin || null,
         checked: n.candidate?.checked || (n.linkedin ? getCheckedStatus(n.linkedin) : null),
+        age: n.candidate?.age ?? null,
+        nationality: n.candidate?.nationality ?? null,
+        is_ex_central: n.candidate?.is_ex_central ?? false,
+        ex_central_bu: n.candidate?.ex_central_bu ?? null,
         current_experience: n.current_experience || null,
     }))
 
@@ -75,6 +83,10 @@ export async function fetchOrgChartFlatData(uploadId: string, chartCompanyName =
         candidate_photo: null,
         linkedin: null,
         checked: null,
+        age: null,
+        nationality: null,
+        is_ex_central: false,
+        ex_central_bu: null,
         current_experience: null,
     }
 
