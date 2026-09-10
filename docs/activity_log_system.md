@@ -51,6 +51,12 @@ create table public.activity_log (
   actor_type     text not null default 'user',   -- user | n8n | system | ai
   actor_role     text,                     -- snapshot ของ role ตอนนั้น
 
+  -- ส่วนงาน / ฟังก์ชันไหน  ← ตอบคำถาม "มาจากส่วนงานไหนของระบบ"
+  module         text not null,            -- candidate | requisition | jr_pipeline | placement | ai_search
+                                           -- | org_chart | import | report | admin | settings | auth | internal
+  function_name  text,                     -- ชื่อฟังก์ชันที่ทำงานจริง เช่น 'updateCandidateStatus',
+                                           -- 'bulkAddCandidatesToJR', 'POST /api/n8n/callback'
+
   -- ทำอะไร
   action         text not null,            -- create | update | delete | bulk_create | bulk_delete
                                            -- | status_change | login | logout | export | search | ai_run | upload
@@ -80,6 +86,7 @@ create index on activity_log (occurred_at desc);
 create index on activity_log (entity_type, entity_id, occurred_at desc);
 create index on activity_log (actor_email, occurred_at desc);
 create index on activity_log (action, occurred_at desc);
+create index on activity_log (module, occurred_at desc);
 create index on activity_log using gin (changes);
 ```
 
@@ -88,6 +95,66 @@ create index on activity_log using gin (changes);
 **ทำไมเก็บ `entity_label` ซ้ำซ้อน:** เพราะ log ที่มีค่าที่สุดคือ log ตอน "ลบ" — ถ้า join กลับไปหา `Candidate Profile` มันไม่มีแล้ว
 
 **ทำไมเก็บ `changes` เป็น diff ไม่ใช่ full row:** ตาราง `Candidate Profile` / `candidate_experiences` กว้างมาก เก็บ full snapshot ทุก update = log โตเร็วกว่าตัวข้อมูลจริง
+
+---
+
+## 3.1 เก็บไว้ที่ไหน (physical storage)
+
+**เก็บใน Supabase Postgres project เดิม (`ddeqeaicjyrevqdognbn`) เป็นตาราง `public.activity_log`** — ที่เดียวกับ `status_log`, `Candidate Profile` และทุกอย่างในระบบ
+
+ทำไมถึงเลือกแบบนี้:
+- **ได้ transaction เดียวกับข้อมูลจริง** — Layer B (trigger) เขียน log ใน transaction เดียวกับ write ตัวจริง ถ้า write rollback log ก็ rollback ตาม ไม่มีสภาพ "log บอกว่าลบแล้ว แต่ข้อมูลยังอยู่"
+- **ไม่ต้องเพิ่ม infra ใหม่** ไม่ต้องจ่ายค่า service เพิ่ม ไม่ต้องดูแล pipeline
+- query/filter/join กับ `user_profiles`, `job_requisitions` ได้ตรงๆ ตอนทำหน้าหลังบ้าน
+- backup/restore ไปพร้อมกับ DB หลักอยู่แล้ว
+
+ทางเลือกที่ **ไม่** เลือก และเหตุผล:
+| ทางเลือก | ทำไมไม่เอา |
+|---|---|
+| Supabase project แยกอีกตัว | เสียข้อดีเรื่อง transaction + trigger, ต้องยิงข้ามเน็ตเวิร์ก, จ่ายเพิ่ม |
+| External log service (Datadog / Logtail / BetterStack) | ดีสำหรับ app log แต่ audit log เป็น "ข้อมูลธุรกิจ" ที่ต้อง query ร่วมกับ ATS — และค่าใช้จ่ายผูกกับ volume |
+| ไฟล์ / Google Sheet | แก้ย้อนหลังได้ = เชื่อไม่ได้, query ไม่ไหวเมื่อโต |
+
+การควบคุมขนาด (รายละเอียดในหัวข้อ 7): เก็บ diff ไม่เก็บ full row · bulk ลงเป็น 1 แถวต่อ batch · retention 12 เดือน · partition by month เมื่อจำเป็น
+ประเมินคร่าวๆ: write log ~1–3 KB/แถว ถ้าทีมทำ 500 action/วัน ≈ 180K แถว/ปี ≈ 300–500 MB — อยู่ในวิสัยที่ Postgres ตัวเดียวรับสบาย
+
+---
+
+## 3.2 บันทึกด้วยว่าเป็นส่วนงานไหน — ใช่ครับ เก็บ 3 ระดับ
+
+| ระดับ | column | ตัวอย่าง | ใช้ตอบคำถามว่า |
+|---|---|---|---|
+| **ส่วนงาน (module)** | `module` | `jr_pipeline` | "ส่วน JR มีการแก้อะไรบ้างสัปดาห์นี้" |
+| **หน้าที่กดมา** | `source` | `/requisitions/manage/JR000214` | "กดมาจากหน้าไหน" |
+| **ฟังก์ชันที่ทำงานจริง** | `function_name` | `updateCandidateStatus` | "โค้ดตัวไหนเป็นคนเขียน" — ไล่ debug ได้ตรงจุด |
+
+`module` เป็น field บังคับ (not null) เพราะเป็นแกนหลักในการ filter หน้าหลังบ้าน ส่วน `source` กับ `function_name` เป็น best-effort
+
+### Module taxonomy (ล้อกับหน้าจริงในระบบ)
+
+| module | ครอบคลุมหน้า / ไฟล์ |
+|---|---|
+| `candidate` | `/candidates`, `/candidates/new`, `/candidates/[id]`, experiences — `candidate.ts`, `api/candidates/*` |
+| `requisition` | `/requisitions`, `/requisitions/manage` — `requisitions.ts` |
+| `jr_pipeline` | status change / add-remove candidate ใน JR / feedback — `status-updates.ts`, `jr-candidates.ts`, `jr-candidate-logs.ts`, `interview-feedback.ts`, `pre-screen-actions.ts` |
+| `placement` | `/placement` — `placement.ts`, `placement-actions.ts`, `employment.ts` |
+| `ai_search` | `/ai-search`, `/ai-search-v2`, `/ai-search-demo`, `/ai-search-v3`, `/assistant` — `ai-search*.ts`, `ai-ranking.ts`, `assistant-actions.ts`, `jr-ai-chat.ts` |
+| `org_chart` | `/org-chart`, `/org-chart-v2` — `org-chart-actions.ts`, `org-chart-v2-actions.ts` |
+| `import` | `/candidates/import`, resume upload, CSV — `csv-actions.ts`, `resume-actions.ts`, `consolidate_gm_hotel.ts` |
+| `report` | `/reports/*`, `/dashboard`, export ทุกชนิด — `export-*.ts`, `report-actions.ts`, `share-report.ts` |
+| `admin` | `/admin/companies`, `/admin/n8n` — `company-mgmt.ts`, `company-industry.ts`, `admin-actions.ts`, `n8n-actions.ts`, `cg-group-companies.ts` |
+| `settings` | `/settings` — `user-actions.ts`, `app-settings.ts`, `status-master.ts`, `candidate-filters.ts` |
+| `internal` | `/internal` — `internal-candidates.ts` |
+| `auth` | login / logout / unauthorized — `auth/callback/route.ts`, `middleware.ts` |
+| `system` | n8n callback, cron, migration script (actor_type ไม่ใช่ user) |
+
+**วิธีให้ค่ามันถูกต้องโดยไม่ต้องพิมพ์ซ้ำทุกที่:** ประกาศ constant ต่อไฟล์ครั้งเดียว
+```ts
+// บนสุดของ src/app/actions/status-updates.ts
+const MODULE = 'jr_pipeline' as const;
+// แล้วเรียก logActivity({ module: MODULE, functionName: 'updateCandidateStatus', ... })
+```
+ส่วน Layer B (DB trigger) ไม่รู้จัก module → เขียน `module = 'db_trigger'` ไว้ ซึ่งกลายเป็นสัญญาณที่มีประโยชน์ในตัวเอง: **แถวไหนขึ้น `db_trigger` แปลว่ามี write ที่ยังไม่ได้ผ่าน app layer** = รายการที่ยังต้องไปแทรก log เพิ่ม
 
 ---
 
@@ -184,12 +251,13 @@ export function getAdminClient(actorEmail?: string) // global.headers: { 'x-acto
 
 UI:
 - **Timeline view** เรียงเวลาล่าสุด — แถวเดียวอ่านรู้เรื่อง: `[เวลา] [avatar/ชื่อ] [badge action] summary`
-- **Filters**: ช่วงวันที่ (default 7 วัน) · actor · action · entity type · ค้นด้วยชื่อ/id
+- **Filters**: ช่วงวันที่ (default 7 วัน) · **module (ส่วนงาน)** · actor · action · entity type · ค้นด้วยชื่อ/id
+- **Tab ตาม module** ด้านบน (ทั้งหมด / Candidate / JR Pipeline / AI Search / Import / Admin ...) เพื่อให้ดูเฉพาะส่วนงานที่สนใจได้ทันที
 - **Expand แถว** → ตาราง diff `field | จาก | เป็น` + metadata + source route
 - **Cursor pagination** (keyset ด้วย `occurred_at, id`) ไม่ใช่ offset — ตารางนี้จะโตเร็ว
 - **Export CSV** สำหรับ audit จริงจัง
 - **Entity view**: `/admin/activity-log?entity=candidate:12345` เพื่อดูประวัติของ record เดียว (reuse ในหน้า candidate ภายหลังได้)
-- Summary bar: จำนวน action วันนี้ / top actor / top action
+- Summary bar: จำนวน action วันนี้ / top actor / top action / **breakdown ตาม module**
 
 ---
 
@@ -226,6 +294,7 @@ UI:
 | 4 | Retention | 12 เดือน |
 | 5 | ใครดูได้ | `role = 'admin'` เท่านั้น (ต้องไปตั้ง role ให้ user ที่ควรเป็น admin ใน Settings ก่อน) |
 | 6 | log การ search/AI run ด้วยมั้ย | เก็บ — มีประโยชน์กับการดู adoption ของ AI Search และ cost |
+| 7 | Module taxonomy 13 ตัวในหัวข้อ 3.2 ตรงกับที่แบ่งงานกันจริงมั้ย | ถ้าทีมมองเป็นส่วนงานอื่น บอกได้ แก้ตอนนี้ถูกกว่าแก้ทีหลัง (ต้อง backfill) |
 
 ---
 
