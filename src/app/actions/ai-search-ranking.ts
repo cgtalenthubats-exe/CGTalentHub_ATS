@@ -262,7 +262,7 @@ export async function getSearchJobStatus(jobId: string): Promise<SearchJobData |
         company: latest?.company ?? null,
         location: latest?.country ?? null,
         education: formatEducationHeadline(enhance?.education_summary) || null,
-        experience_history: formatExperienceHistory(sortedExp, 4),
+        experience_history: formatExperienceHistory(sortedExp, 5),
         score: r.score,
         strengths: r.strengths ?? "",
         gaps: r.gaps ?? "",

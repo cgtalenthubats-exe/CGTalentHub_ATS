@@ -1048,7 +1048,7 @@ export async function getOrgChartProfileCards(candidateIds: string[]): Promise<O
             location: latest?.country ?? null,
             rating: company?.rating ?? null,
             education: formatEducationHeadline(enhance?.education_summary) || null,
-            experience_history: formatExperienceHistory(exps, 4),
+            experience_history: formatExperienceHistory(exps, 5),
             is_ex_central: Array.isArray(profile.candidate_status) && profile.candidate_status.includes('Ex-Central'),
             ex_central_bu: exCentralBuMap.get(cId) || null,
         }

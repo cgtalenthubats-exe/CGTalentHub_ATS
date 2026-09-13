@@ -218,7 +218,7 @@ export async function getStage3JobStatus(jobId: string, jrId?: string | null): P
         company: latest?.company ?? null,
         location: latest?.country ?? null,
         education: formatEducationHeadline(enhance?.education_summary) || null,
-        experience_history: formatExperienceHistory(sortedExp, 4),
+        experience_history: formatExperienceHistory(sortedExp, 5),
         score: r.score,
         strengths: r.strengths ?? "",
         gaps: r.gaps ?? "",
@@ -405,7 +405,7 @@ export async function getJRTopProfileShortlist(jrId: string): Promise<ShortProfi
             company: latest?.company ?? null,
             location: latest?.country ?? null,
             education: formatEducationHeadline(enhance?.education_summary) || null,
-            experience_history: formatExperienceHistory(sortedExp, 4),
+            experience_history: formatExperienceHistory(sortedExp, 5),
             rating: latest?.company_id != null ? (ratingByCompanyId.get(latest.company_id) ?? null) : null,
             latest_status: statusByJrCandidateId.get(String(jrRow?.jr_candidate_id)) ?? null,
         };
@@ -480,7 +480,7 @@ export async function getJRInternalCandidates(jrId: string): Promise<ShortProfil
             company: latest?.company ?? null,
             location: latest?.country ?? null,
             education: formatEducationHeadline(enhance?.education_summary) || null,
-            experience_history: formatExperienceHistory(sortedExp, 4),
+            experience_history: formatExperienceHistory(sortedExp, 5),
             rating: latest?.company_id != null ? (ratingByCompanyId.get(latest.company_id) ?? null) : null,
             latest_status: statusByJrCandidateId.get(String(jrRow?.jr_candidate_id)) ?? null,
         };

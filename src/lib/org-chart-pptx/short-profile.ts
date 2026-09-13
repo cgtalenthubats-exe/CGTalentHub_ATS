@@ -178,7 +178,7 @@ export async function buildShortProfileCardsPptx(
                     x: cx + 0.15, y: expY, w: CARD_W - 0.3, h: 0.18,
                     fontSize: 6.5, bold: true, color: C.slate600, charSpacing: 0.5, fontFace: 'Tahoma',
                 })
-                slide.addText(c.experience_history.slice(0, 3).join('\n'), {
+                slide.addText(c.experience_history.slice(0, 5).join('\n'), {
                     x: cx + 0.15, y: expY + 0.2, w: CARD_W - 0.3,
                     h: Math.max(0.3, cy + CARD_H - 0.1 - (expY + 0.24)),
                     fontSize: 6.5, color: C.slate600, wrap: true, valign: 'top', lineSpacingMultiple: 1.15, fontFace: 'Tahoma',

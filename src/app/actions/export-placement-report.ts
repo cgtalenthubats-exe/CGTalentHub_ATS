@@ -883,7 +883,7 @@ async function addPlacementProfileCardsSlides(pptx: PptxGenJS, cards: PlacementC
                     x: cx + 0.15, y: expY, w: CARD_W - 0.3, h: 0.18,
                     fontSize: 7, bold: true, color: C.slate500, charSpacing: 0.5,
                 });
-                slide.addText(c.experience_history.slice(0, 3).join("\n"), {
+                slide.addText(c.experience_history.slice(0, 5).join("\n"), {
                     x: cx + 0.15, y: expY + 0.2, w: CARD_W - 0.3,
                     h: Math.max(0.3, cy + CARD_H - 0.1 - (expY + 0.24)),
                     fontSize: 7, color: C.slate600, wrap: true, valign: "top", lineSpacingMultiple: 1.15,
@@ -987,7 +987,7 @@ export async function generatePlacementReportPPTX(params: {
             age:                profile.age ?? null,
             nationality:        profile.nationality ?? null,
             education:          formatEducationHeadline(enhance?.education_summary) || null,
-            experience_history: formatExperienceHistory(exps, 3),
+            experience_history: formatExperienceHistory(exps, 5),
         };
     });
 
