@@ -1296,11 +1296,15 @@ function addLongListSlide(pptx: PptxGenJS, results: Stage3Result[], titleBase: s
         const title = totalPages > 1 ? `${titleBase} (${page + 1}/${totalPages})` : titleBase;
         slide.addText(title, { x: 0.3, y: 0.18, w: 6.5, h: 0.55, fontSize: 20, bold: true, color: C.slate900 });
 
-        // Legend (matches the reference Central Group template)
-        slide.addShape(pptx.ShapeType.rect, { x: 9.5, y: 0.2, w: 0.22, h: 0.16, fill: { color: C.slate200 } });
-        slide.addText("= Not Fit, Not Open, Too Senior", { x: 9.78, y: 0.16, w: 3.3, h: 0.24, fontSize: 8, color: C.slate600, valign: "middle" });
-        slide.addShape(pptx.ShapeType.rect, { x: 9.5, y: 0.42, w: 0.22, h: 0.16, fill: { color: C.red50 }, line: { color: C.red, width: 0.5 } });
-        slide.addText("= Rejected", { x: 9.78, y: 0.38, w: 3.3, h: 0.24, fontSize: 8, color: C.slate600, valign: "middle" });
+        // Legend (matches the reference Central Group template) — solid
+        // swatch colors, not the pale row-tint versions, so the legend
+        // itself reads clearly at a glance.
+        slide.addShape(pptx.ShapeType.rect, { x: 9.5, y: 0.04, w: 0.22, h: 0.16, fill: { color: C.green } });
+        slide.addText("= Top Profile", { x: 9.78, y: 0.0, w: 3.3, h: 0.24, fontSize: 8, color: C.slate600, valign: "middle" });
+        slide.addShape(pptx.ShapeType.rect, { x: 9.5, y: 0.26, w: 0.22, h: 0.16, fill: { color: "94a3b8" } });
+        slide.addText("= Not Fit, Not Open, Too Senior", { x: 9.78, y: 0.22, w: 3.3, h: 0.24, fontSize: 8, color: C.slate600, valign: "middle" });
+        slide.addShape(pptx.ShapeType.rect, { x: 9.5, y: 0.48, w: 0.22, h: 0.16, fill: { color: C.red } });
+        slide.addText("= Rejected", { x: 9.78, y: 0.44, w: 3.3, h: 0.24, fontSize: 8, color: C.slate600, valign: "middle" });
 
         const hOpts = { bold: true, color: C.white, fill: { color: C.indigo }, valign: "middle" as const };
         const headerRow = [
@@ -1317,14 +1321,21 @@ function addLongListSlide(pptx: PptxGenJS, results: Stage3Result[], titleBase: s
         ];
 
         const dataRows = pageResults.map((r, idx) => {
+            const isTop = isTopProfile(r);
             const isGray = GRAY_STATUSES.includes(r.latest_status ?? "");
             const isRejected = r.latest_status === "Rejected";
-            const rowFill = isRejected ? { color: C.red50 } : isGray ? { color: C.slate200 } : idx % 2 === 0 ? { color: C.white } : { color: C.slate100 };
+            // Precedence matches the reference n8n template: Top Profile green
+            // wins over gray/red.
+            const rowFill = isTop ? { color: "dcfce7" }
+                : isRejected ? { color: C.red50 }
+                : isGray ? { color: C.slate200 }
+                : idx % 2 === 0 ? { color: C.white } : { color: C.slate100 };
             const base    = { fill: rowFill, valign: "middle" as const };
+            const nameColor = isTop ? "15803d" : C.slate900;
             return [
-                { text: `${rowOffset + idx + 1}`,            options: { ...base, align: "center" as const, bold: true, color: C.slate500 } },
+                { text: `${rowOffset + idx + 1}`,            options: { ...base, align: "center" as const, bold: true, color: isTop ? "15803d" : C.slate500 } },
                 { text: r.company || "-",                    options: { ...base, color: C.slate600 } },
-                { text: r.name,                              options: { ...base, bold: true, color: C.slate900 } },
+                { text: r.name,                              options: { ...base, bold: true, color: nameColor } },
                 { text: r.position || "-",                   options: { ...base, color: C.slate600 } },
                 { text: r.age != null ? `${r.age}` : "-",    options: { ...base, align: "center" as const, color: C.slate600 } },
                 { text: r.gender || "-",                     options: { ...base, align: "center" as const, color: C.slate600 } },

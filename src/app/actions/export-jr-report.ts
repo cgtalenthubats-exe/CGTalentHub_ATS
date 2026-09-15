@@ -174,6 +174,33 @@ function getLinkedinIconUri(): string | null {
     return _linkedinIconUri;
 }
 
+// Wordmark is black/gray — only legible on white slide backgrounds, so it's
+// added to content slides (Brief, Summary Mapping, Short Profile, Long List)
+// and skipped on the dark cover/section-cover slides where it would vanish.
+let _centralGroupLogoUri: string | null = null;
+function getCentralGroupLogoUri(): string | null {
+    if (_centralGroupLogoUri !== null) return _centralGroupLogoUri;
+    try {
+        _centralGroupLogoUri = `data:image/png;base64,${fs.readFileSync(
+            path.join(process.cwd(), "public", "central-group-logo.png")
+        ).toString("base64")}`;
+    } catch (e) {
+        console.error("Failed to load Central Group logo for JR Report PPTX", e);
+        _centralGroupLogoUri = "";
+    }
+    return _centralGroupLogoUri;
+}
+
+const CG_LOGO_ASPECT = 126 / 1200; // source PNG is 1200×126
+const CG_LOGO_W = 3.5;
+const CG_LOGO_H = CG_LOGO_W * CG_LOGO_ASPECT;
+function addCentralGroupLogo(pptx: PptxGenJS, slide: PptxGenJS.Slide, opts?: { y?: number }) {
+    const uri = getCentralGroupLogoUri();
+    if (!uri) return;
+    const w = CG_LOGO_W, h = CG_LOGO_H;
+    slide.addImage({ data: uri, x: 13.333 - w - 0.25, y: opts?.y ?? 0.08, w, h });
+}
+
 // ── Cover slide ───────────────────────────────────────────────────────────────
 function addCoverSlide(pptx: PptxGenJS, jrId: string, jrTitle: string, total: number, dateStr: string) {
     const slide = pptx.addSlide();
@@ -257,6 +284,7 @@ async function addBriefSlide(pptx: PptxGenJS, jr: JRInfo) {
     const slide = pptx.addSlide();
     slide.background = { color: C.white };
     slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.08, h: "100%", fill: { color: C.indigo } });
+    addCentralGroupLogo(pptx, slide);
     slide.addText("THE BRIEF", {
         x: 0.3, y: 0.18, w: 12.75, h: 0.36, fontSize: 10, bold: true, color: C.indigo, charSpacing: 2,
     });
@@ -484,6 +512,7 @@ function addSMContinuationSlots(
     const slide = pptx.addSlide();
     slide.background = { color: C.white };
     slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.08, h: "100%", fill: { color: C.indigo } });
+    addCentralGroupLogo(pptx, slide);
 
     // Eyebrow marking this as overflow from the main Summary Mapping slide,
     // not new content — matches the "SUMMARY MAPPING" eyebrow style there.
@@ -582,6 +611,7 @@ function addSummaryMappingSlide(
     const slide = pptx.addSlide();
     slide.background = { color: C.white };
     slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.08, h: "100%", fill: { color: C.indigo } });
+    addCentralGroupLogo(pptx, slide);
 
     // Eyebrow + title
     slide.addText("SUMMARY MAPPING", {
@@ -595,7 +625,7 @@ function addSummaryMappingSlide(
     // the "**" marks scattered through the columns below (was a faint caption
     // buried at the bottom of the slide, easy to miss).
     const legendW = 1.9, legendH = 0.3;
-    const legendX = 0.28 + 12.9 - legendW, legendY = 0.13;
+    const legendX = 0.28 + 12.9 - legendW, legendY = 0.5; // nudged down to clear the (bigger) Central Group logo above it
     slide.addShape(pptx.ShapeType.roundRect, {
         x: legendX, y: legendY, w: legendW, h: legendH,
         fill: { color: C.indigo50 }, line: { color: C.indigo, width: 0.75 }, rectRadius: legendH / 2,
@@ -753,6 +783,7 @@ async function addShortProfileCardsSlides(
 
         const slide = pptx.addSlide();
         slide.background = { color: C.white };
+        addCentralGroupLogo(pptx, slide);
         const title = totalPages > 1 ? `${titleBase} (${page + 1}/${totalPages})` : titleBase;
         slide.addText(title, { x: 0.3, y: 0.18, w: 12.75, h: 0.45, fontSize: 20, bold: true, color: C.slate900 });
 
@@ -798,8 +829,22 @@ async function addShortProfileCardsSlides(
                 });
             }
 
-            // Photo
             const photoX = cx + 0.15, photoY = cy + 0.5, photoS = 0.85;
+            // Profile tags (e.g. "Internal Candidate") — from Candidate
+            // Profile.candidate_status directly, distinct from the pipeline
+            // status chip above (status_log). Mirrors the old n8n deck's
+            // Top_Status field, which showed this separately from
+            // Top_Latest_status on the same card. Rendered on the LinkedIn/
+            // rating row below the photo (not its own reserved row — that
+            // pushed every card's photo down, tagged or not) and sized to
+            // its text instead of a fixed width. "Too Senior" is skipped
+            // since it already surfaces as the pipeline chip when no real
+            // status_log entry exists (see latest_status fallback in
+            // fetchJRReportData).
+            const profileTags = (c.candidate_status ?? []).filter(t => t !== "Too Senior");
+            const profileTagLabel = profileTags.join(", ");
+
+            // Photo
             if (photo) {
                 slide.addImage({ data: photo, x: photoX, y: photoY, w: photoS, h: photoS, rounding: true });
             } else {
@@ -842,22 +887,35 @@ async function addShortProfileCardsSlides(
             // Position value just overflows past this row instead of pushing
             // it down the card.
             const badgeY = photoY + photoS + 0.1;
+            let badgeCursorX = cx + 0.15;
             const linkedinIconUri = c.linkedin ? getLinkedinIconUri() : null;
             if (c.linkedin && linkedinIconUri) {
                 slide.addImage({
                     data: linkedinIconUri,
-                    x: cx + 0.15, y: badgeY, w: 0.26, h: 0.26,
+                    x: badgeCursorX, y: badgeY, w: 0.26, h: 0.26,
                     hyperlink: { url: sanitizeHyperlinkUrl(c.linkedin)! },
                 });
+                badgeCursorX += 0.26 + 0.07;
             }
             if (c.rating) {
-                const ratingX = cx + (c.linkedin ? 0.48 : 0.15);
                 slide.addShape(pptx.ShapeType.roundRect, {
-                    x: ratingX, y: badgeY, w: 0.95, h: 0.26, fill: { color: C.amber50 }, rectRadius: 0.05,
+                    x: badgeCursorX, y: badgeY, w: 0.95, h: 0.26, fill: { color: C.amber50 }, rectRadius: 0.05,
                 });
                 slide.addText(`★ ${c.rating}`, {
-                    x: ratingX, y: badgeY, w: 0.95, h: 0.26,
+                    x: badgeCursorX, y: badgeY, w: 0.95, h: 0.26,
                     align: "center", valign: "middle", fontSize: 7.5, bold: true, color: C.amber,
+                });
+                badgeCursorX += 0.95 + 0.07;
+            }
+            if (profileTagLabel) {
+                const tagH = 0.26, tagW = 0.16 + profileTagLabel.length * 0.058;
+                slide.addShape(pptx.ShapeType.roundRect, {
+                    x: badgeCursorX, y: badgeY, w: tagW, h: tagH,
+                    fill: { color: "fef9c3" }, line: { color: "eab308", width: 0.5 }, rectRadius: tagH / 2,
+                });
+                slide.addText(profileTagLabel, {
+                    x: badgeCursorX + 0.06, y: badgeY, w: tagW - 0.12, h: tagH,
+                    fontSize: 6.5, bold: true, color: "854d0e", align: "center", valign: "middle", wrap: false,
                 });
             }
 
@@ -880,6 +938,10 @@ async function addShortProfileCardsSlides(
 
 // ── Long List helpers ─────────────────────────────────────────────────────────
 const isTopProfileCandidate = (c: CandidateForReport) => (c.list_type ?? "").toLowerCase().includes("top");
+// Forced gray in the Long List table regardless of status_master's configured
+// bg_color (which currently colors these the same red as Rejected) — matches
+// the reference n8n/Central Group template and export-pptx.ts's GRAY_STATUSES.
+const LONGLIST_GRAY_STATUSES = ["Not Open", "Not fit", "Too Senior"];
 
 function bucketLongList(pool: CandidateForReport[], statusColors: StatusColorMap): CandidateForReport[] {
     // Mirrors n8n Prepare Slides1 bucket order:
@@ -924,11 +986,18 @@ function addLongListSlide(pptx: PptxGenJS, results: CandidateForReport[], titleB
         const title = totalPages > 1 ? `${titleBase} (${page + 1}/${totalPages})` : titleBase;
         slide.addText(title, { x: 0.3, y: 0.18, w: 6.5, h: 0.55, fontSize: 20, bold: true, color: C.slate900 });
 
-        // Legend — coloured rows = row_color_enabled statuses from status_master
-        slide.addShape(pptx.ShapeType.rect, { x: 8.7, y: 0.22, w: 0.22, h: 0.16, fill: { color: "fef2f2" }, line: { color: C.slate200, width: 0.5 } });
-        slide.addText("= Closed / Not Progressed", { x: 8.98, y: 0.18, w: 4.1, h: 0.24, fontSize: 8, color: C.slate600, valign: "middle" });
-        slide.addShape(pptx.ShapeType.rect, { x: 8.7, y: 0.44, w: 0.22, h: 0.16, fill: { color: "d1fae5" }, line: { color: C.slate200, width: 0.5 } });
-        slide.addText("= Placed / Won", { x: 8.98, y: 0.4, w: 4.1, h: 0.24, fontSize: 8, color: C.slate600, valign: "middle" });
+        // Legend — matches the reference Central Group template's wording,
+        // plus a third swatch for the Top Profile green highlight that
+        // template didn't call out but does apply (see isTop below).
+        addCentralGroupLogo(pptx, slide);
+        // Solid swatch colors (not the pale row-tint versions) so the legend
+        // itself reads clearly at a glance — gray reads as gray, red as red.
+        slide.addShape(pptx.ShapeType.rect, { x: 8.7, y: 0.5, w: 0.22, h: 0.14, fill: { color: C.green } });
+        slide.addText("= Top Profile", { x: 8.98, y: 0.47, w: 4.1, h: 0.2, fontSize: 8, color: C.slate600, valign: "middle" });
+        slide.addShape(pptx.ShapeType.rect, { x: 8.7, y: 0.68, w: 0.22, h: 0.14, fill: { color: C.slate400 } });
+        slide.addText("= Not Fit, Not open, Too senior", { x: 8.98, y: 0.65, w: 4.1, h: 0.2, fontSize: 8, color: C.slate600, valign: "middle" });
+        slide.addShape(pptx.ShapeType.rect, { x: 8.7, y: 0.86, w: 0.22, h: 0.14, fill: { color: C.red } });
+        slide.addText("= Rejected", { x: 8.98, y: 0.83, w: 4.1, h: 0.2, fontSize: 8, color: C.slate600, valign: "middle" });
 
         const hOpts = { bold: true, color: C.white, fill: { color: C.indigo }, valign: "middle" as const };
         const headerRow = [
@@ -945,33 +1014,48 @@ function addLongListSlide(pptx: PptxGenJS, results: CandidateForReport[], titleB
         ];
 
         const dataRows = pageResults.map((r, idx) => {
+            const isTop = isTopProfileCandidate(r);
+            const isGray = LONGLIST_GRAY_STATUSES.includes(r.latest_status ?? "");
+            const isRejected = r.latest_status === "Rejected";
             const sc = statusColors.get(r.latest_status ?? "");
-            const isColored = sc?.row_color_enabled ?? false;
-            // Bg: use status_master bg_color when row_color_enabled, else alternate white/slate100
-            const bgHex = isColored && sc?.bg_color
-                ? sc.bg_color.replace("#", "")
+            // status_master currently colors Not fit/Not Open the same red as
+            // Rejected (row_color_enabled), which would make the "gray"
+            // legend swatch a lie — Not Open/Not fit/Too Senior are forced
+            // gray here (matching the reference Central Group template and
+            // AI Assessment's export), same precedence as the old n8n logic:
+            // Top Profile green wins over everything, then gray, then red,
+            // then whatever else status_master has configured (e.g. Hold,
+            // Successful Placement).
+            const isColored = !isTop && !isGray && !isRejected && (sc?.row_color_enabled ?? false);
+            const bgHex = isTop ? "dcfce7"
+                : isGray ? C.slate200
+                : isRejected ? C.red50
+                : isColored && sc?.bg_color ? sc.bg_color.replace("#", "")
                 : idx % 2 === 0 ? C.white : C.slate100;
-            const fgHex = isColored && sc?.font_color
-                ? sc.font_color.replace("#", "")
+            const fgHex = isTop ? "15803d"
+                : isGray ? C.slate600
+                : isRejected ? C.red
+                : isColored && sc?.font_color ? sc.font_color.replace("#", "")
                 : C.slate600;
+            const highlighted = isTop || isGray || isRejected || isColored;
             const rowFill = { color: bgHex };
             const base = { fill: rowFill, valign: "middle" as const };
             return [
-                { text: `${rowOffset + idx + 1}`,          options: { ...base, align: "center" as const, bold: true, color: isColored ? fgHex : C.slate500 } },
+                { text: `${rowOffset + idx + 1}`,          options: { ...base, align: "center" as const, bold: true, color: highlighted ? fgHex : C.slate500 } },
                 { text: r.company || "-",                   options: { ...base, color: fgHex } },
-                { text: r.name,                             options: { ...base, bold: true, color: isColored ? fgHex : C.slate900 } },
+                { text: r.name,                             options: { ...base, bold: true, color: highlighted ? fgHex : C.slate900 } },
                 { text: r.position || "-",                  options: { ...base, color: fgHex } },
                 { text: r.age != null ? `${r.age}` : "-",  options: { ...base, align: "center" as const, color: fgHex } },
                 { text: r.gender || "-",                    options: { ...base, align: "center" as const, color: fgHex } },
                 { text: r.location || "-",                  options: { ...base, color: fgHex } },
                 { text: r.nationality || "-",                options: { ...base, color: fgHex } },
                 { text: r.linkedin ? "View" : "-",          options: (() => { const u = sanitizeHyperlinkUrl(r.linkedin); return u ? { ...base, align: "center" as const, color: C.indigo, hyperlink: { url: u } } : { ...base, align: "center" as const, color: C.slate300 }; })() },
-                { text: r.latest_status ?? "-",             options: { ...base, color: fgHex, bold: isColored } },
+                { text: r.latest_status ?? "-",             options: { ...base, color: fgHex, bold: highlighted } },
             ];
         });
 
         (slide as any).addTable([headerRow, ...dataRows], {
-            x: 0.2, y: 0.85, w: 12.9,
+            x: 0.2, y: 1.1, w: 12.9,
             fontSize: 8,
             rowH: 0.3,
             border: { type: "solid", pt: 0.5, color: C.slate200 },
