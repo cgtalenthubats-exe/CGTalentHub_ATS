@@ -3,6 +3,31 @@
 import { adminAuthClient } from "@/lib/supabase/admin";
 import { JobRequisition, DashboardStats } from "@/types/requisition";
 import { getCurrentUserRealName } from "./user-actions";
+import { generateAndStoreJDPdf } from "@/lib/jd-pdf";
+
+/**
+ * Keeps `generated_jd_file` in sync whenever a JR is saved without a real
+ * uploaded file: generates a PDF from the JD text and stores its URL — kept in
+ * a column separate from `feedback_file` on purpose, since `feedback_file` is
+ * what triggerJRWebhook() forwards to the n8n "Job Description" workflow, and
+ * this auto-generated stand-in must never be mistaken there for a real upload.
+ * If a real file exists, clears any stale generated PDF instead. Fire-and-forget
+ * — never blocks the JR save.
+ */
+function syncGeneratedJDPdf(jrId: string, data: any) {
+    const supabase = adminAuthClient;
+    if (!data.feedback_file && data.job_description) {
+        generateAndStoreJDPdf(
+            { jrId, title: data.position_jr, bu: data.bu, subBu: data.sub_bu, jrType: data.jr_type },
+            data.job_description
+        )
+            .then(url => (supabase.from('job_requisitions') as any).update({ generated_jd_file: url }).eq('jr_id', jrId))
+            .catch(e => console.error("Failed to generate JD PDF:", e));
+    } else if (data.feedback_file) {
+        (supabase.from('job_requisitions') as any).update({ generated_jd_file: null }).eq('jr_id', jrId)
+            .then(() => {}, (e: any) => console.error("Failed to clear stale generated JD PDF:", e));
+    }
+}
 
 export async function getJobRequisitions(): Promise<JobRequisition[]> {
     const supabase = adminAuthClient;
@@ -289,6 +314,7 @@ export async function updateJobRequisition(jrId: string, data: any, isFileUpdate
         // --- Trigger Webhook ---
         const { triggerJRWebhook } = await import("./n8n-actions");
         triggerJRWebhook(jrId, data, 'update', isFileUpdated).catch(e => console.error("Failed to trigger JR Webhook (Update):", e));
+        syncGeneratedJDPdf(jrId, data);
 
         const updatedData = updated as any;
 
@@ -394,6 +420,7 @@ export async function createJobRequisition(data: any): Promise<JobRequisition | 
         // --- Trigger Webhook ---
         const { triggerJRWebhook } = await import("./n8n-actions");
         triggerJRWebhook(nextId, data, 'create').catch(e => console.error("Failed to trigger JR Webhook (Create):", e));
+        syncGeneratedJDPdf(nextId, data);
 
         const insertedData = inserted as any;
 

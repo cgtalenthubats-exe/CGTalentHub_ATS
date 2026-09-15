@@ -1,6 +1,7 @@
 import type PptxGenJS from 'pptxgenjs'
 import type { OrgChartProfileCard } from '@/app/actions/org-chart-actions'
 import { toDataUri, addBranding, BRAND_LOGO_H } from './shared'
+import { experienceHistoryRuns } from '@/lib/candidate-experience-utils'
 
 // Standard 16:9 widescreen slide, in inches — same size as Team Details
 const SLIDE_W = 13.333
@@ -151,8 +152,11 @@ export async function buildShortProfileCardsPptx(
                 fontSize: 7, color: C.slate600, wrap: true, valign: 'top', lineSpacingMultiple: 1.15, fontFace: 'Tahoma',
             })
 
-            const contentBottom = photoY + Math.max(photoS, infoH)
-            const badgeY = contentBottom + 0.1
+            // Pinned to a fixed offset below the photo (not below wherever the
+            // info text happens to end) so Experience always starts in the
+            // same place on every card; a long Education/Position value just
+            // overflows past this row instead of pushing it down the card.
+            const badgeY = photoY + photoS + 0.1
             if (c.linkedin && linkedinIconUri) {
                 const url = sanitizeHyperlinkUrl(c.linkedin)
                 slide.addImage({
@@ -178,7 +182,7 @@ export async function buildShortProfileCardsPptx(
                     x: cx + 0.15, y: expY, w: CARD_W - 0.3, h: 0.18,
                     fontSize: 6.5, bold: true, color: C.slate600, charSpacing: 0.5, fontFace: 'Tahoma',
                 })
-                slide.addText(c.experience_history.slice(0, 5).join('\n'), {
+                slide.addText(experienceHistoryRuns(c.experience_history.slice(0, 5)), {
                     x: cx + 0.15, y: expY + 0.2, w: CARD_W - 0.3,
                     h: Math.max(0.3, cy + CARD_H - 0.1 - (expY + 0.24)),
                     fontSize: 6.5, color: C.slate600, wrap: true, valign: 'top', lineSpacingMultiple: 1.15, fontFace: 'Tahoma',

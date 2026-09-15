@@ -8,6 +8,7 @@ import { adminAuthClient } from "@/lib/supabase/admin";
 import { getStage3JobStatus, getJRCandidateRoster, getJRTopProfileShortlist, getJRInternalCandidates, type Stage3Result, type ShortProfileCandidate } from "@/app/actions/ai-ranking";
 import { getSearchJobStatus } from "@/app/actions/ai-search-ranking";
 import { getPoolMarketBreakdown, type MarketBreakdown } from "@/app/actions/market-breakdown";
+import { experienceHistoryRuns } from "@/lib/candidate-experience-utils";
 
 // ── Palette ──────────────────────────────────────────────────────────────────
 const C = {
@@ -1153,9 +1154,12 @@ async function addShortProfileCardsSlides(pptx: PptxGenJS, candidates: ProfileCa
                 fontSize: 7, color: C.slate600, wrap: true, valign: "top", lineSpacingMultiple: 1.15,
             });
 
-            // LinkedIn logo + Rating row
-            const contentBottom = photoY + Math.max(photoS, infoH);
-            const badgeY = contentBottom + 0.1;
+            // LinkedIn logo + Rating row — pinned to a fixed offset below the
+            // photo (not below wherever the info text happens to end) so
+            // Experience always starts in the same place on every card; a
+            // long Education/Position value just overflows past this row
+            // instead of pushing it down the card.
+            const badgeY = photoY + photoS + 0.1;
             const linkedinIconUri = c.linkedin ? getLinkedinIconUri() : null;
             if (c.linkedin && linkedinIconUri) {
                 slide.addImage({ data: linkedinIconUri, x: cx + 0.15, y: badgeY, w: 0.26, h: 0.26, hyperlink: { url: sanitizeHyperlinkUrl(c.linkedin)! } });
@@ -1186,7 +1190,7 @@ async function addShortProfileCardsSlides(pptx: PptxGenJS, candidates: ProfileCa
             if (c.experience_history.length) {
                 const expY = badgeY + 0.34;
                 slide.addText("EXPERIENCE", { x: cx + 0.15, y: expY, w: CARD_W - 0.3, h: 0.18, fontSize: 6.5, bold: true, color: C.slate500, charSpacing: 0.5 });
-                slide.addText(c.experience_history.slice(0, 5).join("\n"), {
+                slide.addText(experienceHistoryRuns(c.experience_history.slice(0, 5)), {
                     x: cx + 0.15, y: expY + 0.2, w: CARD_W - 0.3, h: Math.max(0.3, cy + CARD_H - footerH - 0.1 - (expY + 0.24)),
                     fontSize: 6.5, color: C.slate600, wrap: true, valign: "top", lineSpacingMultiple: 1.15,
                 });
@@ -1266,7 +1270,7 @@ function addTopTableSlide(pptx: PptxGenJS, results: Stage3Result[], title: strin
 // Top Profile (by rank) → Standard → Gray-status → Rejected. Manually paginated
 // at a fixed 20 rows/slide instead of pptxgenjs's height-based autoPage, so
 // every page shows a predictable count.
-const LONGLIST_PAGE_SIZE = 20;
+const LONGLIST_PAGE_SIZE = 15;
 const GRAY_STATUSES = ["Not Open", "Not fit", "Too Senior"];
 const isTopProfile = (r: Stage3Result) => (r.list_type ?? "").toLowerCase().includes("top");
 
@@ -1319,13 +1323,13 @@ function addLongListSlide(pptx: PptxGenJS, results: Stage3Result[], titleBase: s
             const base    = { fill: rowFill, valign: "middle" as const };
             return [
                 { text: `${rowOffset + idx + 1}`,            options: { ...base, align: "center" as const, bold: true, color: C.slate500 } },
-                { text: trunc(r.company, 30) || "-",        options: { ...base, color: C.slate600 } },
+                { text: r.company || "-",                    options: { ...base, color: C.slate600 } },
                 { text: r.name,                              options: { ...base, bold: true, color: C.slate900 } },
-                { text: trunc(r.position, 34) || "-",        options: { ...base, color: C.slate600 } },
+                { text: r.position || "-",                   options: { ...base, color: C.slate600 } },
                 { text: r.age != null ? `${r.age}` : "-",    options: { ...base, align: "center" as const, color: C.slate600 } },
-                { text: trunc(r.gender, 8) || "-",           options: { ...base, align: "center" as const, color: C.slate600 } },
-                { text: trunc(r.location, 20) || "-",        options: { ...base, color: C.slate600 } },
-                { text: trunc(r.nationality, 18) || "-",     options: { ...base, color: C.slate600 } },
+                { text: r.gender || "-",                     options: { ...base, align: "center" as const, color: C.slate600 } },
+                { text: r.location || "-",                   options: { ...base, color: C.slate600 } },
+                { text: r.nationality || "-",                options: { ...base, color: C.slate600 } },
                 { text: r.linkedin ? "View" : "-",           options: (() => { const u = sanitizeHyperlinkUrl(r.linkedin); return u ? { ...base, align: "center" as const, color: C.indigo, hyperlink: { url: u } } : { ...base, align: "center" as const, color: C.slate300 }; })() },
                 { text: r.latest_status ?? "-",              options: { ...base, color: isRejected ? C.red : C.slate600 } },
             ];

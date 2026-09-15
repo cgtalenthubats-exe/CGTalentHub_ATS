@@ -70,23 +70,49 @@ export function formatExperienceHistory<T extends ExperienceRow>(sortedExps: T[]
     });
 }
 
-/** Strips "(YYYY - YYYY)" date ranges and takes the first "---"-delimited entry from education_summary. */
+/**
+ * Splits each formatExperienceHistory() line back into its date-range and role
+ * halves (they're joined with a 3-space separator there) and returns pptxgenjs
+ * rich-text runs with the date range bolded — shared by every Short Profile
+ * card slide across the pptx exports (JR report, AI assessment, placement
+ * report, org chart) so the bolding stays consistent everywhere.
+ */
+export function experienceHistoryRuns(lines: string[]): { text: string; options: { bold?: boolean; breakLine?: boolean } }[] {
+    const runs: { text: string; options: { bold?: boolean; breakLine?: boolean } }[] = [];
+    lines.forEach((line, i) => {
+        const isLast = i === lines.length - 1;
+        const sepIdx = line.indexOf("   ");
+        if (sepIdx === -1) {
+            runs.push({ text: line, options: { bold: true, breakLine: !isLast } });
+            return;
+        }
+        runs.push({ text: line.slice(0, sepIdx), options: { bold: true } });
+        runs.push({ text: line.slice(sepIdx), options: { breakLine: !isLast } });
+    });
+    return runs;
+}
+
+/**
+ * Formats education as "<Institution> — <Degree>" from the most recent entry
+ * (the first "---"-delimited chunk). Source rows look like:
+ *   "<Institution> (<start> - <end>)\n<Degree>, <Field of study>\nGrade: ...\n\n"
+ * Only the first two lines are used — a trailing "Grade:"/"Activities and
+ * societies:" line that some imports include is dropped — and only the
+ * degree name, not the ", <Field of study>" half, which is usually redundant
+ * with the degree and was the main reason this one-line headline ran long
+ * enough on Short Profile cards to push the Experience section off the card.
+ */
 export function formatEducationHeadline(educationSummary: string | null | undefined): string {
     if (!educationSummary) return "";
     const first = educationSummary.split("---")[0] ?? "";
-    return first
-        .replace(/\s*\(\s*\d{0,4}\s*-?\s*\d{0,4}\s*\)/g, "")
-        .replace(/\n+/g, " — ")
-        // Some rows have the literal string "null" baked into education_summary
-        // where a field was missing at import time (e.g. "Institute — null,
-        // Metals / Art History") — strip it and the punctuation left dangling
-        // around it rather than surfacing "null" as if it were real data.
-        .replace(/\bnull\b/gi, "")
-        .replace(/—\s*,/g, "—")
-        .replace(/,\s*—/g, " —")
-        .replace(/,\s*,/g, ",")
-        .replace(/^\s*,\s*/, "")
-        .replace(/,\s*$/, "")
-        .replace(/\s{2,}/g, " ")
-        .trim();
+    const lines = first.split("\n").map(l => l.trim()).filter(Boolean);
+
+    // Some rows have the literal string "null" baked in where a field was
+    // missing at import time — strip it rather than surfacing it as data.
+    const clean = (s: string) => s.replace(/\bnull\b/gi, "").replace(/\s{2,}/g, " ").trim();
+
+    const institution = clean((lines[0] ?? "").replace(/\s*\(\s*\d{0,4}\s*-?\s*\d{0,4}\s*\)/g, ""));
+    const degree = clean((lines[1] ?? "").split(",")[0] ?? "");
+
+    return [institution, degree].filter(Boolean).join(" — ");
 }

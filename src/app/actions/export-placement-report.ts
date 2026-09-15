@@ -10,6 +10,7 @@ import {
     groupExperiencesByCandidate,
     formatExperienceHistory,
     formatEducationHeadline,
+    experienceHistoryRuns,
     type ExperienceRow,
 } from "@/lib/candidate-experience-utils";
 
@@ -790,16 +791,18 @@ async function addPlacementProfileCardsSlides(pptx: PptxGenJS, cards: PlacementC
                 fill: { color: C.slate100 }, line: { color: "e2e8f0", width: 0.5 }, rectRadius: 0.08,
             });
 
-            // Header: name
+            // Header: name — sized against the narrower status chip below so
+            // long names get more room before wrapping, instead of colliding
+            // with the chip.
             slide.addText(c.candidate_name || "-", {
-                x: cx + 0.15, y: cy + 0.08, w: CARD_W - 1.9, h: 0.4,
+                x: cx + 0.15, y: cy + 0.08, w: CARD_W - 1.65, h: 0.4,
                 fontSize: 13, bold: true, color: C.slate900, wrap: true, valign: "top",
             });
 
             // Status badge (top-right) — hiring_status (Active/Resigned)
             if (c.hiring_status) {
                 const sc = HIRING_STATUS_COLORS[c.hiring_status] ?? { bg: "e2e8f0", text: C.slate600 };
-                const chipW = 1.55, chipH = 0.28;
+                const chipW = 1.3, chipH = 0.28;
                 const chipX = cx + CARD_W - chipW - 0.15, chipY = cy + 0.12;
                 slide.addShape(pptx.ShapeType.roundRect, {
                     x: chipX, y: chipY, w: chipW, h: chipH,
@@ -851,9 +854,12 @@ async function addPlacementProfileCardsSlides(pptx: PptxGenJS, cards: PlacementC
                 fontSize: 7.5, color: C.slate600, wrap: true, valign: "top", lineSpacingMultiple: 1.15,
             });
 
-            // LinkedIn + Job Grade / Salary badges
-            const contentBottom = photoY + Math.max(photoS, infoH);
-            const badgeY = contentBottom + 0.1;
+            // LinkedIn + Job Grade / Salary badges — pinned to a fixed offset
+            // below the photo (not below wherever the info text happens to
+            // end) so Experience always starts in the same place on every
+            // card; a long Education/Position value just overflows past this
+            // row instead of pushing it down the card.
+            const badgeY = photoY + photoS + 0.1;
             const linkedinIconUri = c.linkedin ? getLinkedinIconUri() : null;
             if (c.linkedin && linkedinIconUri) {
                 slide.addImage({
@@ -883,7 +889,7 @@ async function addPlacementProfileCardsSlides(pptx: PptxGenJS, cards: PlacementC
                     x: cx + 0.15, y: expY, w: CARD_W - 0.3, h: 0.18,
                     fontSize: 7, bold: true, color: C.slate500, charSpacing: 0.5,
                 });
-                slide.addText(c.experience_history.slice(0, 5).join("\n"), {
+                slide.addText(experienceHistoryRuns(c.experience_history.slice(0, 5)), {
                     x: cx + 0.15, y: expY + 0.2, w: CARD_W - 0.3,
                     h: Math.max(0.3, cy + CARD_H - 0.1 - (expY + 0.24)),
                     fontSize: 7, color: C.slate600, wrap: true, valign: "top", lineSpacingMultiple: 1.15,

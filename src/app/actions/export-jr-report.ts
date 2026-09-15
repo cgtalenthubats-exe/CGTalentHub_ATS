@@ -9,8 +9,10 @@ import {
     groupExperiencesByCandidate,
     formatExperienceHistory,
     formatEducationHeadline,
+    experienceHistoryRuns,
     type ExperienceRow,
 } from "@/lib/candidate-experience-utils";
+import { generateAndStoreJDPdf } from "@/lib/jd-pdf";
 
 // ── Palette (same as export-pptx.ts) ─────────────────────────────────────────
 const C = {
@@ -35,7 +37,7 @@ const C = {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const SHORT_PROFILE_PAGE_SIZE = 6;
-const LONGLIST_PAGE_SIZE = 20;
+const LONGLIST_PAGE_SIZE = 15;
 const CHARS_PER_INCH_7_5PT = 18; // was tuned for 7pt (20/inch); scaled down for the bumped 7.5pt info text
 
 const FIXED_GROUP_ORDER = [
@@ -46,6 +48,34 @@ const FIXED_GROUP_ORDER = [
     "Consulting Firm / Consulting Services",
     "Others",
 ] as const;
+
+// Fixed per-group identity color for the Summary Mapping slide — same group
+// always gets the same color across every report, so recruiters learn to
+// recognize "Hospitality = amber" etc. rather than colors shifting per JR.
+const GROUP_COLORS: Record<string, string> = {
+    "Retail / FMCG / F&B": "4338ca",                        // indigo-700
+    "Technology / Digital / Telecom": "047857",              // emerald-700
+    "Hospitality & Real Estate": "b45309",                   // amber-700
+    "Financial Services / Banking / Insurance": "6d28d9",    // violet-700
+    "Consulting Firm / Consulting Services": "be123c",       // rose-700
+    "Others": "334155",                                      // slate-700
+};
+function groupColor(g: string): string {
+    return GROUP_COLORS[g] ?? C.slate900;
+}
+// Light tint of each group color for the column card background (same family
+// as GROUP_COLORS — e.g. indigo-50 under an indigo-700 header/border).
+const GROUP_TINTS: Record<string, string> = {
+    "Retail / FMCG / F&B": "eef2ff",
+    "Technology / Digital / Telecom": "ecfdf5",
+    "Hospitality & Real Estate": "fffbeb",
+    "Financial Services / Banking / Insurance": "f5f3ff",
+    "Consulting Firm / Consulting Services": "fff1f2",
+    "Others": "f8fafc",
+};
+function groupTint(g: string): string {
+    return GROUP_TINTS[g] ?? C.slate100;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type StatusColor = {
@@ -64,6 +94,7 @@ type JRInfo = {
     jr_type: string | null;
     job_description: string | null;
     feedback_file: string | null;
+    generated_jd_file: string | null;
 };
 
 type CandidateForReport = {
@@ -104,11 +135,6 @@ type JRReportData = {
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function trunc(s: string | null | undefined, max: number): string {
-    if (!s) return "";
-    return s.length > max ? s.slice(0, max - 1) + "…" : s;
-}
-
 function sanitizeHyperlinkUrl(url: string | null | undefined): string | null {
     if (!url) return null;
     try {
@@ -192,8 +218,42 @@ function addSectionCoverSlide(pptx: PptxGenJS, eyebrow: string, title: string, s
     });
 }
 
+// ── JD helpers ─────────────────────────────────────────────────────────────────
+function trunc(s: string | null | undefined, max: number): string {
+    if (!s) return "";
+    return s.length > max ? s.slice(0, max - 1) + "…" : s;
+}
+
+/**
+ * Every JR is guaranteed a JD document once this resolves: a real uploaded
+ * file if one exists, the auto-generated PDF if requisitions.ts already made
+ * one, or — for older JRs saved before that existed — a lazily generated one
+ * created and persisted right here so future exports don't redo the work.
+ */
+async function resolveJDFileUrl(jr: JRInfo): Promise<{ url: string | null; isGenerated: boolean }> {
+    const uploadedUrl = sanitizeHyperlinkUrl(jr.feedback_file);
+    if (uploadedUrl) return { url: uploadedUrl, isGenerated: false };
+
+    const existingGeneratedUrl = sanitizeHyperlinkUrl(jr.generated_jd_file);
+    if (existingGeneratedUrl) return { url: existingGeneratedUrl, isGenerated: true };
+
+    if (!jr.job_description) return { url: null, isGenerated: false };
+
+    try {
+        const url = await generateAndStoreJDPdf(
+            { jrId: jr.jr_id, title: jr.position_jr, bu: jr.bu, subBu: jr.sub_bu, jrType: jr.jr_type },
+            jr.job_description
+        );
+        await (adminAuthClient.from("job_requisitions") as any).update({ generated_jd_file: url }).eq("jr_id", jr.jr_id);
+        return { url: sanitizeHyperlinkUrl(url), isGenerated: true };
+    } catch (e) {
+        console.error("Failed to lazily generate JD PDF for report:", e);
+        return { url: null, isGenerated: false };
+    }
+}
+
 // ── JR Brief slide ────────────────────────────────────────────────────────────
-function addBriefSlide(pptx: PptxGenJS, jr: JRInfo) {
+async function addBriefSlide(pptx: PptxGenJS, jr: JRInfo) {
     const slide = pptx.addSlide();
     slide.background = { color: C.white };
     slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.08, h: "100%", fill: { color: C.indigo } });
@@ -228,8 +288,11 @@ function addBriefSlide(pptx: PptxGenJS, jr: JRInfo) {
 
     // "feedback_file" is the JD source file uploaded on the JR form (labelled
     // "Job Description File" there) — a misleading column name from an older
-    // feature, but it's the only place the original PDF/Drive link lives.
-    const jdFileUrl = sanitizeHyperlinkUrl(jr.feedback_file);
+    // feature, but it's where the real original file lives when one exists.
+    // Falls back to an auto-generated PDF (from the JD text) when it doesn't —
+    // see resolveJDFileUrl — so this link is present for every JR, not just
+    // ones where someone happened to upload a file.
+    const { url: jdFileUrl, isGenerated } = await resolveJDFileUrl(jr);
 
     if (jr.job_description || jdFileUrl) {
         slide.addShape(pptx.ShapeType.line, { x: 0.3, y: curY, w: 12.75, h: 0, line: { color: C.slate200, width: 0.75 } });
@@ -237,9 +300,9 @@ function addBriefSlide(pptx: PptxGenJS, jr: JRInfo) {
         slide.addText("JOB DESCRIPTION", {
             x: 0.3, y: curY, w: 8, h: 0.24, fontSize: 8, bold: true, color: C.slate500, charSpacing: 1.5,
         });
-        // Link to the full original file — the text preview below is capped at
-        // 1400 chars and most JDs run much longer, so this is the only way to
-        // see the whole thing.
+        // Link to the full document — the text preview below is capped at 1400
+        // chars and most JDs run much longer, so this is the only way to see
+        // the whole thing (a real upload, or the auto-generated PDF stand-in).
         if (jdFileUrl) {
             const linkW = 2.6, linkH = 0.28;
             const linkX = 0.3 + 12.75 - linkW, linkY = curY - 0.03;
@@ -248,7 +311,7 @@ function addBriefSlide(pptx: PptxGenJS, jr: JRInfo) {
                 fill: { color: C.indigo50 }, line: { color: C.indigo, width: 0.75 }, rectRadius: linkH / 2,
                 hyperlink: { url: jdFileUrl },
             });
-            slide.addText("View Original JD File  ↗", {
+            slide.addText(isGenerated ? "View Full JD (PDF)  ↗" : "View Original JD File  ↗", {
                 x: linkX, y: linkY, w: linkW, h: linkH, fontSize: 8, bold: true, color: C.indigo,
                 align: "center", valign: "middle", hyperlink: { url: jdFileUrl },
             });
@@ -260,6 +323,168 @@ function addBriefSlide(pptx: PptxGenJS, jr: JRInfo) {
             });
         }
     }
+}
+
+// ── Summary Mapping layout constants (shared by the main slide and any
+// per-group continuation cards spawned when a group's content overflows) ────
+const SM_LH_XS  = 0.112;   // 7pt line height
+const SM_LH_SM  = 0.122;   // 7.5pt line height
+const SM_LH_MD  = 0.132;   // 8pt line height
+const SM_GAP_XS = 0.04;
+const SM_GAP_SM = 0.07;
+const SM_GAP_MD = 0.1;
+const SM_CARD_BOTTOM_PAD = 0.08;
+const SM_CHARS_PER_INCH_7PT = 20;
+
+type SMGroupStats = {
+    people: number;
+    companies: Set<string>;
+    locations: Map<string, Set<string>>;    // location → Set<company>
+    nationalities: Map<string, number>;
+};
+type SMBlock = { h: number; draw: (slide: any, x: number, y: number) => void };
+
+/**
+ * Flattens one group's content (people/company count, every location's full
+ * company list, nationality breakdown) into a sequence of fixed-height blocks
+ * that paginateSMBlocks() can lay out across as many cards as needed — no
+ * company or nationality is ever cut with a "+N more not shown" note anymore.
+ */
+function computeSMGroupBlocks(stats: SMGroupStats, topCompanyKeys: Set<string>, w: number): SMBlock[] {
+    const blocks: SMBlock[] = [];
+
+    blocks.push({
+        h: SM_LH_SM + SM_GAP_MD,
+        draw: (slide, x, y) => {
+            slide.addText(`${stats.people} people · ${stats.companies.size} companies`, {
+                x, y, w, h: SM_LH_SM, fontSize: 7.5, color: C.slate500,
+            });
+        },
+    });
+
+    // Locations with Top Profile companies come first
+    const sortedLocs = Array.from(stats.locations.entries()).sort(([locA, coA], [locB, coB]) => {
+        const hasTopA = Array.from(coA).some(c => topCompanyKeys.has(`${c}|${locA}`));
+        const hasTopB = Array.from(coB).some(c => topCompanyKeys.has(`${c}|${locB}`));
+        if (hasTopA && !hasTopB) return -1;
+        if (!hasTopA && hasTopB) return 1;
+        return locA.localeCompare(locB);
+    });
+
+    for (const [locName, companies] of sortedLocs) {
+        blocks.push({
+            h: SM_LH_SM + SM_GAP_XS,
+            draw: (slide, x, y) => {
+                slide.addText(`${locName}  (${companies.size})`, {
+                    x, y, w, h: SM_LH_SM, fontSize: 7.5, bold: true, color: C.slate700,
+                });
+            },
+        });
+
+        // Companies: top first, then alpha
+        const sortedCos = Array.from(companies).sort((a, b) => {
+            const tA = topCompanyKeys.has(`${a}|${locName}`);
+            const tB = topCompanyKeys.has(`${b}|${locName}`);
+            if (tA && !tB) return -1;
+            if (!tA && tB) return 1;
+            return a.localeCompare(b);
+        });
+
+        // Full company names, wrapped to fit the column instead of "…" truncated
+        // — column width varies with how many groups are active, so a fixed
+        // char limit either cut names short in wide columns or overflowed in
+        // narrow ones.
+        sortedCos.forEach((co, i) => {
+            const isTop = topCompanyKeys.has(`${co}|${locName}`);
+            const label = `• ${co}${isTop ? " **" : ""}`;
+            const availW = w - 0.06;
+            const charsPerLine = Math.max(10, Math.floor(availW * SM_CHARS_PER_INCH_7PT));
+            const lineCount = Math.max(1, Math.ceil(label.length / charsPerLine));
+            const lineH = SM_LH_XS * lineCount;
+            const isLast = i === sortedCos.length - 1;
+            blocks.push({
+                h: lineH + (isLast ? SM_GAP_SM : 0),
+                draw: (slide, x, y) => {
+                    slide.addText(label, {
+                        x: x + 0.06, y, w: availW, h: lineH, fontSize: 7,
+                        color: isTop ? C.indigo : C.slate600, bold: isTop, wrap: true, valign: "top",
+                    });
+                },
+            });
+        });
+    }
+
+    blocks.push({
+        h: SM_LH_SM + SM_GAP_XS,
+        draw: (slide, x, y) => {
+            slide.addText("Nationality", { x, y, w, h: SM_LH_SM, fontSize: 7.5, bold: true, color: C.slate500 });
+        },
+    });
+    const natSorted = Array.from(stats.nationalities.entries()).sort((a, b) => b[1] - a[1]);
+    for (const [nat, count] of natSorted) {
+        blocks.push({
+            h: SM_LH_XS,
+            draw: (slide, x, y) => {
+                slide.addText(`• ${nat}  ${count} ppl`, {
+                    x: x + 0.06, y, w: w - 0.06, h: SM_LH_XS, fontSize: 7, color: C.slate500,
+                });
+            },
+        });
+    }
+
+    return blocks;
+}
+
+/** Lays blocks out top-to-bottom on `first`, spilling onto slides from makeContinuationPage() whenever the current page runs out of room. */
+function paginateSMBlocks(
+    blocks: SMBlock[],
+    first: { slide: any; x: number; y: number; w: number; bottom: number },
+    makeContinuationPage: (pageNum: number) => { slide: any; x: number; y: number; w: number; bottom: number },
+) {
+    let page = first;
+    let curY = page.y;
+    let pageNum = 1;
+    for (const block of blocks) {
+        if (curY + block.h > page.bottom) {
+            pageNum++;
+            page = makeContinuationPage(pageNum);
+            curY = page.y;
+        }
+        block.draw(page.slide, page.x, curY);
+        curY += block.h;
+    }
+}
+
+/** A standalone continuation card for one group's overflow content — same visual language (colored header + tinted card) as its column on the main slide, centered on its own slide at the same width. */
+function addSMContinuationCard(
+    pptx: PptxGenJS, groupName: string, pageNum: number, colW: number, bodyX: number, bodyW: number,
+) {
+    const slide = pptx.addSlide();
+    slide.background = { color: C.white };
+    slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.08, h: "100%", fill: { color: C.indigo } });
+
+    const x = bodyX + (bodyW - colW) / 2; // centered, same width as its column on the main slide
+    const topY = 0.4, bottomY = 7.3;
+
+    slide.addShape(pptx.ShapeType.roundRect, {
+        x, y: topY, w: colW, h: bottomY - topY,
+        fill: { color: groupTint(groupName) }, line: { color: groupColor(groupName), width: 1 },
+        rectRadius: 0.05,
+    });
+
+    const headerH = 0.32;
+    slide.addShape(pptx.ShapeType.roundRect, {
+        x, y: topY, w: colW, h: headerH, fill: { color: groupColor(groupName) }, rectRadius: 0.05,
+    });
+    slide.addShape(pptx.ShapeType.rect, {
+        x, y: topY + headerH / 2, w: colW, h: headerH / 2, fill: { color: groupColor(groupName) },
+    });
+    slide.addText(`${groupName}  (cont'd ${pageNum})`, {
+        x: x + 0.07, y: topY, w: colW - 0.14, h: headerH, fontSize: 8, bold: true, color: C.white, valign: "middle",
+    });
+
+    const padX = 0.08;
+    return { slide, x: x + padX, y: topY + headerH + SM_GAP_SM, w: colW - padX * 2, bottom: bottomY - SM_CARD_BOTTOM_PAD };
 }
 
 // ── Summary Mapping slide ─────────────────────────────────────────────────────
@@ -347,175 +572,127 @@ function addSummaryMappingSlide(
         x: legendX, y: legendY, w: legendW, h: legendH, fontSize: 8, align: "center", valign: "middle",
     });
 
-    // Narrative summary line — restores the framing sentence from the legacy
-    // n8n slide ("We have the Top N profiles out of M candidates...") while
-    // keeping the same underlying counts/groups the old compact stat row used.
-    const narrativeRuns: { text: string; options: any }[] = [
-        { text: `We have the Top `, options: { color: C.slate700 } },
-        { text: `${topProfileCount}`, options: { bold: true, color: C.indigo } },
-        { text: ` profiles out of `, options: { color: C.slate700 } },
-        { text: `${totalCandidates}`, options: { bold: true, color: C.slate900 } },
-        { text: ` candidates across `, options: { color: C.slate700 } },
-        { text: `${totalCompanies}`, options: { bold: true, color: C.slate700 } },
-        { text: ` companies, from key groups including `, options: { color: C.slate700 } },
-        { text: activeGroups.join(", "), options: { color: C.slate600, italic: true } },
-        { text: `.`, options: { color: C.slate700 } },
-    ];
-    slide.addText(narrativeRuns, {
-        x: 0.28, y: 0.86, w: 12.9, h: 0.4, fontSize: 9.5, wrap: true, valign: "top",
-    });
-
-    // Divider
-    slide.addShape(pptx.ShapeType.line, {
-        x: 0.28, y: 1.3, w: 12.9, h: 0, line: { color: C.slate300, width: 1 },
-    });
-
-    // ── Group columns ────────────────────────────────────────────────────────
+    // ── Group columns layout (computed before the hub so the tree connectors
+    // below can line up with each column's center) ─────────────────────────
     const COLS = activeGroups.length || 1;
     const BODY_X = 0.28;
     const BODY_W = 12.9;
     const COL_GAP = 0.14;
     const colW = (BODY_W - COL_GAP * (COLS - 1)) / COLS;
-    const BODY_Y = 1.38;
+    const BODY_Y = 1.68;
     const BODY_BOTTOM = 7.3;   // leave room for legend
+    const colCenters = activeGroups.map((_, idx) => BODY_X + idx * (colW + COL_GAP) + colW / 2);
 
-    const LH_XS  = 0.112;   // 7pt line height
-    const LH_SM  = 0.122;   // 7.5pt line height
-    const LH_MD  = 0.132;   // 8pt line height
-    const GAP_XS  = 0.04;
-    const GAP_SM  = 0.07;
-    const GAP_MD  = 0.1;
+    // ── Hub → tree connectors ────────────────────────────────────────────────
+    // Replaces the old narrative sentence with a single "hub" stat box (mirrors
+    // an org-chart root node) with right-angle connector lines fanning out to
+    // each group column in solid black — the group colors live on the header
+    // bar and card border below, not on the connector itself.
+    //
+    // pptxgenjs has no native elbow-connector shape (PowerPoint's bentConnector3
+    // needs raw OOXML injection — see injectConnectors() in org-chart-pptx/shared.ts,
+    // which glues connectors to real org-chart node shapes via cNvPr ids; that
+    // machinery is specific to that pipeline). Three plain line segments meeting
+    // at right angles read the same way visually, so that's what's drawn here —
+    // just with enough vertical room between hub/spine/columns for the joints
+    // to actually be visible instead of collapsing into a single cramped tick.
+    const HUB_Y = 0.88, HUB_H = 0.38, HUB_W = 5.8;
+    const HUB_X = BODY_X + (BODY_W - HUB_W) / 2;
+    const hubCenterX = HUB_X + HUB_W / 2;
+    const SPINE_Y = HUB_Y + HUB_H + 0.2;
+
+    slide.addShape(pptx.ShapeType.roundRect, {
+        x: HUB_X, y: HUB_Y, w: HUB_W, h: HUB_H, fill: { color: C.slate900 }, rectRadius: 0.06,
+    });
+    slide.addText([
+        { text: "Top ", options: { color: "cbd5e1" } },
+        { text: `${topProfileCount}`, options: { bold: true, color: "a5b4fc" } },
+        { text: " profiles out of ", options: { color: "cbd5e1" } },
+        { text: `${totalCandidates}`, options: { bold: true, color: C.white } },
+        { text: " candidates across ", options: { color: "cbd5e1" } },
+        { text: `${totalCompanies}`, options: { bold: true, color: C.white } },
+        { text: " companies", options: { color: "cbd5e1" } },
+    ], {
+        x: HUB_X, y: HUB_Y, w: HUB_W, h: HUB_H, fontSize: 13, align: "center", valign: "middle",
+    });
+
+    // All connector segments: solid black, 2¼pt — matches standard PowerPoint
+    // connector styling rather than the group colors (those already carry the
+    // color coding via the header/card below each stub).
+    const CONNECTOR_LINE = { color: "000000", width: 2.25 };
+
+    // Stem from the hub down to the horizontal spine
+    slide.addShape(pptx.ShapeType.line, {
+        x: hubCenterX, y: HUB_Y + HUB_H, w: 0, h: SPINE_Y - (HUB_Y + HUB_H), line: CONNECTOR_LINE,
+    });
+    // Horizontal spine connecting every active column (skipped when there's
+    // only one — the stem + single stub already forms a straight line)
+    if (colCenters.length > 1) {
+        slide.addShape(pptx.ShapeType.line, {
+            x: colCenters[0], y: SPINE_Y, w: colCenters[colCenters.length - 1] - colCenters[0], h: 0,
+            line: CONNECTOR_LINE,
+        });
+    }
+    // Stub dropping from the spine into each column
+    activeGroups.forEach((_, idx) => {
+        slide.addShape(pptx.ShapeType.line, {
+            x: colCenters[idx], y: SPINE_Y, w: 0, h: BODY_Y - SPINE_Y,
+            line: CONNECTOR_LINE,
+        });
+    });
+
+    // Horizontal inset for body content so text doesn't run up against the
+    // card border — the header stays flush (full colW) so it reads as the
+    // card's own title strip, same as the reference mockup.
+    const PAD_X = 0.08;
+    const CONTENT_BOTTOM = BODY_BOTTOM - SM_CARD_BOTTOM_PAD;
 
     activeGroups.forEach((groupName, idx) => {
         const x = BODY_X + idx * (colW + COL_GAP);
         const stats = groupStats.get(groupName)!;
+        const cx = x + PAD_X;
+        const cw = colW - PAD_X * 2;
 
-        // Column separator (vertical line, not for first col)
-        if (idx > 0) {
-            slide.addShape(pptx.ShapeType.line, {
-                x: x - COL_GAP / 2, y: BODY_Y, w: 0, h: BODY_BOTTOM - BODY_Y,
-                line: { color: C.slate300, width: 1 },
-            });
-        }
-
-        let curY = BODY_Y;
-        const safeAdd = (y: number) => y < BODY_BOTTOM;
-
-        // Group name — solid header bar (slate900, not indigo) so it reads as a
-        // clear column divider and never gets confused with the indigo used to
-        // highlight Top Profile companies further down the same column.
-        if (safeAdd(curY)) {
-            const nameLines = Math.max(1, Math.ceil(groupName.length / Math.floor(colW * 12)));
-            const headerPad = 0.05;
-            const headerH = LH_MD * nameLines + headerPad * 2;
-            slide.addShape(pptx.ShapeType.rect, {
-                x, y: curY, w: colW, h: headerH, fill: { color: C.slate900 },
-            });
-            slide.addText(groupName, {
-                x: x + 0.07, y: curY, w: colW - 0.14, h: headerH,
-                fontSize: 8, bold: true, color: C.white, wrap: true, valign: "middle",
-            });
-            curY += headerH + GAP_SM;
-        }
-
-        // People / companies count
-        if (safeAdd(curY)) {
-            slide.addText(`${stats.people} people · ${stats.companies.size} companies`, {
-                x, y: curY, w: colW, h: LH_SM, fontSize: 7.5, color: C.slate500,
-            });
-            curY += LH_SM + GAP_MD;
-        }
-
-        // Sort locations: locations with Top Profile companies come first
-        const sortedLocs = Array.from(stats.locations.entries()).sort(([locA, coA], [locB, coB]) => {
-            const hasTopA = Array.from(coA).some(c => topCompanyKeys.has(`${c}|${locA}`));
-            const hasTopB = Array.from(coB).some(c => topCompanyKeys.has(`${c}|${locB}`));
-            if (hasTopA && !hasTopB) return -1;
-            if (!hasTopA && hasTopB) return 1;
-            return locA.localeCompare(locB);
+        // Card — background tint + border in the group's identity color,
+        // turning what used to be a bare header strip over plain white into
+        // one visually distinct box per group (matches the reference mockup).
+        slide.addShape(pptx.ShapeType.roundRect, {
+            x, y: BODY_Y, w: colW, h: BODY_BOTTOM - BODY_Y,
+            fill: { color: groupTint(groupName) }, line: { color: groupColor(groupName), width: 1 },
+            rectRadius: 0.05,
         });
 
-        // Reserve room at the bottom of the column for a "+N more" note in case
-        // the company list doesn't fit — a group like "Retail / FMCG / F&B" can
-        // easily outgrow the column, and silently dropping the tail is worse
-        // than saying so.
-        const OVERFLOW_NOTE_H = 0.15;
-        const LOC_LIMIT = BODY_BOTTOM - OVERFLOW_NOTE_H - 0.03;
-        let renderedCompanies = 0;
-        let truncated = false;
+        // Group name — solid header bar in that group's fixed identity color
+        // (matching the connector stub above it and the card border) so the
+        // color language stays consistent from the hub all the way down, and
+        // never gets confused with the indigo used to highlight Top Profile
+        // companies below.
+        const nameLines = Math.max(1, Math.ceil(groupName.length / Math.floor(colW * 12)));
+        const headerPad = 0.05;
+        const headerH = SM_LH_MD * nameLines + headerPad * 2;
+        slide.addShape(pptx.ShapeType.roundRect, {
+            x, y: BODY_Y, w: colW, h: headerH, fill: { color: groupColor(groupName) }, rectRadius: 0.05,
+        });
+        // Square off the header's bottom corners (roundRect rounds all 4)
+        // so it reads as a flat-bottomed title strip sitting atop the card.
+        slide.addShape(pptx.ShapeType.rect, {
+            x, y: BODY_Y + headerH / 2, w: colW, h: headerH / 2, fill: { color: groupColor(groupName) },
+        });
+        slide.addText(groupName, {
+            x: x + 0.07, y: BODY_Y, w: colW - 0.14, h: headerH,
+            fontSize: 8, bold: true, color: C.white, wrap: true, valign: "middle",
+        });
 
-        for (const [locName, companies] of sortedLocs) {
-            if (curY + LH_SM > LOC_LIMIT) { truncated = true; break; }
-
-            // Location header
-            slide.addText(`${locName}  (${companies.size})`, {
-                x, y: curY, w: colW, h: LH_SM, fontSize: 7.5, bold: true, color: C.slate700,
-            });
-            curY += LH_SM + GAP_XS;
-
-            // Companies: top first, then alpha
-            const sortedCos = Array.from(companies).sort((a, b) => {
-                const tA = topCompanyKeys.has(`${a}|${locName}`);
-                const tB = topCompanyKeys.has(`${b}|${locName}`);
-                if (tA && !tB) return -1;
-                if (!tA && tB) return 1;
-                return a.localeCompare(b);
-            });
-
-            // Full company names, wrapped to fit the column instead of "…" truncated
-            // — column width varies with how many groups are active, so a fixed
-            // char limit either cut names short in wide columns or overflowed in
-            // narrow ones.
-            const CHARS_PER_INCH_7PT = 20;
-            for (const co of sortedCos) {
-                const isTop = topCompanyKeys.has(`${co}|${locName}`);
-                const label = `• ${co}${isTop ? " **" : ""}`;
-                const availW = colW - 0.06;
-                const charsPerLine = Math.max(10, Math.floor(availW * CHARS_PER_INCH_7PT));
-                const lineCount = Math.max(1, Math.ceil(label.length / charsPerLine));
-                const lineH = LH_XS * lineCount;
-                if (curY + lineH > LOC_LIMIT) { truncated = true; break; }
-                slide.addText(label, {
-                    x: x + 0.06, y: curY, w: availW, h: lineH,
-                    fontSize: 7,
-                    color: isTop ? C.indigo : C.slate600,
-                    bold: isTop,
-                    wrap: true,
-                    valign: "top",
-                });
-                curY += lineH;
-                renderedCompanies++;
-            }
-            if (truncated) break;
-            curY += GAP_SM;
-        }
-
-        if (truncated) {
-            const remaining = Math.max(1, stats.companies.size - renderedCompanies);
-            slide.addText(`+ ${remaining} more compan${remaining === 1 ? "y" : "ies"} not shown`, {
-                x, y: LOC_LIMIT + 0.03, w: colW, h: OVERFLOW_NOTE_H, fontSize: 6.5, italic: true, color: C.amber,
-            });
-            curY = BODY_BOTTOM; // no room left in this column — skip Nationality below
-        } else {
-            curY += GAP_SM;
-        }
-
-        // Nationality breakdown
-        if (safeAdd(curY + LH_SM)) {
-            slide.addText("Nationality", {
-                x, y: curY, w: colW, h: LH_SM, fontSize: 7.5, bold: true, color: C.slate500,
-            });
-            curY += LH_SM + GAP_XS;
-
-            const natSorted = Array.from(stats.nationalities.entries()).sort((a, b) => b[1] - a[1]);
-            for (const [nat, count] of natSorted) {
-                if (!safeAdd(curY)) break;
-                slide.addText(`• ${nat}  ${count} ppl`, {
-                    x: x + 0.06, y: curY, w: colW - 0.06, h: LH_XS, fontSize: 7, color: C.slate500,
-                });
-                curY += LH_XS;
-            }
-        }
+        // Every location's full company list, and the full nationality
+        // breakdown — nothing dropped. Whatever doesn't fit this card spills
+        // onto a continuation slide (same card style, centered, "(cont'd N)")
+        // instead of being cut off with a "+N more not shown" note.
+        const blocks = computeSMGroupBlocks(stats, topCompanyKeys, cw);
+        paginateSMBlocks(
+            blocks,
+            { slide, x: cx, y: BODY_Y + headerH + SM_GAP_SM, w: cw, bottom: CONTENT_BOTTOM },
+            (pageNum) => addSMContinuationCard(pptx, groupName, pageNum, colW, BODY_X, BODY_W),
+        );
     });
 
     // Footer tag (Top Profile legend now lives as a chip up near the title)
@@ -558,9 +735,11 @@ async function addShortProfileCardsSlides(
                 fill: { color: C.slate100 }, line: { color: C.slate200, width: 0.5 }, rectRadius: 0.08,
             });
 
-            // Header: rank + name
+            // Header: rank + name — sized against the narrower status chip
+            // below so long names (e.g. "Suwat Pakdeepattanapanich") get more
+            // room before wrapping, instead of colliding with the chip.
             slide.addText(`${displayRank}. ${c.name}`, {
-                x: cx + 0.15, y: cy + 0.08, w: CARD_W - 1.9, h: 0.4,
+                x: cx + 0.15, y: cy + 0.08, w: CARD_W - 1.65, h: 0.4,
                 fontSize: 13, bold: true, color: C.slate900, wrap: true, valign: "top",
             });
 
@@ -570,7 +749,7 @@ async function addShortProfileCardsSlides(
                 const sc = statusColors.get(c.latest_status);
                 const chipBg = sc?.bg_color ? sc.bg_color.replace("#", "") : "e2e8f0";
                 const chipText = sc?.font_color ? sc.font_color.replace("#", "") : C.slate600;
-                const chipW = 1.55, chipH = 0.28;
+                const chipW = 1.3, chipH = 0.28;
                 const chipX = cx + CARD_W - chipW - 0.15, chipY = cy + 0.12;
                 slide.addShape(pptx.ShapeType.roundRect, {
                     x: chipX, y: chipY, w: chipW, h: chipH,
@@ -621,9 +800,12 @@ async function addShortProfileCardsSlides(
                 fontSize: 7.5, color: C.slate600, wrap: true, valign: "top", lineSpacingMultiple: 1.15,
             });
 
-            // LinkedIn + Rating row
-            const contentBottom = photoY + Math.max(photoS, infoH);
-            const badgeY = contentBottom + 0.1;
+            // LinkedIn + Rating row — pinned to a fixed offset below the photo
+            // (not below wherever the info text happens to end) so Experience
+            // always starts in the same place on every card; a long Education/
+            // Position value just overflows past this row instead of pushing
+            // it down the card.
+            const badgeY = photoY + photoS + 0.1;
             const linkedinIconUri = c.linkedin ? getLinkedinIconUri() : null;
             if (c.linkedin && linkedinIconUri) {
                 slide.addImage({
@@ -650,7 +832,7 @@ async function addShortProfileCardsSlides(
                     x: cx + 0.15, y: expY, w: CARD_W - 0.3, h: 0.18,
                     fontSize: 7, bold: true, color: C.slate500, charSpacing: 0.5,
                 });
-                slide.addText(c.experience_history.slice(0, 5).join("\n"), {
+                slide.addText(experienceHistoryRuns(c.experience_history.slice(0, 5)), {
                     x: cx + 0.15, y: expY + 0.2, w: CARD_W - 0.3,
                     h: Math.max(0.3, cy + CARD_H - 0.1 - (expY + 0.24)),
                     fontSize: 7, color: C.slate600, wrap: true, valign: "top", lineSpacingMultiple: 1.15,
@@ -740,13 +922,13 @@ function addLongListSlide(pptx: PptxGenJS, results: CandidateForReport[], titleB
             const base = { fill: rowFill, valign: "middle" as const };
             return [
                 { text: `${rowOffset + idx + 1}`,          options: { ...base, align: "center" as const, bold: true, color: isColored ? fgHex : C.slate500 } },
-                { text: trunc(r.company, 30) || "-",        options: { ...base, color: fgHex } },
+                { text: r.company || "-",                   options: { ...base, color: fgHex } },
                 { text: r.name,                             options: { ...base, bold: true, color: isColored ? fgHex : C.slate900 } },
-                { text: trunc(r.position, 34) || "-",       options: { ...base, color: fgHex } },
+                { text: r.position || "-",                  options: { ...base, color: fgHex } },
                 { text: r.age != null ? `${r.age}` : "-",  options: { ...base, align: "center" as const, color: fgHex } },
-                { text: trunc(r.gender, 8) || "-",          options: { ...base, align: "center" as const, color: fgHex } },
-                { text: trunc(r.location, 20) || "-",       options: { ...base, color: fgHex } },
-                { text: trunc(r.nationality, 18) || "-",    options: { ...base, color: fgHex } },
+                { text: r.gender || "-",                    options: { ...base, align: "center" as const, color: fgHex } },
+                { text: r.location || "-",                  options: { ...base, color: fgHex } },
+                { text: r.nationality || "-",                options: { ...base, color: fgHex } },
                 { text: r.linkedin ? "View" : "-",          options: (() => { const u = sanitizeHyperlinkUrl(r.linkedin); return u ? { ...base, align: "center" as const, color: C.indigo, hyperlink: { url: u } } : { ...base, align: "center" as const, color: C.slate300 }; })() },
                 { text: r.latest_status ?? "-",             options: { ...base, color: fgHex, bold: isColored } },
             ];
@@ -767,7 +949,7 @@ async function fetchJRReportData(jrId: string): Promise<JRReportData> {
     const [jrRes, jrCandidatesRes] = await Promise.all([
         adminAuthClient
             .from("job_requisitions")
-            .select("position_jr, bu, sub_bu, jr_id, jr_type, job_description, feedback_file")
+            .select("position_jr, bu, sub_bu, jr_id, jr_type, job_description, feedback_file, generated_jd_file")
             .eq("jr_id", jrId)
             .single(),
         adminAuthClient
@@ -776,7 +958,7 @@ async function fetchJRReportData(jrId: string): Promise<JRReportData> {
             .eq("jr_id", jrId),
     ]);
 
-    const jr = (jrRes.data ?? { position_jr: null, bu: null, sub_bu: null, jr_id: jrId, jr_type: null, job_description: null, feedback_file: null }) as JRInfo;
+    const jr = (jrRes.data ?? { position_jr: null, bu: null, sub_bu: null, jr_id: jrId, jr_type: null, job_description: null, feedback_file: null, generated_jd_file: null }) as JRInfo;
     const jrCandidates = (jrCandidatesRes.data ?? []) as any[];
 
     // Always fetch status_master for coloring (needed even for empty JR)
@@ -944,7 +1126,7 @@ export async function generateJRReportPPTX(
     addCoverSlide(pptx, jrId, jrPosition, data.totalCandidates, dateStr);
 
     // Slide 2: The Brief (position + BU/sub BU/type + JD)
-    addBriefSlide(pptx, jr);
+    await addBriefSlide(pptx, jr);
 
     // Slide 3: Summary Mapping
     addSummaryMappingSlide(pptx, {
