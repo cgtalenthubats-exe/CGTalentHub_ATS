@@ -435,19 +435,35 @@ function computeSMGroupBlocks(stats: SMGroupStats, topCompanyKeys: Set<string>, 
     return blocks;
 }
 
-/** Lays blocks out top-to-bottom on `first`, spilling onto slides from makeContinuationPage() whenever the current page runs out of room. */
+type SMSlot = { slide: any; x: number; y: number; w: number; bottom: number };
+
+/**
+ * Lays blocks out top-to-bottom in `firstSlots`, moving to the next slot when
+ * one runs out of room, and calling makeContinuationSlots() for a fresh batch
+ * of slots once all current ones are used up. Slots share the block widths
+ * they were computed for (computeSMGroupBlocks() bakes `w` into each block's
+ * draw call), so continuation slots must reuse the same width as the slots
+ * blocks were built against.
+ */
 function paginateSMBlocks(
     blocks: SMBlock[],
-    first: { slide: any; x: number; y: number; w: number; bottom: number },
-    makeContinuationPage: (pageNum: number) => { slide: any; x: number; y: number; w: number; bottom: number },
+    firstSlots: SMSlot[],
+    makeContinuationSlots: (batchNum: number) => SMSlot[],
 ) {
-    let page = first;
+    let slots = firstSlots;
+    let slotIdx = 0;
+    let page = slots[0];
     let curY = page.y;
-    let pageNum = 1;
+    let batchNum = 0; // 0 = the main slide's own slot(s); 1, 2, ... = continuation batches
     for (const block of blocks) {
-        if (curY + block.h > page.bottom) {
-            pageNum++;
-            page = makeContinuationPage(pageNum);
+        while (curY + block.h > page.bottom) {
+            slotIdx++;
+            if (slotIdx >= slots.length) {
+                batchNum++;
+                slots = makeContinuationSlots(batchNum);
+                slotIdx = 0;
+            }
+            page = slots[slotIdx];
             curY = page.y;
         }
         block.draw(page.slide, page.x, curY);
@@ -455,36 +471,55 @@ function paginateSMBlocks(
     }
 }
 
-/** A standalone continuation card for one group's overflow content — same visual language (colored header + tinted card) as its column on the main slide, centered on its own slide at the same width. */
-function addSMContinuationCard(
-    pptx: PptxGenJS, groupName: string, pageNum: number, colW: number, bodyX: number, bodyW: number,
-) {
+// Continuation slides pack 3 narrow cards side by side (same width as a main
+// column) instead of one lonely card centered on an otherwise-empty slide —
+// the earlier one-card-per-slide version wasted most of the slide's width
+// whenever a group's overflow was short (e.g. just its Nationality list).
+const SM_CONT_LANES = 3;
+
+/** One continuation slide with SM_CONT_LANES cards side by side, all for the same overflowing group, numbered sequentially starting at `startPageNum`. */
+function addSMContinuationSlots(
+    pptx: PptxGenJS, groupName: string, startPageNum: number, colW: number, bodyX: number, bodyW: number,
+): SMSlot[] {
     const slide = pptx.addSlide();
     slide.background = { color: C.white };
     slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.08, h: "100%", fill: { color: C.indigo } });
 
-    const x = bodyX + (bodyW - colW) / 2; // centered, same width as its column on the main slide
-    const topY = 0.4, bottomY = 7.3;
-
-    slide.addShape(pptx.ShapeType.roundRect, {
-        x, y: topY, w: colW, h: bottomY - topY,
-        fill: { color: groupTint(groupName) }, line: { color: groupColor(groupName), width: 1 },
-        rectRadius: 0.05,
+    // Eyebrow marking this as overflow from the main Summary Mapping slide,
+    // not new content — matches the "SUMMARY MAPPING" eyebrow style there.
+    slide.addText("APPENDIX — SUMMARY MAPPING (OVERFLOW)", {
+        x: bodyX, y: 0.16, w: bodyW, h: 0.22, fontSize: 8.5, bold: true, color: C.indigo, charSpacing: 2,
     });
 
+    const gap = 0.14;
+    const lanesW = SM_CONT_LANES * colW + (SM_CONT_LANES - 1) * gap;
+    const x0 = bodyX + (bodyW - lanesW) / 2; // center the whole lane group on the slide
+    const topY = 0.55, bottomY = 7.3;
     const headerH = 0.32;
-    slide.addShape(pptx.ShapeType.roundRect, {
-        x, y: topY, w: colW, h: headerH, fill: { color: groupColor(groupName) }, rectRadius: 0.05,
-    });
-    slide.addShape(pptx.ShapeType.rect, {
-        x, y: topY + headerH / 2, w: colW, h: headerH / 2, fill: { color: groupColor(groupName) },
-    });
-    slide.addText(`${groupName}  (cont'd ${pageNum})`, {
-        x: x + 0.07, y: topY, w: colW - 0.14, h: headerH, fontSize: 8, bold: true, color: C.white, valign: "middle",
-    });
-
     const padX = 0.08;
-    return { slide, x: x + padX, y: topY + headerH + SM_GAP_SM, w: colW - padX * 2, bottom: bottomY - SM_CARD_BOTTOM_PAD };
+
+    const slots: SMSlot[] = [];
+    for (let lane = 0; lane < SM_CONT_LANES; lane++) {
+        const x = x0 + lane * (colW + gap);
+
+        slide.addShape(pptx.ShapeType.roundRect, {
+            x, y: topY, w: colW, h: bottomY - topY,
+            fill: { color: groupTint(groupName) }, line: { color: groupColor(groupName), width: 1 },
+            rectRadius: 0.05,
+        });
+        slide.addShape(pptx.ShapeType.roundRect, {
+            x, y: topY, w: colW, h: headerH, fill: { color: groupColor(groupName) }, rectRadius: 0.05,
+        });
+        slide.addShape(pptx.ShapeType.rect, {
+            x, y: topY + headerH / 2, w: colW, h: headerH / 2, fill: { color: groupColor(groupName) },
+        });
+        slide.addText(`${groupName}  (cont'd ${startPageNum + lane})`, {
+            x: x + 0.07, y: topY, w: colW - 0.14, h: headerH, fontSize: 8, bold: true, color: C.white, valign: "middle",
+        });
+
+        slots.push({ slide, x: x + padX, y: topY + headerH + SM_GAP_SM, w: colW - padX * 2, bottom: bottomY - SM_CARD_BOTTOM_PAD });
+    }
+    return slots;
 }
 
 // ── Summary Mapping slide ─────────────────────────────────────────────────────
@@ -685,13 +720,14 @@ function addSummaryMappingSlide(
 
         // Every location's full company list, and the full nationality
         // breakdown — nothing dropped. Whatever doesn't fit this card spills
-        // onto a continuation slide (same card style, centered, "(cont'd N)")
-        // instead of being cut off with a "+N more not shown" note.
+        // onto continuation slides (same card style, "(cont'd N)", 3 packed
+        // side by side per slide) instead of being cut off with a "+N more
+        // not shown" note.
         const blocks = computeSMGroupBlocks(stats, topCompanyKeys, cw);
         paginateSMBlocks(
             blocks,
-            { slide, x: cx, y: BODY_Y + headerH + SM_GAP_SM, w: cw, bottom: CONTENT_BOTTOM },
-            (pageNum) => addSMContinuationCard(pptx, groupName, pageNum, colW, BODY_X, BODY_W),
+            [{ slide, x: cx, y: BODY_Y + headerH + SM_GAP_SM, w: cw, bottom: CONTENT_BOTTOM }],
+            (batchNum) => addSMContinuationSlots(pptx, groupName, 2 + (batchNum - 1) * SM_CONT_LANES, colW, BODY_X, BODY_W),
         );
     });
 
