@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Search, Building, Briefcase, User, Loader2 } from "lucide-react";
+import { Search, Building, Briefcase, User, Users, Loader2 } from "lucide-react";
 import {
     Command,
     CommandDialog,
@@ -48,6 +48,7 @@ export function SmartCandidateSearch({
 
     // Suggestions state
     const [candidateSuggestions, setCandidateSuggestions] = React.useState<CandidateSuggestion[]>([]);
+    const [candidateTotal, setCandidateTotal] = React.useState(0);
     const [companySuggestions, setCompanySuggestions] = React.useState<string[]>([]);
     const [positionSuggestions, setPositionSuggestions] = React.useState<string[]>([]);
     const [loading, setLoading] = React.useState(false);
@@ -63,6 +64,7 @@ export function SmartCandidateSearch({
     React.useEffect(() => {
         if (!debouncedQuery || debouncedQuery.length < 2) {
             setCandidateSuggestions([]);
+            setCandidateTotal(0);
             setCompanySuggestions([]);
             setPositionSuggestions([]);
             return;
@@ -76,13 +78,14 @@ export function SmartCandidateSearch({
                 // Fetch in parallel
                 // Pass current filters to scope suggestions!
                 const [candidateData, companyData, positionData] = await Promise.all([
-                    searchCandidateNames(debouncedQuery, 5),
+                    searchCandidateNames(debouncedQuery, 8),
                     searchCompanies(debouncedQuery, 5, filters),
                     searchPositions(debouncedQuery, 5, filters)
                 ]);
 
                 if (active) {
-                    setCandidateSuggestions(candidateData || []);
+                    setCandidateSuggestions(candidateData.results || []);
+                    setCandidateTotal(candidateData.totalCount || 0);
                     setCompanySuggestions(companyData.results || []);
                     setPositionSuggestions(positionData.results || []);
                 }
@@ -160,7 +163,13 @@ export function SmartCandidateSearch({
                             {query.length > 0 && (
                                 <>
                                     {candidateSuggestions.length > 0 && (
-                                        <CommandGroup heading="Candidates">
+                                        <CommandGroup
+                                            heading={
+                                                candidateTotal > candidateSuggestions.length
+                                                    ? `Candidates — showing ${candidateSuggestions.length} of ${candidateTotal}`
+                                                    : `Candidates (${candidateTotal})`
+                                            }
+                                        >
                                             {candidateSuggestions.map(c => (
                                                 <CommandItem
                                                     key={c.candidateId}
@@ -185,6 +194,18 @@ export function SmartCandidateSearch({
                                                     </span>
                                                 </CommandItem>
                                             ))}
+                                            {candidateTotal > candidateSuggestions.length && (
+                                                <CommandItem
+                                                    value="candidates-view-all"
+                                                    onSelect={() => handleSelect(query, 'name')}
+                                                    className="gap-2 text-muted-foreground"
+                                                >
+                                                    <span className="h-6 w-6 flex items-center justify-center shrink-0">
+                                                        <Users className="h-3.5 w-3.5" />
+                                                    </span>
+                                                    <span>See all <strong>{candidateTotal}</strong> people matching &quot;{query}&quot;</span>
+                                                </CommandItem>
+                                            )}
                                         </CommandGroup>
                                     )}
 
