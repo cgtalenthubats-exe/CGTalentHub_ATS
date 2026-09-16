@@ -181,7 +181,7 @@ cohort = candidate ที่ **ตำแหน่งปัจจุบันต�
 
 ### 8.4 กราฟเดิมกลับมาแล้ว
 
-`Activity Transaction & Aging` (accordion ใต้ Stage Aging) แยกเป็น 2 tab:
+`Activity Transaction & Aging` ย้ายไปเป็น **tab ในแถวหลัก** (List View · Pipeline · History Insights · **Activity & Aging** · Salary Benchmark · AI Suggestion) ไม่ใช่ accordion แยกข้างบนแล้ว · ข้างในมี 2 sub-tab:
 - **Activity Transaction** — จำนวนครั้งที่เข้าแต่ละสถานะ
 - **Avg. Aging (Days)** — ค่าเฉลี่ยย้อนหลังแบบเดิม พร้อมหมายเหตุว่ามันรวมคนที่ยังค้างอยู่ด้วย ต่างจากแผง Stage Aging ข้างบน
 
