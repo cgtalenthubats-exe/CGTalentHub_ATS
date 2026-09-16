@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Search, Building, Briefcase, User, Command as CommandIcon } from "lucide-react";
+import { Search, Building, Briefcase, User, Loader2 } from "lucide-react";
 import {
     Command,
     CommandDialog,
@@ -19,12 +19,17 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { searchCompanies, searchPositions } from "@/app/actions/candidate-filters";
-import { useDebounce } from "@/hooks/use-debounce";
+import { searchCompanies, searchPositions, searchCandidateNames, type CandidateSuggestion } from "@/app/actions/candidate-filters";
 
 interface SmartCandidateSearchProps {
     onSearch: (term: string, type: 'global' | 'company' | 'position' | 'name') => void;
     onRawQueryChange?: (term: string) => void; // Support live updates
+    /**
+     * Called when a specific person is picked from the suggestions. Without it the component
+     * falls back to a name search, which is the right behaviour where picking a candidate should
+     * filter a list rather than navigate away (e.g. the Add-to-JR dialog).
+     */
+    onSelectCandidate?: (candidate: CandidateSuggestion) => void;
     filters?: any;
     placeholder?: string;
     className?: string;
@@ -33,6 +38,7 @@ interface SmartCandidateSearchProps {
 export function SmartCandidateSearch({
     onSearch,
     onRawQueryChange,
+    onSelectCandidate,
     filters,
     placeholder = "Smart Search...",
     className,
@@ -41,6 +47,7 @@ export function SmartCandidateSearch({
     const [query, setQuery] = React.useState("");
 
     // Suggestions state
+    const [candidateSuggestions, setCandidateSuggestions] = React.useState<CandidateSuggestion[]>([]);
     const [companySuggestions, setCompanySuggestions] = React.useState<string[]>([]);
     const [positionSuggestions, setPositionSuggestions] = React.useState<string[]>([]);
     const [loading, setLoading] = React.useState(false);
@@ -55,6 +62,7 @@ export function SmartCandidateSearch({
 
     React.useEffect(() => {
         if (!debouncedQuery || debouncedQuery.length < 2) {
+            setCandidateSuggestions([]);
             setCompanySuggestions([]);
             setPositionSuggestions([]);
             return;
@@ -67,12 +75,14 @@ export function SmartCandidateSearch({
             try {
                 // Fetch in parallel
                 // Pass current filters to scope suggestions!
-                const [companyData, positionData] = await Promise.all([
+                const [candidateData, companyData, positionData] = await Promise.all([
+                    searchCandidateNames(debouncedQuery, 5),
                     searchCompanies(debouncedQuery, 5, filters),
                     searchPositions(debouncedQuery, 5, filters)
                 ]);
 
                 if (active) {
+                    setCandidateSuggestions(candidateData || []);
                     setCompanySuggestions(companyData.results || []);
                     setPositionSuggestions(positionData.results || []);
                 }
@@ -94,6 +104,19 @@ export function SmartCandidateSearch({
         setOpen(false);
         setQuery(""); // Clear input after selection
     };
+
+    const handleSelectCandidate = (candidate: CandidateSuggestion) => {
+        if (onSelectCandidate) {
+            onSelectCandidate(candidate);
+            setOpen(false);
+            setQuery("");
+        } else {
+            handleSelect(candidate.name, 'name');
+        }
+    };
+
+    const hasSuggestions =
+        candidateSuggestions.length > 0 || companySuggestions.length > 0 || positionSuggestions.length > 0;
 
     return (
         <div className={cn("relative w-full", className)}>
@@ -124,10 +147,47 @@ export function SmartCandidateSearch({
                             autoFocus
                         />
                         <CommandList>
-                            <CommandEmpty>No results found.</CommandEmpty>
+                            {/* CommandEmpty renders whenever there are no items, including while
+                                suggestions are still in flight — say which it is. */}
+                            <CommandEmpty>
+                                {loading
+                                    ? <span className="flex items-center justify-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching...</span>
+                                    : query.length < 2
+                                        ? "Type at least 2 characters"
+                                        : "No matches found."}
+                            </CommandEmpty>
 
                             {query.length > 0 && (
                                 <>
+                                    {candidateSuggestions.length > 0 && (
+                                        <CommandGroup heading="Candidates">
+                                            {candidateSuggestions.map(c => (
+                                                <CommandItem
+                                                    key={c.candidateId}
+                                                    value={`candidate-${c.candidateId}`}
+                                                    onSelect={() => handleSelectCandidate(c)}
+                                                    className="gap-2"
+                                                >
+                                                    {c.photo ? (
+                                                        // eslint-disable-next-line @next/next/no-img-element
+                                                        <img src={c.photo} alt="" className="h-6 w-6 rounded-full object-cover shrink-0" />
+                                                    ) : (
+                                                        <span className="h-6 w-6 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                                                            <User className="h-3.5 w-3.5" />
+                                                        </span>
+                                                    )}
+                                                    <span className="flex flex-col min-w-0">
+                                                        <span className="truncate font-medium">{c.name}</span>
+                                                        <span className="truncate text-[11px] text-muted-foreground">
+                                                            {[c.currentPosition, c.currentCompany].filter(Boolean).join(" · ") || c.jobFunction || c.candidateId}
+                                                            {c.matchedOn !== "name" && <> — matched on {c.matchedOn}</>}
+                                                        </span>
+                                                    </span>
+                                                </CommandItem>
+                                            ))}
+                                        </CommandGroup>
+                                    )}
+
                                     <CommandGroup heading="Global Search">
                                         <CommandItem onSelect={() => handleSelect(query, 'global')}>
                                             <Search className="mr-2 h-4 w-4 text-muted-foreground" />
@@ -158,7 +218,7 @@ export function SmartCandidateSearch({
                                     )}
 
                                     {/* Fallback Manual Filters if no suggestions or user wants specific filter */}
-                                    {companySuggestions.length === 0 && positionSuggestions.length === 0 && (
+                                    {!hasSuggestions && !loading && (
                                         <CommandGroup heading="Filters">
                                             <CommandItem onSelect={() => handleSelect(query, 'name')}>
                                                 <User className="mr-2 h-4 w-4 text-emerald-500" />
@@ -176,7 +236,7 @@ export function SmartCandidateSearch({
                                     )}
 
                                     {/* Always show Filter by Name when there are suggestions too */}
-                                    {(companySuggestions.length > 0 || positionSuggestions.length > 0) && (
+                                    {hasSuggestions && (
                                         <CommandGroup heading="Name Filter">
                                             <CommandItem onSelect={() => handleSelect(query, 'name')}>
                                                 <User className="mr-2 h-4 w-4 text-emerald-500" />
