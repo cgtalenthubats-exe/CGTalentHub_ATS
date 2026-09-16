@@ -1,6 +1,13 @@
 "use server";
 
 import { adminAuthClient } from "@/lib/supabase/admin";
+import {
+    buildSalaryHistogram,
+    buildSalaryStats,
+    percentileRank,
+    statsByGroup,
+    type SalaryStats,
+} from "@/lib/salary-stats";
 
 /**
  * Salary benchmark for a single JR — scoped to the candidates in that JR's pool.
@@ -16,16 +23,6 @@ import { adminAuthClient } from "@/lib/supabase/admin";
  * `Candidate Profile.gross_salary_base_b_mth`. Bonus is a number of months (`bonus_mth`) and is
  * reported beside it, never folded in.
  */
-
-export interface SalaryStats {
-    n: number;
-    min: number;
-    p25: number;
-    median: number;
-    p75: number;
-    max: number;
-    mean: number;
-}
 
 export interface SalaryRow {
     candidateId: string;
@@ -43,9 +40,9 @@ export interface SalaryRow {
     country: string | null;
 }
 
-export interface SegmentStats extends SalaryStats {
-    key: string;
-}
+export type SegmentStats = SalaryStats & { key: string };
+
+export type { SalaryStats };
 
 export interface JRSalaryBenchmark {
     jrId: string;
@@ -84,91 +81,11 @@ function toNumber(value: unknown): number {
     return isNaN(n) ? 0 : n;
 }
 
-/** Linear-interpolated percentile, matching what spreadsheets return for the same series. */
-function percentile(sorted: number[], p: number): number {
-    if (sorted.length === 0) return 0;
-    if (sorted.length === 1) return sorted[0];
-    const pos = (sorted.length - 1) * p;
-    const lower = Math.floor(pos);
-    const upper = Math.ceil(pos);
-    if (lower === upper) return sorted[lower];
-    return sorted[lower] + (sorted[upper] - sorted[lower]) * (pos - lower);
-}
-
-function buildStats(values: number[]): SalaryStats | null {
-    const sorted = values.filter(v => v > 0).sort((a, b) => a - b);
-    if (sorted.length === 0) return null;
-    return {
-        n: sorted.length,
-        min: sorted[0],
-        p25: Math.round(percentile(sorted, 0.25)),
-        median: Math.round(percentile(sorted, 0.5)),
-        p75: Math.round(percentile(sorted, 0.75)),
-        max: sorted[sorted.length - 1],
-        mean: Math.round(sorted.reduce((a, b) => a + b, 0) / sorted.length),
-    };
-}
-
-/** Where `value` sits in `sorted`, 0-100. */
-function percentileRank(sorted: number[], value: number): number | null {
-    if (sorted.length === 0) return null;
-    let below = 0;
-    for (const v of sorted) {
-        if (v < value) below++;
-        else break;
-    }
-    return Math.round((below / sorted.length) * 100);
-}
-
-/** Buckets sized to the spread of the data, so the shape reads whether the role pays 40k or 400k. */
-function buildHistogram(values: number[]): { start: number; end: number; count: number }[] {
-    const sorted = values.filter(v => v > 0).sort((a, b) => a - b);
-    if (sorted.length < 4) return [];
-
-    // Ignore the extreme tail when sizing buckets — one outlier would flatten everything else.
-    const cap = percentile(sorted, 0.98);
-    const min = sorted[0];
-    const span = Math.max(cap - min, 1);
-    const targetBuckets = Math.min(12, Math.max(5, Math.round(Math.sqrt(sorted.length))));
-    const rawStep = span / targetBuckets;
-    const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
-    const step = Math.max(Math.ceil(rawStep / magnitude) * magnitude, 1000);
-    const start = Math.floor(min / step) * step;
-    const end = Math.max(Math.ceil(cap / step) * step, start + step);
-
-    const buckets: { start: number; end: number; count: number }[] = [];
-    for (let s = start; s < end; s += step) buckets.push({ start: s, end: s + step, count: 0 });
-
-    sorted.forEach(v => {
-        const idx = Math.min(Math.floor((v - start) / step), buckets.length - 1);
-        if (idx >= 0) buckets[idx].count++;
-    });
-    return buckets;
-}
-
 /**
  * Segment breakdowns only appear once a group has enough people to mean something. With a pool of
  * twenty or thirty, a "median" built from one person would look like a benchmark and isn't one.
  */
 const MIN_SEGMENT_SAMPLE = 3;
-
-function statsBySegment(rows: SalaryRow[], key: (r: SalaryRow) => string | null): SegmentStats[] {
-    const groups = new Map<string, number[]>();
-    rows.forEach(r => {
-        const k = key(r);
-        if (!k || r.monthlyBase <= 0) return;
-        if (!groups.has(k)) groups.set(k, []);
-        groups.get(k)!.push(r.monthlyBase);
-    });
-
-    return Array.from(groups.entries())
-        .map(([k, values]) => {
-            const s = buildStats(values);
-            return s ? { key: k, ...s } : null;
-        })
-        .filter((s): s is SegmentStats => s !== null && s.n >= MIN_SEGMENT_SAMPLE)
-        .sort((a, b) => b.median - a.median);
-}
 
 export async function getJRSalaryBenchmark(jrId: string): Promise<JRSalaryBenchmark | null> {
     const supabase = adminAuthClient;
@@ -286,7 +203,7 @@ export async function getJRSalaryBenchmark(jrId: string): Promise<JRSalaryBenchm
 
         const withSalary = pipelineRows.filter(r => r.monthlyBase > 0);
         const values = withSalary.map(r => r.monthlyBase).sort((a, b) => a - b);
-        const pool = buildStats(values);
+        const pool = buildSalaryStats(values);
 
         // A range budget is judged at its midpoint — that is the number the offer usually lands on.
         const budgetPoint = budget
@@ -304,10 +221,10 @@ export async function getJRSalaryBenchmark(jrId: string): Promise<JRSalaryBenchm
             budgetPercentile,
             budgetVsMedianPct,
             pool,
-            histogram: buildHistogram(values),
-            byHotelRating: statsBySegment(withSalary, r => r.hotelRating),
-            byIndustry: statsBySegment(withSalary, r => r.industry),
-            byRegion: statsBySegment(withSalary, r => r.region),
+            histogram: buildSalaryHistogram(values),
+            byHotelRating: statsByGroup(withSalary, r => r.hotelRating, r => r.monthlyBase, MIN_SEGMENT_SAMPLE),
+            byIndustry: statsByGroup(withSalary, r => r.industry, r => r.monthlyBase, MIN_SEGMENT_SAMPLE),
+            byRegion: statsByGroup(withSalary, r => r.region, r => r.monthlyBase, MIN_SEGMENT_SAMPLE),
             pipelineRows: pipelineRows.sort((a, b) => b.monthlyBase - a.monthlyBase),
             dataQuality: {
                 pipelineTotal: candidateIds.length,
