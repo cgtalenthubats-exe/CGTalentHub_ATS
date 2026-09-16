@@ -52,6 +52,8 @@ export function SmartCandidateSearch({
     const [companySuggestions, setCompanySuggestions] = React.useState<string[]>([]);
     const [positionSuggestions, setPositionSuggestions] = React.useState<string[]>([]);
     const [loading, setLoading] = React.useState(false);
+    const [suggestError, setSuggestError] = React.useState<string | null>(null);
+    const requestIdRef = React.useRef(0);
 
     // Debounce manual implementation to avoid dependency issues if unsure
     const [debouncedQuery, setDebouncedQuery] = React.useState(query);
@@ -67,40 +69,72 @@ export function SmartCandidateSearch({
             setCandidateTotal(0);
             setCompanySuggestions([]);
             setPositionSuggestions([]);
+            setSuggestError(null);
+            // Nothing is in flight — leaving this true would hide the fallback actions forever.
+            setLoading(false);
             return;
         }
 
-        let active = true;
+        // A counter rather than a boolean: a superseded request must be ignored, but it must not
+        // be able to leave `loading` stuck on, which is what hid the suggestion list entirely.
+        requestIdRef.current += 1;
+        const requestId = requestIdRef.current;
         setLoading(true);
+        setSuggestError(null);
 
         const fetchSuggestions = async () => {
-            try {
-                // Fetch in parallel
-                // Pass current filters to scope suggestions!
-                const [candidateData, companyData, positionData] = await Promise.all([
-                    searchCandidateNames(debouncedQuery, 8),
-                    searchCompanies(debouncedQuery, 5, filters),
-                    searchPositions(debouncedQuery, 5, filters)
-                ]);
+            // allSettled, not all: these are three independent lookups, and one failing source
+            // used to wipe out the other two — a failure in the position RPC took the candidate
+            // and company suggestions down with it, silently.
+            const [candidateRes, companyRes, positionRes] = await Promise.allSettled([
+                searchCandidateNames(debouncedQuery, 8),
+                searchCompanies(debouncedQuery, 5, filters),
+                searchPositions(debouncedQuery, 5, filters),
+            ]);
 
-                if (active) {
-                    setCandidateSuggestions(candidateData.results || []);
-                    setCandidateTotal(candidateData.totalCount || 0);
-                    setCompanySuggestions(companyData.results || []);
-                    setPositionSuggestions(positionData.results || []);
-                }
-            } catch (error) {
-                console.error("Error fetching suggestions:", error);
-            } finally {
-                if (active) setLoading(false);
+            if (requestId !== requestIdRef.current) return;
+
+            // A source can fail two ways: the action rejects (network, server crash), or it
+            // returns its own `error` because the query failed. Both have to be visible —
+            // an empty dropdown that says nothing is what sent us looking in the wrong place.
+            const failures: string[] = [];
+            const noteFailure = (label: string, detail: unknown) => {
+                console.error(`${label} suggestions failed:`, detail);
+                failures.push(label);
+            };
+
+            if (candidateRes.status === "fulfilled") {
+                setCandidateSuggestions(candidateRes.value.results || []);
+                setCandidateTotal(candidateRes.value.totalCount || 0);
+                if (candidateRes.value.error) noteFailure("candidates", candidateRes.value.error);
+            } else {
+                setCandidateSuggestions([]);
+                setCandidateTotal(0);
+                noteFailure("candidates", candidateRes.reason);
             }
+
+            if (companyRes.status === "fulfilled") {
+                setCompanySuggestions(companyRes.value.results || []);
+                if ((companyRes.value as any).error) noteFailure("companies", (companyRes.value as any).error);
+            } else {
+                setCompanySuggestions([]);
+                noteFailure("companies", companyRes.reason);
+            }
+
+            if (positionRes.status === "fulfilled") {
+                setPositionSuggestions(positionRes.value.results || []);
+                if ((positionRes.value as any).error) noteFailure("positions", (positionRes.value as any).error);
+            } else {
+                setPositionSuggestions([]);
+                noteFailure("positions", positionRes.reason);
+            }
+
+            setSuggestError(failures.length > 0 ? `Couldn't load ${failures.join(", ")}` : null);
+            setLoading(false);
         };
 
         fetchSuggestions();
-
-        return () => { active = false; };
     }, [debouncedQuery, filters]);
-
 
     const handleSelect = (term: string, type: 'global' | 'company' | 'position' | 'name') => {
         onSearch(term, type);
@@ -150,15 +184,24 @@ export function SmartCandidateSearch({
                             autoFocus
                         />
                         <CommandList>
-                            {/* CommandEmpty renders whenever there are no items, including while
-                                suggestions are still in flight — say which it is. */}
-                            <CommandEmpty>
-                                {loading
-                                    ? <span className="flex items-center justify-center gap-2 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching...</span>
-                                    : query.length < 2
-                                        ? "Type at least 2 characters"
-                                        : "No matches found."}
-                            </CommandEmpty>
+                            {/* CommandEmpty only renders when the list has no items at all, and the
+                                Global Search row below always exists once something is typed — so a
+                                status message placed in here was never visible. Status gets its own
+                                row instead. */}
+                            <CommandEmpty>Type at least 2 characters</CommandEmpty>
+
+                            {query.length >= 2 && loading && (
+                                <div className="flex items-center gap-2 px-3 py-2 text-xs text-muted-foreground">
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    Searching...
+                                </div>
+                            )}
+
+                            {suggestError && (
+                                <div className="px-3 py-2 text-xs text-amber-600">
+                                    {suggestError}. The search options below still work.
+                                </div>
+                            )}
 
                             {query.length > 0 && (
                                 <>
@@ -238,8 +281,10 @@ export function SmartCandidateSearch({
                                         </CommandGroup>
                                     )}
 
-                                    {/* Fallback Manual Filters if no suggestions or user wants specific filter */}
-                                    {!hasSuggestions && !loading && (
+                                    {/* Fallback manual filters. No `!loading` guard: while a lookup is in
+                                        flight these are the only usable rows, and a stuck `loading` used to
+                                        leave the panel with nothing in it but Global Search. */}
+                                    {!hasSuggestions && (
                                         <CommandGroup heading="Filters">
                                             <CommandItem onSelect={() => handleSelect(query, 'name')}>
                                                 <User className="mr-2 h-4 w-4 text-emerald-500" />
