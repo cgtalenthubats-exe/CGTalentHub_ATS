@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { CompensationFieldsGrid } from "@/components/compensation-fields-grid";
+import { buildCompensationPayload, readCompensation, type CompensationDraft } from "@/lib/compensation";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/lib/supabase/client";
 import { cn, formatNumberWithCommas, parseNumberFromCommas } from "@/lib/utils";
@@ -158,21 +160,14 @@ function CandidateForm() {
         skills: "",
         education: "",
         languages: "",
-        // Compensation & Benefits
-        gross_salary_base_b_mth: "",
-        other_income: "",
-        bonus_mth: "",
-        car_allowance_b_mth: "",
-        gasoline_b_mth: "",
-        phone_b_mth: "",
-        provident_fund_pct: "",
-        medical_b_annual: "",
-        medical_b_mth: "",
-        insurance: "",
-        housing_for_expat_b_mth: "",
-        others_benefit: "",
         createdBy: ""
     });
+
+    // Compensation is generated from COMPENSATION_FIELDS rather than listed by hand here — see
+    // src/lib/compensation-fields.ts. Until now this page carried the fields in state and
+    // submitted them, but never rendered any inputs: the only way they got filled was the AI
+    // resume parse below.
+    const [compensation, setCompensation] = useState<CompensationDraft>({ values: {}, provided: {} });
 
     // Form State (Experiences)
     const [experiences, setExperiences] = useState<ExperienceData[]>([]);
@@ -315,14 +310,17 @@ function CandidateForm() {
                     linkedin: data.profile.linkedin || prev.linkedin,
                     date_of_birth: data.profile.date_of_birth || prev.date_of_birth,
                     year_of_bachelor_education: data.profile.year_of_bachelor_education?.toString() || prev.year_of_bachelor_education,
-                    // Benefits
-                    gross_salary_base_b_mth: formatNumberWithCommas(data.profile.compensation?.gross_salary_base_b_mth) || prev.gross_salary_base_b_mth,
-                    car_allowance_b_mth: formatNumberWithCommas(data.profile.compensation?.car_allowance_b_mth) || prev.car_allowance_b_mth,
-                    gasoline_b_mth: formatNumberWithCommas(data.profile.compensation?.gasoline_b_mth) || prev.gasoline_b_mth,
-                    phone_b_mth: formatNumberWithCommas(data.profile.compensation?.phone_b_mth) || prev.phone_b_mth,
-                    other_income: data.profile.compensation?.other_income || prev.other_income,
-                    bonus_mth: data.profile.compensation?.bonus_mth || prev.bonus_mth,
-                    provident_fund_pct: data.profile.compensation?.provident_fund_pct || prev.provident_fund_pct,
+                }));
+
+                // Compensation the AI picked out goes into the compensation draft. Only fields it
+                // actually found are merged, so a re-parse never wipes something typed by hand.
+                const parsedComp = readCompensation(data.profile.compensation || {}).values;
+                setCompensation(prev => ({
+                    ...prev,
+                    values: {
+                        ...prev.values,
+                        ...Object.fromEntries(Object.entries(parsedComp).filter(([, v]) => v !== "")),
+                    },
                 }));
             }
 
@@ -420,11 +418,6 @@ function CandidateForm() {
 
     const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { id, value } = e.target;
-        const salaryFields = ["gross_salary_base_b_mth", "car_allowance_b_mth", "gasoline_b_mth", "phone_b_mth"];
-        if (salaryFields.includes(id)) {
-            setFormData(prev => ({ ...prev, [id]: formatNumberWithCommas(parseNumberFromCommas(value)) }));
-            return;
-        }
         setFormData(prev => ({ ...prev, [id]: value }));
     };
 
@@ -449,10 +442,7 @@ function CandidateForm() {
         try {
             const submissionData = {
                 ...formData,
-                gross_salary_base_b_mth: parseNumberFromCommas(formData.gross_salary_base_b_mth) || null,
-                car_allowance_b_mth: parseNumberFromCommas(formData.car_allowance_b_mth) || null,
-                gasoline_b_mth: parseNumberFromCommas(formData.gasoline_b_mth) || null,
-                phone_b_mth: parseNumberFromCommas(formData.phone_b_mth) || null,
+                ...buildCompensationPayload(compensation),
                 experiences: experiences.filter(exp => exp.company && exp.position)
             };
 
@@ -819,6 +809,23 @@ function CandidateForm() {
                                 </div>
                             </div>
                         </div>
+                    </CardContent>
+                </Card>
+
+                {/* Compensation & Benefits — optional at creation, but this is the only chance to
+                    capture what the candidate told us during the first call. */}
+                <Card className="border-slate-200">
+                    <CardHeader>
+                        <div className="flex items-center gap-2">
+                            <div className="p-1.5 bg-emerald-600 rounded-md text-white">
+                                <Briefcase className="w-4 h-4" />
+                            </div>
+                            <CardTitle className="text-xl">Compensation &amp; Benefits</CardTitle>
+                        </div>
+                        <CardDescription>Optional — fill in whatever is known so far.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <CompensationFieldsGrid draft={compensation} onChange={setCompensation} />
                     </CardContent>
                 </Card>
 

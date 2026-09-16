@@ -9,6 +9,8 @@ export type StatusMasterRow = {
     font_color: string | null;
     bg_color: string | null;
     row_color_enabled: boolean;
+    /** Who owns the next action while a candidate sits in this status — drives Stage Aging. */
+    owner_role: string | null;
 };
 
 export async function getStatusMaster() {
@@ -48,6 +50,27 @@ export async function updateStatusColors(status: string, font_color: string | nu
 }
 
 // Toggles whether this status also tints the whole candidate-list row (vs. just the status chip).
+export async function updateStatusOwnerRole(status: string, ownerRole: string | null) {
+    const { error } = await (adminAuthClient
+        .from('status_master' as any)
+        .update({ owner_role: ownerRole })
+        .eq('status', status) as any);
+
+    if (error) {
+        // Most likely the migration adding the column hasn't been applied yet.
+        const missingColumn = /owner_role|column .* does not exist/i.test(error.message || "");
+        return {
+            success: false,
+            error: missingColumn
+                ? "Owner column is not in the database yet. Apply migration 20260916000000_add_jr_budget_and_stage_owner.sql first."
+                : error.message,
+        };
+    }
+
+    revalidatePath('/settings');
+    return { success: true };
+}
+
 export async function updateRowColorEnabled(status: string, enabled: boolean) {
     const { error } = await (adminAuthClient
         .from('status_master' as any)

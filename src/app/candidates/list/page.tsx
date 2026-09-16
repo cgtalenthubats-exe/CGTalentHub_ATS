@@ -460,8 +460,14 @@ export default function CandidateListPage() {
                                         setNameFilter("");
                                     }
                                 }}
+                                onSelectCandidate={(candidate) => {
+                                    // Picking a specific person means "take me to them", not
+                                    // "filter the list down to them". Matches how the rows below
+                                    // open a profile.
+                                    window.location.href = `/candidates/${candidate.candidateId}`;
+                                }}
                                 filters={filters}
-                                placeholder={nameFilter ? `Name: "${nameFilter}"` : searchTerm || "Search Name, Email, ID, Company..."}
+                                placeholder={nameFilter ? `Name: "${nameFilter}"` : searchTerm || "Search name, email, ID, company, position..."}
                             />
                         </div>
                         <Button

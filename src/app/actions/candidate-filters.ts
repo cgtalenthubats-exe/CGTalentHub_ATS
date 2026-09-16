@@ -18,7 +18,9 @@ export async function searchCompanies(query: string, limit = 20, filters?: any) 
 
         if (error) {
             console.error("Error searching companies (Variations):", error);
-            return { results: [], totalCount: 0 };
+            // Returned, not just logged: a swallowed error is indistinguishable from "no matches"
+            // in the dropdown, which is how this stayed invisible.
+            return { results: [], totalCount: 0, error: error.message };
         }
 
         if (!data || data.length === 0) {
@@ -62,9 +64,9 @@ export async function searchCompanies(query: string, limit = 20, filters?: any) 
             totalCount: uniqueEntries.length
         };
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Server Action Error (searchCompanies):", error);
-        return { results: [], totalCount: 0 };
+        return { results: [], totalCount: 0, error: error?.message || "Company lookup failed" };
     }
 }
 
@@ -93,7 +95,7 @@ export async function searchPositions(query: string, limit = 1000, filters?: any
 
         if (error) {
             console.error("Error searching positions (RPC):", error);
-            return { results: [], totalCount: 0 };
+            return { results: [], totalCount: 0, error: error.message };
         }
 
         const results = (data as any[])?.map((item: any) => item.result_value) || [];
@@ -102,9 +104,111 @@ export async function searchPositions(query: string, limit = 1000, filters?: any
             totalCount: results.length // RPC doesn't currently return a full count easily, but this keeps format same
         };
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Server Action Error (searchPositions):", error);
-        return { results: [], totalCount: 0 };
+        return { results: [], totalCount: 0, error: error?.message || "Position lookup failed" };
+    }
+}
+
+export interface CandidateSuggestion {
+    candidateId: string;
+    name: string;
+    jobFunction: string | null;
+    photo: string | null;
+    currentCompany: string | null;
+    currentPosition: string | null;
+    /** Which field produced the hit, so the UI can say why a row is in the list. */
+    matchedOn: "name" | "email" | "id";
+}
+
+/**
+ * Person-level suggestions for the smart search box.
+ *
+ * Company and position already have suggestions; typing a candidate's name produced nothing,
+ * leaving only the "which field do you want to search?" fallback. This closes that gap — and
+ * returns the current role too, because names repeat and a bare list of them is unusable.
+ */
+export async function searchCandidateNames(
+    query: string,
+    limit = 8
+): Promise<{ results: CandidateSuggestion[]; totalCount: number; error?: string }> {
+    const empty = { results: [], totalCount: 0 };
+    const q = query?.trim();
+    if (!q || q.length < 2) return empty;
+
+    try {
+        // Commas and parentheses break PostgREST's `or` list syntax, so keep the term simple.
+        const safe = q.replace(/[,()]/g, " ").trim();
+        if (!safe) return empty;
+
+        // `count: exact` so the dropdown can say "8 of 23" and offer to open the rest, rather
+        // than silently hiding the other Peters.
+        const { data, error, count } = await (adminAuthClient as any)
+            .from("Candidate Profile")
+            .select("candidate_id, name, email, job_function, photo", { count: "exact" })
+            .or(`name.ilike.%${safe}%,email.ilike.%${safe}%,candidate_id.ilike.%${safe}%`)
+            .limit(limit);
+
+        if (error) {
+            console.error("Error searching candidate names:", error);
+            return { ...empty, error: error.message };
+        }
+
+        const rows = (data || []) as any[];
+        if (rows.length === 0) return empty;
+
+        const ids = rows.map(r => r.candidate_id);
+        const { data: experiences } = await (adminAuthClient as any)
+            .from("candidate_experiences")
+            .select("candidate_id, company, position, is_current_job, start_date")
+            .in("candidate_id", ids);
+
+        // Prefer the experience flagged Current, else the most recent one.
+        const currentByCandidate = new Map<string, any>();
+        ((experiences || []) as any[]).forEach(e => {
+            const prev = currentByCandidate.get(e.candidate_id);
+            if (!prev) { currentByCandidate.set(e.candidate_id, e); return; }
+            const isCurrent = (x: any) => (x.is_current_job === "Current" ? 1 : 0);
+            if (isCurrent(e) !== isCurrent(prev)) {
+                if (isCurrent(e) > isCurrent(prev)) currentByCandidate.set(e.candidate_id, e);
+                return;
+            }
+            if (new Date(e.start_date).getTime() > new Date(prev.start_date).getTime()) {
+                currentByCandidate.set(e.candidate_id, e);
+            }
+        });
+
+        const lower = safe.toLowerCase();
+        const results = rows
+            .map(r => {
+                const exp = currentByCandidate.get(r.candidate_id);
+                const name = r.name || "Unknown";
+                const matchedOn: CandidateSuggestion["matchedOn"] =
+                    name.toLowerCase().includes(lower) ? "name"
+                        : (r.email || "").toLowerCase().includes(lower) ? "email"
+                            : "id";
+                return {
+                    candidateId: r.candidate_id,
+                    name,
+                    jobFunction: r.job_function || null,
+                    photo: r.photo || null,
+                    currentCompany: exp?.company || null,
+                    currentPosition: exp?.position || null,
+                    matchedOn,
+                };
+            })
+            // Names starting with what was typed are almost always the intended person.
+            .sort((a, b) => {
+                const aStarts = a.name.toLowerCase().startsWith(lower) ? 0 : 1;
+                const bStarts = b.name.toLowerCase().startsWith(lower) ? 0 : 1;
+                if (aStarts !== bStarts) return aStarts - bStarts;
+                return a.name.localeCompare(b.name);
+            });
+
+        return { results, totalCount: count ?? results.length };
+    } catch (error: any) {
+        console.error("Server Action Error (searchCandidateNames):", error);
+        return { ...empty, error: error?.message || "Candidate lookup failed" };
     }
 }
 

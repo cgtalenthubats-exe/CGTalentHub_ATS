@@ -19,6 +19,7 @@ import { deleteInterviewFeedback } from "@/app/actions/jr-candidate-logs";
 import { triggerFeedbackPdfExtract } from "@/app/actions/interview-feedback";
 import { toast } from "@/lib/notifications";
 import { useRouter } from "next/navigation";
+import { useHighlightNew } from "@/hooks/use-highlight-new";
 import {
     Sheet,
     SheetContent,
@@ -33,15 +34,30 @@ interface FeedbackSectionProps {
     candidateName: string;
     feedback: any[];
     isReadOnly?: boolean;
+    /**
+     * Called after this section saves or deletes something, so the owner of the `feedback` array
+     * can reload it. Required whenever the parent is a client component holding that array in
+     * state (the sheets) — without it a save leaves the list showing the old data until a manual
+     * reload. Server-rendered parents can omit it and fall back to router.refresh().
+     */
+    onChanged?: () => void | Promise<void>;
 }
 
-export function FeedbackSection({ jrCandidateId, candidateName, feedback, isReadOnly = false }: FeedbackSectionProps) {
+export function FeedbackSection({ jrCandidateId, candidateName, feedback, isReadOnly = false, onChanged }: FeedbackSectionProps) {
     const router = useRouter();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [selectedFeedback, setSelectedFeedback] = useState<any | null>(null);
     const [isViewOpen, setIsViewOpen] = useState(false);
     const [viewingFeedback, setViewingFeedback] = useState<any | null>(null);
     const [extractingId, setExtractingId] = useState<number | null>(null);
+    const { armForNewItems, highlight, isHighlighted } = useHighlightNew(feedback, (f: any) => f.feedback_id);
+
+    // router.refresh() only reaches feedback rendered by a server component. Inside the candidate
+    // sheets the array is client state, so the parent has to be the one to refetch.
+    const notifyChanged = async () => {
+        if (onChanged) await onChanged();
+        else router.refresh();
+    };
 
     const handleAdd = () => {
         setSelectedFeedback(null);
@@ -93,7 +109,7 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback, isRead
             const res = await deleteInterviewFeedback(feedbackId);
             if (res.success) {
                 toast.success("Feedback deleted successfully");
-                router.refresh();
+                await notifyChanged();
             } else {
                 toast.error(res.error || "Failed to delete feedback");
             }
@@ -130,7 +146,13 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback, isRead
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {feedback.map((f: any) => (
-                        <Card key={f.feedback_id} className="rounded-2xl border-none shadow-sm shadow-indigo-100 hover:shadow-md transition-shadow group relative">
+                        <Card
+                            key={f.feedback_id}
+                            className={cn(
+                                "rounded-2xl border-none shadow-sm shadow-indigo-100 hover:shadow-md group relative transition-all duration-500",
+                                isHighlighted(f.feedback_id) && "ring-2 ring-amber-300 bg-amber-50/60 shadow-amber-100"
+                            )}
+                        >
                             {/* Actions Button */}
                             {!isReadOnly && (
                                 <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -237,6 +259,12 @@ export function FeedbackSection({ jrCandidateId, candidateName, feedback, isRead
                 jrCandidateId={jrCandidateId}
                 candidateName={candidateName}
                 initialData={selectedFeedback}
+                onSuccess={async () => {
+                    const editedId = selectedFeedback?.feedback_id;
+                    if (editedId) highlight(editedId);
+                    else armForNewItems();
+                    await notifyChanged();
+                }}
             />
 
             {/* View Full Feedback Sheet (Slide-over) */}

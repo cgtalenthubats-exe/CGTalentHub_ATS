@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import {
     Search, Plus, Pencil, UserX, UserCheck,
     Loader2, AlertTriangle, ExternalLink, X, Download,
@@ -172,6 +173,7 @@ export default function InternalCandidatePage() {
     };
 
     const refresh = () => { loadPeople(); loadSetupData(); };
+    useRefreshOnFocus(refresh);
 
     return (
         <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950 min-h-screen">

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { adminAuthClient } from '@/lib/supabase/admin';
 import { getEffectiveAge, extractYear, formatDateForInput } from '@/lib/date-utils';
 import { getCheckedStatus } from '@/lib/candidate-utils';
+import { COMPENSATION_KEYS, BENEFIT_PROVIDED_COLUMN } from '@/lib/compensation-fields';
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const candidateId = (await params).id;
@@ -201,7 +202,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             } : null
         };
 
-        return NextResponse.json({ data: responseData });
+        // The candidate page refetches this route after every edit; a cached response would hand
+        // back the profile as it looked before the save.
+        return NextResponse.json({ data: responseData }, {
+            headers: { 'Cache-Control': 'no-store, max-age=0' },
+        });
 
     } catch (error: any) {
         console.error("Detail API Error:", error);
@@ -337,16 +342,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         if (body.job_grouping !== undefined) updateData.job_grouping = body.job_grouping || null;
         if (body.job_function !== undefined) updateData.job_function = body.job_function || null;
 
-        // Compensation & Benefits fields
-        const compensationFields = [
-            'gross_salary_base_b_mth', 'other_income', 'bonus_mth',
-            'car_allowance_b_mth', 'gasoline_b_mth', 'phone_b_mth',
-            'provident_fund_pct', 'medical_b_annual', 'medical_b_mth',
-            'insurance', 'housing_for_expat_b_mth', 'others_benefit'
-        ];
-        compensationFields.forEach(f => {
-            if (body[f] !== undefined) updateData[f] = body[f] || null;
+        // Compensation & Benefits — the field list comes from src/lib/compensation-fields.ts so a
+        // new benefit can't be added to a form and then silently dropped here.
+        COMPENSATION_KEYS.forEach(f => {
+            if (body[f] !== undefined) updateData[f] = body[f] === "" ? null : body[f];
         });
+        // Tri-state per benefit (provided / confirmed none / not asked); null clears it.
+        if (body[BENEFIT_PROVIDED_COLUMN] !== undefined) {
+            updateData[BENEFIT_PROVIDED_COLUMN] = body[BENEFIT_PROVIDED_COLUMN] || null;
+        }
 
         // Add timestamp
         updateData.modify_date = new Date().toISOString();

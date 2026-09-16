@@ -14,6 +14,7 @@ import { Tooltip as ReactTooltip } from "react-tooltip";
 import { cn } from "@/lib/utils";
 import PlacementTab from "./PlacementTab";
 import PackageInfoTab from "./PackageInfoTab";
+import SalaryBenchmarkTab from "./SalaryBenchmarkTab";
 import RecruiterPerformanceTab from "./RecruiterPerformanceTab";
 import CandidateFunnelTab from "./CandidateFunnelTab";
 
@@ -228,6 +229,7 @@ export default function DashboardPage() {
                     <TabsTrigger value="placement" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Search & Placement</TabsTrigger>
                     <TabsTrigger value="recruiter" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Recruiter Performance</TabsTrigger>
                     <TabsTrigger value="package" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Package Info</TabsTrigger>
+                    <TabsTrigger value="salary" className="data-[state=active]:bg-white data-[state=active]:shadow-sm">Salary Benchmark</TabsTrigger>
                 </TabsList>
 
                 {/* --- TAB 0: CANDIDATE FUNNEL --- */}
@@ -387,6 +389,10 @@ export default function DashboardPage() {
                 </TabsContent>
 
                 {/* --- TAB 6: PACKAGE INFO --- */}
+                <TabsContent value="salary" className="space-y-6 outline-none">
+                    <SalaryBenchmarkTab />
+                </TabsContent>
+
                 <TabsContent value="package" className="space-y-6 outline-none">
                     <PackageInfoTab />
                 </TabsContent>

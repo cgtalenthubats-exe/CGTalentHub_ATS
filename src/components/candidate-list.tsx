@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
+import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { JRCandidate, JRCandidateExperience, HEAD_RECRUIT_FEEDBACK_OPTIONS } from "@/types/requisition";
 import { getJRCandidates } from "@/app/actions/jr-candidates";
@@ -443,6 +444,19 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
         console.log("ATS System: CandidateList Loaded (Safe Version - Fix Applied) ✅");
         // Manual Sync Trigger: Confirmed Local-Remote Parity
     }, [jrId]);
+
+    // Pull the rows again when the user comes back to this tab — status changes made elsewhere
+    // (another tab, the candidate sheet, a teammate) would otherwise sit invisible. Silent on
+    // purpose: no loading state, the table just updates underneath.
+    const reloadCandidatesSilently = useCallback(async () => {
+        if (!jrId) return;
+        try {
+            setCandidates(await getJRCandidates(jrId));
+        } catch (error) {
+            console.error("Background refresh failed", error);
+        }
+    }, [jrId]);
+    useRefreshOnFocus(reloadCandidatesSilently);
 
     const handleStatusChange = async (jrCandId: string, newStatus: string) => {
         if (newStatus === 'Successful Placement') {

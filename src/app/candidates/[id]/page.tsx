@@ -30,6 +30,9 @@ import { CandidateOrgChartButton } from "@/components/candidate-org-chart-button
 import { JRCandidateSheet } from "@/components/jr-candidate-sheet";
 import { AddCandidateDialog } from "@/components/ai-search/AddCandidateDialog";
 import { CandidateStatusEditor } from "@/components/candidate-status-editor";
+import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
+import { CompensationSummary } from "@/components/compensation-summary";
+import { COMPENSATION_KEYS } from "@/lib/compensation-fields";
 
 export default function CandidateDetailPage({ params }: { params: Promise<{ id: string }> }) {
     const { id } = React.use(params);
@@ -50,35 +53,34 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
         });
     }, [id]);
 
-    React.useEffect(() => {
-        const fetchCandidate = async () => {
-            try {
-                const res = await fetch(`/api/candidates/${id}`);
-                if (!res.ok) {
-                    const errData = await res.json().catch(() => ({}));
-                    throw new Error(errData.details || errData.error || `Error ${res.status}: Failed to fetch candidate`);
-                }
-                const data = await res.json();
-                setCandidate(data.data);
-                // The following line is added as per user instruction.
-                // Note: 'profile' and 'setCandidateName' are not defined in this scope.
-                // This might indicate missing context or an incomplete change from the user.
-                // To make the file syntactically correct, these would need to be defined.
-                // Assuming 'profile' refers to 'data.data' and 'setCandidateName' is a new state setter.
-                // For faithful reproduction of the snippet, it's inserted as provided.
-                if (data.data) { // Assuming 'profile' refers to 'data.data'
-                    // If setCandidateName is intended, it needs to be declared as a state variable.
-                    // For now, this line is commented out to maintain syntactic correctness without further assumptions.
-                    // setCandidateName((data.data as any).name);
-                }
-            } catch (err: any) {
-                setError(err.message);
-            } finally {
-                setLoading(false);
+    // Single source of truth for this page's data. Every action on the page (experience,
+    // pre-screen, resume, LinkedIn) calls this when it succeeds, so the user sees their change
+    // land instead of having to reload the page to find out whether it saved.
+    const refetchCandidate = React.useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+        try {
+            const res = await fetch(`/api/candidates/${id}`, { cache: 'no-store' });
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.details || errData.error || `Error ${res.status}: Failed to fetch candidate`);
             }
-        };
-        fetchCandidate();
+            const data = await res.json();
+            setCandidate(data.data);
+            setError(null);
+        } catch (err: any) {
+            // A failed background refresh shouldn't replace the profile the user is reading with
+            // an error screen — only the initial load gets to do that.
+            if (!silent) setError(err.message);
+        } finally {
+            if (!silent) setLoading(false);
+        }
     }, [id]);
+
+    React.useEffect(() => {
+        setLoading(true);
+        refetchCandidate();
+    }, [id, refetchCandidate]);
+
+    useRefreshOnFocus(() => refetchCandidate({ silent: true }));
 
     React.useEffect(() => {
         if (!loading && typeof window !== "undefined" && window.location.hash) {
@@ -187,14 +189,11 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                     candidateName={candidate.name}
                     linkedin={candidate.linkedin}
                 />
-                            <CandidateLinkedinButton checked={candidate.checked} linkedin={candidate.linkedin} candidateId={candidate.candidate_id} className="h-10 w-10 [&_svg]:h-5 [&_svg]:w-5" />
+                            <CandidateLinkedinButton checked={candidate.checked} linkedin={candidate.linkedin} candidateId={candidate.candidate_id} onUpdated={() => refetchCandidate({ silent: true })} className="h-10 w-10 [&_svg]:h-5 [&_svg]:w-5" />
                             <ResumeManager
                                 candidateId={candidate.candidate_id}
                                 resumeUrl={candidate.resume_url}
-                                onUpdate={() => {
-                                    // Refresh logic - component handles router.refresh()
-                                    // We might want to re-fetch here if needed, but router.refresh should handle server component updates or next fetch
-                                }}
+                                onUpdate={() => refetchCandidate({ silent: true })}
                             />
                             <EditButton id={candidate.candidate_id} />
                         </div>
@@ -383,19 +382,17 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                                         onClick={async () => {
                                             if (!confirm(`Delete ${selectedExpIds.length} experience${selectedExpIds.length > 1 ? 's' : ''}? This cannot be undone.`)) return;
                                             setIsDeletingBulk(true);
-                                            const res = await fetch(`/api/candidates/${candidate.candidate_id}`);
                                             await bulkDeleteExperiences(selectedExpIds, candidate.candidate_id);
                                             setSelectedExpIds([]);
+                                            await refetchCandidate({ silent: true });
                                             setIsDeletingBulk(false);
-                                            const data = await (await fetch(`/api/candidates/${candidate.candidate_id}`)).json();
-                                            setCandidate(data.data);
                                         }}
                                     >
                                         {isDeletingBulk ? <span className="animate-spin">⏳</span> : null}
                                         Delete {selectedExpIds.length} selected
                                     </Button>
                                 )}
-                                <AddExperienceDialog candidateId={candidate.candidate_id} />
+                                <AddExperienceDialog candidateId={candidate.candidate_id} onSuccess={() => refetchCandidate({ silent: true })} />
                             </div>
                         </CardHeader>
                         <CardContent className="relative pl-8 border-l-2 border-border/40 ml-8 space-y-10 py-8 pr-6">
@@ -437,6 +434,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                                                             experienceId={exp.id}
                                                             candidateId={candidate.candidate_id}
                                                             isCurrent={isCurrent}
+                                                            onSuccess={() => refetchCandidate({ silent: true })}
                                                         />
                                                     </div>
                                                     <div className="text-primary font-semibold text-base">{exp.company}</div>
@@ -452,8 +450,8 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                                                         {formatMonthYear(exp.start_date)} - {exp.is_current_job === 'Current' ? "Present" : formatMonthYear(exp.end_date)}
                                                     </Badge>
                                                     <div className="flex items-center gap-1">
-                                                        <EditExperienceDialog experience={exp} candidateId={candidate.candidate_id} />
-                                                        <DeleteExperienceButton id={exp.id} candidateId={candidate.candidate_id} />
+                                                        <EditExperienceDialog experience={exp} candidateId={candidate.candidate_id} onSuccess={() => refetchCandidate({ silent: true })} />
+                                                        <DeleteExperienceButton id={exp.id} candidateId={candidate.candidate_id} onSuccess={() => refetchCandidate({ silent: true })} />
                                                     </div>
                                                 </div>
                                             </div>
@@ -503,70 +501,8 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                             </Button>
                         </CardHeader>
                         <CardContent className="pt-6">
-                            {(candidate.gross_salary_base_b_mth || candidate.other_income || candidate.bonus_mth || candidate.car_allowance_b_mth || candidate.medical_b_annual || candidate.provident_fund_pct || candidate.gasoline_b_mth || candidate.phone_b_mth || candidate.insurance || candidate.housing_for_expat_b_mth || candidate.others_benefit) ? (
-                                    <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-6 text-sm">
-                                        <div className="space-y-1.5">
-                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Gross Salary (฿/M)</p>
-                                            <p className="font-bold text-lg text-emerald-600">
-                                                {candidate.gross_salary_base_b_mth ? `฿${formatNumberWithCommas(candidate.gross_salary_base_b_mth)}` : "-"}
-                                            </p>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Bonus (Months)</p>
-                                            <p className="font-bold text-slate-700">{candidate.bonus_mth ? `${candidate.bonus_mth} m` : "-"}</p>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Other Income</p>
-                                            <p className="font-bold text-slate-700">{candidate.other_income || "-"}</p>
-                                        </div>
-                                        
-                                        <div className="space-y-1.5">
-                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Car Allowance (฿/M)</p>
-                                            <p className="font-bold text-slate-700">{candidate.car_allowance_b_mth ? `฿${formatNumberWithCommas(candidate.car_allowance_b_mth)}` : "-"}</p>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Gasoline (฿/M)</p>
-                                            <p className="font-bold text-slate-700">{candidate.gasoline_b_mth ? `฿${formatNumberWithCommas(candidate.gasoline_b_mth)}` : "-"}</p>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Phone (฿/M)</p>
-                                            <p className="font-bold text-slate-700">{candidate.phone_b_mth ? `฿${formatNumberWithCommas(candidate.phone_b_mth)}` : "-"}</p>
-                                        </div>
-
-                                        <div className="space-y-1.5">
-                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Provident Fund (%)</p>
-                                            <p className="font-bold text-slate-700">{candidate.provident_fund_pct ? `${candidate.provident_fund_pct}%` : "-"}</p>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Medical (฿/Yr)</p>
-                                            <p className="font-bold text-slate-700">{candidate.medical_b_annual ? `฿${formatNumberWithCommas(candidate.medical_b_annual)}` : "-"}</p>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Medical (฿/M)</p>
-                                            <p className="font-bold text-slate-700">{candidate.medical_b_mth ? `฿${formatNumberWithCommas(candidate.medical_b_mth)}` : "-"}</p>
-                                        </div>
-
-                                        <div className="space-y-1.5">
-                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Insurance</p>
-                                            <div className="flex flex-wrap gap-1">
-                                                {candidate.insurance ? (
-                                                    candidate.insurance.split(',').map((item: string, i: number) => (
-                                                        <span key={i} className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[11px] font-bold border border-indigo-100">
-                                                            {item.trim()}
-                                                        </span>
-                                                    ))
-                                                ) : "-"}
-                                            </div>
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Housing / Expat</p>
-                                            <p className="font-bold text-slate-700">{candidate.housing_for_expat_b_mth || "-"}</p>
-                                        </div>
-                                        <div className="space-y-1.5 md:col-span-2">
-                                            <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest text-slate-400">Other Benefits</p>
-                                            <p className="font-bold text-slate-500 whitespace-pre-wrap leading-relaxed">{candidate.others_benefit || "-"}</p>
-                                        </div>
-                                    </div>
+                            {COMPENSATION_KEYS.some(key => candidate[key]) ? (
+                                <CompensationSummary candidate={candidate} />
                             ) : (
                                 <div className="text-center py-8">
                                     <p className="text-sm text-muted-foreground italic mb-4">No compensation details available.</p>
@@ -710,16 +646,17 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                     <Card id="pre-screen-logs" className="border shadow-sm bg-card">
                         <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/20">
                             <CardTitle className="text-lg flex items-center gap-2"><FileText className="h-5 w-5 text-primary" /> Pre-Screen Logs</CardTitle>
-                            <AddPrescreenDialog candidateId={candidate.candidate_id} />
+                            <AddPrescreenDialog candidateId={candidate.candidate_id} onSuccess={() => refetchCandidate({ silent: true })} />
                         </CardHeader>
                         <CardContent className="pt-6">
                             {candidate.prescreenLogs && candidate.prescreenLogs.length > 0 ? (
                                 <div className="grid gap-4">
                                     {candidate.prescreenLogs.map((log: any, i: number) => (
-                                        <PrescreenLogEntry 
-                                            key={log.pre_screen_id || i} 
-                                            log={log} 
-                                            candidateId={candidate.candidate_id} 
+                                        <PrescreenLogEntry
+                                            key={log.pre_screen_id || i}
+                                            log={log}
+                                            candidateId={candidate.candidate_id}
+                                            onChanged={() => refetchCandidate({ silent: true })}
                                         />
                                     ))}
                                 </div>
@@ -769,7 +706,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
     );
 }
 
-function PrescreenLogEntry({ log, candidateId }: { log: any, candidateId: string }) {
+function PrescreenLogEntry({ log, candidateId, onChanged }: { log: any, candidateId: string, onChanged?: () => void | Promise<void> }) {
     const [expanded, setExpanded] = React.useState(false);
     const isLongText = log.feedback_text?.length > 300;
 
@@ -797,8 +734,8 @@ function PrescreenLogEntry({ log, candidateId }: { log: any, candidateId: string
                             </Button>
                         </a>
                     )}
-                    <EditPrescreenDialog candidateId={candidateId} log={log} />
-                    <DeletePrescreenButton logId={log.pre_screen_id} candidateId={candidateId} />
+                    <EditPrescreenDialog candidateId={candidateId} log={log} onSuccess={onChanged} />
+                    <DeletePrescreenButton logId={log.pre_screen_id} candidateId={candidateId} onSuccess={onChanged} />
                 </div>
             </div>
             <div className={cn(

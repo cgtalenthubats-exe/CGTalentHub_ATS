@@ -250,6 +250,7 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
                                     </Card>
 
                                     <FeedbackSection
+                                        onChanged={handleRefresh}
                                         jrCandidateId={meta?.jr_candidate_id || jrCandidateId!}
                                         candidateName={candidate?.name}
                                         feedback={feedback}
@@ -257,6 +258,7 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
 
                                     {/* Section 2: Activity Log (full width) */}
                                     <CandidateActivityLog
+                                        onChanged={handleRefresh}
                                         logs={logs}
                                         jrCandidateId={jrCandidateId!}
                                     />
@@ -539,9 +541,10 @@ export function JRCandidateSheet({ jrCandidateId, open, onOpenChange }: JRCandid
                                         <h2 className="text-xl font-black text-slate-800 tracking-tight">Historical Journey</h2>
                                         <p className="text-xs font-medium text-slate-400 italic">Timeline of activities and feedback from previous job requisitions.</p>
                                     </div>
-                                    <HistoryTimeline 
-                                        history={history} 
-                                        candidateName={candidate?.name || "Candidate"} 
+                                    <HistoryTimeline
+                                        history={history}
+                                        candidateName={candidate?.name || "Candidate"}
+                                        onChanged={handleRefresh}
                                     />
                                 </div>
                             )}

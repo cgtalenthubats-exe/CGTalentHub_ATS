@@ -3,9 +3,10 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { getRawBenchmarkData, BenchmarkCandidate } from "@/app/actions/benchmark-actions";
 import { parseSalary, hasBenefit } from "@/lib/benchmark-utils";
+import { COMPENSATION_FIELDS, getCompensationField } from "@/lib/compensation-fields";
+import { benefitState } from "@/lib/compensation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
-import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
+import { BenchmarkFilterBar, useBenchmarkFilters } from "./benchmark-filters";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,19 +14,11 @@ import { Loader2, RotateCcw, RefreshCw, CheckCircle2, Minus, Search, Building2, 
 import { formatNumberWithCommas } from "@/lib/utils";
 
 // ---- Benefit row definitions ----
-const BENEFIT_ROWS = [
-    { key: "bonus_mth", label: "Bonus (mth)" },
-    { key: "car_allowance_b_mth", label: "Car Allowance" },
-    { key: "gasoline_b_mth", label: "Gasoline" },
-    { key: "phone_b_mth", label: "Phone" },
-    { key: "provident_fund_pct", label: "Provident Fund" },
-    { key: "medical_b_annual", label: "Medical (Annual)" },
-    { key: "medical_b_mth", label: "Medical (Monthly)" },
-    { key: "insurance", label: "Insurance" },
-    { key: "housing_for_expat_b_mth", label: "Housing (Expat)" },
-    { key: "other_income", label: "Other Income" },
-    { key: "others_benefit", label: "Others" },
-] as const;
+// Derived from the shared compensation schema: base salary has its own column in this table, and
+// retired fields (medical_b_mth, kept only for old data) don't belong in a comparison view.
+const BENEFIT_ROWS = COMPENSATION_FIELDS
+    .filter(f => !f.retired && f.key !== "gross_salary_base_b_mth")
+    .map(f => ({ key: f.key, label: f.unit ? `${f.label} (${f.unit})` : f.label }));
 
 function formatK(val: number | null): string {
     if (val === null) return "-";
@@ -111,15 +104,6 @@ export default function PackageInfoTab() {
     const [rawData, setRawData] = useState<BenchmarkCandidate[]>([]);
     const [loading, setLoading] = useState(true);
 
-    // Filters
-    const [selIndustry, setSelIndustry] = useState<string[]>([]);
-    const [selGroup, setSelGroup] = useState<string[]>([]);
-    const [selJobGrouping, setSelJobGrouping] = useState<string[]>([]);
-    const [selJobFunction, setSelJobFunction] = useState<string[]>([]);
-    const [selCompany, setSelCompany] = useState<string[]>([]);
-    const [selPosition, setSelPosition] = useState<string[]>([]);
-    const [selRating, setSelRating] = useState<string[]>([]);
-
     // Detail Dialog State
     const [detailDialog, setDetailDialog] = useState<{ open: boolean; title: string; content: string }>({
         open: false,
@@ -136,110 +120,8 @@ export default function PackageInfoTab() {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
-    // All possible filter options from raw data
-    const allOptions = useMemo(() => {
-        const industries = Array.from(new Set(rawData.map(c => c.company_industry).filter(Boolean))).sort() as string[];
-        const companyGroups = Array.from(new Set(rawData.map(c => c.company_group).filter(Boolean))).sort() as string[];
-        const jobGroupings = Array.from(new Set(rawData.map(c => c.job_grouping).filter(v => v && v !== 'NA' && v !== 'Not found exp'))).sort() as string[];
-        const jobFunctions = Array.from(new Set(rawData.map(c => c.job_function).filter(v => v && v !== 'NA' && v !== 'Not found exp'))).sort() as string[];
-        const companies = Array.from(new Set(rawData.map(c => c.company).filter(Boolean))).sort() as string[];
-        const positions = Array.from(new Set(rawData.map(c => c.position).filter(Boolean))).sort() as string[];
-        const ratings = Array.from(new Set(rawData.map(c => c.rating).filter(Boolean))).sort() as string[];
-        return { industries, companyGroups, jobGroupings, jobFunctions, companies, positions, ratings };
-    }, [rawData]);
-
-    // Filtered candidates
-    const filtered = useMemo(() => {
-        let tempFiltered = rawData;
-        if (selIndustry.length > 0) tempFiltered = tempFiltered.filter(c => selIndustry.includes(c.company_industry || ''));
-        if (selGroup.length > 0) tempFiltered = tempFiltered.filter(c => selGroup.includes(c.company_group || ''));
-        if (selJobGrouping.length > 0) tempFiltered = tempFiltered.filter(c => selJobGrouping.includes(c.job_grouping || ''));
-        if (selJobFunction.length > 0) tempFiltered = tempFiltered.filter(c => selJobFunction.includes(c.job_function || ''));
-        if (selCompany.length > 0) tempFiltered = tempFiltered.filter(c => selCompany.includes(c.company || ''));
-        if (selPosition.length > 0) tempFiltered = tempFiltered.filter(c => selPosition.includes(c.position || ''));
-        if (selRating.length > 0) tempFiltered = tempFiltered.filter(c => selRating.includes(c.rating || ''));
-        return tempFiltered;
-    }, [rawData, selIndustry, selGroup, selJobGrouping, selJobFunction, selCompany, selPosition, selRating]);
-
-    // Interdependent Filter Options Logic
-    // For each filter, options = all unique values of that field from candidates filtering by ALL OTHER filters.
-
-    const industryOptions = useMemo(() => {
-        let temp = rawData;
-        if (selGroup.length > 0) temp = temp.filter(c => selGroup.includes(c.company_group || ''));
-        if (selJobGrouping.length > 0) temp = temp.filter(c => selJobGrouping.includes(c.job_grouping || ''));
-        if (selJobFunction.length > 0) temp = temp.filter(c => selJobFunction.includes(c.job_function || ''));
-        if (selCompany.length > 0) temp = temp.filter(c => selCompany.includes(c.company || ''));
-        if (selPosition.length > 0) temp = temp.filter(c => selPosition.includes(c.position || ''));
-        if (selRating.length > 0) temp = temp.filter(c => selRating.includes(c.rating || ''));
-        return Array.from(new Set(temp.map(c => c.company_industry).filter(Boolean))).sort() as string[];
-    }, [rawData, selGroup, selJobGrouping, selJobFunction, selCompany, selPosition, selRating]);
-
-    const groupOptions = useMemo(() => {
-        let temp = rawData;
-        if (selIndustry.length > 0) temp = temp.filter(c => selIndustry.includes(c.company_industry || ''));
-        if (selJobGrouping.length > 0) temp = temp.filter(c => selJobGrouping.includes(c.job_grouping || ''));
-        if (selJobFunction.length > 0) temp = temp.filter(c => selJobFunction.includes(c.job_function || ''));
-        if (selCompany.length > 0) temp = temp.filter(c => selCompany.includes(c.company || ''));
-        if (selPosition.length > 0) temp = temp.filter(c => selPosition.includes(c.position || ''));
-        if (selRating.length > 0) temp = temp.filter(c => selRating.includes(c.rating || ''));
-        return Array.from(new Set(temp.map(c => c.company_group).filter(Boolean))).sort() as string[];
-    }, [rawData, selIndustry, selJobGrouping, selJobFunction, selCompany, selPosition, selRating]);
-
-    const jobGroupingOptions = useMemo(() => {
-        let temp = rawData;
-        if (selIndustry.length > 0) temp = temp.filter(c => selIndustry.includes(c.company_industry || ''));
-        if (selGroup.length > 0) temp = temp.filter(c => selGroup.includes(c.company_group || ''));
-        if (selJobFunction.length > 0) temp = temp.filter(c => selJobFunction.includes(c.job_function || ''));
-        if (selCompany.length > 0) temp = temp.filter(c => selCompany.includes(c.company || ''));
-        if (selPosition.length > 0) temp = temp.filter(c => selPosition.includes(c.position || ''));
-        if (selRating.length > 0) temp = temp.filter(c => selRating.includes(c.rating || ''));
-        return Array.from(new Set(temp.map(c => c.job_grouping).filter(v => v && v !== 'NA' && v !== 'Not found exp'))).sort() as string[];
-    }, [rawData, selIndustry, selGroup, selJobFunction, selCompany, selPosition, selRating]);
-
-    const jobFunctionOptions = useMemo(() => {
-        let temp = rawData;
-        if (selIndustry.length > 0) temp = temp.filter(c => selIndustry.includes(c.company_industry || ''));
-        if (selGroup.length > 0) temp = temp.filter(c => selGroup.includes(c.company_group || ''));
-        if (selJobGrouping.length > 0) temp = temp.filter(c => selJobGrouping.includes(c.job_grouping || ''));
-        if (selCompany.length > 0) temp = temp.filter(c => selCompany.includes(c.company || ''));
-        if (selPosition.length > 0) temp = temp.filter(c => selPosition.includes(c.position || ''));
-        if (selRating.length > 0) temp = temp.filter(c => selRating.includes(c.rating || ''));
-        return Array.from(new Set(temp.map(c => c.job_function).filter(v => v && v !== 'NA' && v !== 'Not found exp'))).sort() as string[];
-    }, [rawData, selIndustry, selGroup, selJobGrouping, selCompany, selPosition, selRating]);
-
-    const companyOptions = useMemo(() => {
-        let temp = rawData;
-        if (selIndustry.length > 0) temp = temp.filter(c => selIndustry.includes(c.company_industry || ''));
-        if (selGroup.length > 0) temp = temp.filter(c => selGroup.includes(c.company_group || ''));
-        if (selJobGrouping.length > 0) temp = temp.filter(c => selJobGrouping.includes(c.job_grouping || ''));
-        if (selJobFunction.length > 0) temp = temp.filter(c => selJobFunction.includes(c.job_function || ''));
-        if (selPosition.length > 0) temp = temp.filter(c => selPosition.includes(c.position || ''));
-        if (selRating.length > 0) temp = temp.filter(c => selRating.includes(c.rating || ''));
-        return Array.from(new Set(temp.map(c => c.company).filter(Boolean))).sort() as string[];
-    }, [rawData, selIndustry, selGroup, selJobGrouping, selJobFunction, selPosition, selRating]);
-
-    const positionOptions = useMemo(() => {
-        let temp = rawData;
-        if (selIndustry.length > 0) temp = temp.filter(c => selIndustry.includes(c.company_industry || ''));
-        if (selGroup.length > 0) temp = temp.filter(c => selGroup.includes(c.company_group || ''));
-        if (selJobGrouping.length > 0) temp = temp.filter(c => selJobGrouping.includes(c.job_grouping || ''));
-        if (selJobFunction.length > 0) temp = temp.filter(c => selJobFunction.includes(c.job_function || ''));
-        if (selCompany.length > 0) temp = temp.filter(c => selCompany.includes(c.company || ''));
-        if (selRating.length > 0) temp = temp.filter(c => selRating.includes(c.rating || ''));
-        return Array.from(new Set(temp.map(c => c.position).filter(Boolean))).sort() as string[];
-    }, [rawData, selIndustry, selGroup, selJobGrouping, selJobFunction, selCompany, selRating]);
-
-    const ratingOptions = useMemo(() => {
-        let temp = rawData;
-        if (selIndustry.length > 0) temp = temp.filter(c => selIndustry.includes(c.company_industry || ''));
-        if (selGroup.length > 0) temp = temp.filter(c => selGroup.includes(c.company_group || ''));
-        if (selJobGrouping.length > 0) temp = temp.filter(c => selJobGrouping.includes(c.job_grouping || ''));
-        if (selJobFunction.length > 0) temp = temp.filter(c => selJobFunction.includes(c.job_function || ''));
-        if (selCompany.length > 0) temp = temp.filter(c => selCompany.includes(c.company || ''));
-        if (selPosition.length > 0) temp = temp.filter(c => selPosition.includes(c.position || ''));
-        return Array.from(new Set(temp.map(c => c.rating).filter(Boolean))).sort() as string[];
-    }, [rawData, selIndustry, selGroup, selJobGrouping, selJobFunction, selCompany, selPosition]);
+    const filters = useBenchmarkFilters(rawData);
+    const filtered = filters.filtered;
 
     // Companies sorted by avg salary (ascending)
     const companies = useMemo(() => {
@@ -286,7 +168,15 @@ export default function PackageInfoTab() {
                 const vals = cands
                     .map(c => (c as any)[row.key] as string | null)
                     .filter(v => hasBenefit(v));
-                result[company][row.key] = vals.length > 0 ? (vals[0] as string) : null;
+                if (vals.length > 0) {
+                    result[company][row.key] = vals[0] as string;
+                    return;
+                }
+                // No figure on file doesn't mean nobody gets it — someone may have confirmed the
+                // benefit exists without knowing the amount.
+                const field = getCompensationField(row.key);
+                const anyProvided = field ? cands.some(c => benefitState(field, c) === "provided") : false;
+                result[company][row.key] = anyProvided ? "Provided" : null;
             });
         });
         return result;
@@ -299,16 +189,6 @@ export default function PackageInfoTab() {
         if (sals.length === 0) return null;
         return sals.reduce((s, v) => s + v, 0) / sals.length;
     }, [filtered]);
-
-    const handleReset = () => {
-        setSelIndustry([]);
-        setSelGroup([]);
-        setSelJobGrouping([]);
-        setSelJobFunction([]);
-        setSelCompany([]);
-        setSelPosition([]);
-        setSelRating([]);
-    };
 
     if (loading) return (
         <div className="flex items-center justify-center h-64">
@@ -332,82 +212,7 @@ export default function PackageInfoTab() {
                 </Button>
             </div>
 
-            {/* Filters */}
-            <div className="flex flex-wrap gap-3 items-center p-4 bg-muted/30 rounded-lg border">
-                <FilterMultiSelect
-                    label="Industry"
-                    icon={Factory}
-                    options={industryOptions}
-                    selected={selIndustry}
-                    onChange={(val) => {
-                        setSelIndustry(prev => prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]);
-                    }}
-                />
-                <FilterMultiSelect
-                    label="Company Group"
-                    icon={Building2}
-                    options={groupOptions}
-                    selected={selGroup}
-                    onChange={(val) => {
-                        setSelGroup(prev => prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]);
-                    }}
-                />
-                <FilterMultiSelect
-                    label="Job Grouping"
-                    icon={Briefcase}
-                    options={jobGroupingOptions}
-                    selected={selJobGrouping}
-                    onChange={(val) => {
-                        setSelJobGrouping(prev => prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]);
-                    }}
-                />
-                <FilterMultiSelect
-                    label="Job Function"
-                    options={jobFunctionOptions}
-                    selected={selJobFunction}
-                    onChange={(val) => {
-                        setSelJobFunction(prev => prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]);
-                    }}
-                />
-                <FilterMultiSelect
-                    label="Company"
-                    options={companyOptions}
-                    selected={selCompany}
-                    onChange={(val) => {
-                        setSelCompany(prev => prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]);
-                    }}
-                />
-                <FilterMultiSelect
-                    label="Position"
-                    options={positionOptions}
-                    selected={selPosition}
-                    onChange={(val) => {
-                        setSelPosition(prev => prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]);
-                    }}
-                />
-                <FilterMultiSelect
-                    label="Rating"
-                    icon={Star}
-                    options={ratingOptions}
-                    selected={selRating}
-                    onChange={(val) => {
-                        setSelRating(prev => prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]);
-                    }}
-                />
-                <Button variant="ghost" size="sm" onClick={handleReset} className="gap-2 text-slate-500 hover:text-red-500">
-                    <RotateCcw className="h-3 w-3" /> Reset
-                </Button>
-            </div>
-
-            <ActiveFilterChips groups={[
-                { label: "Industry", values: selIndustry, onRemove: v => setSelIndustry(prev => prev.filter(x => x !== v)) },
-                { label: "Company Group", values: selGroup, onRemove: v => setSelGroup(prev => prev.filter(x => x !== v)) },
-                { label: "Job Grouping", values: selJobGrouping, onRemove: v => setSelJobGrouping(prev => prev.filter(x => x !== v)) },
-                { label: "Job Function", values: selJobFunction, onRemove: v => setSelJobFunction(prev => prev.filter(x => x !== v)) },
-                { label: "Company", values: selCompany, onRemove: v => setSelCompany(prev => prev.filter(x => x !== v)) },
-                { label: "Position", values: selPosition, onRemove: v => setSelPosition(prev => prev.filter(x => x !== v)) },
-                { label: "Rating", values: selRating, onRemove: v => setSelRating(prev => prev.filter(x => x !== v)) },
-            ]} />
+            <BenchmarkFilterBar filters={filters} />
 
             {companies.length === 0 ? (
                 <div className="text-center py-16 text-slate-400">No data matches the selected filters</div>

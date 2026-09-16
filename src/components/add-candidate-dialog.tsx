@@ -403,6 +403,12 @@ export function AddCandidateDialog({ open, onOpenChange, jrId, onSuccess, update
                                             }));
                                             setSearchQuery("");
                                             setShowFilters(true);
+                                        } else if (type === 'name') {
+                                            // This dialog has no separate name filter — its search
+                                            // already covers names, so route it there. Without this
+                                            // branch, "Filter by Name" (and picking a person from
+                                            // the suggestions) silently did nothing.
+                                            setSearchQuery(term);
                                         }
                                     }}
                                     onRawQueryChange={setSearchQuery}

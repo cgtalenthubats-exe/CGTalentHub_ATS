@@ -34,7 +34,7 @@ interface AddFeedbackDialogProps {
     onOpenChange: (open: boolean) => void;
     jrCandidateId: string;
     candidateName: string;
-    onSuccess?: () => void;
+    onSuccess?: () => void | Promise<void>;
     initialData?: {
         feedback_id: number;
         interview_date: string;
@@ -156,10 +156,17 @@ export function AddFeedbackDialog({
             });
 
             if (res.success) {
-                toast.success("Feedback submitted successfully!");
+                toast.success(
+                    initialData?.feedback_id
+                        ? `Updated feedback from ${interviewerName}`
+                        : `Saved feedback from ${interviewerName}`
+                );
+                // Await the parent's refetch before closing so the dialog keeps its saving state
+                // until the new row is actually on screen — closing first leaves the user staring
+                // at an unchanged list, which is what made them doubt the save went through.
+                if (onSuccess) await onSuccess();
                 resetForm();
                 onOpenChange(false);
-                if (onSuccess) onSuccess();
             } else {
                 toast.error("Error: " + res.error);
             }
