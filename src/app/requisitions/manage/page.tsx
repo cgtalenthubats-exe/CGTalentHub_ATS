@@ -30,7 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
     Plus, List, Kanban, MessageSquare, Briefcase, Share2, Loader2,
     Copy, Trophy, Trash2, Edit, User, Activity, History, Sparkles, Download,
-    ChevronUp, ChevronDown, StickyNote
+    StickyNote
 } from "lucide-react";
 import { AiSuggestionTab } from "./ai-suggestion-tab";
 import { StageAgingPanel } from "./StageAgingPanel";
@@ -67,21 +67,9 @@ export default function JRManagePage() {
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [isAddCandOpen, setIsAddCandOpen] = useState(false);
     const [analytics, setAnalytics] = useState<any>(null);
-    const [showAnalytics, setShowAnalytics] = useState(false);
     const [isExportingAnalytics, setIsExportingAnalytics] = useState(false);
     const [isNoteOpen, setIsNoteOpen] = useState(false);
 
-    // Persist Activity Transaction & Aging panel collapsed/expanded preference
-    useEffect(() => {
-        const saved = localStorage.getItem('jr_manage_show_analytics');
-        if (saved !== null) setShowAnalytics(saved === 'true');
-    }, []);
-    const toggleShowAnalytics = () => {
-        setShowAnalytics(prev => {
-            localStorage.setItem('jr_manage_show_analytics', String(!prev));
-            return !prev;
-        });
-    };
     const [isJRLoading, setIsJRLoading] = useState(false); // Track URL-based loading
     const [isInitialized, setIsInitialized] = useState(false); // Track initial mount
     const [refreshKey, setRefreshKey] = useState(0); // Trigger refresh for candidates
@@ -633,116 +621,6 @@ export default function JRManagePage() {
                                 </CardContent>
                             </Card>
 
-                            {analytics && (
-                                <Card>
-                                    <button
-                                        onClick={toggleShowAnalytics}
-                                        className="w-full flex items-center justify-between px-5 py-3.5 text-left"
-                                    >
-                                        <div className="flex items-center gap-2">
-                                            <Activity className="h-4 w-4 text-slate-500" />
-                                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Activity Transaction &amp; Aging</span>
-                                        </div>
-                                        {showAnalytics ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
-                                    </button>
-
-                                    {showAnalytics && (
-                                        <CardContent className="pt-0 space-y-4">
-                                            <div className="flex justify-end">
-                                                <Button variant="outline" size="sm" onClick={exportAnalyticsCSV} disabled={isExportingAnalytics} className="gap-2">
-                                                    {isExportingAnalytics ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                                                    {isExportingAnalytics ? "Exporting..." : "Export CSV"}
-                                                </Button>
-                                            </div>
-
-                                            <Tabs defaultValue="transaction" className="w-full">
-                                                <TabsList className="h-10 w-fit bg-white dark:bg-slate-900 border mb-3">
-                                                    <TabsTrigger value="transaction" className="h-8 px-4 text-xs data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800">
-                                                        Activity Transaction
-                                                    </TabsTrigger>
-                                                    <TabsTrigger value="aging" className="h-8 px-4 text-xs data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800">
-                                                        Avg. Aging (Days)
-                                                    </TabsTrigger>
-                                                </TabsList>
-
-                                                <TabsContent value="transaction" className="mt-0">
-                                                  <Card>
-                                                    <CardContent className="pt-4">
-                                                    <h3 className="text-base font-bold text-slate-700 dark:text-slate-200 mb-4">Activity Transaction <span className="font-normal text-xs text-slate-400">— how many times candidates entered each status</span></h3>
-                                                    {(() => {
-                                                        const chartData = analytics.countsByStatus.filter((i: any) => i.count > 0 && !EXCLUDED_CHART_STATUSES.includes(i.status));
-                                                        const chartHeight = Math.max(220, chartData.length * 32);
-                                                        return (
-                                                            <div style={{ height: chartHeight }}>
-                                                                <ResponsiveContainer width="100%" height="100%">
-                                                                    <BarChart
-                                                                        data={chartData}
-                                                                        layout="vertical"
-                                                                        margin={{ left: 10, right: 40, bottom: 5 }}
-                                                                    >
-                                                                        <XAxis type="number" hide />
-                                                                        <YAxis dataKey="status" type="category" width={280} interval={0} tick={LeftAlignedYAxisTick} />
-                                                                        <Tooltip
-                                                                            cursor={{ fill: 'transparent' }}
-                                                                            content={({ active, payload }) => {
-                                                                                if (active && payload && payload.length) {
-                                                                                    const data = payload[0].payload;
-                                                                                    return (
-                                                                                        <div className="bg-slate-900 text-white text-xs rounded px-2 py-1 shadow-xl">
-                                                                                            <p className="font-semibold">{data.status}</p>
-                                                                                            <p>Count: {data.count}</p>
-                                                                                        </div>
-                                                                                    );
-                                                                                }
-                                                                                return null;
-                                                                            }}
-                                                                        />
-                                                                        <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20}>
-                                                                            <LabelList dataKey="count" position="right" style={{ fontSize: 13, fontWeight: 700, fill: '#334155' }} />
-                                                                            {chartData.map((entry: any, index: number) => (
-                                                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                                                            ))}
-                                                                        </Bar>
-                                                                    </BarChart>
-                                                                </ResponsiveContainer>
-                                                            </div>
-                                                        );
-                                                    })()}
-                                                    </CardContent>
-                                                  </Card>
-                                                </TabsContent>
-
-                                                <TabsContent value="aging" className="mt-0">
-                                                  <Card>
-                                                    <CardContent className="pt-4">
-                                                    <h3 className="text-base font-bold text-slate-700 dark:text-slate-200 mb-4">Avg. Aging (Days) <span className="font-normal text-xs text-slate-400">— historical average across every visit, including candidates still waiting; the Stage Aging panel above separates the two</span></h3>
-                                                    {(() => {
-                                                        const agingData = analytics.agingByStatus.filter((i: any) => !EXCLUDED_CHART_STATUSES.includes(i.status));
-                                                        return (
-                                                            <div style={{ height: 400 }}>
-                                                                <ResponsiveContainer width="100%" height="100%">
-                                                                    <BarChart data={agingData} margin={{ bottom: 40, top: 20 }}>
-                                                                        <XAxis dataKey="status" interval={0} height={60} tick={TwoLineXAxisTick} />
-                                                                        <YAxis tick={{ fontSize: 13 }} />
-                                                                        <Tooltip content={AgingTooltip} />
-                                                                        <Bar dataKey="avgDays" fill="#f97316" radius={[4, 4, 0, 0]} barSize={30}>
-                                                                            <LabelList dataKey="avgDays" position="top" style={{ fontSize: 13, fontWeight: 700, fill: '#334155' }} />
-                                                                        </Bar>
-                                                                    </BarChart>
-                                                                </ResponsiveContainer>
-                                                            </div>
-                                                        );
-                                                    })()}
-                                                    </CardContent>
-                                                  </Card>
-                                                </TabsContent>
-                                            </Tabs>
-
-                                        </CardContent>
-                                    )}
-                                </Card>
-                            )}
-
                             <Tabs value={currentTab} onValueChange={handleTabChange} className="w-full">
                                 <div className="flex items-center justify-between mb-4">
                                     <TabsList className="h-12 w-fit bg-white dark:bg-slate-900 border">
@@ -754,6 +632,9 @@ export default function JRManagePage() {
                                         </TabsTrigger>
                                         <TabsTrigger value="history" className="h-10 px-6 data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800 data-[state=active]:text-primary">
                                             <History className="mr-2 h-4 w-4" /> History Insights
+                                        </TabsTrigger>
+                                        <TabsTrigger value="activity" className="h-10 px-6 data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800 data-[state=active]:text-primary">
+                                            <Activity className="mr-2 h-4 w-4" /> Activity &amp; Aging
                                         </TabsTrigger>
                                         <TabsTrigger value="salary" className="h-10 px-6 data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800 data-[state=active]:text-primary">
                                             <Briefcase className="mr-2 h-4 w-4" /> Salary Benchmark
@@ -774,6 +655,104 @@ export default function JRManagePage() {
 
                                 <TabsContent value="history" className="mt-0">
                                     <HistoryInsights key={`history-${selectedJR.id}-${refreshKey}`} jrId={selectedJR.id} />
+                                </TabsContent>
+
+                                <TabsContent value="activity" className="mt-0">
+                                    {analytics ? (
+                                        <Card>
+                                            <CardContent className="pt-5 space-y-4">
+                                                <div className="flex items-start justify-between gap-3 flex-wrap">
+                                                    <div>
+                                                        <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Activity Transaction &amp; Aging</h3>
+                                                        <p className="text-xs text-slate-400 font-medium">
+                                                            Historical totals across every candidate who has ever been in this JR — the Stage Aging panel above covers what is happening right now.
+                                                        </p>
+                                                    </div>
+                                                    <Button variant="outline" size="sm" onClick={exportAnalyticsCSV} disabled={isExportingAnalytics} className="gap-2">
+                                                        {isExportingAnalytics ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                                                        {isExportingAnalytics ? "Exporting..." : "Export CSV"}
+                                                    </Button>
+                                                </div>
+
+                                                <Tabs defaultValue="transaction" className="w-full">
+                                                    <TabsList className="h-10 w-fit bg-white dark:bg-slate-900 border mb-3">
+                                                        <TabsTrigger value="transaction" className="h-8 px-4 text-xs data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800">
+                                                            Activity Transaction
+                                                        </TabsTrigger>
+                                                        <TabsTrigger value="aging" className="h-8 px-4 text-xs data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800">
+                                                            Avg. Aging (Days)
+                                                        </TabsTrigger>
+                                                    </TabsList>
+
+                                                    <TabsContent value="transaction" className="mt-0">
+                                                        <h3 className="text-base font-bold text-slate-700 dark:text-slate-200 mb-4">Activity Transaction <span className="font-normal text-xs text-slate-400">— how many times candidates entered each status</span></h3>
+                                                        {(() => {
+                                                            const chartData = analytics.countsByStatus.filter((i: any) => i.count > 0 && !EXCLUDED_CHART_STATUSES.includes(i.status));
+                                                            const chartHeight = Math.max(220, chartData.length * 32);
+                                                            return (
+                                                                <div style={{ height: chartHeight }}>
+                                                                    <ResponsiveContainer width="100%" height="100%">
+                                                                        <BarChart data={chartData} layout="vertical" margin={{ left: 10, right: 40, bottom: 5 }}>
+                                                                            <XAxis type="number" hide />
+                                                                            <YAxis dataKey="status" type="category" width={280} interval={0} tick={LeftAlignedYAxisTick} />
+                                                                            <Tooltip
+                                                                                cursor={{ fill: 'transparent' }}
+                                                                                content={({ active, payload }) => {
+                                                                                    if (active && payload && payload.length) {
+                                                                                        const d = payload[0].payload;
+                                                                                        return (
+                                                                                            <div className="bg-slate-900 text-white text-xs rounded px-2 py-1 shadow-xl">
+                                                                                                <p className="font-semibold">{d.status}</p>
+                                                                                                <p>Count: {d.count}</p>
+                                                                                            </div>
+                                                                                        );
+                                                                                    }
+                                                                                    return null;
+                                                                                }}
+                                                                            />
+                                                                            <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} barSize={20}>
+                                                                                <LabelList dataKey="count" position="right" style={{ fontSize: 13, fontWeight: 700, fill: '#334155' }} />
+                                                                                {chartData.map((entry: any, index: number) => (
+                                                                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                                                ))}
+                                                                            </Bar>
+                                                                        </BarChart>
+                                                                    </ResponsiveContainer>
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                    </TabsContent>
+
+                                                    <TabsContent value="aging" className="mt-0">
+                                                        <h3 className="text-base font-bold text-slate-700 dark:text-slate-200 mb-4">Avg. Aging (Days) <span className="font-normal text-xs text-slate-400">— average across every visit, including candidates still waiting; the Stage Aging panel separates those two</span></h3>
+                                                        {(() => {
+                                                            const agingData = analytics.agingByStatus.filter((i: any) => !EXCLUDED_CHART_STATUSES.includes(i.status));
+                                                            return (
+                                                                <div style={{ height: 400 }}>
+                                                                    <ResponsiveContainer width="100%" height="100%">
+                                                                        <BarChart data={agingData} margin={{ bottom: 40, top: 20 }}>
+                                                                            <XAxis dataKey="status" interval={0} height={60} tick={TwoLineXAxisTick} />
+                                                                            <YAxis tick={{ fontSize: 13 }} />
+                                                                            <Tooltip content={AgingTooltip} />
+                                                                            <Bar dataKey="avgDays" fill="#f97316" radius={[4, 4, 0, 0]} barSize={30}>
+                                                                                <LabelList dataKey="avgDays" position="top" style={{ fontSize: 13, fontWeight: 700, fill: '#334155' }} />
+                                                                            </Bar>
+                                                                        </BarChart>
+                                                                    </ResponsiveContainer>
+                                                                </div>
+                                                            );
+                                                        })()}
+                                                    </TabsContent>
+                                                </Tabs>
+                                            </CardContent>
+                                        </Card>
+                                    ) : (
+                                        <Card className="border-dashed">
+                                            <CardContent className="py-12 text-center text-sm font-bold text-slate-400">
+                                                No activity recorded for this JR yet.
+                                            </CardContent>
+                                        </Card>
+                                    )}
                                 </TabsContent>
 
                                 <TabsContent value="salary" className="mt-0">
