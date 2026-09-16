@@ -3,6 +3,14 @@
 > **STATUS: สำรวจ + เสนอไอเดีย** — ยังไม่ได้แก้โค้ด
 > Context: user feedback ว่าหลังใส่/แก้ข้อมูลแล้วไม่เห็นผล ต้อง hard refresh · concurrent users สูงสุด 5 คน
 
+## ขอบเขตที่ยืนยันกับ user แล้ว (2026-09-16)
+
+**ปัญหาหลักคือ "ข้อมูลของตัวเอง"** — user กดบันทึก เห็น toast ว่าสำเร็จ แต่หน้าจอไม่เปลี่ยน เลยไม่รู้ว่าบันทึกไปแล้วรึยัง ต้อง hard refresh เช็คเอง
+ตัวอย่างที่ user ยกมา: **Add Interview Feedback**
+
+**เรื่องเห็นข้อมูลของคนอื่นแบบ realtime = ไม่สำคัญในรอบนี้** → ข้อ 2.4 และ Phase 3 (Realtime) ถือว่า out of scope
+→ **ส่วนที่ต้องทำจริงคือหัวข้อ 7 (Fix List) ท้ายไฟล์**
+
 ---
 
 ## 0. ข้อสรุปที่ต้องรู้ก่อน (แก้ความเข้าใจเดิม)
@@ -184,4 +192,67 @@ hook ตัวเดียว `useRefreshOnFocus(loader)` — เมื่อ `w
 
 ---
 
-*Created: 2026-09-16 | Data Freshness Survey v1 (สำรวจ + เสนอไอเดีย — ยังไม่ implement)*
+---
+
+## 7. Fix List — เฉพาะอาการ "กดบันทึกแล้วจอไม่เปลี่ยน" (scope ที่ยืนยันแล้ว)
+
+ไล่ทั้งระบบแล้วแยกได้ 3 กลุ่ม เรียงตามความเจ็บของ user
+
+### 7.1 🔴 กลุ่ม "เงียบสนิท" — toast ขึ้น แต่ไม่มีอะไรโหลดใหม่เลย
+
+| # | อาการ | ต้นเหตุ (file:line) | วิธีแก้ |
+|---|---|---|---|
+| 1 | **Add / Edit Interview Feedback แล้วไม่ขึ้นในลิสต์** ← เคสที่ user ยกมา | `feedback-section.tsx:234` render `<AddFeedbackDialog>` **โดยไม่ส่ง `onSuccess`** ทั้งที่ dialog รองรับ prop นี้อยู่แล้ว (`add-feedback-dialog.tsx:37,162`) | เพิ่ม prop `onChanged` ให้ `FeedbackSection` แล้วส่งต่อเป็น `onSuccess={onChanged}` |
+| 2 | ลบ feedback แล้วการ์ดยังอยู่ | `feedback-section.tsx:96` ใช้ `router.refresh()` | เรียก `onChanged()` แทน |
+| 3 | **เพิ่ม / แก้ / ลบ Activity Log (status log) แล้วไม่ขึ้น** | `candidate-activity-log.tsx:94,118` ใช้ `router.refresh()` | เพิ่ม prop `onChanged` แบบเดียวกัน |
+| 4 | อัปโหลด / ลบ Resume ในหน้า Candidate Detail แล้วไม่เปลี่ยน | `resume-manager.tsx:90,116` ใช้ `router.refresh()` + `candidates/[id]/page.tsx:193-197` ส่ง `onUpdate` มาเป็น **ฟังก์ชันว่าง** | ทำ `refetchCandidate()` ในหน้า detail แล้วส่งเข้า `onUpdate` |
+| 5 | อัปเดต LinkedIn / ปุ่ม checked แล้ว badge ไม่เปลี่ยน | `candidate-linkedin-button.tsx:78` ใช้ `router.refresh()` | รับ `onUpdated` callback |
+| 6 | แก้โปรไฟล์ในหน้า Edit → เด้งกลับหน้า Detail แล้วเห็นข้อมูลเก่า | `candidates/[id]/edit/page.tsx:15-16` ใช้ `router.replace()` + `router.refresh()` แต่หน้า detail เป็น client component ที่เก็บข้อมูลใน `useState` | ให้หน้า detail refetch ตอน mount/focus (ดู 7.3) |
+
+**ข้อสังเกตสำคัญ:** ข้อ 1-3 พังเฉพาะตอนอยู่ใน **sheet** (ซึ่งคือทางที่ recruiter ใช้จริง) — ถ้าเปิดจากหน้า `/requisitions/manage/candidate/[jr_candidate_id]` (server component) กลับทำงานปกติ เลยเป็นอาการที่ "บางทีก็เห็น บางทีก็ไม่เห็น"
+
+**ข่าวดีมาก:** sheet ทั้งสองตัว **มีฟังก์ชัน refetch เตรียมไว้แล้ว** แค่ยังไม่ได้ส่งลงไป
+- `jr-candidate-sheet.tsx:71-73` → `handleRefresh()` (refetch แบบเงียบ ไม่มี loading กระพริบ)
+- `candidate-profile-sheet.tsx:91-92` → `fetchData(candidateId, true)`
+
+และ dialog อื่นๆ ใน sheet เดียวกัน (`AddExperienceDialog`, `EditExperienceDialog`, `DeleteExperienceButton`) **ส่ง `onSuccess={handleRefresh}` ถูกต้องอยู่แล้ว** — มีแค่ feedback กับ activity log ที่ตกหล่น
+→ **แก้ 2 ไฟล์หลัก + จุดเรียกใช้อีก 3 ที่ ก็ปิดเคสที่ user บ่นได้**
+
+### 7.2 🟠 กลุ่ม "เห็นข้อมูล แต่หน้ากระพริบทั้งจอ"
+
+ใช้ `window.location.reload()` — ข้อมูลขึ้นจริง แต่โหลดใหม่ทั้งหน้า เสีย scroll position เสีย tab ที่เปิดค้าง ช้า และดูเหมือนระบบค้าง
+
+| อาการ | ต้นเหตุ |
+|---|---|
+| เพิ่ม / แก้ / ลบ Experience ในหน้า Candidate Detail | `experience-dialog.tsx:423,549,570` (fallback เพราะ `candidates/[id]/page.tsx:398,455,456` ไม่ส่ง `onSuccess`) |
+| เพิ่ม / แก้ / ลบ Pre-Screen Log | `candidate-client-actions.tsx:90,247,383` → `scrollWithReload()` (`:31-36`) |
+
+แก้ด้วยวิธีเดียวกับ 7.1: ทำ `refetchCandidate()` ในหน้า `/candidates/[id]` แล้วส่งเป็น `onSuccess` ให้ครบทั้ง 11 จุด
+
+### 7.3 🟡 กันพลาด — ให้หน้าโหลดข้อมูลใหม่เมื่อ user กลับมาที่หน้า/แท็บ
+
+hook เล็กๆ `useRefreshOnFocus(loader)` (~30 บรรทัด) ใส่ในหน้าหลัก แก้ได้ทั้ง
+- เคสข้อ 6 (เด้งกลับจากหน้า edit)
+- เคสที่ user เปิดอีกแท็บไปแก้แล้วกลับมา
+- และเป็นตาข่ายรองรับจุดที่ยังตกหล่น
+
+### 7.4 ✅ ตัวช่วยให้ user มั่นใจว่าบันทึกแล้วจริง
+
+ปัญหาที่ user บอกจริงๆ คือ **"ไม่รู้ว่าใส่ข้อมูลไปแล้วรึยัง"** — นอกจากทำให้ข้อมูลขึ้น ควรเพิ่มสัญญาณด้วย:
+- หลังบันทึก ให้ข้อมูลใหม่ **highlight ชั่วครู่** (เช่นพื้นหลังเหลืองจางๆ 2 วิ) — ตาจับได้ทันทีว่าอันไหนเพิ่งเพิ่ม
+- toast เปลี่ยนจาก "Feedback submitted successfully!" เป็นข้อความที่อ้างอิงของจริง เช่น `บันทึก feedback ของ [ชื่อผู้สัมภาษณ์] แล้ว`
+- ระหว่างรอ refetch ให้ปุ่ม/การ์ดอยู่ในสถานะ loading แทนที่จะปิด dialog ทันที — user จะไม่เห็นช่วง "ว่างเปล่า" ที่ทำให้สงสัยว่าหายไปไหน
+
+### 7.5 ลำดับที่เสนอ
+
+| ลำดับ | ทำอะไร | แรง |
+|---|---|---|
+| **1** | 7.1 ข้อ 1-3 (feedback + activity log ใน sheet) — ตรงกับที่ user บ่น | ~2 ชม. |
+| **2** | 7.1 ข้อ 4-5 + 7.2 (หน้า Candidate Detail ทั้งหน้า ให้ใช้ refetch แทน reload) | ครึ่งวัน |
+| **3** | 7.3 hook + 7.4 highlight/toast | ครึ่งวัน |
+
+Realtime (ข้อ 3 ไอเดีย C) และ event bus กลาง (ไอเดีย E) **พักไว้ก่อน** — ไม่เกี่ยวกับอาการที่ user เจอ
+
+---
+
+*Created: 2026-09-16 | Data Freshness Survey v2 — narrowed to own-write visibility (ยังไม่ implement)*
