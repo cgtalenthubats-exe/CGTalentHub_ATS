@@ -267,4 +267,38 @@ HIDDEN_STATUSES  = { "Interview Scheduled - ..." }  // ซ่อนจาก flo
 
 ---
 
-*Created: 2026-09-16 | JR Salary Benchmark v3 & Stage Aging v2*
+---
+
+## 11. Dashboard → Salary Benchmark tab (2026-09-17)
+
+ภาพรวมทั้งระบบที่ย้ายออกจากหน้า JR มาอยู่ที่ **Dashboard → tab "Salary Benchmark"** (ถัดจาก Package Info)
+
+### ต่างจาก tab ในหน้า JR ยังไง
+
+| | หน้า JR → Salary Benchmark | Dashboard → Salary Benchmark |
+|---|---|---|
+| ดูใคร | **เฉพาะ candidate ใน JR นั้น** | **ทุกคนใน DB** ที่มีเงินเดือน แล้วกรองเอา |
+| ตอบคำถาม | budget เราเทียบกับคนที่เลือกมาแล้วเป็นไง | ตำแหน่ง/อุตสาหกรรมนี้ตลาดจ่ายเท่าไหร่ |
+| filter | search / rating / has-salary (เฉพาะตาราง) | Industry · Company Group · Job Grouping · Job Function · Company · Position · Rating (มีผลทั้งหน้า) |
+| จุดเทียบ | budget ของ JR | ช่อง **Compare a figure** พิมพ์ตัวเลขเองได้ |
+
+### มีอะไรในหน้า
+
+- Summary 5 ใบ: Median · Range (P25–P75) · Min–Max (n) · **ช่องกรอกตัวเลขเทียบ** · percentile ของตัวเลขนั้น
+- **Salary Positioning** — แถบ min–max + P25–P75 + median + จุดของตัวเลขที่กรอก
+- **Salary Distribution** — histogram นับหัวคน แท่งที่ตัวเลขตกอยู่เป็นสีเขียว
+- **Breakdown 4 ตาราง**: Hotel Star Rating · Industry · Job Function · Company (top 12) — ต้องมีอย่างน้อย 3 คนต่อกลุ่ม
+- ⓘ **What the numbers mean** เหมือนหน้า JR
+
+### เก็บกวาดไปด้วย
+
+| ไฟล์ใหม่ | ทำอะไร |
+|---|---|
+| `src/lib/salary-stats.ts` | median / percentile / histogram / statsByGroup — **ใช้ร่วมกันทั้ง JR tab และ dashboard tab** (เดิม JR action มี copy ของตัวเอง) |
+| `src/app/dashboard/benchmark-filters.tsx` | `useBenchmarkFilters` + `BenchmarkFilterBar` — filter 7 ตัวแบบ cascading (แต่ละ dropdown แสดงเฉพาะค่าที่ยังเหลือหลังกรองตัวอื่น) |
+
+**PackageInfoTab refactor แล้วให้ใช้ hook เดียวกัน** — เดิมเขียน logic cascading ซ้ำ 7 บล็อก ~150 บรรทัดในไฟล์ตัวเอง ตอนนี้ทั้งสอง tab ใช้ตัวเดียวกัน filter จะไม่ drift ออกจากกัน
+
+---
+
+*Created: 2026-09-16 | JR Salary Benchmark v3 · Dashboard Benchmark v1 · Stage Aging v2*
