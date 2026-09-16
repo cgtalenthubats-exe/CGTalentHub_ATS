@@ -126,28 +126,34 @@ export interface CandidateSuggestion {
  * leaving only the "which field do you want to search?" fallback. This closes that gap — and
  * returns the current role too, because names repeat and a bare list of them is unusable.
  */
-export async function searchCandidateNames(query: string, limit = 6): Promise<CandidateSuggestion[]> {
+export async function searchCandidateNames(
+    query: string,
+    limit = 8
+): Promise<{ results: CandidateSuggestion[]; totalCount: number }> {
+    const empty = { results: [], totalCount: 0 };
     const q = query?.trim();
-    if (!q || q.length < 2) return [];
+    if (!q || q.length < 2) return empty;
 
     try {
         // Commas and parentheses break PostgREST's `or` list syntax, so keep the term simple.
         const safe = q.replace(/[,()]/g, " ").trim();
-        if (!safe) return [];
+        if (!safe) return empty;
 
-        const { data, error } = await (adminAuthClient as any)
+        // `count: exact` so the dropdown can say "8 of 23" and offer to open the rest, rather
+        // than silently hiding the other Peters.
+        const { data, error, count } = await (adminAuthClient as any)
             .from("Candidate Profile")
-            .select("candidate_id, name, email, job_function, photo")
+            .select("candidate_id, name, email, job_function, photo", { count: "exact" })
             .or(`name.ilike.%${safe}%,email.ilike.%${safe}%,candidate_id.ilike.%${safe}%`)
             .limit(limit);
 
         if (error) {
             console.error("Error searching candidate names:", error);
-            return [];
+            return empty;
         }
 
         const rows = (data || []) as any[];
-        if (rows.length === 0) return [];
+        if (rows.length === 0) return empty;
 
         const ids = rows.map(r => r.candidate_id);
         const { data: experiences } = await (adminAuthClient as any)
@@ -171,7 +177,7 @@ export async function searchCandidateNames(query: string, limit = 6): Promise<Ca
         });
 
         const lower = safe.toLowerCase();
-        return rows
+        const results = rows
             .map(r => {
                 const exp = currentByCandidate.get(r.candidate_id);
                 const name = r.name || "Unknown";
@@ -196,9 +202,11 @@ export async function searchCandidateNames(query: string, limit = 6): Promise<Ca
                 if (aStarts !== bStarts) return aStarts - bStarts;
                 return a.name.localeCompare(b.name);
             });
+
+        return { results, totalCount: count ?? results.length };
     } catch (error) {
         console.error("Server Action Error (searchCandidateNames):", error);
-        return [];
+        return empty;
     }
 }
 
