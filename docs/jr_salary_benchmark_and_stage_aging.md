@@ -208,4 +208,27 @@ HIDDEN_STATUSES  = { "Interview Scheduled - ..." }  // ซ่อนจาก flo
 
 ---
 
-*Created: 2026-09-16 | JR Salary Benchmark v1 & Stage Aging v2*
+---
+
+## 9. Salary Benchmark v2 — หลัง review กับ user (2026-09-17)
+
+| feedback | ทำอะไร |
+|---|---|
+| ขอ ⓘ อธิบายว่า median / range มาจากไหน | ปุ่ม **What the numbers mean** — อธิบาย 6 หัวข้อ: “market” หมายถึงฐานข้อมูลเราเองไม่ใช่ survey, median, P25–P75, budget percentile, n, และว่าทุกเลขเป็น **basic salary ต่อเดือน** ไม่รวมโบนัส |
+| Salary Distribution ไว้ดูอะไร | **ใช่ — นับหัวคน** ต่อช่วงเงินเดือน · ใส่ label แกน Y ว่า `candidates` และแก้คำบรรยายให้ตรง |
+| Positioning + What this means แบนไป | `min-h-[340px]` ทั้งสองใบ + padding เพิ่ม + คำอธิบายใต้หัวข้อ |
+| ถ้า JR ไม่ใช่โรงแรมล่ะ | ถ้า cohort มี star rating **น้อยกว่า 2 กลุ่ม** จะสลับไปแสดง **Market Salary by Industry** แทนอัตโนมัติ (ดึง industry จาก `candidate_experiences.company_industry` → fallback `company_master.industry`) |
+| ตาราง candidate ขอ filter + chip | search (ชื่อ/ตำแหน่ง/บริษัท) · ปุ่ม rating (multi-select) · ปุ่ม Has salary — ทุกอันมี **chip ลบออกได้** + Clear all + นับ “N of M shown” แบบเดียวกับหน้า list |
+| ขอ sorting | เรียงได้ที่ Candidate / Current Position / Rating / Monthly Base / Bonus (กดหัวคอลัมน์ สลับขึ้น-ลง) |
+| filter มีผลกับกราฟข้างบนมั้ย | **ไม่มีผล — ตั้งใจ** เขียนกำกับไว้บนตาราง: กราฟข้างบนอธิบาย “ตลาด” (candidate ทั้ง DB ที่ตรงตำแหน่ง) ส่วนตารางคือ “คนใน JR นี้” ถ้า filter แล้วกราฟขยับด้วยจะอ่านไม่ออกว่าเลขไหนพูดถึงกลุ่มไหน |
+| ขาด current position | เพิ่มคอลัมน์ **Current Position** (บริษัทย้ายไปเป็นบรรทัดรองใต้ชื่อ แบบหน้า list) |
+| ขอให้เหมือนหน้า list view | เพิ่ม **รูป candidate** (`CandidateAvatar`) และ **ปุ่ม candidate_id กดแล้วเปิด `JRCandidateSheet`** ด้านข้าง — ดู benefit อื่นๆ ได้จากในนั้น |
+| What we actually paid | **เอาออกแล้ว** ทั้ง UI และ query (`employment_record`) — กู้จาก git history ได้ถ้าอยากได้คืน |
+
+### ยังไม่ได้ทำ
+- Filter ที่ตารางยังไม่ผูกกับกราฟ (ตามที่อธิบายไว้ข้างบน) ถ้าอยากได้จริงควรทำเป็น toggle แยก เช่น “คำนวณ market จากกลุ่มที่ filter ไว้”
+- Benefit Benchmark — รอข้อมูลสวัสดิการที่เพิ่งเปิดให้กรอกสะสมก่อน
+
+---
+
+*Created: 2026-09-16 | JR Salary Benchmark v2 & Stage Aging v2*

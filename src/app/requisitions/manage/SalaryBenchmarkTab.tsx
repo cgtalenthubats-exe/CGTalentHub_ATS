@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
-import { Banknote, Info, Loader2, Pencil, RefreshCw, TrendingDown, TrendingUp } from "lucide-react";
+import { ArrowDown, ArrowUp, Banknote, Info, Loader2, Pencil, RefreshCw, TrendingDown, TrendingUp, X } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,8 +11,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/notifications";
 import { cn } from "@/lib/utils";
-import { formatDateForDisplay } from "@/lib/date-utils";
-import { getJRSalaryBenchmark, updateJRBudget, type JRSalaryBenchmark } from "@/app/actions/jr-salary-benchmark";
+import { Badge } from "@/components/ui/badge";
+import { CandidateAvatar } from "@/components/candidate-avatar";
+import { JRCandidateSheet } from "@/components/jr-candidate-sheet";
+import { getJRSalaryBenchmark, updateJRBudget, type JRSalaryBenchmark, type SalaryRow } from "@/app/actions/jr-salary-benchmark";
 
 const thb = (n: number | null | undefined) =>
     n === null || n === undefined || !isFinite(n) ? "—" : `฿${Math.round(n).toLocaleString()}`;
@@ -252,10 +254,249 @@ function BudgetDialog({ open, onOpenChange, data, onSaved }: {
     );
 }
 
+const GLOSSARY: { term: string; meaning: string }[] = [
+    {
+        term: "Market",
+        meaning: "Not a published survey — there is no Mercer or Hays feed in this system. It means candidates in our own database whose current role matches this JR's position keywords and who have a gross basic salary on file. The matched keywords are listed under the heading above.",
+    },
+    {
+        term: "Median",
+        meaning: "The middle salary of that group: half earn more, half earn less. Used instead of an average so one 900k outlier can't drag the figure.",
+    },
+    {
+        term: "P25 – P75",
+        meaning: "The middle half of the group. A quarter earn below P25, a quarter above P75 — this is the band most offers land in.",
+    },
+    {
+        term: "Budget Position",
+        meaning: "Where the budget sits in that same group. P35 means roughly 35% of matching candidates currently earn less than the budget, and 65% earn more.",
+    },
+    {
+        term: "n = 48",
+        meaning: "How many candidates the figures are built from. A small n means treat the numbers as a hint, not a benchmark.",
+    },
+    {
+        term: "Basic salary only",
+        meaning: "Every figure is monthly basic salary in THB. Bonus is shown separately as a number of months and is never folded in.",
+    },
+];
+
+type SortKey = "name" | "position" | "rating" | "base" | "bonus";
+
+/** Candidate list for this JR, filterable and sortable, matching the List View conventions. */
+function PipelineTable({
+    rows,
+    budgetPoint,
+    withSalary,
+    total,
+}: {
+    rows: SalaryRow[];
+    budgetPoint: number | null;
+    withSalary: number;
+    total: number;
+}) {
+    const [ratingFilter, setRatingFilter] = useState<string[]>([]);
+    const [onlyWithSalary, setOnlyWithSalary] = useState(false);
+    const [query, setQuery] = useState("");
+    const [sortKey, setSortKey] = useState<SortKey>("base");
+    const [sortDesc, setSortDesc] = useState(true);
+    const [sheetId, setSheetId] = useState<string | null>(null);
+
+    const ratings = Array.from(new Set(rows.map(r => r.hotelRating).filter(Boolean) as string[])).sort();
+
+    const filtered = rows.filter(r => {
+        if (onlyWithSalary && r.monthlyBase <= 0) return false;
+        if (ratingFilter.length > 0 && (!r.hotelRating || !ratingFilter.includes(r.hotelRating))) return false;
+        if (query.trim()) {
+            const q = query.trim().toLowerCase();
+            const hay = `${r.name} ${r.position ?? ""} ${r.company ?? ""}`.toLowerCase();
+            if (!hay.includes(q)) return false;
+        }
+        return true;
+    });
+
+    const sorted = [...filtered].sort((a, b) => {
+        const dir = sortDesc ? -1 : 1;
+        switch (sortKey) {
+            case "name": return dir * a.name.localeCompare(b.name);
+            case "position": return dir * (a.position ?? "").localeCompare(b.position ?? "");
+            case "rating": return dir * (a.hotelRating ?? "").localeCompare(b.hotelRating ?? "");
+            case "bonus": return dir * (a.bonusMonths - b.bonusMonths);
+            default: return dir * (a.monthlyBase - b.monthlyBase);
+        }
+    });
+
+    const toggleSort = (key: SortKey) => {
+        if (key === sortKey) setSortDesc(v => !v);
+        else { setSortKey(key); setSortDesc(true); }
+    };
+
+    const SortHead = ({ label, k, align = "left" }: { label: string; k: SortKey; align?: "left" | "right" }) => (
+        <th className={cn("px-4 py-2", align === "right" ? "text-right" : "text-left")}>
+            <button
+                onClick={() => toggleSort(k)}
+                className={cn("inline-flex items-center gap-1 hover:text-indigo-600 transition-colors", sortKey === k && "text-indigo-600")}
+            >
+                {label}
+                {sortKey === k && (sortDesc ? <ArrowDown className="h-3 w-3" /> : <ArrowUp className="h-3 w-3" />)}
+            </button>
+        </th>
+    );
+
+    const hasFilters = ratingFilter.length > 0 || onlyWithSalary || query.trim().length > 0;
+
+    return (
+        <Card className="border-slate-200">
+            <CardContent className="p-0">
+                <div className="px-4 py-3 border-b border-slate-100 space-y-3">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                            Candidates in this JR — {withSalary} of {total} have salary on file
+                        </span>
+                        <span className="text-[10px] font-medium text-slate-400">Filters here affect this table only, not the market figures above</span>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <Input
+                            value={query}
+                            onChange={e => setQuery(e.target.value)}
+                            placeholder="Search name, position, company..."
+                            className="h-8 w-full sm:w-64 text-xs"
+                        />
+                        {ratings.map(r => (
+                            <button
+                                key={r}
+                                onClick={() => setRatingFilter(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r])}
+                                className={cn(
+                                    "h-8 px-3 rounded-md border text-[11px] font-bold transition-colors",
+                                    ratingFilter.includes(r)
+                                        ? "bg-indigo-50 border-indigo-200 text-indigo-700"
+                                        : "bg-white border-slate-200 text-slate-500 hover:border-indigo-200"
+                                )}
+                            >
+                                {r}
+                            </button>
+                        ))}
+                        <button
+                            onClick={() => setOnlyWithSalary(v => !v)}
+                            className={cn(
+                                "h-8 px-3 rounded-md border text-[11px] font-bold transition-colors",
+                                onlyWithSalary
+                                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                                    : "bg-white border-slate-200 text-slate-500 hover:border-emerald-200"
+                            )}
+                        >
+                            Has salary
+                        </button>
+                    </div>
+
+                    {hasFilters && (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            {query.trim() && (
+                                <Badge variant="outline" className="pr-1 gap-1 font-normal text-[11px] bg-cyan-500/10 text-cyan-600 border-cyan-500/20">
+                                    Search: &quot;{query.trim()}&quot;
+                                    <button onClick={() => setQuery("")} className="hover:text-cyan-800"><X className="h-3 w-3" /></button>
+                                </Badge>
+                            )}
+                            {ratingFilter.map(r => (
+                                <Badge key={r} variant="outline" className="pr-1 gap-1 font-normal text-[11px] bg-indigo-500/10 text-indigo-600 border-indigo-500/20">
+                                    {r}
+                                    <button onClick={() => setRatingFilter(prev => prev.filter(x => x !== r))} className="hover:text-indigo-800"><X className="h-3 w-3" /></button>
+                                </Badge>
+                            ))}
+                            {onlyWithSalary && (
+                                <Badge variant="outline" className="pr-1 gap-1 font-normal text-[11px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                                    Has salary
+                                    <button onClick={() => setOnlyWithSalary(false)} className="hover:text-emerald-800"><X className="h-3 w-3" /></button>
+                                </Badge>
+                            )}
+                            <button
+                                onClick={() => { setRatingFilter([]); setOnlyWithSalary(false); setQuery(""); }}
+                                className="text-[11px] font-bold text-slate-400 hover:text-slate-600 ml-1"
+                            >
+                                Clear all
+                            </button>
+                            <span className="text-[11px] font-bold text-slate-400 ml-auto">{sorted.length} of {rows.length} shown</span>
+                        </div>
+                    )}
+                </div>
+
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                            <tr>
+                                <th className="px-4 py-2 text-left w-[52px]"></th>
+                                <th className="px-4 py-2 text-left">ID</th>
+                                <SortHead label="Candidate" k="name" />
+                                <SortHead label="Current Position" k="position" />
+                                <SortHead label="Rating" k="rating" />
+                                <SortHead label="Monthly Base" k="base" align="right" />
+                                <SortHead label="Bonus (mth)" k="bonus" align="right" />
+                                <th className="px-4 py-2 text-right">vs Budget</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {sorted.map(r => {
+                                const diff = budgetPoint && r.monthlyBase > 0 ? r.monthlyBase - budgetPoint : null;
+                                return (
+                                    <tr key={r.candidateId} className="hover:bg-slate-50/60">
+                                        <td className="px-4 py-2.5">
+                                            <CandidateAvatar src={r.photo || undefined} name={r.name} className="h-10 w-10 border-2 border-slate-100" fallbackClassName="text-sm" />
+                                        </td>
+                                        <td className="px-4 py-2.5">
+                                            <button
+                                                onClick={() => r.jrCandidateId && setSheetId(r.jrCandidateId)}
+                                                disabled={!r.jrCandidateId}
+                                                className="font-mono text-[12px] font-black py-1 px-2 bg-indigo-50 rounded-md text-indigo-700 border border-indigo-100 hover:bg-indigo-100 transition-colors disabled:opacity-40 disabled:cursor-default whitespace-nowrap"
+                                                title="Open candidate detail"
+                                            >
+                                                {r.candidateId}
+                                            </button>
+                                        </td>
+                                        <td className="px-4 py-2.5">
+                                            <div className="font-bold text-slate-800 leading-tight">{r.name}</div>
+                                            <div className="text-[11px] text-slate-400 font-medium truncate max-w-[200px]">{r.company || "—"}</div>
+                                        </td>
+                                        <td className="px-4 py-2.5 text-slate-600 text-xs">{r.position || "—"}</td>
+                                        <td className="px-4 py-2.5 text-slate-500 text-xs">{r.hotelRating || "—"}</td>
+                                        <td className="px-4 py-2.5 text-right font-black text-slate-800">
+                                            {r.monthlyBase > 0 ? thb(r.monthlyBase) : <span className="text-slate-300 italic font-bold text-xs">No data</span>}
+                                        </td>
+                                        <td className="px-4 py-2.5 text-right text-slate-500">{r.bonusMonths > 0 ? r.bonusMonths : "—"}</td>
+                                        <td className={cn(
+                                            "px-4 py-2.5 text-right font-bold",
+                                            diff === null ? "text-slate-300" : diff > 0 ? "text-red-600" : "text-emerald-600"
+                                        )}>
+                                            {diff === null ? "—" : `${diff > 0 ? "+" : ""}${thb(diff)}`}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+                            {sorted.length === 0 && (
+                                <tr><td colSpan={8} className="px-4 py-8 text-center text-xs font-bold text-slate-400">No candidates match these filters.</td></tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+                <div className="px-4 py-2 border-t border-slate-100 text-[10px] text-slate-400 font-medium">
+                    &quot;vs Budget&quot; compares each candidate&apos;s current basic salary with the budget midpoint — positive means they already earn more than the budget.
+                </div>
+            </CardContent>
+
+            <JRCandidateSheet
+                jrCandidateId={sheetId}
+                open={!!sheetId}
+                onOpenChange={open => { if (!open) setSheetId(null); }}
+            />
+        </Card>
+    );
+}
+
 export function SalaryBenchmarkTab({ jrId }: { jrId: string }) {
     const [data, setData] = useState<JRSalaryBenchmark | null>(null);
     const [loading, setLoading] = useState(true);
     const [budgetOpen, setBudgetOpen] = useState(false);
+    const [showGlossary, setShowGlossary] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -312,6 +553,9 @@ export function SalaryBenchmarkTab({ jrId }: { jrId: string }) {
                     </p>
                 </div>
                 <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="gap-2" onClick={() => setShowGlossary(v => !v)} aria-expanded={showGlossary}>
+                        <Info className="h-3.5 w-3.5" /> What the numbers mean
+                    </Button>
                     <Button variant="outline" size="sm" className="gap-2" onClick={load}>
                         <RefreshCw className="h-3.5 w-3.5" /> Refresh
                     </Button>
@@ -320,6 +564,21 @@ export function SalaryBenchmarkTab({ jrId }: { jrId: string }) {
                     </Button>
                 </div>
             </div>
+
+            {showGlossary && (
+                <Card className="border-indigo-200 bg-indigo-50/50 dark:bg-indigo-950/20">
+                    <CardContent className="p-4">
+                        <dl className="grid grid-cols-1 md:grid-cols-[max-content_1fr] gap-x-6 gap-y-2">
+                            {GLOSSARY.map(g => (
+                                <div key={g.term} className="contents">
+                                    <dt className="text-[11px] font-black text-indigo-700 dark:text-indigo-300 whitespace-nowrap">{g.term}</dt>
+                                    <dd className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mb-1.5 md:mb-0">{g.meaning}</dd>
+                                </div>
+                            ))}
+                        </dl>
+                    </CardContent>
+                </Card>
+            )}
 
             {data.dataQuality.budgetColumnsMissing && (
                 <Card className="border-amber-200 bg-amber-50/60">
@@ -355,14 +614,17 @@ export function SalaryBenchmarkTab({ jrId }: { jrId: string }) {
             {m ? (
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
                     <Card className="border-slate-200 xl:col-span-2">
-                        <CardContent className="p-4">
+                        <CardContent className="p-6 min-h-[340px] flex flex-col">
                             <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">Salary Positioning</div>
-                            <PositioningBar data={data} />
+                            <p className="text-[11px] text-slate-400 font-medium mt-1">Where the budget sits against what matching candidates earn today</p>
+                            <div className="flex-1 flex items-center">
+                                <div className="w-full"><PositioningBar data={data} /></div>
+                            </div>
                         </CardContent>
                     </Card>
 
                     <Card className="border-slate-200">
-                        <CardContent className="p-4 space-y-3">
+                        <CardContent className="p-6 min-h-[340px] space-y-4">
                             <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">What this means</div>
                             {budgetPoint === null ? (
                                 <p className="text-xs font-medium text-slate-500">
@@ -426,13 +688,17 @@ export function SalaryBenchmarkTab({ jrId }: { jrId: string }) {
                 <Card className="border-slate-200">
                     <CardContent className="p-4">
                         <div className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">
-                            Salary Distribution <span className="font-medium normal-case tracking-normal text-slate-400">— how many matching candidates sit in each band</span>
+                            Salary Distribution <span className="font-medium normal-case tracking-normal text-slate-400">— headcount per salary band, so you can see whether the market clusters or spreads</span>
                         </div>
                         <div style={{ height: 240 }}>
                             <ResponsiveContainer width="100%" height="100%">
                                 <BarChart data={data.histogram.map(b => ({ ...b, label: thbShort(b.start) }))} margin={{ top: 10, right: 10, bottom: 10, left: 0 }}>
                                     <XAxis dataKey="label" tick={{ fontSize: 11 }} interval={0} />
-                                    <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                                    <YAxis
+                                        tick={{ fontSize: 11 }}
+                                        allowDecimals={false}
+                                        label={{ value: "candidates", angle: -90, position: "insideLeft", fontSize: 10, fill: "#94a3b8" }}
+                                    />
                                     <Tooltip
                                         cursor={{ fill: "rgba(99,102,241,0.06)" }}
                                         content={({ active, payload }) => {
@@ -466,97 +732,25 @@ export function SalaryBenchmarkTab({ jrId }: { jrId: string }) {
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                <SegmentTable title="Market Salary by Hotel Star Rating" rows={data.byHotelRating} keyLabel="Star Rating" />
+                {/* Star rating means nothing outside hospitality — fall back to industry when the
+                    matched cohort barely has ratings on file. */}
+                {data.byHotelRating.length >= 2
+                    ? <SegmentTable title="Market Salary by Hotel Star Rating" rows={data.byHotelRating} keyLabel="Star Rating" />
+                    : <SegmentTable title="Market Salary by Industry" rows={data.byIndustry} keyLabel="Industry" />}
                 <SegmentTable title="Market Salary by Region" rows={data.byRegion} keyLabel="Region" />
             </div>
 
             {data.pipelineRows.length > 0 && (
-                <Card className="border-slate-200">
-                    <CardContent className="p-0">
-                        <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
-                            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">
-                                Candidates in this JR ({data.dataQuality.pipelineWithSalary} of {data.dataQuality.pipelineTotal} have salary on file)
-                            </span>
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                                    <tr>
-                                        <th className="px-4 py-2 text-left">Candidate</th>
-                                        <th className="px-4 py-2 text-left">Current Company</th>
-                                        <th className="px-4 py-2 text-left">Rating</th>
-                                        <th className="px-4 py-2 text-right">Monthly Base</th>
-                                        <th className="px-4 py-2 text-right">Bonus (mth)</th>
-                                        <th className="px-4 py-2 text-right">vs Budget</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {data.pipelineRows.map(r => {
-                                        const diff = budgetPoint && r.monthlyBase > 0 ? r.monthlyBase - budgetPoint : null;
-                                        return (
-                                            <tr key={r.candidateId} className="hover:bg-slate-50/60">
-                                                <td className="px-4 py-2 font-bold text-slate-800">{r.name}</td>
-                                                <td className="px-4 py-2 text-slate-500 text-xs">{r.company || "—"}</td>
-                                                <td className="px-4 py-2 text-slate-500 text-xs">{r.hotelRating || "—"}</td>
-                                                <td className="px-4 py-2 text-right font-black text-slate-800">
-                                                    {r.monthlyBase > 0 ? thb(r.monthlyBase) : <span className="text-slate-300 italic font-bold text-xs">No data</span>}
-                                                </td>
-                                                <td className="px-4 py-2 text-right text-slate-500">{r.bonusMonths > 0 ? r.bonusMonths : "—"}</td>
-                                                <td className={cn(
-                                                    "px-4 py-2 text-right font-bold",
-                                                    diff === null ? "text-slate-300" : diff > 0 ? "text-red-600" : "text-emerald-600"
-                                                )}>
-                                                    {diff === null ? "—" : `${diff > 0 ? "+" : ""}${thb(diff)}`}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-                        <div className="px-4 py-2 border-t border-slate-100 text-[10px] text-slate-400 font-medium">
-                            &quot;vs Budget&quot; compares each candidate&apos;s current basic salary with the budget midpoint — positive means they earn more than the budget today.
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
-            {data.placements.length > 0 && (
-                <Card className="border-slate-200">
-                    <CardContent className="p-0">
-                        <div className="px-4 py-3 border-b border-slate-100 text-[11px] font-black uppercase tracking-wider text-slate-500">
-                            What we actually paid — recent placements for similar positions
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
-                                <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500">
-                                    <tr>
-                                        <th className="px-4 py-2 text-left">Candidate</th>
-                                        <th className="px-4 py-2 text-left">Position</th>
-                                        <th className="px-4 py-2 text-left">BU</th>
-                                        <th className="px-4 py-2 text-left">Hire Date</th>
-                                        <th className="px-4 py-2 text-right">Monthly Base</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {data.placements.map((p, i) => (
-                                        <tr key={i} className="hover:bg-slate-50/60">
-                                            <td className="px-4 py-2 font-bold text-slate-800">{p.candidateName}</td>
-                                            <td className="px-4 py-2 text-slate-500 text-xs">{p.position || "—"}</td>
-                                            <td className="px-4 py-2 text-slate-500 text-xs">{p.bu || "—"}</td>
-                                            <td className="px-4 py-2 text-slate-500 text-xs">{p.hireDate ? formatDateForDisplay(p.hireDate) : "—"}</td>
-                                            <td className="px-4 py-2 text-right font-black text-slate-800">{thb(p.monthlyBase)}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </CardContent>
-                </Card>
+                <PipelineTable
+                    rows={data.pipelineRows}
+                    budgetPoint={budgetPoint}
+                    withSalary={data.dataQuality.pipelineWithSalary}
+                    total={data.dataQuality.pipelineTotal}
+                />
             )}
 
             <p className="text-[10px] text-slate-400 font-medium">
-                Source: candidate profiles ({data.dataQuality.marketSampleSize} with salary on file) and our own placement records.
+                Source: candidate profiles in our own database — {data.dataQuality.marketSampleSize} matching candidates with a basic salary on file.
                 This is internal data, not a published salary survey.
             </p>
 
