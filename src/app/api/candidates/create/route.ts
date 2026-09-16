@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { COMPENSATION_KEYS, BENEFIT_PROVIDED_COLUMN } from '@/lib/compensation-fields';
 import { createClient } from '@supabase/supabase-js';
 import { createClient as createServerClient } from '@/lib/supabase/server';
 
@@ -10,6 +11,16 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 import { extractYear, formatDateForInput, getEffectiveAge } from '@/lib/date-utils';
 import { getCheckedStatus, normalizeName, normalizeEmail, normalizeLinkedIn } from '@/lib/candidate-utils';
+
+/** Copies only known compensation columns out of the request body. */
+function pickCompensationFromBody(body: any): Record<string, any> {
+    const out: Record<string, any> = {};
+    COMPENSATION_KEYS.forEach(key => {
+        out[key] = body[key] === undefined || body[key] === "" ? null : body[key];
+    });
+    out[BENEFIT_PROVIDED_COLUMN] = body[BENEFIT_PROVIDED_COLUMN] || null;
+    return out;
+}
 
 export async function POST(req: NextRequest) {
     try {
@@ -116,19 +127,8 @@ export async function POST(req: NextRequest) {
                     checked: getCheckedStatus(body.linkedin),
                     candidate_status: initialStatus.length > 0 ? initialStatus : null,
                     action_needed: 'Wait_for_vector', // AI System Flag
-                    // Compensation & Benefits (all optional)
-                    gross_salary_base_b_mth: body.gross_salary_base_b_mth || null,
-                    other_income: body.other_income || null,
-                    bonus_mth: body.bonus_mth || null,
-                    car_allowance_b_mth: body.car_allowance_b_mth || null,
-                    gasoline_b_mth: body.gasoline_b_mth || null,
-                    phone_b_mth: body.phone_b_mth || null,
-                    provident_fund_pct: body.provident_fund_pct || null,
-                    medical_b_annual: body.medical_b_annual || null,
-                    medical_b_mth: body.medical_b_mth || null,
-                    insurance: body.insurance || null,
-                    housing_for_expat_b_mth: body.housing_for_expat_b_mth || null,
-                    others_benefit: body.others_benefit || null,
+                    // Compensation & Benefits (all optional), keyed off the shared field list.
+                    ...pickCompensationFromBody(body),
                     created_date: new Date().toISOString(),
                     modify_date: new Date().toISOString(),
                     created_by: createdBy

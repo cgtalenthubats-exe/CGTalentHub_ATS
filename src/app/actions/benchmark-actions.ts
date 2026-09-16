@@ -1,22 +1,16 @@
 "use server";
 
 import { adminAuthClient } from "@/lib/supabase/admin";
+import { COMPENSATION_SELECT } from "@/lib/compensation";
 
 export interface BenchmarkCandidate {
     candidate_id: string;
     name: string;
-    gross_salary_base_b_mth: string | null;
-    other_income: string | null;
-    bonus_mth: string | null;
-    car_allowance_b_mth: string | null;
-    gasoline_b_mth: string | null;
-    phone_b_mth: string | null;
-    provident_fund_pct: string | null;
-    medical_b_annual: string | null;
-    medical_b_mth: string | null;
-    insurance: string | null;
-    housing_for_expat_b_mth: string | null;
-    others_benefit: string | null;
+    /**
+     * Every compensation column plus benefit_provided — indexed rather than listed, so a new
+     * benefit added to COMPENSATION_FIELDS flows through without editing this type.
+     */
+    [compensationColumn: string]: any;
     job_grouping: string | null;
     job_function: string | null;
     company: string | null;
@@ -36,14 +30,7 @@ export async function getRawBenchmarkData(): Promise<RawBenchmarkData> {
 
     const cpRes = await supabase
         .from('Candidate Profile')
-        .select(`
-                candidate_id, name,
-                gross_salary_base_b_mth, other_income, bonus_mth,
-                car_allowance_b_mth, gasoline_b_mth, phone_b_mth,
-                provident_fund_pct, medical_b_annual, medical_b_mth,
-                insurance, housing_for_expat_b_mth, others_benefit,
-                job_grouping, job_function
-            `)
+        .select(`candidate_id, name, ${COMPENSATION_SELECT}, job_grouping, job_function`)
         .not('gross_salary_base_b_mth', 'is', null)
         .gt('gross_salary_base_b_mth', 0); // Correct way to filter numeric salary
 

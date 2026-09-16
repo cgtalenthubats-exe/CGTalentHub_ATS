@@ -3,6 +3,8 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { getRawBenchmarkData, BenchmarkCandidate } from "@/app/actions/benchmark-actions";
 import { parseSalary, hasBenefit } from "@/lib/benchmark-utils";
+import { COMPENSATION_FIELDS, getCompensationField } from "@/lib/compensation-fields";
+import { benefitState } from "@/lib/compensation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
 import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
@@ -13,19 +15,11 @@ import { Loader2, RotateCcw, RefreshCw, CheckCircle2, Minus, Search, Building2, 
 import { formatNumberWithCommas } from "@/lib/utils";
 
 // ---- Benefit row definitions ----
-const BENEFIT_ROWS = [
-    { key: "bonus_mth", label: "Bonus (mth)" },
-    { key: "car_allowance_b_mth", label: "Car Allowance" },
-    { key: "gasoline_b_mth", label: "Gasoline" },
-    { key: "phone_b_mth", label: "Phone" },
-    { key: "provident_fund_pct", label: "Provident Fund" },
-    { key: "medical_b_annual", label: "Medical (Annual)" },
-    { key: "medical_b_mth", label: "Medical (Monthly)" },
-    { key: "insurance", label: "Insurance" },
-    { key: "housing_for_expat_b_mth", label: "Housing (Expat)" },
-    { key: "other_income", label: "Other Income" },
-    { key: "others_benefit", label: "Others" },
-] as const;
+// Derived from the shared compensation schema: base salary has its own column in this table, and
+// retired fields (medical_b_mth, kept only for old data) don't belong in a comparison view.
+const BENEFIT_ROWS = COMPENSATION_FIELDS
+    .filter(f => !f.retired && f.key !== "gross_salary_base_b_mth")
+    .map(f => ({ key: f.key, label: f.unit ? `${f.label} (${f.unit})` : f.label }));
 
 function formatK(val: number | null): string {
     if (val === null) return "-";
@@ -286,7 +280,15 @@ export default function PackageInfoTab() {
                 const vals = cands
                     .map(c => (c as any)[row.key] as string | null)
                     .filter(v => hasBenefit(v));
-                result[company][row.key] = vals.length > 0 ? (vals[0] as string) : null;
+                if (vals.length > 0) {
+                    result[company][row.key] = vals[0] as string;
+                    return;
+                }
+                // No figure on file doesn't mean nobody gets it — someone may have confirmed the
+                // benefit exists without knowing the amount.
+                const field = getCompensationField(row.key);
+                const anyProvided = field ? cands.some(c => benefitState(field, c) === "provided") : false;
+                result[company][row.key] = anyProvided ? "Provided" : null;
             });
         });
         return result;

@@ -10,6 +10,7 @@ import {
     ExternalLink, AlertCircle, Trash2, Edit3, Download,
 } from "lucide-react";
 import { cn, formatNumberWithCommas } from "@/lib/utils";
+import { CompensationSummary } from "@/components/compensation-summary";
 import { formatMonthYear } from "@/lib/date-utils";
 import { CandidateAvatar } from "@/components/candidate-avatar";
 import {
@@ -460,44 +461,7 @@ export function CandidatePreviewSheet({ candidateId, open, onOpenChange }: Props
                             <div className="space-y-4">
                                 <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-400">Financial Profile & Benefits</h3>
                                 <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100/50">
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5 text-sm">
-                                        {[
-                                            { label: "Salary (฿/M)", value: data.gross_salary_base_b_mth ? `฿${formatNumberWithCommas(data.gross_salary_base_b_mth)}` : "-", className: "text-emerald-600" },
-                                            { label: "Bonus (m)", value: data.bonus_mth ? `${data.bonus_mth} m` : "-" },
-                                            { label: "Other Inc.", value: data.other_income || "-" },
-                                            { label: "Car (฿/M)", value: data.car_allowance_b_mth ? `฿${formatNumberWithCommas(data.car_allowance_b_mth)}` : "-" },
-                                            { label: "Gas (฿/M)", value: data.gasoline_b_mth ? `฿${formatNumberWithCommas(data.gasoline_b_mth)}` : "-" },
-                                            { label: "Phone (฿/M)", value: data.phone_b_mth ? `฿${formatNumberWithCommas(data.phone_b_mth)}` : "-" },
-                                            { label: "PFund (%)", value: data.provident_fund_pct ? `${data.provident_fund_pct}%` : "-" },
-                                            { label: "Med (฿/Yr)", value: data.medical_b_annual ? `฿${formatNumberWithCommas(data.medical_b_annual)}` : "-" },
-                                            { label: "Med (฿/M)", value: data.medical_b_mth ? `฿${formatNumberWithCommas(data.medical_b_mth)}` : "-" },
-                                        ].map(({ label, value, className }) => (
-                                            <div key={label} className="space-y-1">
-                                                <p className="text-[9px] uppercase font-black tracking-widest text-slate-400">{label}</p>
-                                                <p className={cn("font-bold", className || "text-slate-700")}>{value}</p>
-                                            </div>
-                                        ))}
-                                        {/* Insurance */}
-                                        <div className="space-y-1">
-                                            <p className="text-[9px] uppercase font-black tracking-widest text-slate-400">Insurance</p>
-                                            <div className="flex flex-wrap gap-1">
-                                                {data.insurance ? data.insurance.split(',').map((item: string, i: number) => (
-                                                    <span key={i} className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-bold border border-indigo-100 uppercase">{item.trim()}</span>
-                                                )) : "-"}
-                                            </div>
-                                        </div>
-                                        {/* Housing */}
-                                        <div className="space-y-1 md:col-span-2">
-                                            <p className="text-[9px] uppercase font-black tracking-widest text-slate-400">Housing / Expat</p>
-                                            <p className="font-bold text-slate-700 truncate">{data.housing_for_expat_b_mth || "-"}</p>
-                                        </div>
-                                    </div>
-                                    {data.others_benefit && (
-                                        <div className="mt-6 pt-5 border-t border-slate-200/50">
-                                            <p className="text-[9px] uppercase font-black text-slate-400 tracking-widest block mb-2">Additional Benefits</p>
-                                            <p className="text-xs font-medium text-slate-600 leading-relaxed italic">&ldquo;{data.others_benefit}&rdquo;</p>
-                                        </div>
-                                    )}
+                                    <CompensationSummary candidate={data} />
                                 </div>
                             </div>
 

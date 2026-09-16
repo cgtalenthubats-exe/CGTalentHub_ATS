@@ -1,6 +1,7 @@
 # Compensation & Benefits Fields — สำรวจ + แผนการแก้ (รอ confirm)
 
-> **STATUS: สำรวจแล้ว ยังไม่แก้โค้ด** — branch `claude/compensation-benefits-plan-womqgi`
+> **STATUS: สร้างแล้วใน branch `claude/compensation-benefits-womqgi`** (ดูหัวข้อ 9) — ยังไม่ merge
+> ⚠️ ต้องรัน migration `20260917000000_add_compensation_benefit_fields.sql` ก่อน
 > อ่านไฟล์นี้ก่อนแตะฟอร์มกรอกเงินเดือน/สวัสดิการ ทุกครั้ง — field เดียวถูกใช้ใน **13 ไฟล์**
 
 ---
@@ -269,4 +270,75 @@ comment on column public."Candidate Profile".benefit_provided is
 
 ---
 
-*Created: 2026-09-16 | Compensation & Benefits Fields v2 — table split + tri-state decisions*
+---
+
+## 9. สิ่งที่ทำไปแล้ว (branch `claude/compensation-benefits-womqgi`)
+
+### 9.1 คำตอบที่ได้รับ → ที่ทำจริง
+
+| ข้อ | ตกลง | column |
+|---|---|---|
+| 1 | Dental แยกออกมา หน่วย **฿/เดือน** | `dental_b_mth` (ใหม่) · `medical_b_mth` เดิม **retired** — ยังแสดงถ้ามีข้อมูลเก่า แต่ไม่ให้กรอกใหม่ |
+| 2 | Annual Leave เป็น**หัวข้อใหม่** ไม่ใช่ rename | `annual_leave_days` (ใหม่) · `other_income` คงไว้ไม่แตะ |
+| 3 | IPD / OPD **บาท/ปี** | `ipd_b_annual`, `opd_b_annual` |
+| 4 | Meal / Service charge เป็น**จำนวนเงิน** | `meal_allowance_b_mth`, `service_charge_b_mth` (฿/เดือน) |
+| 5 | Education = **จำนวนคน + วงเงิน** | `education_support_children` (คน), `education_support_b_annual` (฿/ปี — วงเงินรวม ไม่ใช่ต่อคน) |
+
+### 9.2 ยังต้องเช็คเอง — `other_income` มีข้อมูลอยู่เท่าไหร่
+
+ผม query DB จาก session นี้ไม่ได้ ถ้าอยากรู้ว่ามีข้อมูลค้างอยู่มั้ยก่อนตัดสินใจอะไรกับ field นี้ รันอันนี้ใน Supabase SQL Editor:
+
+```sql
+select count(*)                                   as total,
+       count(other_income)                        as has_value,
+       count(*) filter (where other_income ~ '^[0-9.,]+$') as looks_numeric
+from public."Candidate Profile";
+
+select other_income, count(*)
+from public."Candidate Profile"
+where other_income is not null and other_income <> ''
+group by 1 order by 2 desc limit 20;
+```
+
+ตอนนี้ **ไม่ได้แตะ `other_income` เลย** ยังเป็นช่องข้อความอิสระเหมือนเดิม — ถ้าดูแล้วพบว่าไม่มีใครใช้ ค่อยตัดทิ้งทีหลังได้
+
+### 9.3 โครงใหม่
+
+| ไฟล์ | หน้าที่ |
+|---|---|
+| `src/lib/compensation-fields.ts` | **schema ที่เดียว** — 19 field พร้อม label / หน่วย / ชนิด / กลุ่ม / hint / ธง `trackProvided` / `retired` |
+| `src/lib/compensation.ts` | อ่าน-เขียน-ตีความ: `readCompensation`, `buildCompensationPayload`, `benefitState`, `benefitCoverage`, `amountsForStats`, `COMPENSATION_SELECT` |
+| `src/components/compensation-fields-grid.tsx` | ฟอร์มกรอก (generate จาก schema) |
+| `src/components/compensation-summary.tsx` | มุมมองอ่านอย่างเดียว (generate จาก schema เดียวกัน) |
+
+**ทุกที่ที่เคยเขียนชื่อ field เองตอนนี้ derive จาก schema แล้ว**: ฟอร์ม 3 ที่ · whitelist API 2 ที่ · preview sheet · candidate detail · dashboard `BENEFIT_ROWS` · benchmark select
+→ เพิ่มสวัสดิการครั้งหน้า = แก้ `compensation-fields.ts` + migration **จบ**
+
+### 9.4 ที่เปลี่ยนในหน้าจอ
+
+- **Base Salary (Gross)** + ข้อความใต้ช่อง "Gross — before tax and social security deductions" ← ข้อที่ขอ
+- ทุกช่องเงิน **format ตัวเลขเหมือนกันหมด** (คอมม่าอัตโนมัติ, พิมพ์ตัวอักษรไม่ได้, คีย์บอร์ดตัวเลขบนมือถือ) — เดิม format แค่ 4-6 ช่องแล้วแต่ฟอร์ม
+- **Other Benefits → Note** · **Housing / Expat → Housing**
+- จัดกลุ่มเป็น Salary / Allowances / Health & Welfare / Leave & Education / Other
+- **ปุ่ม ✓ / ✗ ข้างทุกสวัสดิการ** (ข้อ 8): ✓ = มี · ✗ = ยืนยันว่าไม่มี · ไม่กดเลย = ยังไม่ได้ถาม · กดซ้ำที่เดิม = ล้างกลับเป็นยังไม่ได้ถาม
+  - ติ๊ก ✓ แล้วไม่กรอกเงิน → ขึ้นบรรทัด "Marked as provided — amount not recorded"
+  - กด ✗ → ช่องเงิน disable
+- **หน้า Create Candidate มีช่องกรอก compensation แล้ว** — เดิมมี state กับ submit ครบ **แต่ไม่มี input สักช่อง** ทางเดียวที่ข้อมูลจะเข้าคือ AI อ่านเรซูเม่ (bug เงียบๆ ที่เพิ่งเจอตอนทำ)
+- Dashboard Package Info: ถ้าไม่มีตัวเลขแต่มีคนยืนยันว่ามีสวัสดิการ จะขึ้น "Provided" แทนช่องว่าง
+
+### 9.5 ตรวจแล้ว
+
+- `next build` → **Compiled successfully**
+- `tsc --noEmit` → ไม่มี error ใหม่ในไฟล์ที่แก้
+- **ยังไม่ได้ทดสอบกับข้อมูลจริง** (ไม่มี DB credential ใน session นี้) — ต้องรัน migration แล้วลองกรอกจริงก่อน
+
+### 9.6 ยังไม่ได้ทำ
+
+- **Benefit Benchmark ในหน้า JR Salary Benchmark** — ตอนนี้มีข้อมูลพอแล้ว (`benefitCoverage` เขียนรอไว้ให้แล้ว) แต่ต้องรอให้มีคนกรอกข้อมูลจริงสักพักก่อนถึงจะมีอะไรให้ดู
+- **AI parse-candidate ยังไม่ดึง field ใหม่** — prompt ยังรู้จักแค่ salary/car/gas/phone/bonus/pfund ถ้าอยากให้อ่านเรซูเม่แล้วเติม dental/IPD/OPD ให้ ต้องแก้ prompt เพิ่ม
+- **n8n callback** ยังเขียนแค่ `gross_salary_base_b_mth`
+- **แยกตาราง compensation** — ตามข้อ 7 ยังไม่ถึงเวลา แต่ตอนนี้ย้ายง่ายแล้วเพราะทุกอย่างผ่าน 2 ไฟล์
+
+---
+
+*Created: 2026-09-16 | Compensation & Benefits Fields v3 — implemented on claude/compensation-benefits-womqgi*
