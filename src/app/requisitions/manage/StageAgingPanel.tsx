@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { getJRStageAging, type JRStageAging, type StageAgingStage } from "@/app/actions/jr-stage-aging";
-import { SEVERITY_LABEL, severityForDays, STAGE_THRESHOLDS, type StageSeverity } from "@/lib/stage-aging";
+import { SEVERITY_LABEL, STAGE_THRESHOLDS, type StageSeverity } from "@/lib/stage-aging";
 
 const SEVERITY_STYLES: Record<StageSeverity, { pill: string; card: string; dot: string }> = {
     ok: { pill: "bg-emerald-50 text-emerald-700 border-emerald-200", card: "border-slate-200", dot: "bg-emerald-500" },
@@ -238,45 +238,6 @@ export function StageAgingPanel({ jrId }: { jrId: string }) {
                     {data.worst && <> · longest hold-up is <b className="text-slate-900 dark:text-white">{data.worst.status}</b> ({data.worst.count} {data.worst.count === 1 ? "candidate" : "candidates"}, {data.worst.days} days)</>}
                 </CardContent>
             </Card>
-
-            {data.actions.length > 0 && (
-                <Card className="border-slate-200 overflow-hidden">
-                    <CardContent className="p-0">
-                        <div className="px-4 py-2.5 border-b border-slate-100 text-[11px] font-black uppercase tracking-wider text-slate-500">
-                            Needs attention — nearest to a placement first
-                        </div>
-                        {data.actions.map((a, i) => {
-                            const isPool = a.kind === "holding";
-                            const sev: StageSeverity = isPool ? "ok" : severityForDays(a.days);
-                            const style = SEVERITY_STYLES[sev];
-                            return (
-                                <div
-                                    key={a.status}
-                                    className={cn(
-                                        "flex items-start gap-3 px-4 py-3 border-t border-slate-50 first:border-t-0",
-                                        isPool ? "bg-slate-50/60 dark:bg-slate-800/30" : sev === "critical" ? "bg-red-50/50" : "bg-amber-50/40"
-                                    )}
-                                >
-                                    <span className={cn("text-xs font-black w-4 shrink-0 pt-0.5", isPool ? "text-slate-400" : "text-slate-500")}>
-                                        {isPool ? "—" : i + 1}
-                                    </span>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="text-sm font-black text-slate-900 dark:text-white">{a.status}</div>
-                                        <div className="text-[11px] font-bold text-slate-500 mt-0.5">
-                                            {a.count} {a.count === 1 ? "candidate" : "candidates"}
-                                            {a.ownerRole && <> · owner: {a.ownerRole}</>}
-                                            {isPool && <> · longlist, not chased</>}
-                                        </div>
-                                    </div>
-                                    <span className={cn("text-sm font-black shrink-0", isPool ? "text-slate-400" : style.dot.replace("bg-", "text-"))}>
-                                        {a.days}d
-                                    </span>
-                                </div>
-                            );
-                        })}
-                    </CardContent>
-                </Card>
-            )}
 
             <Card className="border-slate-200">
                 <CardContent className="p-4 space-y-4">
