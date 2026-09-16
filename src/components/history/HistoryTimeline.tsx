@@ -18,9 +18,11 @@ interface HistoryRecord {
 interface HistoryTimelineProps {
     history: HistoryRecord[];
     candidateName: string;
+    /** Refetch for the parent that owns `history`; see CandidateActivityLog's onChanged. */
+    onChanged?: () => void | Promise<void>;
 }
 
-export function HistoryTimeline({ history, candidateName }: HistoryTimelineProps) {
+export function HistoryTimeline({ history, candidateName, onChanged }: HistoryTimelineProps) {
     if (!history || history.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center p-12 text-center space-y-4 bg-white rounded-3xl border border-dashed border-slate-200">
@@ -58,6 +60,7 @@ export function HistoryTimeline({ history, candidateName }: HistoryTimelineProps
                         {/* Left: Feedback */}
                         <div className="lg:col-span-2">
                             <FeedbackSection
+                                onChanged={onChanged}
                                 jrCandidateId={record.jr_candidate_id}
                                 candidateName={candidateName}
                                 feedback={record.feedback}
@@ -68,6 +71,7 @@ export function HistoryTimeline({ history, candidateName }: HistoryTimelineProps
                         {/* Right: Activity Log */}
                         <div className="lg:col-span-1">
                             <CandidateActivityLog
+                                onChanged={onChanged}
                                 logs={record.logs}
                                 jrCandidateId={record.jr_candidate_id}
                                 isReadOnly={true}

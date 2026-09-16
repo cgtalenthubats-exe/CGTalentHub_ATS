@@ -266,7 +266,7 @@ function MonthYearPicker({
 
 // -----------------------------------
 
-export function AddExperienceDialog({ candidateId, onSuccess: onRefresh }: { candidateId: string, onSuccess?: () => void }) {
+export function AddExperienceDialog({ candidateId, onSuccess: onRefresh }: { candidateId: string, onSuccess?: () => void | Promise<void> }) {
     const [open, setOpen] = useState(false);
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -282,9 +282,11 @@ export function AddExperienceDialog({ candidateId, onSuccess: onRefresh }: { can
                 </DialogHeader>
                 <ExperienceForm
                     candidateId={candidateId}
-                    onSuccess={() => {
+                    onSuccess={async () => {
+                        // Refresh first, close second — the dialog keeps its saving state until the
+                        // list behind it actually shows the new row.
+                        if (onRefresh) await onRefresh();
                         setOpen(false);
-                        if (onRefresh) onRefresh();
                     }}
                 />
             </DialogContent>
@@ -292,7 +294,7 @@ export function AddExperienceDialog({ candidateId, onSuccess: onRefresh }: { can
     );
 }
 
-export function EditExperienceDialog({ experience, candidateId, onSuccess: onRefresh }: { experience: any; candidateId: string; onSuccess?: () => void }) {
+export function EditExperienceDialog({ experience, candidateId, onSuccess: onRefresh }: { experience: any; candidateId: string; onSuccess?: () => void | Promise<void> }) {
     const [open, setOpen] = useState(false);
     return (
         <Dialog open={open} onOpenChange={setOpen}>
@@ -309,9 +311,11 @@ export function EditExperienceDialog({ experience, candidateId, onSuccess: onRef
                 <ExperienceForm
                     candidateId={candidateId}
                     experience={experience}
-                    onSuccess={() => {
+                    onSuccess={async () => {
+                        // Refresh first, close second — the dialog keeps its saving state until the
+                        // list behind it actually shows the new row.
+                        if (onRefresh) await onRefresh();
                         setOpen(false);
-                        if (onRefresh) onRefresh();
                     }}
                 />
             </DialogContent>
@@ -326,7 +330,7 @@ function ExperienceForm({
 }: {
     candidateId: string;
     experience?: any;
-    onSuccess: () => void;
+    onSuccess: () => void | Promise<void>;
 }) {
     const [loading, setLoading] = useState(false);
     const [isAutoFilling, setIsAutoFilling] = useState(false);
@@ -418,7 +422,7 @@ function ExperienceForm({
         } else {
             // If callback provided, run it, otherwise do the default reload
             if (onSuccess) {
-                onSuccess();
+                await onSuccess();
             } else {
                 window.location.reload();
             }
@@ -537,7 +541,7 @@ function ExperienceForm({
     );
 }
 
-export function DeleteExperienceButton({ id, candidateId, onSuccess }: { id: string, candidateId: string, onSuccess?: () => void }) {
+export function DeleteExperienceButton({ id, candidateId, onSuccess }: { id: string, candidateId: string, onSuccess?: () => void | Promise<void> }) {
     const [loading, setLoading] = useState(false);
     async function handleDelete(e: React.MouseEvent) {
         e.preventDefault();
@@ -545,7 +549,7 @@ export function DeleteExperienceButton({ id, candidateId, onSuccess }: { id: str
         setLoading(true);
         await deleteExperience(id, candidateId);
         setLoading(false);
-        if (onSuccess) onSuccess();
+        if (onSuccess) await onSuccess();
         else window.location.reload();
     }
 
@@ -558,7 +562,7 @@ export function DeleteExperienceButton({ id, candidateId, onSuccess }: { id: str
 
 export function SetCurrentExperienceButton({
     experienceId, candidateId, isCurrent, onSuccess
-}: { experienceId: string; candidateId: string; isCurrent: boolean; onSuccess?: () => void }) {
+}: { experienceId: string; candidateId: string; isCurrent: boolean; onSuccess?: () => void | Promise<void> }) {
     const [loading, setLoading] = useState(false);
 
     async function handleClick(e: React.MouseEvent) {
@@ -566,7 +570,7 @@ export function SetCurrentExperienceButton({
         setLoading(true);
         await setCurrentExperience(experienceId, candidateId);
         setLoading(false);
-        if (onSuccess) onSuccess();
+        if (onSuccess) await onSuccess();
         else window.location.reload();
     }
 

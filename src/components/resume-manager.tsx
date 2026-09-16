@@ -17,7 +17,7 @@ import { useRouter } from "next/navigation";
 interface ResumeManagerProps {
     candidateId: string;
     resumeUrl?: string | null;
-    onUpdate?: () => void; // Callback to refresh parent data
+    onUpdate?: () => void | Promise<void>; // Callback to refresh parent data
 }
 
 export function ResumeManager({ candidateId, resumeUrl, onUpdate }: ResumeManagerProps) {
@@ -87,8 +87,8 @@ export function ResumeManager({ candidateId, resumeUrl, onUpdate }: ResumeManage
             }
 
             toast.success("Resume uploaded successfully");
-            router.refresh();
-            if (onUpdate) onUpdate();
+            if (onUpdate) await onUpdate();
+            else router.refresh();
 
         } catch (error: any) {
             console.error(error);
@@ -113,8 +113,8 @@ export function ResumeManager({ candidateId, resumeUrl, onUpdate }: ResumeManage
             if (!res.ok) throw new Error("Failed to remove resume");
 
             toast.success("Resume removed");
-            router.refresh();
-            if (onUpdate) onUpdate();
+            if (onUpdate) await onUpdate();
+            else router.refresh();
 
         } catch (error: any) {
             toast.error("Failed to remove: " + error.message);

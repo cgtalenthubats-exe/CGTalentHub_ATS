@@ -17,12 +17,19 @@ import { getUserProfiles, UserProfile, getCurrentUserRealName } from "@/app/acti
 import { getStatusMaster, StatusMasterRow } from "@/app/actions/status-master";
 import { toast } from "@/lib/notifications";
 import { useRouter } from "next/navigation";
+import { useHighlightNew } from "@/hooks/use-highlight-new";
 import { useEffect } from "react";
 
 interface CandidateActivityLogProps {
     logs: StatusLog[];
     jrCandidateId: string;
     isReadOnly?: boolean;
+    /**
+     * Called after an entry is added, edited or deleted, so the owner of `logs` can reload it.
+     * Required whenever the parent is a client component holding `logs` in state (the candidate
+     * sheets); server-rendered parents can omit it and fall back to router.refresh().
+     */
+    onChanged?: () => void | Promise<void>;
 }
 
 // End states — a candidate isn't "sitting in" these waiting for something to happen next, so
@@ -30,13 +37,14 @@ interface CandidateActivityLogProps {
 // not a meaningful in-progress duration. Skip the day count only for these when they're the latest entry.
 const TERMINAL_STATUSES = new Set(['Successful Placement', 'Rejected', 'Not fit', 'Not Open', 'Not Pass Interview']);
 
-export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }: CandidateActivityLogProps) {
+export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false, onChanged }: CandidateActivityLogProps) {
     const router = useRouter();
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [editingLog, setEditingLog] = useState<StatusLog | null>(null);
     const [userProfiles, setUserProfiles] = useState<UserProfile[]>([]);
     const [availableStatuses, setAvailableStatuses] = useState<StatusMasterRow[]>([]);
+    const { armForNewItems, highlight, isHighlighted } = useHighlightNew(logs, log => log.log_id);
     const [formData, setFormData] = useState({
         status: "",
         note: "",
@@ -60,6 +68,13 @@ export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }
         }
         loadUsers();
     }, []);
+
+    // router.refresh() only reaches logs rendered by a server component. Inside the candidate
+    // sheets the array is client state, so the parent has to be the one to refetch.
+    const notifyChanged = async () => {
+        if (onChanged) await onChanged();
+        else router.refresh();
+    };
 
     const handleAdd = () => {
         setEditingLog(null);
@@ -91,7 +106,7 @@ export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }
             const res = await deleteActivityLog(logId);
             if (res.success) {
                 toast.success("Activity log deleted");
-                router.refresh();
+                await notifyChanged();
             } else {
                 toast.error(res.error || "Failed to delete log");
             }
@@ -113,9 +128,13 @@ export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }
             }
 
             if (res.success) {
-                toast.success(editingLog ? "Log updated" : "Log added");
+                toast.success(editingLog ? `Updated "${formData.status}"` : `Added "${formData.status}"`);
+                if (editingLog) highlight(editingLog.log_id);
+                else armForNewItems();
+                // Refetch before closing so the dialog stays in its saving state until the new
+                // entry is on screen, instead of closing onto an unchanged timeline.
+                await notifyChanged();
                 setIsDialogOpen(false);
-                router.refresh();
             } else {
                 toast.error(res.error || "Operation failed");
             }
@@ -157,7 +176,13 @@ export function CandidateActivityLog({ logs, jrCandidateId, isReadOnly = false }
                             : null;
 
                         return (
-                        <div key={log.log_id} className="relative flex gap-4 pr-2 group">
+                        <div
+                            key={log.log_id}
+                            className={cn(
+                                "relative flex gap-4 pr-2 group rounded-lg transition-all duration-500",
+                                isHighlighted(log.log_id) && "bg-amber-50/70 ring-2 ring-amber-300 -mx-2 px-2 py-2"
+                            )}
+                        >
                             <div className={cn(
                                 "z-10 h-3 w-3 rounded-full shrink-0 mt-1 border-2 border-white ring-2 ring-slate-50",
                                 idx === 0 ? "bg-indigo-500 ring-indigo-50 scale-125" : "bg-slate-300"

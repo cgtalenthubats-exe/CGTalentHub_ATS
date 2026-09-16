@@ -537,6 +537,7 @@ export function CandidateProfileSheet({ candidateId, open, onOpenChange }: Candi
                                     <HistoryTimeline
                                         history={history}
                                         candidateName={candidate?.name || "Candidate"}
+                                        onChanged={handleRefresh}
                                     />
                                 </div>
                             )}

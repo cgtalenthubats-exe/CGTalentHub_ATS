@@ -62,7 +62,7 @@ export function AddPrescreenDialog({
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
     showTrigger?: boolean;
-    onSuccess?: () => void;
+    onSuccess?: () => void | Promise<void>;
 }) {
     const [internalOpen, setInternalOpen] = useState(false);
     const isControlled = controlledOpen !== undefined;
@@ -87,7 +87,7 @@ export function AddPrescreenDialog({
             } else {
                 toast.success("Pre-Screen Log saved successfully!");
                 setOpen(false);
-                if (onSuccess) onSuccess(); else scrollWithReload(candidateId);
+                if (onSuccess) await onSuccess(); else scrollWithReload(candidateId);
             }
         });
     };
@@ -215,7 +215,7 @@ export function EditPrescreenDialog({
     open?: boolean;
     onOpenChange?: (open: boolean) => void;
     showTrigger?: boolean;
-    onSuccess?: () => void;
+    onSuccess?: () => void | Promise<void>;
 }) {
     const [internalOpen, setInternalOpen] = useState(false);
     const isControlled = controlledOpen !== undefined;
@@ -244,7 +244,7 @@ export function EditPrescreenDialog({
             } else {
                 toast.success("Pre-Screen Log updated successfully!");
                 setOpen(false);
-                if (onSuccess) onSuccess(); else scrollWithReload(candidateId);
+                if (onSuccess) await onSuccess(); else scrollWithReload(candidateId);
             }
         });
     };
@@ -367,7 +367,7 @@ export function EditPrescreenDialog({
 }
 
 
-export function DeletePrescreenButton({ logId, candidateId }: { logId: string, candidateId: string }) {
+export function DeletePrescreenButton({ logId, candidateId, onSuccess }: { logId: string, candidateId: string, onSuccess?: () => void | Promise<void> }) {
     const [isPending, startTransition] = useTransition();
     const router = useRouter();
 
@@ -380,7 +380,8 @@ export function DeletePrescreenButton({ logId, candidateId }: { logId: string, c
                 toast.error("Error deleting log: " + result.error);
             } else {
                 toast.success("Pre-Screen Log deleted successfully!");
-                scrollWithReload(candidateId);
+                if (onSuccess) await onSuccess();
+                else scrollWithReload(candidateId);
             }
         });
     };

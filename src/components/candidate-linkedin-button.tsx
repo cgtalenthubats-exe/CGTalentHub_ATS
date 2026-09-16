@@ -20,6 +20,8 @@ interface CandidateLinkedinButtonProps {
     linkedin?: string;
     candidateId: string;
     className?: string;
+    /** Refetch for a client-side parent that holds the profile in state (router.refresh() can't reach it). */
+    onUpdated?: () => void | Promise<void>;
     style?: React.CSSProperties;
 }
 
@@ -31,7 +33,7 @@ const normalizeUrl = (url: string | undefined): string | undefined => {
     return `https://${trimmed}`;
 };
 
-export function CandidateLinkedinButton({ checked, linkedin, candidateId, className, style }: CandidateLinkedinButtonProps) {
+export function CandidateLinkedinButton({ checked, linkedin, candidateId, className, style, onUpdated }: CandidateLinkedinButtonProps) {
     const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
     const safeUrl = normalizeUrl(linkedin);
@@ -75,7 +77,8 @@ export function CandidateLinkedinButton({ checked, linkedin, candidateId, classN
             toast.success("Profile link updated successfully");
             setIsOpen(false);
             setNewUrl("");
-            router.refresh(); // Refresh page data to reflect new status
+            if (onUpdated) await onUpdated();
+            else router.refresh();
         } catch (error: any) {
             toast.error(error.message);
         } finally {
