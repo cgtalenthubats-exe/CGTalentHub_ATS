@@ -938,11 +938,14 @@ export default function JRManagePage() {
                                 <div>
                                     <h3 className="text-lg font-semibold text-destructive">Failed to load Job Requisition</h3>
                                     <p className="text-muted-foreground max-w-sm mt-1">{loadError}</p>
+                                    {/* This page keeps its data in client state, so router.refresh()
+                                        would leave the failed load exactly as it was — a real
+                                        reload is what the button promises. */}
                                     <Button
                                         variant="outline"
                                         size="sm"
                                         className="mt-3"
-                                        onClick={() => router.refresh()}
+                                        onClick={() => window.location.reload()}
                                     >
                                         Reload page
                                     </Button>
