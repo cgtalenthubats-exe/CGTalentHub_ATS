@@ -735,12 +735,16 @@ export default function CandidateListPage() {
                         </div>
                     ) : (
                         candidates.map(candidate => (
+                            // orgCharts `?? []`: CandidateOrgChartButton defaults a missing
+                            // initialCharts to null, and null makes it fetch its own org chart.
+                            // Passing undefined meant every visible row fired its own server
+                            // action before the bulk fetch had returned.
                             <CandidateRichCard
                                 key={candidate.candidate_id}
                                 candidate={candidate}
                                 isSelected={selectedIds.includes(candidate.candidate_id)}
                                 onToggleSelect={() => handleToggleSelect(candidate.candidate_id)}
-                                orgCharts={orgChartData[candidate.candidate_id]}
+                                orgCharts={orgChartData[candidate.candidate_id] ?? []}
                                 orgChartsLoading={orgChartLoading && !orgChartData[candidate.candidate_id]}
                             />
                         ))

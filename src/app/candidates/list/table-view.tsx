@@ -385,12 +385,15 @@ export function CandidateTableView({
                 </TableHeader>
                 <TableBody>
                     {candidates.map((candidate) => (
+                        // orgCharts `?? []`: see the note in page.tsx — undefined falls through
+                        // to the component's `initialCharts = null` default, which triggers a
+                        // per-row fetch and floods the Server Action queue.
                         <CandidateRow
                             key={candidate.candidate_id}
                             candidate={candidate}
                             isSelected={selectedIds.includes(candidate.candidate_id)}
                             onToggleSelect={onToggleSelect}
-                            orgCharts={orgChartData[candidate.candidate_id]}
+                            orgCharts={orgChartData[candidate.candidate_id] ?? []}
                             orgChartsLoading={orgChartLoading && !orgChartData[candidate.candidate_id]}
                             showHotelColumn={showHotelColumn}
                             showStatusColumn={showStatusColumn}
