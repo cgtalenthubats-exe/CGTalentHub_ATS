@@ -18,7 +18,9 @@ export async function searchCompanies(query: string, limit = 20, filters?: any) 
 
         if (error) {
             console.error("Error searching companies (Variations):", error);
-            return { results: [], totalCount: 0 };
+            // Returned, not just logged: a swallowed error is indistinguishable from "no matches"
+            // in the dropdown, which is how this stayed invisible.
+            return { results: [], totalCount: 0, error: error.message };
         }
 
         if (!data || data.length === 0) {
@@ -62,9 +64,9 @@ export async function searchCompanies(query: string, limit = 20, filters?: any) 
             totalCount: uniqueEntries.length
         };
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Server Action Error (searchCompanies):", error);
-        return { results: [], totalCount: 0 };
+        return { results: [], totalCount: 0, error: error?.message || "Company lookup failed" };
     }
 }
 
@@ -93,7 +95,7 @@ export async function searchPositions(query: string, limit = 1000, filters?: any
 
         if (error) {
             console.error("Error searching positions (RPC):", error);
-            return { results: [], totalCount: 0 };
+            return { results: [], totalCount: 0, error: error.message };
         }
 
         const results = (data as any[])?.map((item: any) => item.result_value) || [];
@@ -102,9 +104,9 @@ export async function searchPositions(query: string, limit = 1000, filters?: any
             totalCount: results.length // RPC doesn't currently return a full count easily, but this keeps format same
         };
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("Server Action Error (searchPositions):", error);
-        return { results: [], totalCount: 0 };
+        return { results: [], totalCount: 0, error: error?.message || "Position lookup failed" };
     }
 }
 
@@ -129,7 +131,7 @@ export interface CandidateSuggestion {
 export async function searchCandidateNames(
     query: string,
     limit = 8
-): Promise<{ results: CandidateSuggestion[]; totalCount: number }> {
+): Promise<{ results: CandidateSuggestion[]; totalCount: number; error?: string }> {
     const empty = { results: [], totalCount: 0 };
     const q = query?.trim();
     if (!q || q.length < 2) return empty;
@@ -149,7 +151,7 @@ export async function searchCandidateNames(
 
         if (error) {
             console.error("Error searching candidate names:", error);
-            return empty;
+            return { ...empty, error: error.message };
         }
 
         const rows = (data || []) as any[];
@@ -204,9 +206,9 @@ export async function searchCandidateNames(
             });
 
         return { results, totalCount: count ?? results.length };
-    } catch (error) {
+    } catch (error: any) {
         console.error("Server Action Error (searchCandidateNames):", error);
-        return empty;
+        return { ...empty, error: error?.message || "Candidate lookup failed" };
     }
 }
 
