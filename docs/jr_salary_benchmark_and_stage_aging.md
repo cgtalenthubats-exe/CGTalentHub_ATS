@@ -231,4 +231,40 @@ HIDDEN_STATUSES  = { "Interview Scheduled - ..." }  // ซ่อนจาก flo
 
 ---
 
-*Created: 2026-09-16 | JR Salary Benchmark v2 & Stage Aging v2*
+---
+
+## 10. Salary Benchmark v3 — เปลี่ยน scope เป็น "เฉพาะ JR นี้" (2026-09-17)
+
+### สิ่งที่ผิดในเวอร์ชันก่อน
+
+ผมออกแบบตอบผิดคำถาม — v1/v2 ดึง candidate **ทั้ง database** ที่ตำแหน่งปัจจุบันตรงกับ position keyword ของ JR มาเป็น "market"
+
+แต่สิ่งที่ user ต้องการคือ **เทียบ budget กับกลุ่มคนที่เราเลือกมาใน JR นี้**
+
+ผลคือ JR000235 ซึ่ง **ไม่มีใครใน 32 คนมีข้อมูลเงินเดือนเลย** กลับแสดง median ฿270,000 · 5 Star ฿392,000 · 4 Star ฿290,000 — ตัวเลขจริง แต่มาจากคนนอก JR ทั้งหมด ซึ่งอ่านแล้วเข้าใจว่าเป็นของคนใน pool
+
+### v3 ทำอะไร
+
+| ส่วน | เปลี่ยนเป็น |
+|---|---|
+| **แหล่งข้อมูล** | เฉพาะ candidate ใน `jr_candidates` ของ JR นี้ ที่มี `gross_salary_base_b_mth` — **ไม่มีคนนอก JR เลย** |
+| ชื่อการ์ด | Market Median → **Pool Median** · Market Range → **Pool Range** · ตาราง breakdown → **Pool Salary by ...** |
+| คำอธิบายใต้หัวข้อ | บอกตรงๆ ว่า "across the N of M candidates in this JR who have one on their profile. Nobody outside this JR is included." |
+| Empty state | "None of the 32 candidates in this JR has a salary on file yet — Fill in Base Salary (Gross) on a candidate's profile" + ยังแสดงตารางรายชื่อไว้ให้กดเข้าไปกรอกได้ |
+| ⓘ glossary | เขียนใหม่ทั้งหมด หัวข้อแรกคือ **Which candidates** อธิบาย scope ก่อนเลย |
+| Breakdown ตาม rating / industry / region | ยังอยู่ แต่คำนวณจาก pool และต้องมีอย่างน้อย **3 คน** ต่อกลุ่มถึงจะขึ้น |
+
+### ที่ลบออก (ง่ายขึ้นเยอะ)
+
+- การ match `position_keyword_vocab` ทั้งหมด
+- query candidate ทั้ง DB (cap 3,000 คน) — ตอนนี้ query แค่คนใน JR ซึ่งเร็วกว่ามาก
+- field `market`, `pipeline`, `cohortKeywords`, `dataQuality.marketSampleSize`
+
+### Market-wide view ไปไหน
+
+ตกลงกันว่า**ภาพรวมทั้งระบบเก็บไว้ทำใน Dashboard** พร้อม filter เต็มระบบ ไม่ใช่ในหน้า JR
+โค้ดเดิม (keyword matching + cohort query) ยังอยู่ใน git history ที่ commit `07dfa86` เอากลับมาใช้เป็นฐานได้
+
+---
+
+*Created: 2026-09-16 | JR Salary Benchmark v3 & Stage Aging v2*

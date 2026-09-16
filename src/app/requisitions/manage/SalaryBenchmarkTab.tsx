@@ -48,7 +48,7 @@ function SummaryCard({ label, value, sub, tone = "slate" }: {
  * range, so the bar stays honest whatever the absolute numbers are.
  */
 function PositioningBar({ data }: { data: JRSalaryBenchmark }) {
-    const m = data.market;
+    const m = data.pool;
     if (!m) return null;
 
     const span = Math.max(m.max - m.min, 1);
@@ -256,28 +256,32 @@ function BudgetDialog({ open, onOpenChange, data, onSaved }: {
 
 const GLOSSARY: { term: string; meaning: string }[] = [
     {
-        term: "Market",
-        meaning: "Not a published survey — there is no Mercer or Hays feed in this system. It means candidates in our own database whose current role matches this JR's position keywords and who have a gross basic salary on file. The matched keywords are listed under the heading above.",
+        term: "Which candidates",
+        meaning: "Only the candidates in this JR who have a gross basic salary on their profile. Nobody from outside the JR is included — this compares the budget with the people actually shortlisted, not with the wider market.",
     },
     {
         term: "Median",
-        meaning: "The middle salary of that group: half earn more, half earn less. Used instead of an average so one 900k outlier can't drag the figure.",
+        meaning: "The middle salary of that group: half earn more, half earn less. Used instead of an average so one outlier can't drag the figure.",
     },
     {
         term: "P25 – P75",
-        meaning: "The middle half of the group. A quarter earn below P25, a quarter above P75 — this is the band most offers land in.",
+        meaning: "The middle half of the group. A quarter earn below P25, a quarter above P75.",
     },
     {
         term: "Budget Position",
-        meaning: "Where the budget sits in that same group. P35 means roughly 35% of matching candidates currently earn less than the budget, and 65% earn more.",
+        meaning: "Where the budget sits among these candidates. P35 means roughly 35% of them currently earn less than the budget, and 65% earn more.",
     },
     {
-        term: "n = 48",
-        meaning: "How many candidates the figures are built from. A small n means treat the numbers as a hint, not a benchmark.",
+        term: "n = 7",
+        meaning: "How many candidates the figures are built from. With a handful of people these are a sanity check, not a benchmark.",
     },
     {
         term: "Basic salary only",
         meaning: "Every figure is monthly basic salary in THB. Bonus is shown separately as a number of months and is never folded in.",
+    },
+    {
+        term: "Breakdown tables",
+        meaning: "A star rating, industry or region only gets its own row once at least 3 candidates in this JR share it — a median built from one person would read like a benchmark and isn't one.",
     },
 ];
 
@@ -353,7 +357,7 @@ function PipelineTable({
                         <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">
                             Candidates in this JR — {withSalary} of {total} have salary on file
                         </span>
-                        <span className="text-[10px] font-medium text-slate-400">Filters here affect this table only, not the market figures above</span>
+                        <span className="text-[10px] font-medium text-slate-400">Filters here affect this table only, not the figures above</span>
                     </div>
 
                     <div className="flex items-center gap-2 flex-wrap">
@@ -529,7 +533,7 @@ export function SalaryBenchmarkTab({ jrId }: { jrId: string }) {
         );
     }
 
-    const m = data.market;
+    const m = data.pool;
     const budgetPoint = data.budget
         ? (data.budget.min && data.budget.max ? (data.budget.min + data.budget.max) / 2 : data.budget.min || data.budget.max)
         : null;
@@ -548,8 +552,8 @@ export function SalaryBenchmarkTab({ jrId }: { jrId: string }) {
                 <div>
                     <h3 className="text-base font-bold text-slate-800 dark:text-slate-100">Salary Benchmark</h3>
                     <p className="text-xs text-slate-400 font-medium max-w-2xl">
-                        Monthly basic salary (THB). Market figures come from candidate profiles in our own database whose
-                        current role matches this position{data.cohortKeywords.length > 0 && <> — matched on <span className="font-bold text-slate-500">{data.cohortKeywords.join(", ")}</span></>}.
+                        Monthly basic salary (THB), across the {data.dataQuality.pipelineWithSalary} of {data.dataQuality.pipelineTotal} candidates
+                        in this JR who have one on their profile. Nobody outside this JR is included.
                     </p>
                 </div>
                 <div className="flex gap-2">
@@ -592,9 +596,9 @@ export function SalaryBenchmarkTab({ jrId }: { jrId: string }) {
             )}
 
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                <SummaryCard label="Market Median" value={m ? thb(m.median) : "—"} sub="per month" />
-                <SummaryCard label="Market Range (P25–P75)" value={m ? `${thbShort(m.p25)} – ${thbShort(m.p75)}` : "—"} sub="middle 50%" />
-                <SummaryCard label="Market Min – Max" value={m ? `${thbShort(m.min)} – ${thbShort(m.max)}` : "—"} sub={m ? `n = ${m.n}` : undefined} />
+                <SummaryCard label="Pool Median" value={m ? thb(m.median) : "—"} sub="per month" />
+                <SummaryCard label="Pool Range (P25–P75)" value={m ? `${thbShort(m.p25)} – ${thbShort(m.p75)}` : "—"} sub="middle 50% of the pool" />
+                <SummaryCard label="Pool Min – Max" value={m ? `${thbShort(m.min)} – ${thbShort(m.max)}` : "—"} sub={m ? `n = ${m.n}` : undefined} />
                 <SummaryCard
                     label="Our Budget"
                     value={budgetLabel}
@@ -606,7 +610,7 @@ export function SalaryBenchmarkTab({ jrId }: { jrId: string }) {
                 <SummaryCard
                     label="Budget Position"
                     value={data.budgetPercentile !== null ? `P${data.budgetPercentile}` : "—"}
-                    sub={data.budgetPercentile !== null ? "percentile of market" : "set a budget to see"}
+                    sub={data.budgetPercentile !== null ? "percentile within this pool" : "set a budget to see"}
                     tone={data.budgetPercentile === null ? "slate" : data.budgetPercentile < 25 ? "red" : data.budgetPercentile < 50 ? "amber" : "emerald"}
                 />
             </div>
@@ -628,7 +632,7 @@ export function SalaryBenchmarkTab({ jrId }: { jrId: string }) {
                             <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">What this means</div>
                             {budgetPoint === null ? (
                                 <p className="text-xs font-medium text-slate-500">
-                                    Set a budget to see how it compares with what these candidates currently earn.
+                                    Set a budget to see how it compares with what the candidates in this JR currently earn.
                                 </p>
                             ) : (
                                 <>
@@ -648,18 +652,16 @@ export function SalaryBenchmarkTab({ jrId }: { jrId: string }) {
                                     </div>
                                     <ul className="text-xs font-medium text-slate-600 space-y-1.5 list-disc pl-4">
                                         {(data.budgetPercentile ?? 50) < 25 && (
-                                            <li>Roughly {100 - (data.budgetPercentile ?? 0)}% of matching candidates already earn more than this budget — expect a narrow pool.</li>
+                                            <li>Roughly {100 - (data.budgetPercentile ?? 0)}% of the candidates in this JR already earn more than this budget.</li>
                                         )}
                                         {(data.budgetPercentile ?? 50) < 50 && (
                                             <li>Consider what can close the gap without moving base: bonus months, housing, transport.</li>
                                         )}
                                         {(data.budgetPercentile ?? 50) >= 50 && (
-                                            <li>Budget is at or above the median — competitive for this pool.</li>
+                                            <li>Budget is at or above the median of this pool.</li>
                                         )}
-                                        {data.pipeline && (
-                                            <li>
-                                                Candidates already in this JR: median {thb(data.pipeline.median)} ({data.pipeline.n} with salary on file).
-                                            </li>
+                                        {data.pool && (
+                                            <li>Based on {data.pool.n} of {data.dataQuality.pipelineTotal} candidates — the rest have no salary on file.</li>
                                         )}
                                     </ul>
                                     {data.budget?.note && (
@@ -674,11 +676,12 @@ export function SalaryBenchmarkTab({ jrId }: { jrId: string }) {
                 <Card className="border-dashed">
                     <CardContent className="py-10 text-center space-y-1">
                         <Banknote className="h-7 w-7 text-slate-300 mx-auto" />
-                        <p className="text-sm font-bold text-slate-600">Not enough salary data for this position yet</p>
+                        <p className="text-sm font-bold text-slate-600">
+                            None of the {data.dataQuality.pipelineTotal} candidates in this JR has a salary on file yet
+                        </p>
                         <p className="text-xs text-slate-400 max-w-md mx-auto">
-                            Market figures need candidates whose current role matches this position and who have
-                            &quot;Gross Salary Base&quot; filled in on their profile.
-                            {data.cohortKeywords.length === 0 && " No position keyword matched this JR title."}
+                            Fill in &quot;Base Salary (Gross)&quot; on a candidate&apos;s profile and the comparison appears here.
+                            Open a candidate from the table below to add it.
                         </p>
                     </CardContent>
                 </Card>
@@ -688,7 +691,7 @@ export function SalaryBenchmarkTab({ jrId }: { jrId: string }) {
                 <Card className="border-slate-200">
                     <CardContent className="p-4">
                         <div className="text-[11px] font-black uppercase tracking-wider text-slate-500 mb-2">
-                            Salary Distribution <span className="font-medium normal-case tracking-normal text-slate-400">— headcount per salary band, so you can see whether the market clusters or spreads</span>
+                            Salary Distribution <span className="font-medium normal-case tracking-normal text-slate-400">— how many candidates in this JR sit in each salary band</span>
                         </div>
                         <div style={{ height: 240 }}>
                             <ResponsiveContainer width="100%" height="100%">
@@ -735,9 +738,9 @@ export function SalaryBenchmarkTab({ jrId }: { jrId: string }) {
                 {/* Star rating means nothing outside hospitality — fall back to industry when the
                     matched cohort barely has ratings on file. */}
                 {data.byHotelRating.length >= 2
-                    ? <SegmentTable title="Market Salary by Hotel Star Rating" rows={data.byHotelRating} keyLabel="Star Rating" />
-                    : <SegmentTable title="Market Salary by Industry" rows={data.byIndustry} keyLabel="Industry" />}
-                <SegmentTable title="Market Salary by Region" rows={data.byRegion} keyLabel="Region" />
+                    ? <SegmentTable title="Pool Salary by Hotel Star Rating" rows={data.byHotelRating} keyLabel="Star Rating" />
+                    : <SegmentTable title="Pool Salary by Industry" rows={data.byIndustry} keyLabel="Industry" />}
+                <SegmentTable title="Pool Salary by Region" rows={data.byRegion} keyLabel="Region" />
             </div>
 
             {data.pipelineRows.length > 0 && (
@@ -750,8 +753,8 @@ export function SalaryBenchmarkTab({ jrId }: { jrId: string }) {
             )}
 
             <p className="text-[10px] text-slate-400 font-medium">
-                Source: candidate profiles in our own database — {data.dataQuality.marketSampleSize} matching candidates with a basic salary on file.
-                This is internal data, not a published salary survey.
+                Source: the {data.dataQuality.pipelineWithSalary} of {data.dataQuality.pipelineTotal} candidates in this JR with a basic salary on their profile.
+                A market-wide view across the whole database belongs in the dashboard, not here.
             </p>
 
             <BudgetDialog open={budgetOpen} onOpenChange={setBudgetOpen} data={data} onSaved={load} />

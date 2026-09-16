@@ -3,17 +3,18 @@
 import { adminAuthClient } from "@/lib/supabase/admin";
 
 /**
- * Salary benchmark for a single JR.
+ * Salary benchmark for a single JR — scoped to the candidates in that JR's pool.
  *
- * There is no external survey feed (Mercer/Hays) in this system, so "market" here means our own
- * data: the monthly basic salary recorded on candidate profiles, for candidates whose current
- * role matches the JR's position. That is a narrower claim than a published survey, but it is
- * real hospitality data for this region and it is the data we actually act on.
+ * An earlier version widened the comparison to every candidate in the database whose current role
+ * matched the JR's position keywords. That answers "what does this job pay in general", which is a
+ * different question from the one this tab exists for: how does our budget compare with the people
+ * we have actually shortlisted? It also produced figures for star ratings nobody in the JR held,
+ * which read as if they came from the pool. The whole-database view belongs in a dashboard with
+ * its own filters, not here.
  *
  * All figures are MONTHLY BASIC salary in THB — the unit stored in
- * `Candidate Profile.gross_salary_base_b_mth` and the unit recruiters quote. Bonus is stored
- * separately as a number of months (`bonus_mth`) and is reported alongside, never folded into
- * the basic figure.
+ * `Candidate Profile.gross_salary_base_b_mth`. Bonus is a number of months (`bonus_mth`) and is
+ * reported beside it, never folded in.
  */
 
 export interface SalaryStats {
@@ -40,7 +41,6 @@ export interface SalaryRow {
     industry: string | null;
     region: string | null;
     country: string | null;
-    inPipeline: boolean;
 }
 
 export interface SegmentStats extends SalaryStats {
@@ -51,28 +51,24 @@ export interface JRSalaryBenchmark {
     jrId: string;
     positionTitle: string;
     budget: { min: number | null; max: number | null; note: string | null } | null;
-    /** Null when there is no budget, or too little market data to place it. */
+    /** Null when there is no budget, or nobody in the pool has a salary to compare it with. */
     budgetPercentile: number | null;
     budgetVsMedianPct: number | null;
-    /** Keywords the cohort was matched on, so the user can see what "market" means here. */
-    cohortKeywords: string[];
-    market: SalaryStats | null;
-    pipeline: SalaryStats | null;
+    /** Stats across the JR's own candidates. Null when none of them has a salary on file. */
+    pool: SalaryStats | null;
     histogram: { start: number; end: number; count: number }[];
     byHotelRating: SegmentStats[];
-    /** Fallback breakdown for roles outside hospitality, where a star rating means nothing. */
     byIndustry: SegmentStats[];
     byRegion: SegmentStats[];
+    /** Everyone in the JR, including candidates with no salary — the table shows who is missing. */
     pipelineRows: SalaryRow[];
     dataQuality: {
         pipelineTotal: number;
         pipelineWithSalary: number;
-        marketSampleSize: number;
         budgetColumnsMissing: boolean;
     };
 }
 
-const MARKET_CANDIDATE_CAP = 3000;
 const CHUNK_SIZE = 150;
 
 function chunk<T>(arr: T[], size = CHUNK_SIZE): T[][] {
@@ -84,8 +80,7 @@ function chunk<T>(arr: T[], size = CHUNK_SIZE): T[][] {
 function toNumber(value: unknown): number {
     if (typeof value === "number") return isFinite(value) ? value : 0;
     if (typeof value !== "string") return 0;
-    const cleaned = value.replace(/[^0-9.]/g, "");
-    const n = parseFloat(cleaned);
+    const n = parseFloat(value.replace(/[^0-9.]/g, ""));
     return isNaN(n) ? 0 : n;
 }
 
@@ -125,20 +120,16 @@ function percentileRank(sorted: number[], value: number): number | null {
     return Math.round((below / sorted.length) * 100);
 }
 
-/**
- * Buckets sized to the spread of the data rather than a fixed step, so the shape stays readable
- * whether the role pays 40k or 400k.
- */
+/** Buckets sized to the spread of the data, so the shape reads whether the role pays 40k or 400k. */
 function buildHistogram(values: number[]): { start: number; end: number; count: number }[] {
     const sorted = values.filter(v => v > 0).sort((a, b) => a - b);
     if (sorted.length < 4) return [];
 
-    // Ignore the extreme tail when sizing buckets — one 900k outlier would otherwise flatten
-    // everything else into the first column.
+    // Ignore the extreme tail when sizing buckets — one outlier would flatten everything else.
     const cap = percentile(sorted, 0.98);
     const min = sorted[0];
     const span = Math.max(cap - min, 1);
-    const targetBuckets = Math.min(12, Math.max(6, Math.round(Math.sqrt(sorted.length))));
+    const targetBuckets = Math.min(12, Math.max(5, Math.round(Math.sqrt(sorted.length))));
     const rawStep = span / targetBuckets;
     const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
     const step = Math.max(Math.ceil(rawStep / magnitude) * magnitude, 1000);
@@ -149,14 +140,19 @@ function buildHistogram(values: number[]): { start: number; end: number; count: 
     for (let s = start; s < end; s += step) buckets.push({ start: s, end: s + step, count: 0 });
 
     sorted.forEach(v => {
-        // Everything above the cap lands in the final bucket instead of being dropped.
         const idx = Math.min(Math.floor((v - start) / step), buckets.length - 1);
         if (idx >= 0) buckets[idx].count++;
     });
     return buckets;
 }
 
-function statsBySegment(rows: SalaryRow[], key: (r: SalaryRow) => string | null, minSample = 3): SegmentStats[] {
+/**
+ * Segment breakdowns only appear once a group has enough people to mean something. With a pool of
+ * twenty or thirty, a "median" built from one person would look like a benchmark and isn't one.
+ */
+const MIN_SEGMENT_SAMPLE = 3;
+
+function statsBySegment(rows: SalaryRow[], key: (r: SalaryRow) => string | null): SegmentStats[] {
     const groups = new Map<string, number[]>();
     rows.forEach(r => {
         const k = key(r);
@@ -170,32 +166,8 @@ function statsBySegment(rows: SalaryRow[], key: (r: SalaryRow) => string | null,
             const s = buildStats(values);
             return s ? { key: k, ...s } : null;
         })
-        .filter((s): s is SegmentStats => s !== null && s.n >= minSample)
+        .filter((s): s is SegmentStats => s !== null && s.n >= MIN_SEGMENT_SAMPLE)
         .sort((a, b) => b.median - a.median);
-}
-
-/**
- * Turns the JR's free-text position into vocabulary keywords, so the cohort is defined by terms
- * the rest of the system already uses instead of a substring match on job titles.
- */
-async function resolveCohortKeywords(positionTitle: string): Promise<string[]> {
-    if (!positionTitle?.trim()) return [];
-    const title = positionTitle.toLowerCase();
-
-    const { data: vocab } = await (adminAuthClient as any)
-        .from("position_keyword_vocab")
-        .select("keyword, aliases");
-
-    const matched = new Set<string>();
-    ((vocab || []) as { keyword: string; aliases: string | null }[]).forEach(row => {
-        if (!row.keyword) return;
-        const terms = [row.keyword, ...(row.aliases || "").split(/[,;|]/)]
-            .map(t => t.trim().toLowerCase())
-            .filter(t => t.length >= 3);
-        if (terms.some(t => title.includes(t))) matched.add(row.keyword);
-    });
-
-    return Array.from(matched);
 }
 
 export async function getJRSalaryBenchmark(jrId: string): Promise<JRSalaryBenchmark | null> {
@@ -220,9 +192,6 @@ export async function getJRSalaryBenchmark(jrId: string): Promise<JRSalaryBenchm
             ? { min: budgetMin, max: budgetMax, note: jrRow.budget_note || null }
             : null;
 
-        const cohortKeywords = await resolveCohortKeywords(positionTitle);
-
-        // --- pipeline (candidates attached to this JR) ---
         const { data: jrCands } = await supabase
             .from("jr_candidates")
             .select("jr_candidate_id, candidate_id")
@@ -234,40 +203,24 @@ export async function getJRSalaryBenchmark(jrId: string): Promise<JRSalaryBenchm
                 jrCandidateIdByCandidate.set(c.candidate_id, c.jr_candidate_id);
             }
         });
-        const pipelineIds = Array.from(jrCandidateIdByCandidate.keys());
+        const candidateIds = Array.from(jrCandidateIdByCandidate.keys());
 
-        // --- market cohort (same position keyword, current role) ---
-        let marketIds: string[] = [];
-        if (cohortKeywords.length > 0) {
-            const { data: matchedExp } = await (supabase as any)
-                .from("candidate_experiences")
-                .select("candidate_id")
-                .in("position_keyword", cohortKeywords)
-                .eq("is_current_job", "Current")
-                .limit(MARKET_CANDIDATE_CAP);
-            marketIds = Array.from(
-                new Set(((matchedExp || []) as any[]).map(r => r.candidate_id).filter(Boolean))
-            ) as string[];
-        }
-
-        const allIds = Array.from(new Set([...pipelineIds, ...marketIds]));
-        if (allIds.length === 0) {
-            return {
-                jrId, positionTitle, budget, budgetPercentile: null, budgetVsMedianPct: null,
-                cohortKeywords, market: null, pipeline: null, histogram: [],
-                byHotelRating: [], byIndustry: [], byRegion: [], pipelineRows: [],
-                dataQuality: { pipelineTotal: 0, pipelineWithSalary: 0, marketSampleSize: 0, budgetColumnsMissing },
-            };
-        }
+        const emptyResult: JRSalaryBenchmark = {
+            jrId, positionTitle, budget, budgetPercentile: null, budgetVsMedianPct: null,
+            pool: null, histogram: [], byHotelRating: [], byIndustry: [], byRegion: [],
+            pipelineRows: [],
+            dataQuality: { pipelineTotal: candidateIds.length, pipelineWithSalary: 0, budgetColumnsMissing },
+        };
+        if (candidateIds.length === 0) return emptyResult;
 
         const [profileChunks, expChunks, countryRes] = await Promise.all([
-            Promise.all(chunk(allIds).map(ids =>
+            Promise.all(chunk(candidateIds).map(ids =>
                 (supabase as any)
                     .from("Candidate Profile")
                     .select("candidate_id, name, photo, gross_salary_base_b_mth, bonus_mth")
                     .in("candidate_id", ids)
             )),
-            Promise.all(chunk(allIds).map(ids =>
+            Promise.all(chunk(candidateIds).map(ids =>
                 (supabase as any)
                     .from("candidate_experiences")
                     .select("candidate_id, company, company_id, position, is_current_job, start_date, country, company_industry")
@@ -312,8 +265,7 @@ export async function getJRSalaryBenchmark(jrId: string): Promise<JRSalaryBenchm
             });
         }
 
-        const pipelineSet = new Set(pipelineIds);
-        const rows: SalaryRow[] = (profiles as any[]).map(p => {
+        const pipelineRows: SalaryRow[] = (profiles as any[]).map(p => {
             const exp = currentExp.get(p.candidate_id);
             const country = exp?.country || null;
             return {
@@ -329,24 +281,20 @@ export async function getJRSalaryBenchmark(jrId: string): Promise<JRSalaryBenchm
                 industry: exp?.company_industry || (exp?.company_id ? industryByCompany.get(String(exp.company_id)) || null : null),
                 region: country ? countryRegion.get(country) || null : null,
                 country,
-                inPipeline: pipelineSet.has(p.candidate_id),
             };
         });
 
-        const marketRows = rows.filter(r => r.monthlyBase > 0);
-        const marketValues = marketRows.map(r => r.monthlyBase).sort((a, b) => a - b);
-        const market = buildStats(marketValues);
-
-        const pipelineRows = rows.filter(r => r.inPipeline);
-        const pipeline = buildStats(pipelineRows.map(r => r.monthlyBase));
+        const withSalary = pipelineRows.filter(r => r.monthlyBase > 0);
+        const values = withSalary.map(r => r.monthlyBase).sort((a, b) => a - b);
+        const pool = buildStats(values);
 
         // A range budget is judged at its midpoint — that is the number the offer usually lands on.
         const budgetPoint = budget
             ? (budget.min && budget.max ? (budget.min + budget.max) / 2 : budget.min || budget.max)
             : null;
-        const budgetPercentile = budgetPoint && market ? percentileRank(marketValues, budgetPoint) : null;
-        const budgetVsMedianPct = budgetPoint && market && market.median > 0
-            ? Math.round(((budgetPoint - market.median) / market.median) * 100)
+        const budgetPercentile = budgetPoint && pool ? percentileRank(values, budgetPoint) : null;
+        const budgetVsMedianPct = budgetPoint && pool && pool.median > 0
+            ? Math.round(((budgetPoint - pool.median) / pool.median) * 100)
             : null;
 
         return {
@@ -355,18 +303,15 @@ export async function getJRSalaryBenchmark(jrId: string): Promise<JRSalaryBenchm
             budget,
             budgetPercentile,
             budgetVsMedianPct,
-            cohortKeywords,
-            market,
-            pipeline,
-            histogram: buildHistogram(marketValues),
-            byHotelRating: statsBySegment(marketRows, r => r.hotelRating),
-            byIndustry: statsBySegment(marketRows, r => r.industry),
-            byRegion: statsBySegment(marketRows, r => r.region),
+            pool,
+            histogram: buildHistogram(values),
+            byHotelRating: statsBySegment(withSalary, r => r.hotelRating),
+            byIndustry: statsBySegment(withSalary, r => r.industry),
+            byRegion: statsBySegment(withSalary, r => r.region),
             pipelineRows: pipelineRows.sort((a, b) => b.monthlyBase - a.monthlyBase),
             dataQuality: {
-                pipelineTotal: pipelineIds.length,
-                pipelineWithSalary: pipelineRows.filter(r => r.monthlyBase > 0).length,
-                marketSampleSize: marketValues.length,
+                pipelineTotal: candidateIds.length,
+                pipelineWithSalary: withSalary.length,
                 budgetColumnsMissing,
             },
         };
