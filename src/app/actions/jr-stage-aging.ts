@@ -2,66 +2,75 @@
 
 import { adminAuthClient } from "@/lib/supabase/admin";
 import { getJRAgingDays } from "@/lib/utils";
-import { severityForDays, STAGE_THRESHOLDS, TERMINAL_STATUSES, type StageSeverity } from "@/lib/stage-aging";
+import {
+    HIDDEN_STATUSES,
+    median,
+    severityForDays,
+    stageKind,
+    STAGE_THRESHOLDS,
+    type StageKind,
+    type StageSeverity,
+} from "@/lib/stage-aging";
 
 /**
  * Stage-level view of where a JR is stuck.
  *
- * The existing "Avg. Aging (Days)" bar chart answers a historical question — how long candidates
- * have typically spent in each status. That is not the question a recruiter opens the JR with.
- * This action answers the live one: which stage is holding the search up right now, who is
- * sitting in it, and for how long.
+ * Two questions live in this data and they must not be averaged together:
  *
- * Everything is derived from `status_log`, so a candidate's time in a stage is the interval
- * between consecutive log entries; for the latest entry it runs to now.
+ *   "how long has this person been stuck?"  — an unfinished wait, measured to today, growing
+ *                                             every day until someone moves them
+ *   "how long does this stage usually take?" — a finished duration, known exactly, and only
+ *                                             answerable from candidates who already moved on
+ *
+ * The first version mixed the two into one mean per stage, which on this data (most candidates
+ * leave the pool the same day, the rest sit for months) produced a number that described nobody
+ * and crept upward while nothing happened. Completed durations now use a median and are reported
+ * with their sample size; ongoing waits are reported separately as waits.
  */
 
 export interface StageAgingStage {
     status: string;
     stageOrder: number;
+    kind: StageKind;
     ownerRole: string | null;
     /** Candidates whose latest status is this one. */
     currentCount: number;
-    /** Longest ongoing wait among those candidates, in days. */
+    /** Longest unfinished wait among them, in days. Zero for exit stages — nobody is waiting. */
     longestWaitDays: number;
-    /** Historical: every visit any candidate has ever made to this stage. */
-    avgDays: number;
-    minDays: number;
-    maxDays: number;
-    visits: number;
-    isTerminal: boolean;
+    /** How many of them have been here past the delayed threshold. */
+    overdueCount: number;
+    /** Median of durations that actually finished; null when nobody has left this stage yet. */
+    medianCompletedDays: number | null;
+    completedCount: number;
+    /** False for a stage on the path that nobody has reached — shown greyed out. */
+    everVisited: boolean;
     severity: StageSeverity;
 }
 
-export interface StageAgingCandidate {
-    jrCandidateId: string;
-    candidateId: string;
-    name: string;
+export interface StageAction {
     status: string;
-    stageOrder: number;
+    kind: StageKind;
+    count: number;
+    days: number;
     ownerRole: string | null;
-    /** ISO date the candidate entered the current status. */
-    waitingSince: string | null;
-    agingDays: number;
-    severity: StageSeverity;
-    lastUpdatedBy: string | null;
-    isTerminal: boolean;
 }
 
 export interface JRStageAging {
     totalOpenDays: number | null;
-    stages: StageAgingStage[];
-    candidates: StageAgingCandidate[];
-    bottleneck: {
-        status: string;
-        ownerRole: string | null;
-        waitingCount: number;
-        longestWaitDays: number;
-    } | null;
-    /** Sum of current waiting days grouped by who owns the next action. */
+    activeCandidates: number;
+    exitedCandidates: number;
+    /** Active candidates in a work stage past the delayed threshold. */
+    overdueCount: number;
+    /** How far the search has actually got along the main path. */
+    furthest: { status: string; position: number; total: number } | null;
+    /** The work stage holding things up longest right now. */
+    worst: { status: string; count: number; days: number } | null;
+    mainPath: StageAgingStage[];
+    exits: StageAgingStage[];
+    /** What to deal with, deepest stage first — clearing the one nearest the end is what closes a JR. */
+    actions: StageAction[];
     ownerDays: { ownerRole: string; days: number; candidates: number }[];
     ownerRoleConfigured: boolean;
-    activeCandidates: number;
 }
 
 const CHUNK_SIZE = 150;
@@ -79,8 +88,9 @@ function daysBetween(fromMs: number, toMs: number): number {
 export async function getJRStageAging(jrId: string): Promise<JRStageAging> {
     const supabase = adminAuthClient;
     const empty: JRStageAging = {
-        totalOpenDays: null, stages: [], candidates: [], bottleneck: null,
-        ownerDays: [], ownerRoleConfigured: false, activeCandidates: 0,
+        totalOpenDays: null, activeCandidates: 0, exitedCandidates: 0, overdueCount: 0,
+        furthest: null, worst: null, mainPath: [], exits: [], actions: [],
+        ownerDays: [], ownerRoleConfigured: false,
     };
 
     try {
@@ -92,10 +102,9 @@ export async function getJRStageAging(jrId: string): Promise<JRStageAging> {
                 .returns<{ jr_candidate_id: string; candidate_id: string; temp_status: string }[]>(),
         ]);
 
-        const masterRows = (masters || []) as any[];
+        const masterRows = ((masters || []) as any[]).filter(m => !HIDDEN_STATUSES.has(m.status));
         const ownerRoleConfigured = masterRows.some(m => m.owner_role);
-        const stageOrder = new Map<string, number>(masterRows.map(m => [m.status, m.stage_order ?? 999]));
-        const ownerByStatus = new Map<string, string | null>(masterRows.map(m => [m.status, m.owner_role || null]));
+        const ownerOf = new Map<string, string | null>(masterRows.map(m => [m.status, m.owner_role || null]));
 
         const totalOpenDays = getJRAgingDays(jrRow?.request_date, jrRow?.closed_date);
 
@@ -104,24 +113,13 @@ export async function getJRStageAging(jrId: string): Promise<JRStageAging> {
         }
 
         const jrCandIds = jrCands.map(c => c.jr_candidate_id);
-        const candidateIds = Array.from(new Set(jrCands.map(c => c.candidate_id).filter(Boolean)));
-
-        const [logChunks, nameChunks] = await Promise.all([
-            Promise.all(chunk(jrCandIds).map(ids =>
-                supabase.from("status_log")
-                    .select("log_id, jr_candidate_id, status, timestamp, updated_by")
-                    .in("jr_candidate_id", ids)
-                    .returns<{ log_id: number; jr_candidate_id: string; status: string; timestamp: string; updated_by: string | null }[]>()
-            )),
-            Promise.all(chunk(candidateIds).map(ids =>
-                (supabase as any).from("Candidate Profile").select("candidate_id, name").in("candidate_id", ids)
-            )),
-        ]);
-
+        const logChunks = await Promise.all(chunk(jrCandIds).map(ids =>
+            supabase.from("status_log")
+                .select("log_id, jr_candidate_id, status, timestamp")
+                .in("jr_candidate_id", ids)
+                .returns<{ log_id: number; jr_candidate_id: string; status: string; timestamp: string }[]>()
+        ));
         const logs = logChunks.flatMap(r => r.data || []);
-        const nameById = new Map<string, string>(
-            nameChunks.flatMap((r: any) => r.data || []).map((p: any) => [p.candidate_id, p.name || "Unknown"])
-        );
 
         const logsByCandidate = new Map<string, typeof logs>();
         logs.forEach(l => {
@@ -130,8 +128,9 @@ export async function getJRStageAging(jrId: string): Promise<JRStageAging> {
         });
 
         const now = Date.now();
-        const history = new Map<string, { total: number; min: number; max: number; visits: number }>();
-        const candidates: StageAgingCandidate[] = [];
+        /** Durations that finished — the only ones we can honestly call "how long it takes". */
+        const completedByStatus = new Map<string, number[]>();
+        const current: { status: string; agingDays: number; kind: StageKind }[] = [];
 
         jrCands.forEach(jc => {
             const cLogs = (logsByCandidate.get(jc.jr_candidate_id) || []).slice().sort((a, b) => {
@@ -142,72 +141,87 @@ export async function getJRStageAging(jrId: string): Promise<JRStageAging> {
             });
 
             cLogs.forEach((log, i) => {
+                if (i === cLogs.length - 1) return; // still in this status — not a finished duration
                 const status = log.status || "Unknown";
                 const start = new Date(log.timestamp).getTime();
-                const end = i === cLogs.length - 1 ? now : new Date(cLogs[i + 1].timestamp).getTime();
+                const end = new Date(cLogs[i + 1].timestamp).getTime();
                 if (isNaN(start) || isNaN(end) || end < start) return;
-                const days = daysBetween(start, end);
-                const h = history.get(status) || { total: 0, min: days, max: days, visits: 0 };
-                h.total += days;
-                h.min = Math.min(h.min, days);
-                h.max = Math.max(h.max, days);
-                h.visits += 1;
-                history.set(status, h);
+                if (!completedByStatus.has(status)) completedByStatus.set(status, []);
+                completedByStatus.get(status)!.push(daysBetween(start, end));
             });
 
             const last = cLogs[cLogs.length - 1];
             const status = last?.status || jc.temp_status || "Pool Candidate";
             const startedMs = last ? new Date(last.timestamp).getTime() : NaN;
-            const agingDays = isNaN(startedMs) ? 0 : daysBetween(startedMs, now);
-            const isTerminal = TERMINAL_STATUSES.has(status);
-
-            candidates.push({
-                jrCandidateId: jc.jr_candidate_id,
-                candidateId: jc.candidate_id,
-                name: nameById.get(jc.candidate_id) || "Unknown",
+            current.push({
                 status,
-                stageOrder: stageOrder.get(status) ?? 999,
-                ownerRole: ownerByStatus.get(status) ?? null,
-                waitingSince: last?.timestamp || null,
-                agingDays,
-                // A finished candidate is not "critical" — they are simply done.
-                severity: isTerminal ? "ok" : severityForDays(agingDays),
-                lastUpdatedBy: last?.updated_by || null,
-                isTerminal,
+                agingDays: isNaN(startedMs) ? 0 : daysBetween(startedMs, now),
+                kind: stageKind(status),
             });
         });
 
-        const activeCandidates = candidates.filter(c => !c.isTerminal);
-
-        const stages: StageAgingStage[] = masterRows.map(m => {
+        const buildStage = (m: any): StageAgingStage => {
             const status = m.status as string;
-            const here = candidates.filter(c => c.status === status);
-            const activeHere = here.filter(c => !c.isTerminal);
-            const longestWaitDays = activeHere.reduce((max, c) => Math.max(max, c.agingDays), 0);
-            const h = history.get(status);
-            const isTerminal = TERMINAL_STATUSES.has(status);
+            const kind = stageKind(status);
+            const here = current.filter(c => c.status === status);
+            const waiting = kind === "exit" ? [] : here;
+            const longestWaitDays = waiting.reduce((max, c) => Math.max(max, c.agingDays), 0);
+            const completed = completedByStatus.get(status) || [];
             return {
                 status,
                 stageOrder: m.stage_order ?? 999,
+                kind,
                 ownerRole: m.owner_role || null,
                 currentCount: here.length,
                 longestWaitDays,
-                avgDays: h ? Math.round(h.total / h.visits) : 0,
-                minDays: h ? h.min : 0,
-                maxDays: h ? h.max : 0,
-                visits: h ? h.visits : 0,
-                isTerminal,
-                severity: isTerminal || activeHere.length === 0 ? "ok" : severityForDays(longestWaitDays),
+                overdueCount: waiting.filter(c => c.agingDays >= STAGE_THRESHOLDS.delayed).length,
+                medianCompletedDays: median(completed),
+                completedCount: completed.length,
+                everVisited: here.length > 0 || completed.length > 0,
+                // A holding stage is where names wait to be worked, not where work is stuck.
+                severity: kind === "work" && waiting.length > 0 ? severityForDays(longestWaitDays) : "ok",
             };
-        });
+        };
 
-        const bottleneckStage = stages
-            .filter(s => !s.isTerminal && s.longestWaitDays >= STAGE_THRESHOLDS.attention)
+        const mainPath = masterRows.filter(m => stageKind(m.status) !== "exit").map(buildStage);
+        const exits = masterRows.filter(m => stageKind(m.status) === "exit").map(buildStage);
+
+        const activeCandidates = current.filter(c => c.kind !== "exit").length;
+        const exitedCandidates = current.length - activeCandidates;
+        const overdueCount = current.filter(c => c.kind === "work" && c.agingDays >= STAGE_THRESHOLDS.delayed).length;
+
+        const reached = mainPath.filter(s => s.currentCount > 0);
+        const deepest = reached.length > 0 ? reached[reached.length - 1] : null;
+        const furthest = deepest
+            ? {
+                status: deepest.status,
+                position: mainPath.findIndex(s => s.status === deepest.status) + 1,
+                total: mainPath.length,
+            }
+            : null;
+
+        const worstStage = mainPath
+            .filter(s => s.kind === "work" && s.currentCount > 0)
             .sort((a, b) => b.longestWaitDays - a.longestWaitDays)[0];
+        const worst = worstStage
+            ? { status: worstStage.status, count: worstStage.currentCount, days: worstStage.longestWaitDays }
+            : null;
+
+        // Deepest first: pushing more people into a stage whose exit is blocked doesn't close a JR.
+        const actions: StageAction[] = mainPath
+            .filter(s => s.kind === "work" && s.currentCount > 0 && s.longestWaitDays >= STAGE_THRESHOLDS.attention)
+            .sort((a, b) => b.stageOrder - a.stageOrder)
+            .map(s => ({ status: s.status, kind: s.kind, count: s.currentCount, days: s.longestWaitDays, ownerRole: s.ownerRole }));
+
+        mainPath
+            .filter(s => s.kind === "holding" && s.currentCount > 0)
+            .forEach(s => actions.push({
+                status: s.status, kind: s.kind, count: s.currentCount, days: s.longestWaitDays, ownerRole: s.ownerRole,
+            }));
 
         const ownerTotals = new Map<string, { days: number; candidates: number }>();
-        activeCandidates.forEach(c => {
-            const key = c.ownerRole || "Unassigned";
+        current.filter(c => c.kind === "work").forEach(c => {
+            const key = ownerOf.get(c.status) || "Unassigned";
             const cur = ownerTotals.get(key) || { days: 0, candidates: 0 };
             cur.days += c.agingDays;
             cur.candidates += 1;
@@ -216,24 +230,18 @@ export async function getJRStageAging(jrId: string): Promise<JRStageAging> {
 
         return {
             totalOpenDays,
-            stages,
-            candidates: candidates.sort((a, b) => {
-                if (a.isTerminal !== b.isTerminal) return a.isTerminal ? 1 : -1;
-                return b.agingDays - a.agingDays;
-            }),
-            bottleneck: bottleneckStage
-                ? {
-                    status: bottleneckStage.status,
-                    ownerRole: bottleneckStage.ownerRole,
-                    waitingCount: activeCandidates.filter(c => c.status === bottleneckStage.status).length,
-                    longestWaitDays: bottleneckStage.longestWaitDays,
-                }
-                : null,
+            activeCandidates,
+            exitedCandidates,
+            overdueCount,
+            furthest,
+            worst,
+            mainPath,
+            exits,
+            actions,
             ownerDays: Array.from(ownerTotals.entries())
                 .map(([ownerRole, v]) => ({ ownerRole, ...v }))
                 .sort((a, b) => b.days - a.days),
             ownerRoleConfigured,
-            activeCandidates: activeCandidates.length,
         };
     } catch (e) {
         console.error("Error in getJRStageAging:", e);

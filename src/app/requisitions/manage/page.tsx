@@ -260,6 +260,37 @@ export default function JRManagePage() {
     };
 
     // Wraps long status labels onto 2 lines (split on " - " if present, else by midpoint word)
+    // Two-line X axis labels: status names are long enough to collide at 13 statuses wide.
+    const TwoLineXAxisTick = (props: any) => {
+        const { x, y, payload } = props;
+        const words = String(payload.value).split(' ');
+        const mid = Math.ceil(words.length / 2);
+        const line1 = words.slice(0, mid).join(' ');
+        const line2 = words.slice(mid).join(' ');
+        return (
+            <g transform={`translate(${x},${y})`}>
+                <text x={0} y={0} dy={14} textAnchor="middle" fontSize={13} fill="#475569">{line1}</text>
+                {line2 && <text x={0} y={0} dy={30} textAnchor="middle" fontSize={13} fill="#475569">{line2}</text>}
+            </g>
+        );
+    };
+
+    // Aging chart tooltip: avg is the bar height, but min/max/visit breakdown only show on hover
+    const AgingTooltip = ({ active, payload, label }: any) => {
+        if (!active || !payload || !payload.length) return null;
+        const d = payload[0].payload;
+        return (
+            <div className="rounded-md border bg-white dark:bg-slate-900 shadow-md px-3 py-2 text-xs space-y-1">
+                <div className="font-semibold text-slate-700 dark:text-slate-200">{label}</div>
+                <div>Avg: <span className="font-medium">{d.avgDays} days</span></div>
+                <div>Min–Max: <span className="font-medium">{d.minDays}–{d.maxDays} days</span></div>
+                <div className="text-slate-500 dark:text-slate-400">
+                    {d.visits} visit{d.visits === 1 ? '' : 's'} ({d.closedCount} closed, {d.ongoingCount} ongoing)
+                </div>
+            </div>
+        );
+    };
+
     const csvEscape = (val: any) => `"${String(val ?? '').replace(/"/g, '""')}"`;
 
     const downloadCSV = (filename: string, lines: string[]) => {
@@ -610,7 +641,7 @@ export default function JRManagePage() {
                                     >
                                         <div className="flex items-center gap-2">
                                             <Activity className="h-4 w-4 text-slate-500" />
-                                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Activity Transaction</span>
+                                            <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">Activity Transaction &amp; Aging</span>
                                         </div>
                                         {showAnalytics ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
                                     </button>
@@ -624,9 +655,20 @@ export default function JRManagePage() {
                                                 </Button>
                                             </div>
 
-                                            <Card>
-                                                <CardContent className="pt-4">
-                                                    <h3 className="text-base font-bold text-slate-700 dark:text-slate-200 mb-4">Activity Transaction</h3>
+                                            <Tabs defaultValue="transaction" className="w-full">
+                                                <TabsList className="h-10 w-fit bg-white dark:bg-slate-900 border mb-3">
+                                                    <TabsTrigger value="transaction" className="h-8 px-4 text-xs data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800">
+                                                        Activity Transaction
+                                                    </TabsTrigger>
+                                                    <TabsTrigger value="aging" className="h-8 px-4 text-xs data-[state=active]:bg-slate-100 dark:data-[state=active]:bg-slate-800">
+                                                        Avg. Aging (Days)
+                                                    </TabsTrigger>
+                                                </TabsList>
+
+                                                <TabsContent value="transaction" className="mt-0">
+                                                  <Card>
+                                                    <CardContent className="pt-4">
+                                                    <h3 className="text-base font-bold text-slate-700 dark:text-slate-200 mb-4">Activity Transaction <span className="font-normal text-xs text-slate-400">— how many times candidates entered each status</span></h3>
                                                     {(() => {
                                                         const chartData = analytics.countsByStatus.filter((i: any) => i.count > 0 && !EXCLUDED_CHART_STATUSES.includes(i.status));
                                                         const chartHeight = Math.max(220, chartData.length * 32);
@@ -666,8 +708,35 @@ export default function JRManagePage() {
                                                             </div>
                                                         );
                                                     })()}
-                                                </CardContent>
-                                            </Card>
+                                                    </CardContent>
+                                                  </Card>
+                                                </TabsContent>
+
+                                                <TabsContent value="aging" className="mt-0">
+                                                  <Card>
+                                                    <CardContent className="pt-4">
+                                                    <h3 className="text-base font-bold text-slate-700 dark:text-slate-200 mb-4">Avg. Aging (Days) <span className="font-normal text-xs text-slate-400">— historical average across every visit, including candidates still waiting; the Stage Aging panel above separates the two</span></h3>
+                                                    {(() => {
+                                                        const agingData = analytics.agingByStatus.filter((i: any) => !EXCLUDED_CHART_STATUSES.includes(i.status));
+                                                        return (
+                                                            <div style={{ height: 400 }}>
+                                                                <ResponsiveContainer width="100%" height="100%">
+                                                                    <BarChart data={agingData} margin={{ bottom: 40, top: 20 }}>
+                                                                        <XAxis dataKey="status" interval={0} height={60} tick={TwoLineXAxisTick} />
+                                                                        <YAxis tick={{ fontSize: 13 }} />
+                                                                        <Tooltip content={AgingTooltip} />
+                                                                        <Bar dataKey="avgDays" fill="#f97316" radius={[4, 4, 0, 0]} barSize={30}>
+                                                                            <LabelList dataKey="avgDays" position="top" style={{ fontSize: 13, fontWeight: 700, fill: '#334155' }} />
+                                                                        </Bar>
+                                                                    </BarChart>
+                                                                </ResponsiveContainer>
+                                                            </div>
+                                                        );
+                                                    })()}
+                                                    </CardContent>
+                                                  </Card>
+                                                </TabsContent>
+                                            </Tabs>
 
                                         </CardContent>
                                     )}
