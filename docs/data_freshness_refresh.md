@@ -1,6 +1,6 @@
 # Data Freshness / Refresh — สำรวจอาการ "ต้อง hard refresh ถึงจะเห็นข้อมูล"
 
-> **STATUS: สำรวจ + เสนอไอเดีย** — ยังไม่ได้แก้โค้ด
+> **STATUS: แก้แล้วใน branch `claude/fix-stale-data-after-save-womqgi`** (ดูหัวข้อ 8 ท้ายไฟล์) — ยังไม่ merge เข้า main
 > Context: user feedback ว่าหลังใส่/แก้ข้อมูลแล้วไม่เห็นผล ต้อง hard refresh · concurrent users สูงสุด 5 คน
 
 ## ขอบเขตที่ยืนยันกับ user แล้ว (2026-09-16)
@@ -207,7 +207,7 @@ hook ตัวเดียว `useRefreshOnFocus(loader)` — เมื่อ `w
 | 3 | **เพิ่ม / แก้ / ลบ Activity Log (status log) แล้วไม่ขึ้น** | `candidate-activity-log.tsx:94,118` ใช้ `router.refresh()` | เพิ่ม prop `onChanged` แบบเดียวกัน |
 | 4 | อัปโหลด / ลบ Resume ในหน้า Candidate Detail แล้วไม่เปลี่ยน | `resume-manager.tsx:90,116` ใช้ `router.refresh()` + `candidates/[id]/page.tsx:193-197` ส่ง `onUpdate` มาเป็น **ฟังก์ชันว่าง** | ทำ `refetchCandidate()` ในหน้า detail แล้วส่งเข้า `onUpdate` |
 | 5 | อัปเดต LinkedIn / ปุ่ม checked แล้ว badge ไม่เปลี่ยน | `candidate-linkedin-button.tsx:78` ใช้ `router.refresh()` | รับ `onUpdated` callback |
-| 6 | แก้โปรไฟล์ในหน้า Edit → เด้งกลับหน้า Detail แล้วเห็นข้อมูลเก่า | `candidates/[id]/edit/page.tsx:15-16` ใช้ `router.replace()` + `router.refresh()` แต่หน้า detail เป็น client component ที่เก็บข้อมูลใน `useState` | ให้หน้า detail refetch ตอน mount/focus (ดู 7.3) |
+| 6 | แก้โปรไฟล์ในหน้า Edit → เด้งกลับหน้า Detail แล้วเห็นข้อมูลเก่า | `candidates/[id]/edit/page.tsx:15-16` ใช้ `router.replace()` + `router.refresh()` ซึ่งไม่การันตีว่าหน้า detail จะโหลดข้อมูลใหม่ — ปกติ component จะ remount แล้ว fetch ใหม่ แต่ response ของ `/api/candidates/[id]` ไม่ได้สั่งห้าม cache ไว้ เบราว์เซอร์จึงคืนของเก่าได้ | ใส่ `Cache-Control: no-store` ที่ API + `cache: 'no-store'` ฝั่ง client + refetch ตอน focus (7.3) |
 
 **ข้อสังเกตสำคัญ:** ข้อ 1-3 พังเฉพาะตอนอยู่ใน **sheet** (ซึ่งคือทางที่ recruiter ใช้จริง) — ถ้าเปิดจากหน้า `/requisitions/manage/candidate/[jr_candidate_id]` (server component) กลับทำงานปกติ เลยเป็นอาการที่ "บางทีก็เห็น บางทีก็ไม่เห็น"
 
@@ -255,4 +255,49 @@ Realtime (ข้อ 3 ไอเดีย C) และ event bus กลาง (�
 
 ---
 
-*Created: 2026-09-16 | Data Freshness Survey v2 — narrowed to own-write visibility (ยังไม่ implement)*
+---
+
+## 8. สิ่งที่ทำไปแล้ว (branch `claude/fix-stale-data-after-save-womqgi`)
+
+แตกจาก `main` — **ยังไม่ merge** ดูได้จาก Vercel Preview ของ branch นี้ (production ไม่กระทบ)
+ไม่มี migration ไม่แตะ schema ไม่แตะ RPC — เป็นการแก้ฝั่ง UI ล้วน
+
+### 8.1 กดบันทึกแล้วเห็นผลทันที (7.1 + 7.2)
+
+| ไฟล์ | เปลี่ยนอะไร |
+|---|---|
+| `feedback-section.tsx` | รับ prop `onChanged` · ส่ง `onSuccess` ให้ `AddFeedbackDialog` (จุดที่หายไปทั้งหมด) · ลบ feedback แล้วเรียก `onChanged` · คง `router.refresh()` เป็น fallback ให้หน้า server |
+| `candidate-activity-log.tsx` | รับ prop `onChanged` · เรียกหลัง add / edit / delete แทน `router.refresh()` |
+| `jr-candidate-sheet.tsx` · `candidate-profile-sheet.tsx` · `HistoryTimeline.tsx` | ส่ง `handleRefresh` / `fetchData(id, true)` ที่มีอยู่แล้วลงไปเป็น `onChanged` |
+| `candidates/[id]/page.tsx` | รวมการโหลดเป็น `refetchCandidate()` ตัวเดียว แล้วต่อเข้ากับทุก action บนหน้า (experience, pre-screen, resume, LinkedIn, bulk delete) — เลิกใช้ `window.location.reload()` และ `router.refresh()` |
+| `experience-dialog.tsx` · `candidate-client-actions.tsx` · `resume-manager.tsx` · `candidate-linkedin-button.tsx` | รับ callback (`onSuccess` / `onUpdate` / `onUpdated`) เป็น `Promise` ได้ และ `await` ก่อนปิด dialog |
+
+### 8.2 ทำให้ user มั่นใจว่าบันทึกแล้ว (7.4)
+
+- **refresh ก่อนปิด dialog** — ปุ่มยังค้างสถานะ saving จนข้อมูลขึ้นจริง ไม่ปิดไปเจอลิสต์เดิมแล้วสงสัยว่าหายไปไหน
+- **แถวที่เพิ่งเพิ่มเรืองสีเหลือง amber ~2.5 วิ** — hook ใหม่ `useHighlightNew` (`src/hooks/use-highlight-new.ts`) เทียบ id ก่อน/หลัง refetch เอง ไม่ต้องให้ server คืน id กลับมา
+- **toast อ้างอิงของจริง** — `Saved feedback from [ชื่อผู้สัมภาษณ์]`, `Added "Interview"` แทนข้อความกลางๆ
+
+### 8.3 กันพลาด (7.3)
+
+- hook ใหม่ `useRefreshOnFocus` (`src/hooks/use-refresh-on-focus.ts`) — โหลดใหม่เมื่อกลับมาที่แท็บ (กันรัวด้วย min interval 10 วิ, ไม่มี traffic ตอนไม่ได้ใช้งาน)
+  ใส่ไว้ที่: หน้า Candidate Detail · ตาราง candidate ใน JR (แบบเงียบ ไม่มี loading กระพริบ) · Placement · Internal
+- `jr-switcher.tsx` — refetch ทุกครั้งที่เปิด dropdown (เดิม cache ระดับ module ไม่มีวันหมดอายุ)
+- `GET /api/candidates/[id]` — ใส่ `Cache-Control: no-store` และฝั่ง client ใช้ `cache: 'no-store'`
+- `requisitions/manage/page.tsx` — ปุ่ม "Reload page" ตอน load error เดิมใช้ `router.refresh()` = กดแล้วไม่เกิดอะไรขึ้น เปลี่ยนเป็น reload จริง
+
+### 8.4 ตรวจแล้ว
+
+- `next build` → **Compiled successfully**
+- `tsc --noEmit` → ไม่มี error ใหม่ในไฟล์ที่แก้ (repo มี error เดิมอยู่แล้วเยอะ เลยตั้ง `ignoreBuildErrors: true`)
+- build บน container นี้ไป fail ตอน prerender `/ai-search-v3` เพราะไม่มี Supabase credential จริง — **เป็นมาก่อนอยู่แล้ว** (build จาก `main` เปล่าๆ ก็ fail จุดเดียวกัน) บน Vercel ที่มี env จริงไม่เจอ
+
+### 8.5 ที่ยังไม่ได้ทำ (ตั้งใจ)
+
+- Realtime / เห็นงานคนอื่นทันที — user บอกว่ายังไม่สำคัญ
+- Event bus กลาง / TanStack Query — งานใหญ่ ยังไม่จำเป็นถ้าอาการหายแล้ว
+- `revalidatePath()` 98 จุดที่ไม่มีผล — ปล่อยไว้ก่อน ไม่เสียหาย แค่ทำให้คนอ่านโค้ดเข้าใจผิด ค่อยเก็บกวาดทีหลัง
+
+---
+
+*Created: 2026-09-16 | Data Freshness v3 — fixes implemented on claude/fix-stale-data-after-save-womqgi*
