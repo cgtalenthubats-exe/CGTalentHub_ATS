@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useRef, type DragEvent as ReactDragEvent } from "react";
-import { getStatusMaster, createStatus, updateStatusColors, updateRowColorEnabled, deleteStatus, reorderStatusMaster, StatusMasterRow } from "@/app/actions/status-master";
+import { getStatusMaster, createStatus, updateStatusColors, updateRowColorEnabled, updateStatusOwnerRole, deleteStatus, reorderStatusMaster, StatusMasterRow } from "@/app/actions/status-master";
+import { STATUS_OWNER_ROLES } from "@/lib/stage-aging";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -87,6 +88,15 @@ export function StatusMasterSettings() {
         setSaving(status);
         const res = await updateStatusColors(status, font, bg);
         if (!res.success) toast.error(res.error);
+        await refreshRows();
+        setSaving(null);
+    }
+
+    async function handleOwnerRoleChange(status: string, ownerRole: string | null) {
+        setSaving(status);
+        const res = await updateStatusOwnerRole(status, ownerRole);
+        if (res.success) toast.success(`Owner for "${status}" set to ${ownerRole ?? "Unassigned"}`);
+        else toast.error(res.error);
         await refreshRows();
         setSaving(null);
     }
@@ -216,6 +226,7 @@ export function StatusMasterSettings() {
                             <th className="text-left font-black text-xs uppercase tracking-widest text-slate-400 px-5 py-3">Status</th>
                             <th className="text-left font-black text-xs uppercase tracking-widest text-slate-400 px-5 py-3 w-[220px]">Chip Color</th>
                             <th className="text-left font-black text-xs uppercase tracking-widest text-slate-400 px-5 py-3 w-[160px]">Preview</th>
+                            <th className="text-left font-black text-xs uppercase tracking-widest text-slate-400 px-5 py-3 w-[150px]" title="Who owns the next action while a candidate sits in this status">Stage Owner</th>
                             <th className="text-center font-black text-xs uppercase tracking-widest text-slate-400 px-5 py-3 w-[110px]">Tint Row?</th>
                             <th className="w-[60px]" />
                         </tr>
@@ -303,6 +314,19 @@ export function StatusMasterSettings() {
                                             {row.status}
                                         </div>
                                     </td>
+                                    <td className="px-5 py-3">
+                                        <select
+                                            value={row.owner_role ?? ""}
+                                            onChange={(e) => handleOwnerRoleChange(row.status, e.target.value || null)}
+                                            disabled={isSaving || isDeleting}
+                                            className="w-full h-8 rounded-md border border-slate-200 bg-white px-2 text-xs font-bold text-slate-600 disabled:opacity-50"
+                                        >
+                                            <option value="">— Unassigned —</option>
+                                            {STATUS_OWNER_ROLES.map(r => (
+                                                <option key={r} value={r}>{r}</option>
+                                            ))}
+                                        </select>
+                                    </td>
                                     <td className="px-5 py-3 text-center">
                                         <Checkbox
                                             checked={row.row_color_enabled}
@@ -338,7 +362,7 @@ export function StatusMasterSettings() {
                                 return [
                                     rowEl,
                                     <tr key="__divider" className="bg-slate-100/80">
-                                        <td colSpan={6} className="px-5 py-1.5 text-center text-[10px] font-black uppercase tracking-widest text-slate-400">
+                                        <td colSpan={7} className="px-5 py-1.5 text-center text-[10px] font-black uppercase tracking-widest text-slate-400">
                                             ▼ Negative / Rejected statuses (sorted lowest-order first below) ▼
                                         </td>
                                     </tr>
