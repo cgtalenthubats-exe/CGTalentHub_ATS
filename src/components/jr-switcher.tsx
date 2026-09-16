@@ -74,10 +74,29 @@ export function JRSwitcher({ selectedId, onSelect }: JRSwitcherProps) {
         });
     }, [selectedId]);
 
+    // The module cache above is never invalidated once filled, so a JR renamed or created after
+    // the first load stays hidden for the rest of the browser session. Refresh it whenever the
+    // list is opened: the cached entries still render instantly, they just stop being stale.
+    const refreshList = async () => {
+        try {
+            const data = await getJobRequisitions();
+            jrListCache = data;
+            setJrs(data);
+        } catch (e) {
+            console.error("Failed to refresh JR list", e);
+        }
+    };
+
     const selectedJR = jrs.find((jr) => jr.id === selectedId);
 
     return (
-        <Popover open={open} onOpenChange={setOpen}>
+        <Popover
+            open={open}
+            onOpenChange={(next) => {
+                setOpen(next);
+                if (next) void refreshList();
+            }}
+        >
             <PopoverTrigger asChild>
                 <Button
                     variant="outline"

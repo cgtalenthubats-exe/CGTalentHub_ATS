@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from "react";
+import { useRefreshOnFocus } from "@/hooks/use-refresh-on-focus";
 import { AtsBreadcrumb } from "@/components/ats-breadcrumb";
 import { getRawPlacementData, PlacementRecord, JRRecord } from "@/app/actions/placement-actions";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -71,6 +72,7 @@ export default function PlacementPage() {
     }, []);
 
     useEffect(() => { fetchData(); }, [fetchData]);
+    useRefreshOnFocus(fetchData);
 
     // --- Filter options derived from raw data ---
     const buOptions = useMemo(() => {

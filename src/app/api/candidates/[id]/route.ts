@@ -201,7 +201,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
             } : null
         };
 
-        return NextResponse.json({ data: responseData });
+        // The candidate page refetches this route after every edit; a cached response would hand
+        // back the profile as it looked before the save.
+        return NextResponse.json({ data: responseData }, {
+            headers: { 'Cache-Control': 'no-store, max-age=0' },
+        });
 
     } catch (error: any) {
         console.error("Detail API Error:", error);
