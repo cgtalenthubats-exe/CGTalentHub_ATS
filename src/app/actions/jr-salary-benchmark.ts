@@ -28,12 +28,16 @@ export interface SalaryStats {
 
 export interface SalaryRow {
     candidateId: string;
+    /** Needed to open the candidate sheet from the table, same as the list view does. */
+    jrCandidateId: string | null;
     name: string;
+    photo: string | null;
     monthlyBase: number;
     bonusMonths: number;
     company: string | null;
     position: string | null;
     hotelRating: string | null;
+    industry: string | null;
     region: string | null;
     country: string | null;
     inPipeline: boolean;
@@ -41,15 +45,6 @@ export interface SalaryRow {
 
 export interface SegmentStats extends SalaryStats {
     key: string;
-}
-
-export interface PlacementReference {
-    candidateName: string;
-    position: string | null;
-    bu: string | null;
-    monthlyBase: number;
-    hireDate: string | null;
-    jobGrade: string | null;
 }
 
 export interface JRSalaryBenchmark {
@@ -65,9 +60,10 @@ export interface JRSalaryBenchmark {
     pipeline: SalaryStats | null;
     histogram: { start: number; end: number; count: number }[];
     byHotelRating: SegmentStats[];
+    /** Fallback breakdown for roles outside hospitality, where a star rating means nothing. */
+    byIndustry: SegmentStats[];
     byRegion: SegmentStats[];
     pipelineRows: SalaryRow[];
-    placements: PlacementReference[];
     dataQuality: {
         pipelineTotal: number;
         pipelineWithSalary: number;
@@ -229,12 +225,16 @@ export async function getJRSalaryBenchmark(jrId: string): Promise<JRSalaryBenchm
         // --- pipeline (candidates attached to this JR) ---
         const { data: jrCands } = await supabase
             .from("jr_candidates")
-            .select("candidate_id")
+            .select("jr_candidate_id, candidate_id")
             .eq("jr_id", jrId);
 
-        const pipelineIds = Array.from(
-            new Set(((jrCands || []) as any[]).map(c => c.candidate_id).filter(Boolean))
-        ) as string[];
+        const jrCandidateIdByCandidate = new Map<string, string>();
+        ((jrCands || []) as any[]).forEach(c => {
+            if (c.candidate_id && !jrCandidateIdByCandidate.has(c.candidate_id)) {
+                jrCandidateIdByCandidate.set(c.candidate_id, c.jr_candidate_id);
+            }
+        });
+        const pipelineIds = Array.from(jrCandidateIdByCandidate.keys());
 
         // --- market cohort (same position keyword, current role) ---
         let marketIds: string[] = [];
@@ -255,7 +255,7 @@ export async function getJRSalaryBenchmark(jrId: string): Promise<JRSalaryBenchm
             return {
                 jrId, positionTitle, budget, budgetPercentile: null, budgetVsMedianPct: null,
                 cohortKeywords, market: null, pipeline: null, histogram: [],
-                byHotelRating: [], byRegion: [], pipelineRows: [], placements: [],
+                byHotelRating: [], byIndustry: [], byRegion: [], pipelineRows: [],
                 dataQuality: { pipelineTotal: 0, pipelineWithSalary: 0, marketSampleSize: 0, budgetColumnsMissing },
             };
         }
@@ -264,13 +264,13 @@ export async function getJRSalaryBenchmark(jrId: string): Promise<JRSalaryBenchm
             Promise.all(chunk(allIds).map(ids =>
                 (supabase as any)
                     .from("Candidate Profile")
-                    .select("candidate_id, name, gross_salary_base_b_mth, bonus_mth")
+                    .select("candidate_id, name, photo, gross_salary_base_b_mth, bonus_mth")
                     .in("candidate_id", ids)
             )),
             Promise.all(chunk(allIds).map(ids =>
                 (supabase as any)
                     .from("candidate_experiences")
-                    .select("candidate_id, company, company_id, position, is_current_job, start_date, country")
+                    .select("candidate_id, company, company_id, position, is_current_job, start_date, country, company_industry")
                     .in("candidate_id", ids)
             )),
             (supabase as any).from("country").select("country, region"),
@@ -301,12 +301,14 @@ export async function getJRSalaryBenchmark(jrId: string): Promise<JRSalaryBenchm
             new Set(Array.from(currentExp.values()).map(e => e.company_id).filter(Boolean))
         ) as string[];
         const ratingByCompany = new Map<string, string | null>();
+        const industryByCompany = new Map<string, string | null>();
         if (companyIds.length > 0) {
             const companyChunks = await Promise.all(chunk(companyIds).map(ids =>
-                (supabase as any).from("company_master").select("company_id, rating").in("company_id", ids)
+                (supabase as any).from("company_master").select("company_id, rating, industry").in("company_id", ids)
             ));
             companyChunks.flatMap((r: any) => r.data || []).forEach((c: any) => {
                 ratingByCompany.set(String(c.company_id), c.rating || null);
+                industryByCompany.set(String(c.company_id), c.industry || null);
             });
         }
 
@@ -316,12 +318,15 @@ export async function getJRSalaryBenchmark(jrId: string): Promise<JRSalaryBenchm
             const country = exp?.country || null;
             return {
                 candidateId: p.candidate_id,
+                jrCandidateId: jrCandidateIdByCandidate.get(p.candidate_id) || null,
                 name: p.name || "Unknown",
+                photo: p.photo || null,
                 monthlyBase: toNumber(p.gross_salary_base_b_mth),
                 bonusMonths: toNumber(p.bonus_mth),
                 company: exp?.company || null,
                 position: exp?.position || null,
                 hotelRating: exp?.company_id ? ratingByCompany.get(String(exp.company_id)) || null : null,
+                industry: exp?.company_industry || (exp?.company_id ? industryByCompany.get(String(exp.company_id)) || null : null),
                 region: country ? countryRegion.get(country) || null : null,
                 country,
                 inPipeline: pipelineSet.has(p.candidate_id),
@@ -344,28 +349,6 @@ export async function getJRSalaryBenchmark(jrId: string): Promise<JRSalaryBenchm
             ? Math.round(((budgetPoint - market.median) / market.median) * 100)
             : null;
 
-        // --- what we actually paid for comparable roles ---
-        let placements: PlacementReference[] = [];
-        if (positionTitle.trim()) {
-            const { data: placementRows } = await (supabase as any)
-                .from("employment_record")
-                .select("candidate_name, position, bu, base_salary, hire_date, job_grade")
-                .ilike("position", `%${positionTitle.trim().split(/\s+/)[0]}%`)
-                .not("base_salary", "is", null)
-                .order("hire_date", { ascending: false })
-                .limit(10);
-            placements = ((placementRows || []) as any[])
-                .map(r => ({
-                    candidateName: r.candidate_name || "—",
-                    position: r.position || null,
-                    bu: r.bu || null,
-                    monthlyBase: toNumber(r.base_salary),
-                    hireDate: r.hire_date || null,
-                    jobGrade: r.job_grade || null,
-                }))
-                .filter(r => r.monthlyBase > 0);
-        }
-
         return {
             jrId,
             positionTitle,
@@ -377,9 +360,9 @@ export async function getJRSalaryBenchmark(jrId: string): Promise<JRSalaryBenchm
             pipeline,
             histogram: buildHistogram(marketValues),
             byHotelRating: statsBySegment(marketRows, r => r.hotelRating),
+            byIndustry: statsBySegment(marketRows, r => r.industry),
             byRegion: statsBySegment(marketRows, r => r.region),
             pipelineRows: pipelineRows.sort((a, b) => b.monthlyBase - a.monthlyBase),
-            placements,
             dataQuality: {
                 pipelineTotal: pipelineIds.length,
                 pipelineWithSalary: pipelineRows.filter(r => r.monthlyBase > 0).length,
