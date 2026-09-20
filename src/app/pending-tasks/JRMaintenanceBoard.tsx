@@ -4,12 +4,22 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RefreshCw, MapPin, Building, Calendar, AlertTriangle, Search, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Briefcase, Layers } from "lucide-react";
+import { RefreshCw, MapPin, Building, Calendar, AlertTriangle, Search, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, Briefcase, Layers, ClipboardList, CheckCircle2 } from "lucide-react";
 import { getPendingJRs, refreshJRCandidates } from "@/app/actions/pending-tasks-actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // Helper for formatting date as dd - Mmm - YYYY
 function formatDate(dateString: string | null) {
@@ -33,6 +43,7 @@ export default function JRMaintenanceBoard() {
     const [selectedSubBUs, setSelectedSubBUs] = useState<string[]>([]);
     const [selectedPositions, setSelectedPositions] = useState<string[]>([]);
     const [selectedAging, setSelectedAging] = useState<string[]>([]);
+    const [confirmJr, setConfirmJr] = useState<any | null>(null);
 
     const uniqueBUs = Array.from(new Set(jrs.map(jr => jr.bu).filter(Boolean))).sort() as string[];
     const uniqueSubBUs = Array.from(new Set(jrs.map(jr => jr.sub_bu).filter(Boolean))).sort() as string[];
@@ -107,6 +118,27 @@ export default function JRMaintenanceBoard() {
         setSelectedAging(prev => prev.includes(val) ? prev.filter(x => x !== val) : [...prev, val]);
     };
 
+    // Same filters as the main list, minus the Aging filter itself, so the badges
+    // stay useful even when an Aging option is already selected.
+    const preAgingFilteredJrs = jrs.filter(jr => {
+        if (selectedBUs.length > 0 && !selectedBUs.includes(jr.bu)) return false;
+        if (selectedSubBUs.length > 0 && !selectedSubBUs.includes(jr.sub_bu)) return false;
+        if (selectedPositions.length > 0 && !selectedPositions.includes(jr.position_jr)) return false;
+        if (searchTerm) {
+            const term = searchTerm.toLowerCase();
+            const matches =
+                (jr.jr_id?.toLowerCase() || "").includes(term) ||
+                (jr.position_jr?.toLowerCase() || "").includes(term) ||
+                (jr.bu?.toLowerCase() || "").includes(term) ||
+                (jr.sub_bu?.toLowerCase() || "").includes(term);
+            if (!matches) return false;
+        }
+        return true;
+    });
+    const totalJrCount = preAgingFilteredJrs.length;
+    const under6Count = preAgingFilteredJrs.filter(jr => jr.agingMonths < 6).length;
+    const over6Count = preAgingFilteredJrs.filter(jr => jr.agingMonths >= 6).length;
+
     const handleSort = (key: string) => {
         let direction: 'asc' | 'desc' = 'asc';
         if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -173,6 +205,55 @@ export default function JRMaintenanceBoard() {
     }
 
     return (
+        <div className="flex flex-col gap-6">
+            {/* JR Aging KPI cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <Card className="relative overflow-hidden group border-none bg-white ring-1 ring-slate-200 shadow-xl transition-all hover:shadow-2xl">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Total JR</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-5xl font-black tracking-tighter text-slate-900">
+                            {totalJrCount.toLocaleString()}
+                        </div>
+                        <div className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Job Requisitions</div>
+                    </CardContent>
+                    <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
+                        <ClipboardList className="w-12 h-12" />
+                    </div>
+                </Card>
+
+                <Card className="relative overflow-hidden group border-none bg-white ring-1 ring-slate-200 shadow-xl transition-all hover:shadow-2xl">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Under 6 Months</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-5xl font-black tracking-tighter text-slate-900">
+                            {under6Count.toLocaleString()}
+                        </div>
+                        <div className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Recently Refreshed</div>
+                    </CardContent>
+                    <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
+                        <CheckCircle2 className="w-12 h-12" />
+                    </div>
+                </Card>
+
+                <Card className="relative overflow-hidden group border-none bg-white ring-1 ring-slate-200 shadow-xl transition-all hover:shadow-2xl">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Over 6 Months</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-5xl font-black tracking-tighter text-slate-900">
+                            {over6Count.toLocaleString()}
+                        </div>
+                        <div className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Needs Refresh</div>
+                    </CardContent>
+                    <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
+                        <AlertTriangle className="w-12 h-12" />
+                    </div>
+                </Card>
+            </div>
+
         <Card className="border-none shadow-xl rounded-3xl bg-white overflow-hidden">
             <CardHeader className="bg-slate-50 border-b border-slate-100 px-8 py-6 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
                 <div>
@@ -241,6 +322,9 @@ export default function JRMaintenanceBoard() {
                                 <th className="p-4 font-black uppercase tracking-widest text-center cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('agingMonths')}>
                                     Aging <SortIcon columnKey="agingMonths" />
                                 </th>
+                                <th className="p-4 font-black uppercase tracking-widest text-center cursor-pointer hover:bg-slate-800 transition-colors" onClick={() => handleSort('candidateTotal')}>
+                                    Candidate Profile Aging <SortIcon columnKey="candidateTotal" />
+                                </th>
                                 <th className="p-4 font-black uppercase tracking-widest text-right">Actions</th>
                             </tr>
                         </thead>
@@ -289,9 +373,24 @@ export default function JRMaintenanceBoard() {
                                                 </span>
                                             )}
                                         </td>
+                                        <td className="p-4 text-center">
+                                            {jr.candidateTotal > 0 ? (
+                                                <div className="inline-flex items-center gap-2 text-[10px] font-bold">
+                                                    <span className="text-slate-500">{jr.candidateTotal} total</span>
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                                                        {jr.candidateUnder6}
+                                                    </span>
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                                                        {jr.candidateOver6}
+                                                    </span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-slate-300 font-bold">-</span>
+                                            )}
+                                        </td>
                                         <td className="p-4 text-right">
                                             <Button
-                                                onClick={() => handleRefresh(jr.jr_id)}
+                                                onClick={() => setConfirmJr(jr)}
                                                 disabled={refreshing === jr.jr_id}
                                                 size="sm"
                                                 variant="outline"
@@ -309,7 +408,7 @@ export default function JRMaintenanceBoard() {
                             })}
                             {filteredJrs.length === 0 && (
                                 <tr>
-                                    <td colSpan={6} className="p-12 text-center text-slate-400 font-bold uppercase tracking-widest">
+                                    <td colSpan={7} className="p-12 text-center text-slate-400 font-bold uppercase tracking-widest">
                                         {searchTerm ? "No results match your search" : "No pending job requisitions found"}
                                     </td>
                                 </tr>
@@ -319,5 +418,31 @@ export default function JRMaintenanceBoard() {
                 </div>
             </CardContent>
         </Card>
+
+        <AlertDialog open={!!confirmJr} onOpenChange={(open) => !open && setConfirmJr(null)}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Refresh candidates over 6 months?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This will send the <strong>{confirmJr?.candidateOver6 ?? 0}</strong> candidate{(confirmJr?.candidateOver6 ?? 0) === 1 ? "" : "s"} in{" "}
+                        <strong>{confirmJr?.jr_id}</strong> whose profile aging is over 6 months to n8n for a refresh.
+                        Candidates already under 6 months will not be touched.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                        onClick={() => {
+                            const jrId = confirmJr?.jr_id;
+                            setConfirmJr(null);
+                            if (jrId) handleRefresh(jrId);
+                        }}
+                    >
+                        Confirm Refresh
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+        </div>
     );
 }
