@@ -167,3 +167,57 @@ export function amountsForStats(rows: any[], field: CompensationField): number[]
 
 /** Columns a query must select to build the full compensation picture. */
 export const COMPENSATION_SELECT = [...COMPENSATION_KEYS, BENEFIT_PROVIDED_COLUMN].join(", ");
+
+/**
+ * Rolls the Salary group's numeric fields into a monthly/yearly total, so the form can show
+ * "what this actually adds up to" instead of leaving the reader to do the arithmetic.
+ *
+ * Bonus is stored in months, not baht — it only becomes a number once there's a base salary to
+ * multiply it against, so it's excluded from the monthly recurring total and added once, per year.
+ */
+export function computeSalaryTotals(draft: CompensationDraft): { monthly: number | null; yearly: number | null; bonusAmount: number | null } {
+    const base = parseAmount(draft.values["gross_salary_base_b_mth"]);
+    const bonusMonths = parseAmount(draft.values["bonus_mth"]);
+    const serviceCharge = parseAmount(draft.values["service_charge_b_mth"]);
+
+    const bonusAmount = base !== null && bonusMonths !== null ? base * bonusMonths : null;
+    const monthlyParts = [base, serviceCharge].filter((n): n is number => n !== null);
+    const monthly = monthlyParts.length > 0 ? monthlyParts.reduce((a, b) => a + b, 0) : null;
+    const yearly = monthly !== null ? monthly * 12 + (bonusAmount ?? 0) : null;
+
+    return { monthly, yearly, bonusAmount };
+}
+
+/**
+ * Sums the plain money fields in a group (Allowances, Health & Welfare) into a monthly/yearly
+ * total. Unlike Salary, nothing here needs converting first — a ฿/M field adds straight to the
+ * monthly total (and ×12 to yearly), a ฿/Yr field adds straight to yearly only, since an annual
+ * benefit like IPD cover isn't something anyone pays a twelfth of every month.
+ *
+ * Percent, int, text, select and multiselect fields are left out — there's no baht figure to add.
+ */
+export function computeGroupTotals(fields: readonly CompensationField[], draft: CompensationDraft): { monthly: number | null; yearly: number | null } {
+    let monthly = 0;
+    let yearly = 0;
+    let hasMonthly = false;
+    let hasYearly = false;
+
+    fields.forEach(field => {
+        if (field.type !== "money" || field.retired) return;
+        const amount = parseAmount(draft.values[field.key]);
+        if (amount === null) return;
+        if (field.unit === "฿/M") {
+            monthly += amount;
+            yearly += amount * 12;
+            hasMonthly = true;
+        } else if (field.unit === "฿/Yr") {
+            yearly += amount;
+            hasYearly = true;
+        }
+    });
+
+    return {
+        monthly: hasMonthly ? monthly : null,
+        yearly: hasMonthly || hasYearly ? yearly : null,
+    };
+}

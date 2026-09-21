@@ -74,7 +74,7 @@ export function CompensationSummary({ candidate, className }: { candidate: any; 
                     const state = benefitState(field, candidate, provided);
                     return (
                         <div key={field.key} className="space-y-1 min-w-0">
-                            <p className="text-[9px] uppercase font-black tracking-widest text-slate-400 truncate">
+                            <p className="text-[9px] uppercase font-black tracking-widest text-slate-400 leading-tight">
                                 {field.label}
                                 {field.unit && <span className="text-slate-300 normal-case"> ({field.unit})</span>}
                             </p>

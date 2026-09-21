@@ -1,19 +1,20 @@
 "use client";
 
 import * as React from "react";
-import { Check, X } from "lucide-react";
+import { Check, Minus, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
     compensationFieldsByGroup,
     isNumericField,
     type CompensationField,
 } from "@/lib/compensation-fields";
-import { formatAmount, parseAmount, type CompensationDraft } from "@/lib/compensation";
+import { computeGroupTotals, computeSalaryTotals, formatAmount, parseAmount, type CompensationDraft } from "@/lib/compensation";
 
 /**
  * The compensation & benefits inputs, generated from COMPENSATION_FIELDS so every form that
@@ -61,7 +62,7 @@ function ProvidedToggle({ value, onChange }: { value: boolean | undefined; onCha
                 onClick={() => onChange(value === false ? undefined : false)}
                 className={cn(
                     "h-5 w-6 flex items-center justify-center border-l border-slate-200 transition-colors",
-                    value === false ? "bg-slate-400 text-white" : "bg-white text-slate-300 hover:text-slate-500"
+                    value === false ? "bg-red-500 text-white" : "bg-white text-slate-300 hover:text-red-500"
                 )}
             >
                 <X className="h-3 w-3" />
@@ -104,6 +105,63 @@ function MultiSelectField({ field, value, onChange }: { field: CompensationField
     );
 }
 
+/**
+ * Explains the has-it / confirmed-none / not-asked marks. Sits right under the section heading
+ * (not buried below the grid) so the meaning is visible before anyone starts ticking boxes.
+ */
+function ProvidedLegend() {
+    return (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-700">
+            <span className="inline-flex items-center gap-1.5">
+                <span className="flex h-4 w-4 items-center justify-center rounded bg-emerald-500 text-white"><Check className="h-3 w-3" /></span>
+                Has this benefit
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+                <span className="flex h-4 w-4 items-center justify-center rounded bg-red-500 text-white"><X className="h-3 w-3" /></span>
+                Confirmed none
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+                <span className="flex h-4 w-4 items-center justify-center rounded border border-dashed border-slate-300 text-slate-400"><Minus className="h-3 w-3" /></span>
+                Not asked yet
+            </span>
+        </div>
+    );
+}
+
+function TotalsBar({ label, monthly, yearly }: { label: string; monthly: number | null; yearly: number | null }) {
+    if (monthly === null && yearly === null) return null;
+    return (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1 rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2">
+            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700">{label}</span>
+            {monthly !== null && (
+                <span className="text-xs font-black text-emerald-800">
+                    ฿{formatAmount(monthly)} <span className="font-bold text-emerald-600">/ month</span>
+                </span>
+            )}
+            {yearly !== null && (
+                <span className="text-xs font-black text-emerald-800">
+                    ฿{formatAmount(yearly)} <span className="font-bold text-emerald-600">/ year</span>
+                </span>
+            )}
+        </div>
+    );
+}
+
+function SelectField({ field, value, onChange, disabled }: { field: CompensationField; value: string; onChange: (v: string) => void; disabled?: boolean }) {
+    return (
+        <Select value={value || undefined} onValueChange={onChange} disabled={disabled}>
+            <SelectTrigger className="h-9 text-sm bg-white">
+                <SelectValue placeholder={disabled ? "—" : "Select..."} />
+            </SelectTrigger>
+            <SelectContent>
+                {(field.options || []).map(opt => (
+                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
+    );
+}
+
 export function CompensationFieldsGrid({
     draft,
     onChange,
@@ -123,23 +181,36 @@ export function CompensationFieldsGrid({
         onChange({ ...draft, provided: next });
     };
 
+    const salaryTotals = computeSalaryTotals(draft);
+
     return (
         <div className={cn("space-y-6", className)}>
+            <ProvidedLegend />
             {compensationFieldsByGroup().map(group => (
                 <div key={group.group} className="space-y-3">
-                    <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-400">{group.label}</h5>
+                    <h5 className="text-[10px] font-black uppercase tracking-widest text-slate-500">{group.label}</h5>
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                         {group.fields.map(field => {
                             const provided = draft.provided?.[field.key];
                             const amountDisabled = provided === false;
                             const isWide = field.type === "textarea";
+                            const rawValue = draft.values[field.key] ?? "";
+                            const hasValue = typeof rawValue === "string" ? rawValue.trim() !== "" : !!rawValue;
+                            const isAnswered = hasValue || provided === true;
 
                             return (
                                 <div key={field.key} className={cn("space-y-1.5", isWide && "col-span-2 lg:col-span-4")}>
-                                    <div className="flex items-center justify-between gap-2 min-h-[18px]">
-                                        <Label className="text-[10px] text-slate-400 font-black uppercase tracking-widest truncate">
+                                    <div className="flex items-start justify-between gap-2 min-h-[18px]">
+                                        <Label
+                                            className={cn(
+                                                "text-[10px] font-black uppercase tracking-widest leading-tight",
+                                                isAnswered ? "text-emerald-700" : "text-slate-600"
+                                            )}
+                                        >
                                             {field.label}
-                                            {field.unit && <span className="text-slate-300 normal-case"> ({field.unit})</span>}
+                                            {field.unit && (
+                                                <span className={cn("normal-case", isAnswered ? "text-emerald-500" : "text-slate-400")}> ({field.unit})</span>
+                                            )}
                                         </Label>
                                         {field.trackProvided && (
                                             <ProvidedToggle value={provided} onChange={v => setProvided(field.key, v)} />
@@ -159,6 +230,13 @@ export function CompensationFieldsGrid({
                                             value={draft.values[field.key] ?? ""}
                                             onChange={v => setValue(field.key, v)}
                                         />
+                                    ) : field.type === "select" ? (
+                                        <SelectField
+                                            field={field}
+                                            value={draft.values[field.key] ?? ""}
+                                            onChange={v => setValue(field.key, v)}
+                                            disabled={amountDisabled}
+                                        />
                                     ) : (
                                         <Input
                                             value={draft.values[field.key] ?? ""}
@@ -171,7 +249,12 @@ export function CompensationFieldsGrid({
                                     )}
 
                                     {field.hint && (
-                                        <p className="text-[10px] text-slate-400 font-medium leading-tight">{field.hint}</p>
+                                        <p className="text-[10px] text-slate-500 font-medium leading-tight">{field.hint}</p>
+                                    )}
+                                    {field.key === "bonus_mth" && salaryTotals.bonusAmount !== null && (
+                                        <p className="text-[10px] text-emerald-600 font-bold leading-tight">
+                                            = ฿{formatAmount(salaryTotals.bonusAmount)} total
+                                        </p>
                                     )}
                                     {provided === true && isNumericField(field) && parseAmount(draft.values[field.key]) === null && (
                                         <p className="text-[10px] text-emerald-600 font-bold leading-tight">
@@ -182,13 +265,20 @@ export function CompensationFieldsGrid({
                             );
                         })}
                     </div>
+
+                    {group.group === "salary" && (
+                        <TotalsBar label="Total Package" monthly={salaryTotals.monthly} yearly={salaryTotals.yearly} />
+                    )}
+                    {group.group === "allowance" && (() => {
+                        const t = computeGroupTotals(group.fields, draft);
+                        return <TotalsBar label="Total Allowances" monthly={t.monthly} yearly={t.yearly} />;
+                    })()}
+                    {group.group === "health" && (() => {
+                        const t = computeGroupTotals(group.fields, draft);
+                        return <TotalsBar label="Total Health & Welfare" monthly={t.monthly} yearly={t.yearly} />;
+                    })()}
                 </div>
             ))}
-            <p className="text-[10px] text-slate-400 font-medium">
-                <Check className="h-3 w-3 inline text-emerald-500" /> = has this benefit ·
-                <X className="h-3 w-3 inline text-slate-400 ml-1" /> = confirmed none ·
-                neither = not asked yet. Tick without an amount when you know they get it but not how much.
-            </p>
         </div>
     );
 }
