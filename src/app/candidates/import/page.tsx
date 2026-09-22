@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Papa from "papaparse";
-import { processCsvUpload, deleteScrapingUploadLogs, deleteUploadRecordsCompletely } from "@/app/actions/csv-actions";
+import { processCsvUpload, deleteScrapingUploadLogs, deleteUploadRecordsCompletely, overrideDuplicateAndCreate } from "@/app/actions/csv-actions";
 import { createUploadRecord, handleDuplicateResume, logSkippedResume } from "@/app/actions/resume-actions";
 import { bulkAddCandidatesToJR } from "@/app/actions/jr-candidates";
 import { AddCandidateDialog } from "@/components/ai-search/AddCandidateDialog";
@@ -1234,6 +1234,11 @@ export default function CandidateImportPage() {
                                             setLogs(prev => prev.map(l => l.id === log.id ? { ...l, candidate_status: newStatus } : l));
                                             const res = await updateUploadCandidateStatus(String(log.id), newStatus, viewMode);
                                             return res.success;
+                                        }}
+                                        onOverrideDuplicate={async (logId) => {
+                                            const res = await overrideDuplicateAndCreate(logId);
+                                            if (res.success) fetchLogs();
+                                            return res;
                                         }}
                                     />
                                 ))}

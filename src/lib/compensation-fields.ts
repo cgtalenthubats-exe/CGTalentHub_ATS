@@ -106,7 +106,17 @@ export const COMPENSATION_FIELDS: readonly CompensationField[] = [
     // --- Health & welfare ---
     { key: "provident_fund_pct", label: "Provident Fund", unit: "%", type: "percent", group: "health", trackProvided: true, hint: "Employer contribution rate" },
     { key: "medical_b_annual", label: "Medical", unit: "฿/Yr", type: "money", group: "health", trackProvided: true, hint: "General medical cover" },
-    { key: "dental_b_mth", label: "Dental", unit: "฿/M", type: "money", group: "health", trackProvided: true, hint: "Dental benefit" },
+    {
+        // Column name still says "_b_mth" — the benefit is actually quoted per year like the rest
+        // of Health & Welfare, and renaming the column would risk reinterpreting existing values.
+        key: "dental_b_mth",
+        label: "Dental",
+        unit: "฿/Yr",
+        type: "money",
+        group: "health",
+        trackProvided: true,
+        hint: "Dental benefit",
+    },
     { key: "ipd_b_annual", label: "IPD", unit: "฿/Yr", type: "money", group: "health", trackProvided: true, hint: "In-patient cover" },
     { key: "opd_b_annual", label: "OPD", unit: "฿/Yr", type: "money", group: "health", trackProvided: true, hint: "Out-patient cover" },
     {

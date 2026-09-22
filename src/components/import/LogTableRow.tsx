@@ -1,12 +1,23 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
-import { FileText } from "lucide-react";
+import { FileText, UserPlus, Loader2 } from "lucide-react";
 import { TableRow, TableCell } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { StatusSelect } from "@/components/ui/status-select";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/notifications";
 
@@ -32,16 +43,20 @@ interface LogTableRowProps {
     onSelectChange: (checked: boolean) => void;
     onStatusChange: (newStatus: string) => Promise<boolean | undefined>;
     viewMode: 'csv' | 'resume';
+    onOverrideDuplicate?: (logId: number) => Promise<{ success: boolean; candidateId?: string; error?: string }>;
 }
 
-export const LogTableRow = React.memo(({ 
-    log, 
-    isSelected, 
-    onSelectChange, 
+export const LogTableRow = React.memo(({
+    log,
+    isSelected,
+    onSelectChange,
     onStatusChange,
-    viewMode 
+    viewMode,
+    onOverrideDuplicate,
 }: LogTableRowProps) => {
-    
+    const [overrideOpen, setOverrideOpen] = useState(false);
+    const [overriding, setOverriding] = useState(false);
+
     const handleStatusChange = async (vals: string[]) => {
         const val = vals[0] || "";
         const success = await onStatusChange(val);
@@ -51,6 +66,24 @@ export const LogTableRow = React.memo(({
             toast.error("Failed to update status");
         }
     };
+
+    const handleOverrideConfirm = async () => {
+        if (!onOverrideDuplicate || typeof log.id !== 'number') return;
+        setOverriding(true);
+        try {
+            const res = await onOverrideDuplicate(log.id);
+            if (res.success) {
+                toast.success(`Created ${res.candidateId} and queued for scraping`);
+                setOverrideOpen(false);
+            } else {
+                toast.error(res.error || "Failed to override");
+            }
+        } finally {
+            setOverriding(false);
+        }
+    };
+
+    const isDuplicateRow = viewMode === 'csv' && log.status === 'Duplicate found';
 
     return (
         <TableRow className="hover:bg-slate-50/50 transition-colors">
@@ -123,7 +156,47 @@ export const LogTableRow = React.memo(({
                     placeholder="Select Status"
                 />
             </TableCell>
-            <TableCell className="text-xs text-slate-500 italic truncate max-w-[200px]">{log.note}</TableCell>
+            <TableCell className="text-xs text-slate-500 italic max-w-[260px]">
+                <div className="flex items-center gap-2">
+                    <span className="truncate">{log.note}</span>
+                    {isDuplicateRow && onOverrideDuplicate && (
+                        <>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-6 px-2 shrink-0 not-italic text-[10px] font-bold border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                                onClick={() => setOverrideOpen(true)}
+                            >
+                                <UserPlus className="w-3 h-3 mr-1" /> Not a duplicate
+                            </Button>
+                            <AlertDialog open={overrideOpen} onOpenChange={(open) => !overriding && setOverrideOpen(open)}>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>Create {log.name} as a new candidate?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This row was matched by name only against{" "}
+                                            <span className="font-semibold text-slate-700">{log.candidate_id || "an existing candidate"}</span>.
+                                            If the LinkedIn profile is actually different, confirming here reserves a new
+                                            Candidate ID for &quot;{log.name}&quot; and queues it for scraping, same as a normal import.
+                                            <span className="block mt-2 font-semibold text-destructive">This creates real data and cannot be undone.</span>
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel disabled={overriding}>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction
+                                            onClick={handleOverrideConfirm}
+                                            disabled={overriding}
+                                            className="bg-indigo-600 hover:bg-indigo-700"
+                                        >
+                                            {overriding ? <Loader2 className="w-4 h-4 animate-spin" /> : "Create New Candidate"}
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </>
+                    )}
+                </div>
+            </TableCell>
         </TableRow>
     );
 });

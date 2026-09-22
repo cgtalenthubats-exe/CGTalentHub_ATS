@@ -284,6 +284,104 @@ export async function processCsvUpload(rows: CsvRow[], uploaderName: string, fil
     };
 }
 
+// Confirms a "Duplicate found" row is actually a different person (matched on name alone, not
+// LinkedIn — a common-name collision) and runs it through the same pipeline a fresh CSV row
+// would get: reserve a real candidate_id, create the profile, queue it with n8n for scraping.
+//
+// The log row is updated in place rather than replaced, so the duplicate note and who reviewed
+// it stay visible in history instead of leaving an orphaned "Duplicate found" row behind.
+export async function overrideDuplicateAndCreate(logId: number) {
+    const { data: log, error: fetchError } = await supabase
+        .from('csv_upload_logs')
+        .select('*')
+        .eq('id', logId)
+        .maybeSingle();
+
+    if (fetchError) return { success: false, error: fetchError.message };
+    if (!log) return { success: false, error: "Log record not found" };
+    if ((log as any).status !== 'Duplicate found') {
+        return { success: false, error: "This record isn't marked as a duplicate" };
+    }
+
+    const row = log as any;
+    const previousMatch: string | null = row.candidate_id || null;
+
+    // Reserve a real candidate_id the same way a fresh CSV row does.
+    const { data: idRange, error: rpcError } = await supabase
+        .rpc('reserve_candidate_ids', { batch_size: 1 });
+
+    if (rpcError || !idRange || idRange.length === 0) {
+        return { success: false, error: "Failed to generate a candidate ID" };
+    }
+
+    const numericId = idRange[0].start_id;
+    const newCandidateId = `C${numericId.toString().padStart(5, '0')}`;
+    const now = new Date().toISOString();
+
+    const { error: insertError } = await (supabase
+        .from('Candidate Profile' as any)
+        .insert([{
+            candidate_id: newCandidateId,
+            name: row.name,
+            linkedin: row.linkedin,
+            checked: getCheckedStatus(row.linkedin),
+            created_date: now,
+            modify_date: now,
+            created_by: row.uploader_email,
+        }]) as any);
+
+    if (insertError) {
+        return { success: false, error: "Failed to create candidate: " + insertError.message };
+    }
+
+    // Queue the same way processCsvUpload does for a fresh row.
+    const n8nPayload = {
+        batch_id: row.batch_id || uuidv4(),
+        requester: row.uploader_email,
+        candidate_count: 1,
+        candidates: [{ id: newCandidateId, name: row.name, linkedin: row.linkedin, email: null }],
+    };
+
+    const { error: n8nLogError } = await supabase
+        .from('n8n_logs')
+        .insert({ workflow_name: 'CSV Upload - Candidate Scraping', payload: n8nPayload, status: 'PENDING' });
+    if (n8nLogError) console.error("Failed to log n8n job:", n8nLogError);
+
+    try {
+        const config = await getN8nUrl('CSV Upload');
+        if (!config) {
+            console.error("n8n Configuration 'CSV Upload' not found in DB.");
+        } else {
+            const url = new URL(config.url);
+            if (config.method === 'GET') url.searchParams.append("requester", row.uploader_email);
+
+            const fetchOptions: RequestInit = { method: config.method, cache: 'no-store' };
+            if (config.method === 'POST') {
+                fetchOptions.headers = { 'Content-Type': 'application/json' };
+                fetchOptions.body = JSON.stringify({ ...n8nPayload, requester: row.uploader_email });
+            }
+            fetch(url.toString(), fetchOptions).catch(e => console.error("n8n Trigger Failed:", e));
+        }
+    } catch (e) {
+        console.error("n8n Trigger Setup Error:", e);
+    }
+
+    const overrideNote = previousMatch
+        ? `Overridden: confirmed not a duplicate of ${previousMatch}`
+        : "Overridden: confirmed not a duplicate";
+
+    const { error: updateError } = await supabase
+        .from('csv_upload_logs')
+        .update({ candidate_id: newCandidateId, status: 'Scraping', note: overrideNote })
+        .eq('id', logId);
+
+    if (updateError) {
+        return { success: false, error: `Candidate ${newCandidateId} was created, but the log couldn't be updated: ${updateError.message}` };
+    }
+
+    return { success: true, candidateId: newCandidateId };
+}
+
 // Statuses that represent a stuck/failed import — never "Completed" or "Duplicate found".
 const STUCK_UPLOAD_STATUSES = ['Scraping', 'Cannot extract data from LinkedIn'];
 
