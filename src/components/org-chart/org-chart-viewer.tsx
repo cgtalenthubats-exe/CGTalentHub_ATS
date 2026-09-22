@@ -558,8 +558,8 @@ const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVe
                             </div>
 
                             <div className="flex-1 min-w-0 pr-10" style={{ flex: '1 1 0%', minWidth: 0, paddingRight: '40px' }}> {/* Space for top right icons */}
-                                <div className="flex items-center gap-1.5">
-                                    <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm truncate leading-tight" title={nodeDatum.name} style={{ fontWeight: 700, fontSize: '14px', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', margin: 0, lineHeight: 1.25 }}>
+                                <div className="flex items-start gap-1.5">
+                                    <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm line-clamp-2 leading-tight" title={nodeDatum.name} style={{ fontWeight: 700, fontSize: '14px', color: '#1e293b', margin: 0, lineHeight: 1.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>
                                         {nodeDatum.name}
                                     </h3>
                                     {status === 'mismatch_company' && (
@@ -583,7 +583,7 @@ const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVe
                                         </Tooltip>
                                     )}
                                 </div>
-                                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium line-clamp-2 uppercase tracking-tight leading-tight mt-0.5" title={nodeDatum.title} style={{ fontSize: '11px', color: '#64748b', fontWeight: 500, textTransform: 'uppercase', margin: '2px 0 0 0', lineHeight: 1.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium line-clamp-3 tracking-tight leading-tight mt-0.5" title={nodeDatum.title} style={{ fontSize: '11px', color: '#64748b', fontWeight: 500, margin: '2px 0 0 0', lineHeight: 1.25, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                                     {nodeDatum.title || 'Position Not Set'}
                                 </p>
                             </div>

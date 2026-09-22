@@ -134,6 +134,8 @@ export async function renderNodesToSlide(
         photoByNode.set(n, (!n.data.is_group_node && photoUrl) ? await toDataUri(photoUrl) : null)
     }))
 
+    const linkedinIconUri = await toDataUri('/linkedin-logo.png')
+
     let boxCounter = 0
 
     nodes.forEach((n) => {
@@ -172,8 +174,10 @@ export async function renderNodesToSlide(
         const isTruncated = !isGroup && totalSub > 0 && !n.children
         const baseLabel = isGroup
             ? `GROUP${totalSub > 0 ? ` (${totalSub})` : ''}`
-            : (isMatch ? (d.candidate_id || '') : 'UNMATCHED')
-        const idLabel = isTruncated ? `${baseLabel} (+${totalSub})` : baseLabel
+            : (isMatch ? '' : 'UNMATCHED')
+        const idLabel = isTruncated
+            ? (baseLabel ? `${baseLabel} (+${totalSub})` : `+${totalSub}`)
+            : baseLabel
 
         const photoData = photoByNode.get(n)
         const photoSize = PHOTO_SIZE * scale
@@ -192,7 +196,7 @@ export async function renderNodesToSlide(
                 { text: d.name || '', options: { bold: true, fontSize: scaledFont(13, scale), color: isGroup ? '3730A3' : '1E293B', breakLine: true } },
                 { text: d.title || '', options: { fontSize: scaledFont(10, scale), color: isGroup ? '6366F1' : '64748B', breakLine: true } },
                 ...exCentralRun,
-                { text: idLabel, options: { fontSize: scaledFont(10, scale), color: '94A3B8' } },
+                ...(idLabel ? [{ text: idLabel, options: { fontSize: scaledFont(10, scale), color: '94A3B8' } }] : []),
             ],
             {
                 x, y, w: boxW, h: boxH,
@@ -223,22 +227,13 @@ export async function renderNodesToSlide(
         }
 
         // LinkedIn badge (top-right, clickable)
-        if (linkedinUrl) {
-            slide.addText('in', {
+        if (linkedinUrl && linkedinIconUri) {
+            slide.addImage({
+                data: linkedinIconUri,
                 x: x + boxW - (BADGE_SIZE + BADGE_MARGIN) * scale,
                 y: y + BADGE_MARGIN * scale,
                 w: BADGE_SIZE * scale,
                 h: BADGE_SIZE * scale,
-                shape: pptx.ShapeType.roundRect,
-                rectRadius: 0.04,
-                fill: { color: '0A66C2' },
-                line: { type: 'none' },
-                fontFace: 'Tahoma',
-                bold: true,
-                fontSize: scaledFont(9, scale, 5),
-                color: 'FFFFFF',
-                align: 'center',
-                valign: 'middle',
                 hyperlink: { url: linkedinUrl },
             })
         }

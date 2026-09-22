@@ -44,7 +44,7 @@ const FONT_FAMILY = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", R
 
 // Node/chart sizing — kept compact so more of the org fits on screen at once
 const NODE_WIDTH = 220
-const NODE_HEIGHT = 86
+const NODE_HEIGHT = 113
 const COMPACT_MARGIN_PAIR = 16
 const COMPACT_MARGIN_BETWEEN = 8
 const NEIGHBOUR_MARGIN = 24
@@ -206,11 +206,11 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
                     ${childCount > 0 ? `<div style="position:absolute;bottom:-3px;right:-3px;background:#4f46e5;color:white;border:2px solid white;border-radius:9999px;min-width:14px;height:14px;font-size:7px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 2px;">${childCount}</div>` : ''}
                 </div>
                 <div style="flex:1;min-width:0;padding-right:${titlePaddingRight}px;">
-                    <div style="display:flex;align-items:center;gap:3px;font-weight:700;color:#1e293b;font-size:12px;line-height:1.25;">
-                        <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(data.name)}">${escapeHtml(data.name)}</span>
+                    <div style="display:flex;align-items:flex-start;gap:3px;font-weight:700;color:#1e293b;font-size:12px;line-height:1.25;">
+                        <span style="flex:1;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;" title="${escapeHtml(data.name)}">${escapeHtml(data.name)}</span>
                         ${mismatchIconHtml}
                     </div>
-                    <div style="font-size:10px;color:#475569;font-weight:500;text-transform:uppercase;letter-spacing:0.02em;margin-top:2px;height:22px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;line-height:1.1;" title="${escapeHtml(data.title || '')}">
+                    <div style="font-size:10px;color:#475569;font-weight:500;letter-spacing:0.02em;margin-top:2px;height:33px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;line-height:1.1;" title="${escapeHtml(data.title || '')}">
                         ${escapeHtml(data.title || 'Position Not Set')}
                     </div>
                 </div>
