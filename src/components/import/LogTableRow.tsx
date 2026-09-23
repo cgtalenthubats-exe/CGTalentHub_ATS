@@ -158,7 +158,7 @@ export const LogTableRow = React.memo(({
             </TableCell>
             <TableCell className="text-xs text-slate-500 italic max-w-[260px]">
                 <div className="flex items-center gap-2">
-                    <span className="truncate">{log.note}</span>
+                    <span className="truncate" title={log.note}>{log.note}</span>
                     {isDuplicateRow && onOverrideDuplicate && (
                         <>
                             <Button

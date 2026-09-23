@@ -290,7 +290,11 @@ export async function processCsvUpload(rows: CsvRow[], uploaderName: string, fil
 //
 // The log row is updated in place rather than replaced, so the duplicate note and who reviewed
 // it stay visible in history instead of leaving an orphaned "Duplicate found" row behind.
-export async function overrideDuplicateAndCreate(logId: number) {
+//
+// `performedBy` is the logged-in user who clicked the button (not the editable "Created By"
+// picker) — this is an accountability record of who overrode the duplicate check, so it has to
+// be the real identity, not a value someone could set to anything before confirming.
+export async function overrideDuplicateAndCreate(logId: number, performedBy: string) {
     const { data: log, error: fetchError } = await supabase
         .from('csv_upload_logs')
         .select('*')
@@ -366,9 +370,10 @@ export async function overrideDuplicateAndCreate(logId: number) {
         console.error("n8n Trigger Setup Error:", e);
     }
 
+    const who = performedBy?.trim() || "Unknown user";
     const overrideNote = previousMatch
-        ? `Overridden: confirmed not a duplicate of ${previousMatch}`
-        : "Overridden: confirmed not a duplicate";
+        ? `Overridden by ${who}: confirmed not a duplicate of ${previousMatch}`
+        : `Overridden by ${who}: confirmed not a duplicate`;
 
     const { error: updateError } = await supabase
         .from('csv_upload_logs')

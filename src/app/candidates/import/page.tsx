@@ -1236,7 +1236,12 @@ export default function CandidateImportPage() {
                                             return res.success;
                                         }}
                                         onOverrideDuplicate={async (logId) => {
-                                            const res = await overrideDuplicateAndCreate(logId);
+                                            // Real logged-in identity, not the editable "Created By" picker —
+                                            // this is an accountability record of who clicked override.
+                                            const currentUserLabel = userProfiles.find(
+                                                p => p.email.toLowerCase() === userEmail.toLowerCase()
+                                            )?.real_name || userEmail || "Unknown user";
+                                            const res = await overrideDuplicateAndCreate(logId, currentUserLabel);
                                             if (res.success) fetchLogs();
                                             return res;
                                         }}
