@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2, Search, FileText, ExternalLink, RefreshCw, Plus, ArrowUpDown, Pencil, X } from "lucide-react";
+import { Loader2, Search, FileText, ExternalLink, RefreshCw, Plus, ArrowUpDown, Pencil, X, ClipboardList, FileDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { AddPrescreenDialog, EditPrescreenDialog } from "@/components/candidate-client-actions";
@@ -16,6 +16,7 @@ import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
 import { CandidateProfileSheet } from "@/components/candidate-profile-sheet";
 import { parseAnyDate, formatDateForDisplay } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
+import * as XLSX from "xlsx";
 
 type PreScreenLog = PreScreenLogRow;
 
@@ -77,8 +78,10 @@ export default function PreScreenTablePage() {
         });
     };
 
+    // screener_Name has untrimmed whitespace on some rows (e.g. "Tarinee " vs "Tarinee")
+    // which would otherwise show as duplicate options in the filter — dedupe on trimmed value
     const screenerOptions = useMemo(() =>
-        [...new Set(logs.map(l => l.screener_Name).filter(Boolean))].sort() as string[],
+        [...new Set(logs.map(l => l.screener_Name?.trim()).filter(Boolean))].sort() as string[],
         [logs]
     );
 
@@ -87,7 +90,7 @@ export default function PreScreenTablePage() {
             log.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             log.candidate_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             log.screener_Name?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesScreener = screenerFilter.length === 0 || screenerFilter.includes(log.screener_Name || "");
+        const matchesScreener = screenerFilter.length === 0 || screenerFilter.includes(log.screener_Name?.trim() || "");
         const logDate = parseAnyDate(log.screening_date);
         const from = dateFrom ? new Date(dateFrom) : null;
         const to = dateTo ? new Date(dateTo + "T23:59:59") : null;
@@ -118,6 +121,22 @@ export default function PreScreenTablePage() {
             return 0;
         });
     }, [filteredLogs, sortConfig]);
+
+    const exportXLSX = () => {
+        const rows = sortedLogs.map(l => ({
+            candidate_id: l.candidate_id,
+            name: l.name || '',
+            screener_Name: l.screener_Name?.trim() || '',
+            screening_date: formatDateForDisplay(l.screening_date),
+            overall_impression: l.overall_impression || '',
+            rating_score: l.rating_score ?? '',
+            feedback_text: l.feedback_text || '',
+        }));
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Pre-Screen Logs");
+        XLSX.writeFile(wb, `pre-screen-logs-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    };
 
     const handleCandidatePicked = (candidate: PickedCandidate) => {
         setPickedCandidate(candidate);
@@ -165,10 +184,25 @@ export default function PreScreenTablePage() {
                     <h1 className="text-3xl font-extrabold tracking-tight">Pre-Screen Logs</h1>
                     <p className="text-muted-foreground">Review initial screening results and feedback.</p>
                 </div>
-                <Button onClick={() => setPickerOpen(true)} className="gap-2">
-                    <Plus className="w-4 h-4" /> Add Pre-Screen
-                </Button>
+                <div className="flex items-center gap-2">
+                    <Button variant="outline" onClick={exportXLSX} disabled={sortedLogs.length === 0} className="gap-2">
+                        <FileDown className="w-4 h-4" /> Export Excel
+                    </Button>
+                    <Button onClick={() => setPickerOpen(true)} className="gap-2">
+                        <Plus className="w-4 h-4" /> Add Pre-Screen
+                    </Button>
+                </div>
             </div>
+
+            <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium text-muted-foreground">Total Logs</CardTitle>
+                    <ClipboardList className="h-4 w-4 text-indigo-600" />
+                </CardHeader>
+                <CardContent>
+                    <div className="text-2xl font-bold">{sortedLogs.length.toLocaleString()}</div>
+                </CardContent>
+            </Card>
 
             <Card className="border-none shadow-xl bg-white/50 backdrop-blur-sm">
                 <CardHeader className="bg-slate-50/50 border-b border-slate-100/50 pb-4">
