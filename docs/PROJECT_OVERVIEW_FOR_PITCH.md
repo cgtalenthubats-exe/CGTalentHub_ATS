@@ -64,7 +64,7 @@ User พิมพ์ภาษาธรรมชาติ ("หา GM โรง�
 
 - **NL → Filter**: Claude Haiku 4.5 แปลง query เป็น filter JSON + "suggestions" (chip แนะนำให้ขยายเงื่อนไข) — ผู้ใช้ปรับเองต่อได้ ไม่ต้อง prompt ซ้ำ (`actions/ai-search-demo.ts`)
 - **Filter 11+ แกน** + cascading (exclude-self pattern ผ่าน RPC): Position keyword/level, Industry group/industry, Region/Country (work country แยกจาก "Based in"), Hotel chain / sub-brand / star rating, Current-job-only, Job function, Company
-- **Chat-first search (V3)**: Agent Manager + sub-agent (SQL specialist ผ่าน MCP, web search, vector rank, batch categorize) ตอบในแชท หรือกด "Apply to filters" ส่งเงื่อนไขเข้า filter panel (`ai-search-v3`, `api/ai-search-chat`)
+- **Chat-first search (V3) — ใช้งานจริงแล้ว** ทั้งหน้า AI Search และหน้า JR Manage ใช้ทั้ง brainstorm กับ AI และทำ AI Assessment: Agent Manager + sub-agent (SQL specialist ผ่าน MCP, web search, vector rank, batch categorize) ตอบในแชท หรือกด "Apply to filters" ส่งเงื่อนไขเข้า filter panel (`ai-search-v3`, `api/ai-search-chat`)
 - **Assistant (streaming tool-use)**: `/assistant` ใช้ AI SDK + tool `searchCandidates`/`setFilters`/`getAnalytics` ตอบเป็นภาษาเดียวกับผู้ใช้ (ไทย/อังกฤษ)
 - **Search suggestion** ด้วย trigram index (autocomplete ชื่อบริษัท/ตำแหน่งเร็ว)
 - ผลลัพธ์ Stage 1 เก็บเป็น session (`v2_search_results`) → ต่อ Stage 2/3 ได้โดยไม่ต้อง query ใหม่
@@ -144,7 +144,8 @@ Supabase Auth + RLS + role/permission (unauthorized page), user profiles, prompt
 
 ## 5. สิ่งที่ควรพูดตรงๆ (กัน over-claim)
 
-- AI Search V3 (chat-first) ยัง "กำลังพัฒนา" บางส่วน; V2/Demo ใช้งานจริง
+> แก้ไข: เดิมเอกสารนี้ระบุว่า AI Search V3 "ยังพัฒนา" ซึ่งผิด (อ้างจาก docs เก่า) เจ้าของระบบยืนยันว่า V3 ใช้งานจริงแล้ว ส่วน docs/ai-search-v3-plan.md ยังไม่ได้อัปเดตตามสถานะปัจจุบัน
+
 - Stage 2 แบบ pass/fail screening ถูกตัดออกโดย decision (ไม่ใช่ขาด)
 - Salary Benchmark ใช้ข้อมูลภายใน ไม่ใช่ market survey ภายนอก
 - Hotel chain mapping ยังไม่ครบ (1,282 mapped; ที่เหลือมี admin UI รองรับ)
