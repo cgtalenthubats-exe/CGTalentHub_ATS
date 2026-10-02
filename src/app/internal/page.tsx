@@ -100,16 +100,8 @@ export default function InternalCandidatePage() {
     const isExCentral = (c: InternalCandidate) =>
         c.hiring_status === 'Resigned' || (!c.hiring_status && c.candidate_status?.includes('Ex-Central'));
 
-    const activeCount = candidates.filter(isActive).length;
-    const exCentralCount = candidates.filter(isExCentral).length;
-    const allCount = candidates.length;
-
-    const displayed = candidates
-        .filter(c => {
-            if (statusTab === 'Active') return isActive(c);
-            if (statusTab === 'Ex-Central') return isExCentral(c);
-            return true;
-        })
+    // candidates narrowed by every filter EXCEPT the status tab itself — used to compute tab counts
+    const statusCountPool = candidates
         .filter(c => sourceFilter === 'all' || c.source === sourceFilter)
         .filter(c => !colFilterCompanies.length || colFilterCompanies.includes(c.exp_company || ''))
         .filter(c => {
@@ -122,6 +114,17 @@ export default function InternalCandidatePage() {
             return colFilterBu.includes(getBu(c) || '');
         })
         .filter(c => !colFilterSubBu.length || colFilterSubBu.includes(getSubBu(c) || ''));
+
+    const activeCount = statusCountPool.filter(isActive).length;
+    const exCentralCount = statusCountPool.filter(isExCentral).length;
+    const allCount = statusCountPool.length;
+
+    const displayed = statusCountPool
+        .filter(c => {
+            if (statusTab === 'Active') return isActive(c);
+            if (statusTab === 'Ex-Central') return isExCentral(c);
+            return true;
+        });
 
     // base pool for dropdown options — apply status + source filter only (not column filters)
     const optionPool = candidates
