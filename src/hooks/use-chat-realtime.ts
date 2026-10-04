@@ -14,6 +14,8 @@ export type RealtimeChatMessage = {
     role: "user" | "ai";
     text: string;
     sender?: string;
+    /** Only present where the row has a created_at column (Project B, after its migration). */
+    createdAt?: string;
 };
 
 // Strips an optional "[JR: ...]" and/or "[USER: name]" prefix that n8n's
@@ -47,6 +49,7 @@ export function useChatRealtime(
                 },
                 (payload) => {
                     const msg = (payload.new as any)?.message;
+                    const createdAt: string | undefined = (payload.new as any)?.created_at ?? undefined;
                     if (!msg?.type) return;
 
                     if (msg.type === "human") {
@@ -54,12 +57,12 @@ export function useChatRealtime(
                         const match = content.match(HUMAN_PREFIX_RE);
                         const sender = match?.[1]?.trim();
                         const text = content.replace(HUMAN_PREFIX_RE, "").trim();
-                        if (text) onInsert({ role: "user", text, sender });
+                        if (text) onInsert({ role: "user", text, sender, createdAt });
                     } else if (msg.type === "ai") {
                         const toolCalls = msg.tool_calls ?? [];
                         if (toolCalls.length > 0) return;
                         const text: string = (msg.content ?? "").trim();
-                        if (text) onInsert({ role: "ai", text });
+                        if (text) onInsert({ role: "ai", text, createdAt });
                     }
                 }
             )

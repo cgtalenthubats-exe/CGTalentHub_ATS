@@ -12,6 +12,9 @@ export type ChatHistoryMessage = {
     sender?: string;
     filters?: any;
     sessionId?: string;
+    /** ISO timestamp from n8n_chat_histories.created_at. Undefined for rows written before that
+     *  column existed — there's no real historical time to recover for those. */
+    createdAt?: string;
 };
 
 // Strips an optional "[USER: name]" prefix added by the n8n workflow's Extract Input node.
@@ -66,24 +69,38 @@ function parseAiContent(raw: string): { text: string; filters: any; sessionId?: 
 }
 
 export async function getV3ChatHistory(): Promise<ChatHistoryMessage[]> {
-    const { data, error } = await supabaseB
+    let { data, error } = await supabaseB
         .from("n8n_chat_histories")
-        .select("id, message")
+        .select("id, message, created_at")
         .eq("session_id", V3_SESSION_ID)
         .order("id", { ascending: true });
+
+    // created_at only exists on Project B after migration
+    // 20261004010000_add_created_at_to_chat_histories.sql is applied there —
+    // fall back to the old select so history doesn't go blank before then.
+    if (error) {
+        const fallback = await supabaseB
+            .from("n8n_chat_histories")
+            .select("id, message")
+            .eq("session_id", V3_SESSION_ID)
+            .order("id", { ascending: true });
+        data = fallback.data as typeof data;
+        error = fallback.error;
+    }
 
     if (error || !data) return [];
 
     const messages: ChatHistoryMessage[] = [];
     for (const row of data as any[]) {
         const msg = row.message;
+        const createdAt: string | undefined = row.created_at ?? undefined;
         if (!msg?.type) continue;
         if (msg.type === "human") {
             const content: string = msg.content ?? "";
             const match = content.match(HUMAN_PREFIX_RE);
             const sender = match?.[1]?.trim();
             const text = content.replace(HUMAN_PREFIX_RE, "").trim();
-            if (text) messages.push({ role: "user", text, sender });
+            if (text) messages.push({ role: "user", text, sender, createdAt });
         } else if (msg.type === "ai") {
             // Skip intermediate "Calling X with input: ..." tool-call turns
             const toolCalls = msg.tool_calls ?? [];
@@ -97,6 +114,7 @@ export async function getV3ChatHistory(): Promise<ChatHistoryMessage[]> {
                     text,
                     filters: Object.keys(filters).length > 0 ? filters : undefined,
                     sessionId: sessionId?.startsWith("v2_") ? sessionId : undefined,
+                    createdAt,
                 });
             }
         }

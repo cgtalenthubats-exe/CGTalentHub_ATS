@@ -292,6 +292,7 @@ export default function AISearchV3Page() {
                         filters: hasMeaningfulFilters(h.filters) ? h.filters : undefined,
                         sessionId: h.sessionId,
                         jdText: h.sessionId ? lastUserText : undefined,
+                        timestamp: h.createdAt ? new Date(h.createdAt) : undefined,
                     };
                 });
                 setMessages(hydrated);
@@ -312,7 +313,13 @@ export default function AISearchV3Page() {
             const role = msg.role === "user" ? "user" : "assistant";
             const exists = prev.some(m => m.role === role && m.content.trim() === msg.text.trim());
             if (exists) return prev;
-            return [...prev, { id: `${Date.now()}-${Math.random()}`, role, content: msg.text, sender: msg.sender }];
+            return [...prev, {
+                id: `${Date.now()}-${Math.random()}`,
+                role,
+                content: msg.text,
+                sender: msg.sender,
+                timestamp: msg.createdAt ? new Date(msg.createdAt) : new Date(),
+            }];
         });
     }, []);
     useChatRealtime(V3_SESSION_ID, handleRealtimeInsert, "B");
