@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { adminAuthClient } from '@/lib/supabase/admin';
 import { getEffectiveAge, extractYear, formatDateForInput } from '@/lib/date-utils';
 import { getCheckedStatus } from '@/lib/candidate-utils';
-import { COMPENSATION_KEYS, BENEFIT_PROVIDED_COLUMN } from '@/lib/compensation-fields';
+import { COMPENSATION_KEYS, BENEFIT_PROVIDED_COLUMN, COMPENSATION_EXPERIENCE_LINK_COLUMN } from '@/lib/compensation-fields';
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
     const candidateId = (await params).id;
@@ -350,6 +350,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         // Tri-state per benefit (provided / confirmed none / not asked); null clears it.
         if (body[BENEFIT_PROVIDED_COLUMN] !== undefined) {
             updateData[BENEFIT_PROVIDED_COLUMN] = body[BENEFIT_PROVIDED_COLUMN] || null;
+        }
+        // Which experience this compensation block was reported for.
+        if (body[COMPENSATION_EXPERIENCE_LINK_COLUMN] !== undefined) {
+            updateData[COMPENSATION_EXPERIENCE_LINK_COLUMN] = body[COMPENSATION_EXPERIENCE_LINK_COLUMN] || null;
         }
 
         // Add timestamp

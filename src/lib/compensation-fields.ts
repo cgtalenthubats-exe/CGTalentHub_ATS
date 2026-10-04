@@ -141,6 +141,14 @@ export const COMPENSATION_FIELDS: readonly CompensationField[] = [
 /** The jsonb column holding the provided/not-provided answer per benefit. */
 export const BENEFIT_PROVIDED_COLUMN = "benefit_provided";
 
+/**
+ * Which `candidate_experiences.id` this compensation block was reported for. Compensation stays
+ * one record per candidate rather than one per experience (splitting every field below would be a
+ * much larger change for what's needed) — this single pointer just answers "which job was this
+ * for", so the form isn't silently mixing figures from different roles without saying which one.
+ */
+export const COMPENSATION_EXPERIENCE_LINK_COLUMN = "compensation_experience_id";
+
 /** Every compensation column, including retired ones — used for reads and API whitelists. */
 export const COMPENSATION_KEYS = COMPENSATION_FIELDS.map(f => f.key);
 

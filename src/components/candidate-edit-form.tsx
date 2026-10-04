@@ -91,6 +91,7 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
     // src/lib/compensation-fields.ts. Keeping it out of formData is what stops this form and the
     // other two from drifting apart again.
     const [compensation, setCompensation] = useState<CompensationDraft>({ values: {}, provided: {} });
+    const [experiences, setExperiences] = useState<any[]>([]);
 
     useEffect(() => {
         const loadData = async () => {
@@ -133,6 +134,7 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                     job_function: data.job_function || "",
                 });
                 setCompensation(readCompensation(data));
+                setExperiences(data.experiences || []);
 
                 if (data.photo) setPhotoPreview(data.photo);
                 if (data.resume_url) setCurrentResumeUrl(data.resume_url);
@@ -654,7 +656,7 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                             Compensation & Benefits
                         </h4>
-                        <CompensationFieldsGrid draft={compensation} onChange={setCompensation} />
+                        <CompensationFieldsGrid draft={compensation} onChange={setCompensation} experiences={experiences} />
                     </div>
 
                     {/* Enhanced Profile Data (LinkedIn) */}

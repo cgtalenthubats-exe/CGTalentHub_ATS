@@ -49,7 +49,7 @@ export function FinancialEditSection({ candidate, onSave }: { candidate: any; on
             <div className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100/50">
                 {editing ? (
                     <>
-                        <CompensationFieldsGrid draft={draft} onChange={setDraft} />
+                        <CompensationFieldsGrid draft={draft} onChange={setDraft} experiences={candidate?.experiences} />
                         <div className="mt-5 flex justify-end">
                             <Button size="sm" onClick={handleSave} disabled={saving} className="h-8 px-5 text-xs font-black bg-indigo-600 hover:bg-indigo-700 text-white">
                                 {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Save Changes"}

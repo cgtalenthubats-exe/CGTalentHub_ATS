@@ -8,6 +8,7 @@
 
 import {
     BENEFIT_PROVIDED_COLUMN,
+    COMPENSATION_EXPERIENCE_LINK_COLUMN,
     COMPENSATION_FIELDS,
     COMPENSATION_KEYS,
     isNumericField,
@@ -18,6 +19,8 @@ import {
 export interface CompensationDraft {
     values: Record<string, string>;
     provided: Record<string, boolean>;
+    /** `candidate_experiences.id` this data was reported for; null/undefined = not yet picked. */
+    experienceId?: string | null;
 }
 
 /**
@@ -28,6 +31,11 @@ export interface CompensationDraft {
  * - `amount`   — they get it and we know how much
  */
 export type BenefitState = "unknown" | "none" | "provided" | "amount";
+
+/** True if an experience row is the candidate's current job (status flag or "Present" end date). */
+export function isCurrentExperience(exp: { is_current_job?: string | null; end_date?: string | null }): boolean {
+    return exp.is_current_job === "Current" || exp.end_date?.toLowerCase() === "present";
+}
 
 export function parseAmount(value: unknown): number | null {
     if (value === null || value === undefined || value === "") return null;
@@ -78,7 +86,12 @@ export function readCompensation(row: any): CompensationDraft {
             values[field.key] = String(raw);
         }
     });
-    return { values, provided: readProvidedMap(row) };
+    const experienceId = row?.[COMPENSATION_EXPERIENCE_LINK_COLUMN];
+    return {
+        values,
+        provided: readProvidedMap(row),
+        experienceId: experienceId === null || experienceId === undefined ? null : String(experienceId),
+    };
 }
 
 /**
@@ -109,6 +122,10 @@ export function buildCompensationPayload(draft: CompensationDraft): Record<strin
         if (typeof value === "boolean") provided[key] = value;
     });
     payload[BENEFIT_PROVIDED_COLUMN] = Object.keys(provided).length > 0 ? provided : null;
+
+    if ("experienceId" in draft) {
+        payload[COMPENSATION_EXPERIENCE_LINK_COLUMN] = draft.experienceId || null;
+    }
 
     return payload;
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Minus, X } from "lucide-react";
+import { AlertTriangle, Check, Minus, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,8 @@ import {
     isNumericField,
     type CompensationField,
 } from "@/lib/compensation-fields";
-import { computeGroupTotals, computeSalaryTotals, formatAmount, parseAmount, type CompensationDraft } from "@/lib/compensation";
+import { computeGroupTotals, computeSalaryTotals, formatAmount, isCurrentExperience, parseAmount, type CompensationDraft } from "@/lib/compensation";
+import { formatMonthYear, parseAnyDate } from "@/lib/date-utils";
 
 /**
  * The compensation & benefits inputs, generated from COMPENSATION_FIELDS so every form that
@@ -24,7 +25,16 @@ import { computeGroupTotals, computeSalaryTotals, formatAmount, parseAmount, typ
  */
 
 function formatOnType(field: CompensationField, raw: string): string {
-    if (!isNumericField(field)) return raw;
+    if (!isNumericField(field)) {
+        // Free-text fields like Housing can hold either an amount ("35,000") or a note
+        // ("company provides shared house"). Only add thousand separators when what's
+        // been typed so far is purely numeric, so the note case is left untouched.
+        if (!/^\d[\d,]*\.?\d*$/.test(raw)) return raw;
+        const cleaned = raw.replace(/,/g, "");
+        const [whole, ...rest] = cleaned.split(".");
+        const withCommas = whole ? Number(whole).toLocaleString("en-US") : "";
+        return rest.length > 0 ? `${withCommas}.${rest.join("")}` : withCommas;
+    }
     // Keep digits, one dot and a leading minus; everything else a user types is noise here.
     const cleaned = raw.replace(/[^\d.]/g, "");
     if (cleaned === "") return "";
@@ -128,6 +138,98 @@ function ProvidedLegend() {
     );
 }
 
+export interface ExperienceOption {
+    id: string | number;
+    position?: string | null;
+    company?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
+    is_current_job?: string | null;
+}
+
+function experienceLabel(exp: ExperienceOption): string {
+    const isCurrent = isCurrentExperience(exp);
+    const range = `${formatMonthYear(exp.start_date)} — ${isCurrent ? "Present" : formatMonthYear(exp.end_date)}`;
+    return `${exp.position || "Unknown position"} at ${exp.company || "Unknown company"} (${range})`;
+}
+
+export function CurrentBadge({ className }: { className?: string }) {
+    return (
+        <span className={cn("inline-flex items-center rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest bg-indigo-100 text-indigo-700", className)}>
+            Current
+        </span>
+    );
+}
+
+/**
+ * Compensation is still one record per candidate, not one per experience — but recruiters need to
+ * know which job the figures below came from. This just records a pointer to one experience
+ * rather than splitting every field, so it stays amber until someone picks one.
+ */
+function ExperiencePicker({
+    experiences,
+    value,
+    onChange,
+}: {
+    experiences: ExperienceOption[];
+    value: string | null | undefined;
+    onChange: (id: string | null) => void;
+}) {
+    if (experiences.length === 0) return null;
+    const isSet = !!value;
+    // Same order as the Experience timeline on the candidate profile card (sortExperiences in
+    // candidate-experience-utils.ts): current job(s) first, then most recent start_date first.
+    const sortValue = (d: string | null | undefined) => {
+        const parsed = parseAnyDate(d);
+        return parsed ? parsed.getFullYear() * 100 + (parsed.getMonth() + 1) : 0;
+    };
+    const sortedExperiences = [...experiences].sort((a, b) => {
+        const aCurrent = isCurrentExperience(a) ? 0 : 1;
+        const bCurrent = isCurrentExperience(b) ? 0 : 1;
+        if (aCurrent !== bCurrent) return aCurrent - bCurrent;
+        return sortValue(b.start_date) - sortValue(a.start_date);
+    });
+
+    return (
+        <div
+            className={cn(
+                "flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2",
+                isSet ? "border-slate-200 bg-white" : "border-amber-300 bg-amber-50"
+            )}
+        >
+            <span
+                className={cn(
+                    "inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest shrink-0",
+                    isSet ? "text-slate-500" : "text-amber-700"
+                )}
+            >
+                {!isSet && <AlertTriangle className="h-3.5 w-3.5" />}
+                Reported for
+            </span>
+            <Select value={value || undefined} onValueChange={v => onChange(v)}>
+                <SelectTrigger
+                    className={cn(
+                        "h-8 text-xs flex-1 min-w-[220px]",
+                        isSet ? "bg-white" : "bg-amber-100 border-amber-300 text-amber-800 font-bold"
+                    )}
+                >
+                    <SelectValue placeholder="Which experience is this for? Not set yet" />
+                </SelectTrigger>
+                <SelectContent>
+                    {sortedExperiences.map(exp => (
+                        <SelectItem key={String(exp.id)} value={String(exp.id)}>
+                            <span className="inline-flex items-center gap-1.5">
+                                {experienceLabel(exp)}
+                                {isCurrentExperience(exp) && <CurrentBadge />}
+                            </span>
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
+    );
+}
+
 function TotalsBar({ label, monthly, yearly }: { label: string; monthly: number | null; yearly: number | null }) {
     if (monthly === null && yearly === null) return null;
     return (
@@ -165,10 +267,13 @@ function SelectField({ field, value, onChange, disabled }: { field: Compensation
 export function CompensationFieldsGrid({
     draft,
     onChange,
+    experiences,
     className,
 }: {
     draft: CompensationDraft;
     onChange: (next: CompensationDraft) => void;
+    /** This candidate's experiences, for the "reported for" picker. Omit to hide it. */
+    experiences?: ExperienceOption[];
     className?: string;
 }) {
     const setValue = (key: string, value: string) =>
@@ -185,6 +290,13 @@ export function CompensationFieldsGrid({
 
     return (
         <div className={cn("space-y-6", className)}>
+            {experiences && experiences.length > 0 && (
+                <ExperiencePicker
+                    experiences={experiences}
+                    value={draft.experienceId}
+                    onChange={id => onChange({ ...draft, experienceId: id })}
+                />
+            )}
             <ProvidedLegend />
             {compensationFieldsByGroup().map(group => (
                 <div key={group.group} className="space-y-3">

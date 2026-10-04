@@ -1,9 +1,11 @@
 "use client";
 
-import { Check, Minus, X } from "lucide-react";
+import { AlertTriangle, Check, Minus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { COMPENSATION_FIELDS, isNumericField, type CompensationField } from "@/lib/compensation-fields";
-import { benefitState, formatAmount, readCompensation } from "@/lib/compensation";
+import { benefitState, formatAmount, isCurrentExperience, readCompensation } from "@/lib/compensation";
+import { formatMonthYear } from "@/lib/date-utils";
+import { CurrentBadge } from "@/components/compensation-fields-grid";
 
 /**
  * Read-only view of a candidate's compensation, generated from the same field list as the entry
@@ -60,14 +62,30 @@ function displayValue(field: CompensationField, candidate: any) {
 }
 
 export function CompensationSummary({ candidate, className }: { candidate: any; className?: string }) {
-    const { provided } = readCompensation(candidate);
+    const { provided, experienceId } = readCompensation(candidate);
 
     // Retired fields stay visible only where an old value exists, so nothing silently disappears.
     const fields = COMPENSATION_FIELDS.filter(f => !f.retired || !!candidate?.[f.key]);
     const note = candidate?.others_benefit;
+    const experiences: any[] = candidate?.experiences ?? [];
+    const linkedExperience = experienceId ? experiences.find(e => String(e.id) === String(experienceId)) : null;
 
     return (
         <div className={cn("space-y-5", className)}>
+            {experiences.length > 0 && (
+                linkedExperience ? (
+                    <p className="inline-flex flex-wrap items-center gap-1.5 text-[11px] font-bold text-slate-500">
+                        Reported for <span className="text-slate-700">{linkedExperience.position}</span> at{" "}
+                        <span className="text-slate-700">{linkedExperience.company}</span>{" "}
+                        ({formatMonthYear(linkedExperience.start_date)} — {isCurrentExperience(linkedExperience) ? "Present" : formatMonthYear(linkedExperience.end_date)})
+                        {isCurrentExperience(linkedExperience) && <CurrentBadge />}
+                    </p>
+                ) : (
+                    <p className="inline-flex items-center gap-1.5 text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-300 rounded-md px-2 py-1">
+                        <AlertTriangle className="h-3 w-3" /> Not linked to an experience yet
+                    </p>
+                )
+            )}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5 text-sm">
                 {fields.filter(f => f.type !== "textarea").map(field => {
                     const value = displayValue(field, candidate);
