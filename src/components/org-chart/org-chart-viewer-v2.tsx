@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useMemo, type ChangeEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { OrgChart } from 'd3-org-chart'
-import { Download, Loader2, Plus, UserPlus, Focus, User, Building2, Trash2, Users, X, Maximize2, Minimize2, ZoomIn, ZoomOut, Sparkles, UserCheck, UploadCloud, Target, Search, ExternalLink, Info, RefreshCw } from 'lucide-react'
+import { Download, Loader2, Plus, UserPlus, Focus, User, Building2, Trash2, Users, X, Maximize2, Minimize2, ZoomIn, ZoomOut, Sparkles, UserCheck, Target, Search, ExternalLink, Info, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
     Dialog,
@@ -30,7 +30,8 @@ import { cn } from '@/lib/utils'
 import { toast } from '@/lib/notifications'
 import { exportOrgChartPptx } from '@/lib/org-chart-pptx'
 import { exportOrgChartCsv } from '@/lib/org-chart-pptx/csv-export'
-import { createSingleOrgProfile, verifyOrgNode, deleteOrgNode, clearOrgNode, toggleGroupNode, moveOrgNode, bulkCreateOrgProfiles, verifyOrgChart, deleteOrgChart, updateMasterCompanyLogo, type RawOrgNode } from '@/app/actions/org-chart-actions'
+import { createSingleOrgProfile, verifyOrgNode, deleteOrgNode, clearOrgNode, toggleGroupNode, moveOrgNode, bulkCreateOrgProfiles, verifyOrgChart, deleteOrgChart, type RawOrgNode } from '@/app/actions/org-chart-actions'
+import { OrgChartLogoWidget } from '@/components/org-chart/org-chart-logo-widget'
 import { VerificationDialog } from '@/components/org-chart/verification-dialog'
 import { RefreshAllProfilesDialog } from '@/components/org-chart/refresh-all-profiles-dialog'
 import { CandidateProfileSheet } from '@/components/candidate-profile-sheet'
@@ -45,11 +46,76 @@ const FONT_FAMILY = 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", R
 // Node/chart sizing — kept compact so more of the org fits on screen at once
 const NODE_WIDTH = 220
 const NODE_HEIGHT = 113
+// Group nodes are shorter than person cards. d3-org-chart places a node's children at
+// (its own height + margin), so on levels that also hold person nodes with children the
+// difference is added to the group's margin to keep the next level aligned.
+const GROUP_NODE_HEIGHT = 80
+const ROOT_WRAPPER_ID = 'root-wrapper'
 const COMPACT_MARGIN_PAIR = 16
 const COMPACT_MARGIN_BETWEEN = 8
 const NEIGHBOUR_MARGIN = 24
 const SIBLINGS_MARGIN = 12
-const CHILDREN_MARGIN = 44
+// Clear space kept between a sibling and the team block (compact 2-column) hanging under its neighbour
+const COMPACT_BLOCK_GAP = 24
+// Vertical gap between a parent and its children. A level where at least one node has 2+
+// children needs room for a bus line with LINK_HALF_GAP above and below it; every node on
+// that level gets the same gap so the levels stay aligned. A level made only of single
+// children (straight lines) just gets LINK_HALF_GAP.
+const LINK_HALF_GAP = 35
+const CHILDREN_MARGIN_BRANCHING = LINK_HALF_GAP * 2
+const CHILDREN_MARGIN_STRAIGHT = LINK_HALF_GAP
+
+function nodeHeightFor(node: any): number {
+    const d = node.data
+    return d?.is_group_node && d.id !== ROOT_WRAPPER_ID ? GROUP_NODE_HEIGHT : NODE_HEIGHT
+}
+
+// Tallest node on this level that actually has visible children — the level below starts
+// that far under the level's top edge.
+function levelParentHeight(node: any): number {
+    const root = node.ancestors().pop()
+    let tallest = 0
+    for (const n of root.descendants()) {
+        if (n.depth === node.depth && n.children && n.children.length > 0) {
+            tallest = Math.max(tallest, nodeHeightFor(n))
+        }
+    }
+    return tallest || nodeHeightFor(node)
+}
+
+function childrenMarginForLevel(node: any): number {
+    const root = node.ancestors().pop()
+    const depth = node.depth
+    const branching = root.descendants().some((n: any) => n.depth === depth && n.children && n.children.length > 1)
+    const base = branching ? CHILDREN_MARGIN_BRANCHING : CHILDREN_MARGIN_STRAIGHT
+    return base + (levelParentHeight(node) - nodeHeightFor(node))
+}
+
+// A node's visible subtree can be much wider than the node itself — 2+ leaf children collapse
+// into a 2-column block, and expanded children fan out below. A leaf (or narrow) neighbour has
+// nothing on those deeper levels for d3-org-chart to push against, so it would sit right next to
+// the wide subtree. Reserve the overhang as sibling margin instead. Recomputed on every layout,
+// so it follows expand/collapse.
+const COMPACT_BLOCK_WIDTH = NODE_WIDTH * 2 + COMPACT_MARGIN_PAIR
+
+// Horizontal space the visible subtree under `node` needs (children slots as the layout sees them)
+function subtreeExtent(node: any): number {
+    const kids: any[] = node.children || []
+    if (kids.length === 0) return NODE_WIDTH
+    const compact = kids.filter((c) => !c.children).length >= 2
+    let total = compact ? COMPACT_BLOCK_WIDTH : 0
+    for (const c of kids) {
+        if (compact && !c.children) continue
+        total += NODE_WIDTH + siblingsMarginFor(c)
+    }
+    return Math.max(NODE_WIDTH, total)
+}
+
+function siblingsMarginFor(node: any): number {
+    const overhang = subtreeExtent(node) - (NODE_WIDTH + SIBLINGS_MARGIN)
+    if (overhang <= 0) return SIBLINGS_MARGIN
+    return SIBLINGS_MARGIN + overhang + COMPACT_BLOCK_GAP * 2
+}
 
 const STATUS_STYLES: Record<string, { border: string; bg: string; dashed?: boolean }> = {
     matched: { border: '#10b981', bg: '#ecfdf5' },
@@ -80,7 +146,9 @@ function rightAngleDiagonal(s: any, t: any, m: any, offsets: { sy?: number } = {
     const ey = t.y
     const mx = m && m.x != null ? m.x : x
     const my = m && m.y != null ? m.y : y
-    const midY = (y + ey) / 2
+    // Keep the bus a fixed LINK_HALF_GAP above the children (so it lines up across parents of
+    // different heights); with no room for a bus the line is straight, so the midpoint is fine.
+    const midY = y - ey >= LINK_HALF_GAP * 2 ? y - LINK_HALF_GAP : (y + ey) / 2
     return `M ${mx} ${my} L ${x} ${my} L ${x} ${y} L ${x} ${midY} L ${ex} ${midY} L ${ex} ${ey}`
 }
 
@@ -121,18 +189,20 @@ function renderNodeContent(d: { data: V2HierarchyDatum; width: number; height: n
 
     if (data.is_group_node) {
         return `
-            <div draggable="true" data-drag-node="${escapeHtml(data.id)}" style="width:${width}px;height:${height}px;border:2px solid #6366f1;border-radius:10px;background:linear-gradient(135deg,#eef2ff 0%,#e0e7ff 100%);box-shadow:0 1px 3px rgba(99,102,241,0.15);display:flex;flex-direction:column;align-items:center;font-family:${FONT_FAMILY};box-sizing:border-box;padding:8px;position:relative;cursor:grab;">
+            <div draggable="true" data-drag-node="${escapeHtml(data.id)}" style="width:${width}px;height:${height}px;border:2px solid #6366f1;border-radius:10px;background:linear-gradient(135deg,#eef2ff 0%,#e0e7ff 100%);box-shadow:0 1px 3px rgba(99,102,241,0.15);display:flex;flex-direction:column;font-family:${FONT_FAMILY};box-sizing:border-box;padding:6px 8px;position:relative;cursor:grab;">
                 ${renderKebabButton(data.id)}
-                <div style="background:#6366f1;border-radius:7px;padding:4px;margin:1px 0 4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>
-                    </svg>
-                </div>
-                <div style="font-size:11px;font-weight:700;color:#3730a3;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;line-height:1.3;">
-                    ${escapeHtml(data.name)}
+                <div style="display:flex;align-items:center;justify-content:center;gap:6px;min-width:0;">
+                    <div style="background:#6366f1;border-radius:7px;padding:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/>
+                        </svg>
+                    </div>
+                    <div style="font-size:11px;font-weight:700;color:#3730a3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3;min-width:0;">
+                        ${escapeHtml(data.name)}
+                    </div>
                 </div>
                 ${data.title ? `<div style="font-size:9px;color:#6366f1;font-weight:500;text-align:center;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;line-height:1.3;">${escapeHtml(data.title)}</div>` : ''}
-                <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:auto;padding-top:6px;flex-shrink:0;">
+                <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-top:auto;flex-shrink:0;">
                     <span style="font-size:8px;font-weight:700;color:#818cf8;text-transform:uppercase;letter-spacing:0.08em;">GROUP</span>
                     ${childCount > 0 ? `<div style="background:#6366f1;border-radius:999px;min-width:16px;height:16px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:white;padding:0 4px;">${childCount}</div>` : ''}
                 </div>
@@ -254,12 +324,11 @@ type DragMoveState = {
     targetName: string
 }
 
-export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Organization', companyId, companyLogoUrl: initialLogo, notes, chartFileUrl, modifyDate: initialModifyDate }: { data: OrgNodeV2[]; rawNodes: RawOrgNode[]; uploadId: string; companyName?: string; companyId?: string | null; companyLogoUrl?: string | null; notes?: string | null; chartFileUrl?: string | null; modifyDate?: string | null }) {
+export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Organization', companyId, companyLogoUrl: initialLogo, chartLogoUrl: initialChartLogo, notes, chartFileUrl, modifyDate: initialModifyDate }: { data: OrgNodeV2[]; rawNodes: RawOrgNode[]; uploadId: string; companyName?: string; companyId?: string | null; companyLogoUrl?: string | null; chartLogoUrl?: string | null; notes?: string | null; chartFileUrl?: string | null; modifyDate?: string | null }) {
     const containerRef = useRef<HTMLDivElement>(null)
     const chartRef = useRef<OrgChart<OrgNodeV2> | null>(null)
     const hasFitRef = useRef(false)
     const creatingNodesRef = useRef<Set<string>>(new Set())
-    const logoInputRef = useRef<HTMLInputElement>(null)
     const pendingHighlightRef = useRef<string | null>(null)
     const prevFocusedNodeIdRef = useRef<string | null>(null)
     const router = useRouter()
@@ -270,9 +339,8 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
     const [verifyNode, setVerifyNode] = useState<(OrgNodeV2 & { node_id: string }) | null>(null)
     const [isVerifying, setIsVerifying] = useState(false)
 
-    // Company logo (top-left widget)
-    const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(initialLogo || null)
-    const [isUploadingLogo, setIsUploadingLogo] = useState(false)
+    // Effective logo (chart override ?? company logo), reported by OrgChartLogoWidget; used for PPTX export
+    const [effectiveLogoUrl, setEffectiveLogoUrl] = useState<string | null>(initialChartLogo || initialLogo || null)
 
     // Toolbar: bulk actions, legend, chart-level verify/delete
     const [showLegend, setShowLegend] = useState(false)
@@ -355,7 +423,7 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
         try {
             setIsExporting(true)
             toast.info('กำลังสร้างไฟล์ PowerPoint อาจใช้เวลาสักครู่...', { duration: 5000 })
-            await exportOrgChartPptx(data, companyName, companyLogoUrl)
+            await exportOrgChartPptx(data, companyName, effectiveLogoUrl)
             toast.success('Export PowerPoint สำเร็จ! 🎉')
         } catch (err) {
             console.error('Export PPTX error:', err)
@@ -570,43 +638,6 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
         }
     }
 
-    const handleLogoUpload = async (e: ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file || !companyId) return
-
-        setIsUploadingLogo(true)
-        try {
-            const fileExt = file.name.split('.').pop() || 'png'
-            const fileName = `logo_${companyId}_${Date.now()}.${fileExt}`
-
-            const { error: uploadError } = await supabase.storage
-                .from('org_charts')
-                .upload(fileName, file, { upsert: true })
-
-            if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`)
-
-            const { data: urlData } = supabase.storage
-                .from('org_charts')
-                .getPublicUrl(fileName)
-
-            const publicUrl = urlData.publicUrl
-
-            await updateMasterCompanyLogo(companyId, publicUrl)
-
-            setCompanyLogoUrl(publicUrl)
-            toast.success('Company logo updated successfully')
-        } catch (err: any) {
-            toast.error('Failed to upload logo: ' + err.message)
-        } finally {
-            setIsUploadingLogo(false)
-        }
-    }
-
-    // Sync local logo state if the server-fetched prop changes (e.g. after router.refresh())
-    useEffect(() => {
-        setCompanyLogoUrl(initialLogo || null)
-    }, [initialLogo])
-
     // Realtime: refresh whenever another user edits this company's org nodes
     useEffect(() => {
         if (!companyId) return
@@ -635,13 +666,14 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
                 .nodeId((d) => d.id)
                 .parentNodeId((d) => d.parentId)
                 .nodeWidth(() => NODE_WIDTH)
-                .nodeHeight(() => NODE_HEIGHT)
+                .nodeHeight((d: any) => nodeHeightFor(d))
                 .compact(true)
                 .compactMarginPair(() => COMPACT_MARGIN_PAIR)
                 .compactMarginBetween(() => COMPACT_MARGIN_BETWEEN)
                 .neighbourMargin(() => NEIGHBOUR_MARGIN)
-                .siblingsMargin(() => SIBLINGS_MARGIN)
-                .childrenMargin(() => CHILDREN_MARGIN)
+                .siblingsMargin((d: any) => siblingsMarginFor(d))
+                .childrenMargin((d: any) => childrenMarginForLevel(d))
+                .linkYOffset(0)
                 .initialExpandLevel(2)
                 .svgHeight(height)
                 .nodeContent(renderNodeContent as (d: any) => string)
@@ -941,48 +973,15 @@ export function OrgChartViewerV2({ data, rawNodes, uploadId, companyName = 'Orga
                 </div>
             </div>
 
-            {/* Company Logo Top Left */}
-            {companyId && (
-                <div className="absolute top-4 left-4 z-10 flex flex-col gap-1.5">
-                    <span className="text-xs font-black text-slate-700 bg-white/90 border border-slate-200 rounded-full px-3 py-1 shadow-sm w-fit">
-                        {companyName}
-                    </span>
-                    <div
-                        className={cn(
-                            "relative group rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden flex items-center justify-center cursor-pointer transition-all",
-                            companyLogoUrl ? "h-16 w-32 p-1" : "h-9 px-4 hover:border-indigo-300 hover:bg-slate-50 rounded-full"
-                        )}
-                        onClick={() => !isUploadingLogo && logoInputRef.current?.click()}
-                        title="Upload Company Logo"
-                    >
-                        {isUploadingLogo ? (
-                            <div className="flex flex-col items-center gap-1 justify-center w-full h-full text-indigo-500">
-                                <Loader2 size={16} className="animate-spin" />
-                            </div>
-                        ) : companyLogoUrl ? (
-                            <>
-                                <img src={companyLogoUrl} alt="Company Logo" className="max-h-full max-w-full object-contain" />
-                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-bold">
-                                    <UploadCloud size={16} className="mb-0.5" />
-                                    UPDATE
-                                </div>
-                            </>
-                        ) : (
-                            <div className="flex items-center gap-2 text-slate-500 text-xs font-bold group-hover:text-indigo-600 transition-colors">
-                                <UploadCloud size={14} />
-                                ADD LOGO
-                            </div>
-                        )}
-                        <input
-                            type="file"
-                            accept="image/*"
-                            ref={logoInputRef}
-                            className="hidden"
-                            onChange={handleLogoUpload}
-                        />
-                    </div>
-                </div>
-            )}
+            {/* Logo Top Left (chart override ?? company logo) */}
+            <OrgChartLogoWidget
+                uploadId={uploadId}
+                companyId={companyId}
+                companyName={companyName}
+                companyLogoUrl={initialLogo}
+                chartLogoUrl={initialChartLogo}
+                onEffectiveLogoChange={setEffectiveLogoUrl}
+            />
 
             {/* Action Toolbar (Bottom Right) */}
             <div className="absolute bottom-4 right-4 z-10 flex flex-col items-end gap-3">

@@ -18,6 +18,7 @@ const DynamicViewer = dynamic(
 export function OrgChartClientWrapper({ 
     initialData,
     companyLogoUrl,
+    chartLogoUrl,
     companyId,
     uploadId,
     notes,
@@ -27,6 +28,7 @@ export function OrgChartClientWrapper({
 }: { 
     initialData: OrgNode | null,
     companyLogoUrl?: string | null,
+    chartLogoUrl?: string | null,
     companyId?: string | null,
     uploadId?: string | null,
     notes?: string | null,
@@ -39,6 +41,7 @@ export function OrgChartClientWrapper({
             <DynamicViewer 
                 initialData={initialData} 
                 companyLogoUrl={companyLogoUrl}
+                chartLogoUrl={chartLogoUrl}
                 companyId={companyId}
                 uploadId={uploadId}
                 chartCompanyName={chartCompanyName}

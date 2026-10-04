@@ -16,6 +16,7 @@ type OrgChartClientPageProps = {
     chartData: any
     tableData: any[]
     companyLogoUrl: string | null
+    chartLogoUrl?: string | null
     notes: string | null
     chartFileUrl: string | null
     modifyDate: string | null
@@ -29,6 +30,7 @@ export function OrgChartClientPage({
     chartData,
     tableData,
     companyLogoUrl,
+    chartLogoUrl,
     notes,
     chartFileUrl,
     modifyDate
@@ -116,6 +118,7 @@ export function OrgChartClientPage({
                             <OrgChartClientWrapper
                                 initialData={chartData}
                                 companyLogoUrl={companyLogoUrl}
+                                chartLogoUrl={chartLogoUrl}
                                 companyId={currentCompanyId}
                                 uploadId={currentUploadId}
                                 chartCompanyName={uploads.find((u: any) => u.upload_id === currentUploadId)?.company_name || 'Unknown'}

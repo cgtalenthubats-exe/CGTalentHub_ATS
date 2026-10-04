@@ -195,14 +195,61 @@ export async function fetchCompanyLogo(companyId: string | null) {
     return data?.company_logo || null
 }
 
-export async function updateMasterCompanyLogo(companyId: string, logoUrl: string) {
+// Best-effort cleanup of a logo file we uploaded ourselves (logo_* in the org_charts bucket).
+// Skips external URLs and anything still referenced by another row.
+async function removeOwnedLogoFile(url: string | null | undefined) {
+    if (!url) return
+    const m = url.match(/\/storage\/v1\/object\/public\/org_charts\/(logo_[^?#]+)/)
+    if (!m) return
+    const [{ count: chartRefs }, { count: companyRefs }] = await Promise.all([
+        supabase.from('org_chart_uploads').select('upload_id', { count: 'exact', head: true }).eq('chart_logo', url),
+        supabase.from('company_master').select('company_id', { count: 'exact', head: true }).eq('company_logo', url),
+    ])
+    if ((chartRefs ?? 0) > 0 || (companyRefs ?? 0) > 0) return
+    await supabase.storage.from('org_charts').remove([decodeURIComponent(m[1])])
+}
+
+function revalidateOrgChartPages() {
+    revalidatePath('/org-chart')
+    revalidatePath('/org-chart-v2')
+    revalidatePath('/candidates/[id]', 'page')
+}
+
+/** Set (string) or clear (null) the shared logo of a company. */
+export async function updateMasterCompanyLogo(companyId: string, logoUrl: string | null) {
+    const { data: prev } = await supabase
+        .from('company_master')
+        .select('company_logo')
+        .eq('company_id', companyId)
+        .single()
+
     const { error } = await supabase
         .from('company_master')
         .update({ company_logo: logoUrl })
         .eq('company_id', companyId)
 
     if (error) throw error
-    revalidatePath('/org-chart')
+    if (prev?.company_logo && prev.company_logo !== logoUrl) await removeOwnedLogoFile(prev.company_logo)
+    revalidateOrgChartPages()
+    return { success: true }
+}
+
+/** Set (string) or clear (null) the logo override of a single org chart. */
+export async function updateChartLogo(uploadId: string, logoUrl: string | null) {
+    const { data: prev } = await supabase
+        .from('org_chart_uploads')
+        .select('chart_logo')
+        .eq('upload_id', uploadId)
+        .single()
+
+    const { error } = await supabase
+        .from('org_chart_uploads')
+        .update({ chart_logo: logoUrl })
+        .eq('upload_id', uploadId)
+
+    if (error) throw error
+    if (prev?.chart_logo && prev.chart_logo !== logoUrl) await removeOwnedLogoFile(prev.chart_logo)
+    revalidateOrgChartPages()
     return { success: true }
 }
 
@@ -415,21 +462,21 @@ export async function createOrgNode(uploadId: string, node: Omit<RawOrgNode, 'no
 }
 
 export async function clearOrgNode(nodeId: string) {
-    // 1. Fetch the node to get its current name and upload_id before clearing
+    // 1. Fetch the node to get its current name, title and upload_id before clearing
     const { data: node, error: fetchErr } = await supabase
         .from('all_org_nodes')
-        .select('name, upload_id')
+        .select('name, title, upload_id')
         .eq('node_id', nodeId)
         .single()
 
     if (fetchErr || !node) throw new Error('Node not found')
 
-    // 2. Perform the clear/vacant update
+    // 2. Remove the person but keep the box AND its position (title)
     const { error: updateErr } = await supabase
         .from('all_org_nodes')
         .update({
             name: '(Vacant)',
-            title: 'Position Not Set',
+            title: node.title?.trim() ? node.title : 'Position Not Set',
             matched_candidate_id: null,
             linkedin: null,
             is_verified: false
@@ -441,13 +488,18 @@ export async function clearOrgNode(nodeId: string) {
         throw updateErr
     }
 
-    // 3. Update subordinates to point to the new name "(Vacant)" instead of the old name
-    // This prevents subordinates from floating away
+    // 3. Keep subordinates attached to this box. Several boxes can share the name "(Vacant)",
+    // so point them at this node by id (authoritative) and keep the name only as a fallback.
+    // Rows that predate parent_node_id are found by the old name — unless that name is
+    // "(Vacant)" itself, which is ambiguous and would grab other vacant boxes' children.
+    const matchByName = node.name !== '(Vacant)'
+        ? `,and(parent_node_id.is.null,parent_name.eq."${String(node.name).replace(/"/g, '\\"')}")`
+        : ''
     const { error: subErr } = await supabase
         .from('all_org_nodes')
-        .update({ parent_name: '(Vacant)' })
-        .eq('parent_name', node.name)
+        .update({ parent_node_id: nodeId, parent_name: '(Vacant)' })
         .eq('upload_id', node.upload_id)
+        .or(`parent_node_id.eq.${nodeId}${matchByName}`)
 
     if (subErr) {
         console.error('Error re-parenting subordinates to Vacant node:', subErr)
@@ -1419,7 +1471,7 @@ export async function getCandidateOrgCharts(candidateId: string) {
     // 2. Get uploads
     const { data: uploads } = await supabase
         .from('org_chart_uploads')
-        .select('upload_id, company_name, company_id')
+        .select('upload_id, company_name, company_id, chart_logo')
         .in('upload_id', uploadIds)
 
     if (!uploads || uploads.length === 0) return []
@@ -1442,7 +1494,7 @@ export async function getCandidateOrgCharts(candidateId: string) {
     return uploads.map((u: any) => ({
         upload_id: u.upload_id,
         company_name: u.company_name,
-        company_logo: logos.get(u.company_id) || null
+        company_logo: u.chart_logo || logos.get(u.company_id) || null
     }))
 }
 
@@ -1462,7 +1514,7 @@ export async function getBulkCandidateOrgCharts(candidateIds: string[]) {
     // 2. Get upload details
     const { data: uploads, error: uploadError } = await supabase
         .from('org_chart_uploads')
-        .select('upload_id, company_name, company_id')
+        .select('upload_id, company_name, company_id, chart_logo')
         .in('upload_id', uploadIds)
 
     if (uploadError || !uploads || uploads.length === 0) return {}
@@ -1493,7 +1545,7 @@ export async function getBulkCandidateOrgCharts(candidateIds: string[]) {
             result[n.matched_candidate_id].push({
                 upload_id: upload.upload_id,
                 company_name: upload.company_name,
-                company_logo: logos.get(upload.company_id) || null
+                company_logo: upload.chart_logo || logos.get(upload.company_id) || null
             })
         }
     })
@@ -1632,7 +1684,13 @@ export async function bulkAddParsedNodes(
 
 export async function deleteOrgChart(uploadId: string) {
     if (!uploadId) return { success: false, error: 'Upload ID is required' }
-    
+
+    const { data: prevUpload } = await supabase
+        .from('org_chart_uploads')
+        .select('chart_logo')
+        .eq('upload_id', uploadId)
+        .single()
+
     // First delete nodes (though cascade might do this, being explicit is safe)
     const { error: nodesError } = await supabase
         .from('all_org_nodes')
@@ -1652,6 +1710,8 @@ export async function deleteOrgChart(uploadId: string) {
         console.error('[DeleteOrgChart] Error deleting upload:', uploadError)
         return { success: false, error: 'Failed to delete org chart upload' }
     }
+
+    await removeOwnedLogoFile(prevUpload?.chart_logo).catch(() => {})
 
     revalidatePath('/org-chart')
     // Also revalidate candidate details list just in case

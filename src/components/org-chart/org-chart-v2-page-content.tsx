@@ -19,13 +19,14 @@ type Props = {
     branchName?: string | null
     companyId: string | null
     companyLogoUrl: string | null
+    chartLogoUrl?: string | null
     notes: string | null
     chartFileUrl: string | null
     modifyDate: string | null
 }
 
 export function OrgChartV2PageContent({
-    data, rawNodes, uploadId, uploads, companyName, branchName, companyId, companyLogoUrl, notes, chartFileUrl, modifyDate,
+    data, rawNodes, uploadId, uploads, companyName, branchName, companyId, companyLogoUrl, chartLogoUrl, notes, chartFileUrl, modifyDate,
 }: Props) {
     return (
         <div className="container mx-auto py-2 flex flex-col h-screen px-4 md:px-6">
@@ -86,6 +87,7 @@ export function OrgChartV2PageContent({
                         companyName={companyName}
                         companyId={companyId}
                         companyLogoUrl={companyLogoUrl}
+                        chartLogoUrl={chartLogoUrl}
                         notes={notes}
                         chartFileUrl={chartFileUrl}
                         modifyDate={modifyDate}

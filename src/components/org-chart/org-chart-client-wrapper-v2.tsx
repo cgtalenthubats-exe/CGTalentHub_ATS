@@ -23,12 +23,13 @@ type Props = {
     companyName?: string
     companyId?: string | null
     companyLogoUrl?: string | null
+    chartLogoUrl?: string | null
     notes?: string | null
     chartFileUrl?: string | null
     modifyDate?: string | null
 }
 
-export function OrgChartClientWrapperV2({ data, rawNodes, uploadId, companyName, companyId, companyLogoUrl, notes, chartFileUrl, modifyDate }: Props) {
+export function OrgChartClientWrapperV2({ data, rawNodes, uploadId, companyName, companyId, companyLogoUrl, chartLogoUrl, notes, chartFileUrl, modifyDate }: Props) {
     return (
         <div className="flex-1 w-full flex flex-col">
             <DynamicViewer
@@ -38,6 +39,7 @@ export function OrgChartClientWrapperV2({ data, rawNodes, uploadId, companyName,
                 companyName={companyName}
                 companyId={companyId}
                 companyLogoUrl={companyLogoUrl}
+                chartLogoUrl={chartLogoUrl}
                 notes={notes}
                 chartFileUrl={chartFileUrl}
                 modifyDate={modifyDate}

@@ -16,6 +16,7 @@ export default async function OrgChartViewerRoute({
     }
 
     const companyId = currentUpload?.company_id || null
+    const chartLogoUrl = currentUpload?.chart_logo || null
     const notes = currentUpload?.notes || null
     const chartFileUrl = currentUpload?.chart_file || null
     const modifyDate = currentUpload?.modify_date || null
@@ -34,6 +35,7 @@ export default async function OrgChartViewerRoute({
             chartData={chartData}
             tableData={tableData}
             companyLogoUrl={companyLogoUrl}
+            chartLogoUrl={chartLogoUrl}
             notes={notes}
             chartFileUrl={chartFileUrl}
             modifyDate={modifyDate}

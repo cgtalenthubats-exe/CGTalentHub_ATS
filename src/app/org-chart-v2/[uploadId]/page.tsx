@@ -19,6 +19,7 @@ export default async function OrgChartV2ViewerRoute({
     const companyName = currentUpload?.company_name || 'Organization'
     const branchName = currentUpload?.branch_name || null
     const companyId = currentUpload?.company_id || null
+    const chartLogoUrl = currentUpload?.chart_logo || null
     const notes = currentUpload?.notes || null
     const chartFileUrl = currentUpload?.chart_file || null
     const modifyDate = currentUpload?.modify_date || null
@@ -38,6 +39,7 @@ export default async function OrgChartV2ViewerRoute({
             branchName={branchName}
             companyId={companyId}
             companyLogoUrl={companyLogoUrl}
+            chartLogoUrl={chartLogoUrl}
             notes={notes}
             chartFileUrl={chartFileUrl}
             modifyDate={modifyDate}

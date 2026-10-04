@@ -33,8 +33,12 @@ export type OrgNodeV2 = {
  * Read-only — does not modify any data.
  */
 export async function fetchOrgChartFlatData(uploadId: string, chartCompanyName = 'Organization'): Promise<OrgNodeV2[]> {
-    const nodes = await getOrgNodesRaw(uploadId)
-    if (!nodes || nodes.length === 0) return []
+    const rawNodes = await getOrgNodesRaw(uploadId)
+    if (!rawNodes || rawNodes.length === 0) return []
+
+    // Sibling order follows array order. Keep the A–Z order from getOrgNodesRaw, but put
+    // group nodes after people (to the right of them) — Array.sort is stable.
+    const nodes = [...rawNodes].sort((a, b) => Number(!!a.is_group_node) - Number(!!b.is_group_node))
 
     const nameToId = new Map<string, string>()
     nodes.forEach((n) => nameToId.set(n.name, n.node_id))

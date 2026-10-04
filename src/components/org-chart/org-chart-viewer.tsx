@@ -6,7 +6,7 @@ import { OrgNode, bulkCreateOrgProfiles, createSingleOrgProfile, clearOrgNode, d
 import { Badge } from '@/components/ui/badge'
 import {
     UserCheck, UserPlus, Focus, ZoomIn, ZoomOut, Plus,
-    ExternalLink, Sparkles, Loader2, Trash2, Info, UploadCloud,
+    ExternalLink, Sparkles, Loader2, Trash2, Info,
     Users, ChevronUp, Download, Image as ImageIcon, FileText,
     AlertTriangle, X, MoreHorizontal, Target, Search, ArrowLeft,
     Building2, User
@@ -46,7 +46,8 @@ import { getCheckedStatus } from '@/lib/candidate-utils'
 import { toast } from "@/lib/notifications"
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
-import { updateMasterCompanyLogo, deleteOrgChart, verifyOrgChart } from '@/app/actions/org-chart-actions'
+import { deleteOrgChart, verifyOrgChart } from '@/app/actions/org-chart-actions'
+import { OrgChartLogoWidget } from '@/components/org-chart/org-chart-logo-widget'
 import {
     AlertDialog,
     AlertDialogAction,
@@ -75,6 +76,7 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 type OrgChartViewerProps = {
     initialData: OrgNode | null
     companyLogoUrl?: string | null
+    chartLogoUrl?: string | null
     companyId?: string | null
     uploadId?: string | null
     notes?: string | null
@@ -661,7 +663,7 @@ const NodeCard = ({ nodeDatum, onToggleVerify, onCreateProfile, isCreating, isVe
 import { VerificationDialog } from './verification-dialog'
 import { verifyOrgNode } from '@/app/actions/org-chart-actions'
 
-export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, companyId, uploadId: propUploadId, chartCompanyName = 'Unknown', notes, chartFileUrl, modifyDate: initialModifyDate }: any) {
+export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, chartLogoUrl: initialChartLogo, companyId, uploadId: propUploadId, chartCompanyName = 'Unknown', notes, chartFileUrl, modifyDate: initialModifyDate }: any) {
     const searchParams = useSearchParams()
     const router = useRouter()
     const uploadId = propUploadId || searchParams.get('id')
@@ -908,10 +910,7 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
     const [modifyDate, setModifyDate] = useState<string | null>(initialModifyDate || null)
     const [creatingNodes, setCreatingNodes] = useState<Set<string>>(new Set())
     const [verifyingNodes, setVerifyingNodes] = useState<Set<string>>(new Set())
-    const [companyLogoUrl, setCompanyLogoUrl] = useState<string | null>(initialLogo || null)
-    const [isUploadingLogo, setIsUploadingLogo] = useState(false)
     const containerRef = React.useRef<HTMLDivElement>(null)
-    const logoInputRef = React.useRef<HTMLInputElement>(null)
     const captureRef = React.useRef<HTMLDivElement>(null)
     const [isExporting, setIsExporting] = useState(false)
     const [renderKey, setRenderKey] = useState(0)
@@ -1155,47 +1154,6 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
             toast.error("Export ล้มเหลว กรุณาลองใหม่")
         } finally {
             setIsExporting(false)
-        }
-    }
-
-    // Sync state if prop changes
-    useEffect(() => {
-        setCompanyLogoUrl(initialLogo || null)
-    }, [initialLogo])
-
-    const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]
-        if (!file || !companyId) return
-
-        setIsUploadingLogo(true)
-        try {
-            // Random prefix to bust cache
-            const fileExt = file.name.split('.').pop() || 'png'
-            const fileName = `logo_${companyId}_${Date.now()}.${fileExt}`
-
-            // Upload to org_charts bucket
-            const { error: uploadError } = await supabase.storage
-                .from('org_charts')
-                .upload(fileName, file, { upsert: true })
-
-            if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`)
-
-            // Get Public URL
-            const { data: urlData } = supabase.storage
-                .from('org_charts')
-                .getPublicUrl(fileName)
-
-            const publicUrl = urlData.publicUrl
-
-            // Save to company_master
-            await updateMasterCompanyLogo(companyId, publicUrl)
-
-            setCompanyLogoUrl(publicUrl)
-            toast.success("Company logo updated successfully")
-        } catch (err: any) {
-            toast.error("Failed to upload logo: " + err.message)
-        } finally {
-            setIsUploadingLogo(false)
         }
     }
 
@@ -1594,50 +1552,14 @@ export function OrgChartViewer({ initialData, companyLogoUrl: initialLogo, compa
                 </div>
             </div>
 
-            {/* Company Logo Top Left */}
-            {companyId && (
-                <div className="absolute top-4 left-4 z-10 flex flex-col gap-1.5">
-                    <span className="text-xs font-black text-slate-700 bg-white/90 border border-slate-200 rounded-full px-3 py-1 shadow-sm w-fit">
-                        {chartCompanyName}
-                    </span>
-                    <div
-                        className={cn(
-                            "relative group rounded-xl bg-white border border-slate-200 shadow-sm overflow-hidden flex items-center justify-center cursor-pointer transition-all",
-                            companyLogoUrl ? "h-16 w-32 p-1" : "h-9 px-4 hover:border-indigo-300 hover:bg-slate-50 rounded-full"
-                        )}
-                        onClick={() => !isUploadingLogo && logoInputRef.current?.click()}
-                        title="Upload Company Logo"
-                    >
-                        {isUploadingLogo ? (
-                            <div className="flex flex-col items-center gap-1 justify-center w-full h-full text-indigo-500">
-                                <Loader2 size={16} className="animate-spin" />
-                            </div>
-                        ) : companyLogoUrl ? (
-                            <>
-                                <img src={companyLogoUrl} alt="Company Logo" className="max-h-full max-w-full object-contain" />
-                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white text-[10px] font-bold">
-                                    <UploadCloud size={16} className="mb-0.5" />
-                                    UPDATE
-                                </div>
-                            </>
-                        ) : (
-                            <div className="flex items-center gap-2 text-slate-500 text-xs font-bold group-hover:text-indigo-600 transition-colors">
-                                <UploadCloud size={14} />
-                                ADD LOGO
-                            </div>
-                        )}
-                        <input
-                            type="file"
-                            accept="image/*"
-                            ref={logoInputRef}
-                            className="hidden"
-                            onChange={handleLogoUpload}
-                        />
-                    </div>
-                </div>
-            )}
-
-
+            {/* Logo Top Left (chart override ?? company logo) */}
+            <OrgChartLogoWidget
+                uploadId={uploadId}
+                companyId={companyId}
+                companyName={chartCompanyName}
+                companyLogoUrl={initialLogo}
+                chartLogoUrl={initialChartLogo}
+            />
 
             {/* Tree Container */}
             <div ref={containerRef} className="flex-1 w-full bg-[radial-gradient(#e5e7eb_1px,transparent_1px)] [background-size:24px_24px] dark:bg-[radial-gradient(#334155_1px,transparent_1px)] relative">

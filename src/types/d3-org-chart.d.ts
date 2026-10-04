@@ -11,6 +11,7 @@ declare module 'd3-org-chart' {
         compactMarginPair(fn: (d: any) => number): this
         compactMarginBetween(fn: (d: any) => number): this
         childrenMargin(fn: (d: any) => number): this
+        linkYOffset(offset: number): this
         neighbourMargin(fn: (d: any, d2: any) => number): this
         siblingsMargin(fn: (d: any) => number): this
         initialExpandLevel(value: number): this
