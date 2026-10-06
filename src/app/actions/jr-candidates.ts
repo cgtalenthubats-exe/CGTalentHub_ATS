@@ -123,21 +123,52 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
     const candidateIdChunks = chunkArray(candidateIds, CHUNK_SIZE);
     const jrCandIdChunks = chunkArray(jrCandIds, CHUNK_SIZE);
 
+    // Supabase/PostgREST caps any single select at 1000 rows server-side with no error —
+    // it just silently truncates. A 150-candidate chunk of experience-heavy profiles (GM/CEO
+    // level, 5-9 jobs each) can blow past 1000 rows on its own, which silently dropped some
+    // candidates' experiences entirely and showed "-" for Company/Position despite the data
+    // existing. Page through with .range() until a page comes back short so every row is read
+    // regardless of how many experiences the chunk's candidates happen to have.
+    const SUPABASE_PAGE_SIZE = 1000;
+    async function fetchAllRows(table: string, select: string, column: string, ids: string[]): Promise<any[]> {
+        if (ids.length === 0) return [];
+        const rows: any[] = [];
+        let offset = 0;
+        while (true) {
+            const { data, error } = await (supabase as any)
+                .from(table)
+                .select(select)
+                .in(column, ids)
+                .range(offset, offset + SUPABASE_PAGE_SIZE - 1);
+            if (error) {
+                console.error(`Error fetching ${table} at offset ${offset}:`, error);
+                break;
+            }
+            if (!data || data.length === 0) break;
+            rows.push(...data);
+            if (data.length < SUPABASE_PAGE_SIZE) break;
+            offset += SUPABASE_PAGE_SIZE;
+        }
+        return rows;
+    }
+
     const [profilesChunks, experiencesChunks, logsChunks, historyChunks, countryRegionsRes] = await Promise.all([
         // Query 2: Candidate Profiles
-        Promise.all(candidateIdChunks.map(chunk => 
+        Promise.all(candidateIdChunks.map(chunk =>
             (supabase
                 .from('Candidate Profile' as any)
                 .select('candidate_id, name, email, mobile_phone, job_function, photo, age, age_source, year_of_bachelor_education, gender, nationality, candidate_projects, candidate_status, linkedin, checked, gross_salary_base_b_mth, bonus_mth')
                 .in('candidate_id', chunk) as any)
         )),
 
-        // Query 3: Candidate Experiences
+        // Query 3: Candidate Experiences — paginated (see fetchAllRows note above)
         Promise.all(candidateIdChunks.map(chunk =>
-            (supabase as any)
-                .from('candidate_experiences')
-                .select('id, candidate_id, company, company_id, position, is_current_job, start_date, end_date, country, note, company_industry, company_group')
-                .in('candidate_id', chunk)
+            fetchAllRows(
+                'candidate_experiences',
+                'id, candidate_id, company, company_id, position, is_current_job, start_date, end_date, country, note, company_industry, company_group',
+                'candidate_id',
+                chunk
+            )
         )),
 
         // Query 4: Status Logs
@@ -164,7 +195,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
 
     // Flatten results
     const profiles = profilesChunks.flatMap(res => res.data || []);
-    const experiences = experiencesChunks.flatMap(res => res.data || []);
+    const experiences = experiencesChunks.flat(); // already plain row arrays — fetchAllRows paginates internally
     const logs = logsChunks.flatMap(res => res.data || []);
     const historyData = historyChunks.flatMap(res => (res as any).data || []);
     const countryRegionMap = new Map<string, string>(
