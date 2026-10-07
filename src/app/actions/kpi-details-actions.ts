@@ -118,7 +118,7 @@ export async function getRecruiterKPIDetails(targetRecruiterName: string, fys?: 
         fetchAll('Candidate Profile', 'candidate_id, created_by, created_date, name, job_function, job_grouping, photo, nationality, age, gender, candidate_status'),
         fetchAll('pre_screen_log', 'candidate_id, "screener_Name", screening_date'),
         fetchAll('interview_feedback', 'jr_candidate_id, "Interviewer_name", interview_date, "Interviewer_type"'),
-        fetchAll('job_requisitions', 'jr_id, create_by, status_jr, created_at, position_jr'),
+        fetchAll('job_requisitions', 'jr_id, create_by, is_active, created_at, position_jr'),
     ]);
 
     // Build JR lookup map
@@ -240,7 +240,7 @@ export async function getRecruiterKPIDetails(targetRecruiterName: string, fys?: 
         jrs: myJRs.map(j => ({
             jr_id: j.jr_id,
             position_jr: j.position_jr || 'Unknown Position',
-            status_jr: j.status_jr,
+            status_jr: j.is_active,
             created_at: j.created_at,
         })),
     };
