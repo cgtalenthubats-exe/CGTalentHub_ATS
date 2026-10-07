@@ -44,6 +44,8 @@ export function getInitials(name: string | null | undefined): string {
 /**
  * JR aging in days: request_date -> closed_date (if the JR is closed) or now.
  * Once closed_date is set, aging is frozen at that point instead of continuing to grow.
+ * Counted in calendar days, not elapsed 24h blocks: request_date is a bare date while "now" carries a
+ * time of day, so elapsed time reads one day short during the hours the local date is ahead of UTC.
  */
 export function getJRAgingDays(requestDate: string | null | undefined, closedDate?: string | null): number | null {
     if (!requestDate) return null;
@@ -53,5 +55,9 @@ export function getJRAgingDays(requestDate: string | null | undefined, closedDat
     const endCandidate = closedDate ? new Date(closedDate).getTime() : NaN;
     const end = closedDate && !isNaN(endCandidate) ? endCandidate : Date.now();
 
-    return Math.max(0, Math.floor((end - start) / (1000 * 3600 * 24)));
+    const calendarDay = (ms: number) => {
+        const d = new Date(ms);
+        return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+    };
+    return Math.max(0, Math.round((calendarDay(end) - calendarDay(start)) / (1000 * 3600 * 24)));
 }
