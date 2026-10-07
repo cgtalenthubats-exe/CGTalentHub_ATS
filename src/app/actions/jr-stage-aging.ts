@@ -55,7 +55,32 @@ export interface StageAction {
     ownerRole: string | null;
 }
 
+/**
+ * One candidate's path from the day the JR opened: the placed candidate when someone has been placed,
+ * otherwise the candidate furthest along the main path. A single real chain of status changes, so the
+ * segments add up to the days between the JR opening and `endedOn`.
+ */
+export interface StageJourney {
+    kind: "placed" | "furthest";
+    /** Candidates whose latest status is Successful Placement (kind "placed"). */
+    placedCount: number;
+    openedOn: string | null;
+    /** The placement date, or the closing date, or today. */
+    endedOn: string;
+    /** openedOn -> endedOn. */
+    totalDays: number | null;
+    /** That candidate's first status log -> endedOn. */
+    candidateDays: number | null;
+    /** Where the candidate is at endedOn (kind "furthest"). */
+    currentStatus: string | null;
+    currentDays: number;
+    segments: { label: string; days: number; beforeAdded?: boolean }[];
+}
+
 export interface JRStageAging {
+    /** Set when the JR is closed; every wait is counted up to this date. */
+    closedOn: string | null;
+    journey: StageJourney | null;
     totalOpenDays: number | null;
     activeCandidates: number;
     exitedCandidates: number;
@@ -73,12 +98,24 @@ export interface JRStageAging {
     ownerRoleConfigured: boolean;
 }
 
+const PLACED_STATUS = "Successful Placement";
+
 const CHUNK_SIZE = 150;
 
 function chunk<T>(arr: T[], size = CHUNK_SIZE): T[][] {
     const out: T[][] = [];
     for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
     return out;
+}
+
+/**
+ * Midnight (UTC) of the calendar day a parsed timestamp falls on. request_date is ISO ("2026-03-09",
+ * parsed as UTC) while status_log.timestamp is often "6/24/2026" (parsed as local midnight), so raw
+ * milliseconds disagree by the timezone offset and day counts between the two come out one short.
+ */
+function calendarDay(ms: number): number {
+    const d = new Date(ms);
+    return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
 function daysBetween(fromMs: number, toMs: number): number {
@@ -88,6 +125,7 @@ function daysBetween(fromMs: number, toMs: number): number {
 export async function getJRStageAging(jrId: string): Promise<JRStageAging> {
     const supabase = adminAuthClient;
     const empty: JRStageAging = {
+        closedOn: null, journey: null,
         totalOpenDays: null, activeCandidates: 0, exitedCandidates: 0, overdueCount: 0,
         furthest: null, worst: null, mainPath: [], exits: [], actions: [],
         ownerDays: [], ownerRoleConfigured: false,
@@ -107,9 +145,12 @@ export async function getJRStageAging(jrId: string): Promise<JRStageAging> {
         const ownerOf = new Map<string, string | null>(masterRows.map(m => [m.status, m.owner_role || null]));
 
         const totalOpenDays = getJRAgingDays(jrRow?.request_date, jrRow?.closed_date);
+        const requestMs = jrRow?.request_date ? new Date(jrRow.request_date).getTime() : NaN;
+        const closedMs = jrRow?.closed_date ? new Date(jrRow.closed_date).getTime() : NaN;
+        const closedOn = isNaN(closedMs) ? null : new Date(closedMs).toISOString().slice(0, 10);
 
         if (!jrCands || jrCands.length === 0) {
-            return { ...empty, totalOpenDays, ownerRoleConfigured };
+            return { ...empty, closedOn, totalOpenDays, ownerRoleConfigured };
         }
 
         const jrCandIds = jrCands.map(c => c.jr_candidate_id);
@@ -128,11 +169,14 @@ export async function getJRStageAging(jrId: string): Promise<JRStageAging> {
         });
 
         // A closed JR stops aging: waits are measured to the closing date, like totalOpenDays above.
-        const closedMs = jrRow?.closed_date ? new Date(jrRow.closed_date).getTime() : NaN;
         const now = isNaN(closedMs) ? Date.now() : closedMs;
         /** Durations that finished — the only ones we can honestly call "how long it takes". */
         const completedByStatus = new Map<string, number[]>();
         const current: { status: string; agingDays: number; kind: StageKind }[] = [];
+        const placedPaths: { placedMs: number; path: typeof logs }[] = [];
+        /** Candidates currently in a work stage on the main path, for picking the one furthest along. */
+        const workPaths: { status: string; order: number; sinceMs: number; path: typeof logs }[] = [];
+        const stageOrderOf = new Map<string, number>(masterRows.map(m => [m.status, m.stage_order ?? 999]));
 
         jrCands.forEach(jc => {
             const cLogs = (logsByCandidate.get(jc.jr_candidate_id) || []).slice().sort((a, b) => {
@@ -155,6 +199,10 @@ export async function getJRStageAging(jrId: string): Promise<JRStageAging> {
             const last = cLogs[cLogs.length - 1];
             const status = last?.status || jc.temp_status || "Pool Candidate";
             const startedMs = last ? new Date(last.timestamp).getTime() : NaN;
+            if (last?.status === PLACED_STATUS && !isNaN(startedMs)) placedPaths.push({ placedMs: startedMs, path: cLogs });
+            if (last && !isNaN(startedMs) && stageKind(status) === "work" && stageOrderOf.has(status)) {
+                workPaths.push({ status, order: stageOrderOf.get(status)!, sinceMs: startedMs, path: cLogs });
+            }
             current.push({
                 status,
                 agingDays: isNaN(startedMs) ? 0 : daysBetween(startedMs, now),
@@ -230,7 +278,56 @@ export async function getJRStageAging(jrId: string): Promise<JRStageAging> {
             ownerTotals.set(key, cur);
         });
 
+        // One candidate's path from the JR opening. The placed candidate if there is one (ends at the
+        // placement); otherwise the one furthest along the main path, ties going to whoever got there
+        // first (ends today, or at the closing date for a closed JR).
+        let pick: { kind: StageJourney["kind"]; endMs: number; path: typeof logs; status: string | null } | null = null;
+        if (placedPaths.length > 0) {
+            const first = placedPaths.slice().sort((a, b) => a.placedMs - b.placedMs)[0];
+            pick = { kind: "placed", endMs: first.placedMs, path: first.path, status: null };
+        } else if (workPaths.length > 0) {
+            const deepest = workPaths.slice().sort((a, b) => b.order - a.order || a.sinceMs - b.sinceMs)[0];
+            pick = { kind: "furthest", endMs: now, path: deepest.path, status: deepest.status };
+        }
+
+        let journey: StageJourney | null = null;
+        if (pick) {
+            const stamped = pick.path
+                .map(l => ({ status: l.status || "Unknown", ms: new Date(l.timestamp).getTime() }))
+                .filter(l => !isNaN(l.ms))
+                .map(l => ({ ...l, ms: calendarDay(l.ms) }));
+            const openedMs = isNaN(requestMs) ? NaN : calendarDay(requestMs);
+            const endMs = calendarDay(pick.endMs);
+            const firstMs = stamped.length > 0 ? stamped[0].ms : NaN;
+            const segments: StageJourney["segments"] = [];
+            if (!isNaN(openedMs) && !isNaN(firstMs) && daysBetween(openedMs, firstMs) > 0) {
+                segments.push({ label: "Before this candidate was added", days: daysBetween(openedMs, firstMs), beforeAdded: true });
+            }
+            stamped.forEach((l, i) => {
+                // The last log runs to the end point: a placement ends it at 0 days, a candidate still in a stage keeps counting.
+                const days = daysBetween(l.ms, i < stamped.length - 1 ? stamped[i + 1].ms : endMs);
+                if (days === 0) return;
+                const prev = segments[segments.length - 1];
+                if (prev && !prev.beforeAdded && prev.label === l.status) prev.days += days; // same status logged twice
+                else segments.push({ label: l.status, days });
+            });
+            const lastMs = stamped.length > 0 ? stamped[stamped.length - 1].ms : NaN;
+            journey = {
+                kind: pick.kind,
+                placedCount: placedPaths.length,
+                openedOn: isNaN(openedMs) ? null : new Date(openedMs).toISOString().slice(0, 10),
+                endedOn: new Date(endMs).toISOString().slice(0, 10),
+                totalDays: isNaN(openedMs) ? null : daysBetween(openedMs, endMs),
+                candidateDays: isNaN(firstMs) ? null : daysBetween(firstMs, endMs),
+                currentStatus: pick.status,
+                currentDays: isNaN(lastMs) ? 0 : daysBetween(lastMs, endMs),
+                segments,
+            };
+        }
+
         return {
+            closedOn,
+            journey,
             totalOpenDays,
             activeCandidates,
             exitedCandidates,
