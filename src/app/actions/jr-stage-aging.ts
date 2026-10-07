@@ -127,7 +127,9 @@ export async function getJRStageAging(jrId: string): Promise<JRStageAging> {
             logsByCandidate.get(l.jr_candidate_id)!.push(l);
         });
 
-        const now = Date.now();
+        // A closed JR stops aging: waits are measured to the closing date, like totalOpenDays above.
+        const closedMs = jrRow?.closed_date ? new Date(jrRow.closed_date).getTime() : NaN;
+        const now = isNaN(closedMs) ? Date.now() : closedMs;
         /** Durations that finished — the only ones we can honestly call "how long it takes". */
         const completedByStatus = new Map<string, number[]>();
         const current: { status: string; agingDays: number; kind: StageKind }[] = [];

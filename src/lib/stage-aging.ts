@@ -10,7 +10,8 @@ export const STAGE_THRESHOLDS = { attention: 7, delayed: 14, critical: 21 } as c
 
 /**
  * End states: a candidate isn't waiting for anything here, so days spent in them are not a
- * bottleneck. Mirrors TERMINAL_STATUSES in candidate-activity-log.tsx.
+ * bottleneck. Starts from TERMINAL_STATUSES in candidate-activity-log.tsx, plus the statuses that
+ * park a candidate off the main path (Hold, PDC Not Approved) — nobody is working them either.
  */
 export const TERMINAL_STATUSES = new Set([
     "Successful Placement",
@@ -20,6 +21,8 @@ export const TERMINAL_STATUSES = new Set([
     "Not Pass Interview",
     "Candidate Withdraw",
     "Offer Declined",
+    "PDC Not Approved",
+    "Hold",
 ]);
 
 /** Roles a status can be waiting on, offered in Settings → Status Master. */
