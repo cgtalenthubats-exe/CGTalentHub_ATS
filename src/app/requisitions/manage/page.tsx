@@ -21,7 +21,14 @@ import { JRTabs } from "@/components/jr-tabs";
 import { CreateJobRequisitionForm } from "@/components/create-jr-form";
 import { AddCandidateDialog } from "@/components/add-candidate-dialog";
 import { ReportViewDialog } from "@/components/report-view-dialog";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { generateJRReportPPTX } from "@/app/actions/export-jr-report";
+import { generateJRReportExcel } from "@/app/actions/export-jr-excel";
 import { CopyJRDialog } from "@/components/copy-jr-dialog";
 import { toast } from "@/lib/notifications";
 import { deleteJobRequisition, getUserProfiles, getRequisition } from "@/app/actions/requisitions";
@@ -75,6 +82,7 @@ export default function JRManagePage() {
     const [refreshKey, setRefreshKey] = useState(0); // Trigger refresh for candidates
     const [isReportViewOpen, setIsReportViewOpen] = useState(false);
     const [isTriggeringReport, setIsTriggeringReport] = useState(false);
+    const [isExportingExcel, setIsExportingExcel] = useState(false);
     const [isCopyDialogOpen, setIsCopyDialogOpen] = useState(false);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
@@ -366,6 +374,26 @@ export default function JRManagePage() {
         }
     };
 
+    const handleExportExcel = async () => {
+        if (!selectedJR) return;
+        setIsExportingExcel(true);
+        try {
+            const { base64, filename } = await generateJRReportExcel(selectedJR.id);
+            const link = document.createElement("a");
+            link.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${base64}`;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            toast.success("Excel ready — downloading now.");
+        } catch (err: any) {
+            console.error("JR Report Excel error:", err);
+            toast.error(`Error generating Excel: ${err?.message ?? "Unknown error"}`);
+        } finally {
+            setIsExportingExcel(false);
+        }
+    };
+
     // --- Realtime Sync ---
     useJobRequisitionRealtime(selectedJR?.id, (updatedJR) => {
         // Only update if the data actually changed (e.g. n8n filled in job_description)
@@ -510,22 +538,33 @@ export default function JRManagePage() {
                                 <StickyNote className="mr-2 h-4 w-4" /> {selectedJR?.jr_note ? "Note" : "Add Note"}
                             </Button>
 
-                            <Button
-                                disabled={!selectedJR || isTriggeringReport}
-                                variant="outline"
-                                onClick={handleCreateReport}
-                                className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 w-full"
-                            >
-                                {isTriggeringReport ? (
-                                    <>
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Working...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Share2 className="mr-2 h-4 w-4" /> Create Report
-                                    </>
-                                )}
-                            </Button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button
+                                        disabled={!selectedJR || isTriggeringReport || isExportingExcel}
+                                        variant="outline"
+                                        className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 w-full"
+                                    >
+                                        {isTriggeringReport || isExportingExcel ? (
+                                            <>
+                                                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Working...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Share2 className="mr-2 h-4 w-4" /> Create Report
+                                            </>
+                                        )}
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start">
+                                    <DropdownMenuItem onClick={handleCreateReport}>
+                                        <Share2 className="mr-2 h-4 w-4" /> Export as PowerPoint (.pptx)
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={handleExportExcel}>
+                                        <Download className="mr-2 h-4 w-4" /> Export as Excel (.xlsx)
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
 
                             <Button
                                 disabled={!selectedJR}

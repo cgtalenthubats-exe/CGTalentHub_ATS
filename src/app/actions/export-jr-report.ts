@@ -13,6 +13,7 @@ import {
     type ExperienceRow,
 } from "@/lib/candidate-experience-utils";
 import { generateAndStoreJDPdf } from "@/lib/jd-pdf";
+import { isTopProfileCandidate, bucketLongList } from "@/lib/jr-longlist";
 
 // ── Palette (same as export-pptx.ts) ─────────────────────────────────────────
 const C = {
@@ -84,7 +85,7 @@ type StatusColor = {
     row_color_enabled: boolean;
     stage_order: number;
 };
-type StatusColorMap = Map<string, StatusColor>;
+export type StatusColorMap = Map<string, StatusColor>;
 
 type JRInfo = {
     position_jr: string | null;
@@ -97,7 +98,7 @@ type JRInfo = {
     generated_jd_file: string | null;
 };
 
-type CandidateForReport = {
+export type CandidateForReport = {
     candidate_id: string;
     name: string;
     photo_url: string | null;
@@ -123,7 +124,7 @@ type CandidateForReport = {
     score: number;
 };
 
-type JRReportData = {
+export type JRReportData = {
     jr: JRInfo;
     allCandidates: CandidateForReport[];
     topProfileCandidates: CandidateForReport[];
@@ -937,41 +938,13 @@ async function addShortProfileCardsSlides(
 }
 
 // ── Long List helpers ─────────────────────────────────────────────────────────
-const isTopProfileCandidate = (c: CandidateForReport) => (c.list_type ?? "").toLowerCase().includes("top");
+// isTopProfileCandidate / bucketLongList live in @/lib/jr-longlist (a "use
+// server" file can only export async functions) — shared with the Excel
+// export so row order never drifts between the two formats.
 // Forced gray in the Long List table regardless of status_master's configured
 // bg_color (which currently colors these the same red as Rejected) — matches
 // the reference n8n/Central Group template and export-pptx.ts's GRAY_STATUSES.
 const LONGLIST_GRAY_STATUSES = ["Not Open", "Not fit", "Too Senior"];
-
-function bucketLongList(pool: CandidateForReport[], statusColors: StatusColorMap): CandidateForReport[] {
-    // Mirrors n8n Prepare Slides1 bucket order:
-    //   Top Profile (by rank) → Standard → Not-progressing → Rejected (always last)
-    //
-    // "Rejected" is explicitly separated to the tail (matches n8n: grayList then rejectedList).
-    // "Successful Placement" is row_color_enabled but a positive outcome — keep in Standard.
-    const top = pool.filter(isTopProfileCandidate).sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999));
-    const rest = pool.filter(r => !isTopProfileCandidate(r));
-
-    const isRejected  = (r: CandidateForReport) => r.latest_status === "Rejected";
-    const isColored   = (r: CandidateForReport) =>
-        (statusColors.get(r.latest_status ?? "")?.row_color_enabled ?? false)
-        && !isRejected(r)
-        && r.latest_status !== "Successful Placement";
-
-    // Standard: active pipeline (row_color_enabled false) + Successful Placement
-    const standard = rest.filter(r => !isColored(r) && !isRejected(r));
-    // Not-progressing: colored negative statuses (Not fit, Not Open, Not Pass Interview, Hold, Too Senior…)
-    //   sorted by stage_order so statuses appear in a consistent, recognisable order
-    const notProgressing = rest
-        .filter(isColored)
-        .sort((a, b) =>
-            (statusColors.get(a.latest_status ?? "")?.stage_order ?? 99) -
-            (statusColors.get(b.latest_status ?? "")?.stage_order ?? 99));
-    // Rejected always last
-    const rejected = rest.filter(isRejected);
-
-    return [...top, ...standard, ...notProgressing, ...rejected];
-}
 
 function addLongListSlide(pptx: PptxGenJS, results: CandidateForReport[], titleBase: string, statusColors: StatusColorMap) {
     const totalPages = Math.max(1, Math.ceil(results.length / LONGLIST_PAGE_SIZE));
@@ -1065,7 +1038,7 @@ function addLongListSlide(pptx: PptxGenJS, results: CandidateForReport[], titleB
 }
 
 // ── Data fetching ─────────────────────────────────────────────────────────────
-async function fetchJRReportData(jrId: string): Promise<JRReportData> {
+export async function fetchJRReportData(jrId: string): Promise<JRReportData> {
     const [jrRes, jrCandidatesRes] = await Promise.all([
         adminAuthClient
             .from("job_requisitions")
