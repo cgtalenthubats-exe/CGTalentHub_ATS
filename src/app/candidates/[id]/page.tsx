@@ -402,8 +402,8 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                                     const bCurrent = (b.end_date?.toLowerCase() === 'present') || b.is_current_job === 'Current';
                                     if (aCurrent && !bCurrent) return -1;
                                     if (!aCurrent && bCurrent) return 1;
-                                    const parseMMYYYY = (d: string) => { const p = (d||'').split('-'); return p.length === 2 ? parseInt(p[1])*100+parseInt(p[0]) : (new Date(d).getTime()||0); };
-                                    return parseMMYYYY(b.start_date) - parseMMYYYY(a.start_date);
+                                    const sortValue = (d: string | null) => { const p = parseAnyDate(d); return p ? p.getFullYear()*100 + p.getMonth() + 1 : 0; };
+                                    return sortValue(b.start_date) - sortValue(a.start_date);
                                 })
                                 .map((exp: any, i: number) => {
                                     const isCurrent = (exp.end_date?.toLowerCase() === 'present') || exp.is_current_job === 'Current';

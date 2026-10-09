@@ -12,6 +12,10 @@ export function parseAnyDate(dateStr: string | null | undefined): Date | null {
     const trimmed = dateStr.trim();
     if (!trimmed) return null;
 
+    // Year only ("2009") → January of that year. Built in local time so a
+    // negative-UTC-offset browser doesn't roll "2009" back to Dec 2008.
+    if (/^\d{4}$/.test(trimmed)) return new Date(parseInt(trimmed), 0, 1);
+
     // Handle M-YYYY or MM-YYYY (with - or /)
     const shortDateMatch = trimmed.match(/^(\d{1,2})[-/](\d{4})$/);
     if (shortDateMatch) {
