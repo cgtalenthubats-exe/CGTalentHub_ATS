@@ -382,7 +382,7 @@ function KPIDetailContent() {
                                                         <TableCell>{formatDate(item.created_at)}</TableCell>
                                                         <TableCell className="text-right">
                                                             <Button variant="ghost" size="sm" asChild>
-                                                                <Link href={`/requisitions/manage/${item.jr_id}`} target="_blank">
+                                                                <Link href={`/requisitions/manage?jr_id=${item.jr_id}`} target="_blank">
                                                                     View <ExternalLink className="ml-2 h-4 w-4" />
                                                                 </Link>
                                                             </Button>
