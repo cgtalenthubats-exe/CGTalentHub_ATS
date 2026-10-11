@@ -92,7 +92,7 @@ export const COMPENSATION_FIELDS: readonly CompensationField[] = [
         group: "allowance",
         trackProvided: true,
         hint: "Who the flight benefit covers",
-        options: ["Self", "Immediate Family", "Family"],
+        options: ["Self", "Immediate Family"],
     },
     {
         key: "flight_hometown_class",
