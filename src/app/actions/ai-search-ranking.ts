@@ -1,7 +1,7 @@
 "use server";
 
 import { adminAuthClient } from "@/lib/supabase/admin";
-import { groupExperiencesByCandidate, formatExperienceHistory, formatEducationHeadline, type ExperienceRow } from "@/lib/candidate-experience-utils";
+import { groupExperiencesByCandidate, pickPrimaryExperience, formatExperienceHistory, formatEducationHeadline, type ExperienceRow } from "@/lib/candidate-experience-utils";
 
 const N8N_SEARCH_STAGE3_URL = "https://n8n.srv1212906.hstgr.cloud/webhook/search-stage3";
 const N8N_VECTOR_RANK_URL = "https://n8n.srv1212906.hstgr.cloud/webhook/vector-rank";
@@ -231,7 +231,7 @@ export async function getSearchJobStatus(jobId: string): Promise<SearchJobData |
             .in("candidate_id", candidateIds),
         adminAuthClient
             .from("candidate_experiences")
-            .select("candidate_id, position, company, company_id, start_date, end_date, country, is_current_job")
+            .select("candidate_id, position, company, company_id, start_date, end_date, country, is_current_job, is_primary_current")
             .in("candidate_id", candidateIds),
         adminAuthClient
             .from("candidate_profile_enhance")
@@ -247,7 +247,7 @@ export async function getSearchJobStatus(jobId: string): Promise<SearchJobData |
         const profile = profileMap.get(r.candidate_id) as any;
         const enhance = enhanceMap.get(r.candidate_id) as any;
         const sortedExp = expByCandidate.get(r.candidate_id) ?? [];
-        const latest = sortedExp[0];
+        const latest = pickPrimaryExperience(sortedExp);
         return {
         candidate_id: r.candidate_id,
         name: profile?.name ?? r.candidate_id,

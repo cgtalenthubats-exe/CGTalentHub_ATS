@@ -421,13 +421,21 @@ export async function onboardExternalCandidate(extRefId: string, userEmail: stri
 
         // 4. Create Internal Experiences
         if (extExperiences && extExperiences.length > 0) {
-            const internalExps = extExperiences.map(exp => ({
+            const isCurrentFlags = extExperiences.map(exp =>
+                exp.is_current === 'true' || exp.is_current === true || exp.is_current === 'True'
+            );
+            // New internal candidate — no is_primary_current rows exist yet. Pick only the
+            // first Current row as primary (DB partial unique index allows one true per
+            // candidate_id); the external source can report several concurrent roles.
+            const primaryIndex = isCurrentFlags.indexOf(true);
+            const internalExps = extExperiences.map((exp, idx) => ({
                 candidate_id: internalId,
                 company: exp.company_name_text,
                 position: exp.position,
                 start_date: exp.start_date,
                 end_date: exp.end_date,
-                is_current_job: (exp.is_current === 'true' || exp.is_current === true || exp.is_current === 'True') ? 'Current' : 'Past',
+                is_current_job: isCurrentFlags[idx] ? 'Current' : 'Past',
+                is_primary_current: idx === primaryIndex,
                 work_location: exp.work_location,
                 country: exp.country,
                 company_industry: exp.industry,
@@ -555,13 +563,18 @@ export async function bulkOnboardExternalCandidates(extRefIds: string[], userEma
 
             // Insert Experiences
             if (exps.data && exps.data.length > 0) {
-                const internalExps = exps.data.map(exp => ({
+                const isCurrentFlags = exps.data.map(exp =>
+                    exp.is_current === 'true' || exp.is_current === true || exp.is_current === 'True'
+                );
+                const primaryIndex = isCurrentFlags.indexOf(true);
+                const internalExps = exps.data.map((exp, idx) => ({
                     candidate_id: internalId,
                     company: exp.company_name_text,
                     position: exp.position,
                     start_date: exp.start_date,
                     end_date: exp.end_date,
-                    is_current_job: (exp.is_current === 'true' || exp.is_current === true || exp.is_current === 'True') ? 'Current' : 'Past',
+                    is_current_job: isCurrentFlags[idx] ? 'Current' : 'Past',
+                    is_primary_current: idx === primaryIndex,
                     work_location: exp.work_location,
                     country: exp.country,
                     company_industry: exp.industry,

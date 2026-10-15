@@ -81,8 +81,11 @@ export function AssignCandidateOrgDialog({
             // Auto-select latest chart if any
             if (u.length > 0) setSelectedUploadId(u[0].upload_id)
             
-            // Auto-select current position if any
-            const current = e.find((exp: any) => exp.is_current_job === 'Current')
+            // Auto-select current position if any — prefer is_primary_current (the explicit,
+            // unique-per-candidate pick), else the first row flagged Current (query already
+            // orders primary-then-current first, so e[0] is as good a fallback as .find()).
+            const current = e.find((exp: any) => exp.is_primary_current === true)
+                ?? e.find((exp: any) => exp.is_current_job === 'Current')
             if (current) setSelectedPosition(current.position)
             else if (e.length > 0) setSelectedPosition(e[0].position)
             

@@ -64,6 +64,20 @@ export async function addExperience(candidateId: string, formData: FormData) {
         }
     }
 
+    // Marking the new row Current makes it the primary pick too — clear any other
+    // is_primary_current on this candidate first (DB partial unique index requires it).
+    if (isCurrent) {
+        const { error: unsetError } = await client
+            .from("candidate_experiences")
+            .update({ is_primary_current: false })
+            .eq("candidate_id", candidateId)
+            .eq("is_primary_current", true);
+        if (unsetError) {
+            console.error("Add Experience unset-primary error:", unsetError);
+            return { error: unsetError.message };
+        }
+    }
+
     const { error } = await client.from("candidate_experiences").insert({
         candidate_id: candidateId,
         position: position,
@@ -74,7 +88,8 @@ export async function addExperience(candidateId: string, formData: FormData) {
         country: country || null,
         start_date: startDate || null,
         end_date: isCurrent ? null : (endDate || null),
-        is_current_job: isCurrent ? "Current" : "Past"
+        is_current_job: isCurrent ? "Current" : "Past",
+        is_primary_current: isCurrent
     });
 
     if (error) {
@@ -210,7 +225,20 @@ export async function bulkDeleteExperiences(experienceIds: string[], candidateId
 }
 
 // Set (or toggle off) the 'Current' job for a candidate.
-// Simplified: Just set the selected experience as 'Current'.
+//
+// is_current_job/end_date stay factual: a candidate can genuinely hold more than one
+// concurrent role, and toggling this is how the user corrects "did they actually leave
+// this job" — that part is unchanged.
+//
+// is_primary_current is a separate, unique-per-candidate flag for the ONE experience to
+// surface wherever the UI needs a single value (JR table, profile header, PPTX, org chart).
+// Turning a row Current here also makes it the primary pick (the user just told us this is
+// "the" current job), auto-unsetting primary on every other experience of the same
+// candidate — the DB has a partial unique index enforcing at most one, so the unset must
+// happen before the set. Turning a row OFF Current clears its own primary flag too (a
+// non-current row can't be the primary "current" pick) without auto-promoting another one;
+// the next read falls back to pickPrimaryExperience()'s heuristic until the user explicitly
+// picks a new primary among whatever Concurrent rows remain.
 export async function setCurrentExperience(experienceId: string, candidateId: string) {
     const client = adminAuthClient as any;
 
@@ -234,8 +262,25 @@ export async function setCurrentExperience(experienceId: string, candidateId: st
 
     if (newStatus === "Current") {
         updateData.end_date = null; // null displays as "Present"
+        updateData.is_primary_current = true;
+
+        // Clear primary on this candidate's other rows FIRST — the DB's partial unique
+        // index (one is_primary_current=true per candidate_id) would reject setting this
+        // row's flag before the old one is cleared.
+        const { error: unsetError } = await client
+            .from("candidate_experiences")
+            .update({ is_primary_current: false })
+            .eq("candidate_id", candidateId)
+            .neq("id", experienceId)
+            .eq("is_primary_current", true);
+
+        if (unsetError) {
+            console.error("setCurrentExperience unset-primary error:", unsetError);
+            return { error: unsetError.message };
+        }
     } else {
         updateData.end_date = today; // Set end_date to today when moving to "Past"
+        updateData.is_primary_current = false;
     }
 
     const { error: setError } = await client
@@ -292,6 +337,18 @@ export async function updateExperience(experienceId: string, candidateId: string
         }
     }
 
+    // Same as addExperience/setCurrentExperience: flipping this row Current makes it the
+    // primary pick too, so clear any other primary flag on this candidate first.
+    if (isCurrent) {
+        const { error: unsetError } = await client
+            .from("candidate_experiences")
+            .update({ is_primary_current: false })
+            .eq("candidate_id", candidateId)
+            .neq("id", experienceId)
+            .eq("is_primary_current", true);
+        if (unsetError) return { error: unsetError.message };
+    }
+
     const { error } = await client
         .from("candidate_experiences")
         .update({
@@ -303,7 +360,8 @@ export async function updateExperience(experienceId: string, candidateId: string
             country: country || null,
             start_date: startDate || null,
             end_date: isCurrent ? null : (endDate || null),
-            is_current_job: isCurrent ? "Current" : "Past"
+            is_current_job: isCurrent ? "Current" : "Past",
+            is_primary_current: isCurrent
         })
         .eq("id", experienceId);
 

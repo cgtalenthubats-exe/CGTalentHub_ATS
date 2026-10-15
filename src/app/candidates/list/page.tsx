@@ -88,6 +88,7 @@ interface Experience {
     country: string;
     company_industry?: string;
     is_current_job?: string;
+    is_primary_current?: boolean | null;
 }
 
 export default function CandidateListPage() {
@@ -351,7 +352,9 @@ export default function CandidateListPage() {
             .filter(Boolean) as Candidate[];
 
         const currentExp = (c: Candidate) =>
-            c.experiences?.find(e => e.is_current_job === "Current") ?? c.experiences?.[0];
+            c.experiences?.find(e => e.is_primary_current === true)
+            ?? c.experiences?.find(e => e.is_current_job === "Current")
+            ?? c.experiences?.[0];
 
         const escape = (v: any) => {
             const s = v == null ? "" : String(v).replace(/"/g, '""');
@@ -1034,6 +1037,12 @@ function parseMonthYearDate(dateStr: string | null | undefined): number {
 function sortExperiences(exps: Experience[]) {
     if (!exps) return [];
     return [...exps].sort((a, b) => {
+        // 0. Primary pick always first, regardless of its own date vs other Concurrent roles
+        const aPrimary = a.is_primary_current === true;
+        const bPrimary = b.is_primary_current === true;
+        if (aPrimary && !bPrimary) return -1;
+        if (!aPrimary && bPrimary) return 1;
+
         // 1. Current job first: end_date = 'Present' OR is_current_job = 'Current'
         const aCurrent = (a.end_date?.toLowerCase() === 'present') || a.is_current_job === 'Current' || (a as any).is_current === true;
         const bCurrent = (b.end_date?.toLowerCase() === 'present') || b.is_current_job === 'Current' || (b as any).is_current === true;
@@ -1064,7 +1073,9 @@ function CandidateRichCard({
     const [expanded, setExpanded] = useState(true);
     // Sort experiences: Present first, then by End Date descending
     const sortedExperiences = useMemo(() => sortExperiences(candidate.experiences), [candidate.experiences]);
-    const currentJob = sortedExperiences.find(e => (e.end_date?.toLowerCase() === 'present') || e.is_current_job === 'Current' || (e as any).is_current) || sortedExperiences[0];
+    const currentJob = sortedExperiences.find(e => e.is_primary_current === true)
+        || sortedExperiences.find(e => (e.end_date?.toLowerCase() === 'present') || e.is_current_job === 'Current' || (e as any).is_current)
+        || sortedExperiences[0];
 
     return (
         <Card className={cn(

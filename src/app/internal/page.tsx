@@ -389,8 +389,8 @@ export default function InternalCandidatePage() {
                                                 {/* Position */}
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center gap-1.5">
-                                                        {c.exp_label === 'Current'
-                                                            ? <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">Current</span>
+                                                        {c.exp_label === 'Primary'
+                                                            ? <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">Primary</span>
                                                             : c.exp_label === 'Latest Position'
                                                                 ? <span className="text-[10px] font-black px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-200 shrink-0">Latest</span>
                                                                 : null}
@@ -827,7 +827,7 @@ function StatusMismatchDialog({ candidate, onClose, onSuccess }: {
                     <p className="text-xs text-slate-500">{candidate.candidate_id}</p>
                     {candidate.exp_company && (
                         <p className="text-xs text-slate-500 mt-1">
-                            {candidate.exp_label === 'Current' ? 'Currently at' : 'Last at'}: <span className="font-medium">{candidate.exp_company}</span>
+                            {candidate.exp_label === 'Primary' ? 'Currently at' : 'Last at'}: <span className="font-medium">{candidate.exp_company}</span>
                         </p>
                     )}
                 </div>

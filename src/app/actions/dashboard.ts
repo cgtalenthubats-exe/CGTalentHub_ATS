@@ -1,6 +1,7 @@
 "use server";
 
 import { adminAuthClient } from "@/lib/supabase/admin";
+import { pickPrimaryExperience } from "@/lib/candidate-experience-utils";
 
 export interface GlobalPoolStat {
     country: string;
@@ -23,20 +24,14 @@ export interface CompanySalaryStat {
 
 // Logic: Current > Past (Latest by start_date)
 /**
- * REVISED SELECTION LOGIC:
- * 1. Find is_current_job = 'Current'
- * 2. If multiple, take latest start_date
+ * SELECTION LOGIC (via pickPrimaryExperience):
+ * 1. is_primary_current = true (the explicit, unique-per-candidate flag)
+ * 2. Fallback while unset: is_current_job = 'Current', latest start_date wins among ties
  * 3. If no 'Current', take latest start_date across all experiences
  */
 function getPrimaryJob(experiences: any[]): any | null {
     if (!experiences || experiences.length === 0) return null;
-
-    const currents = experiences.filter(e => e.is_current_job === 'Current');
-    if (currents.length > 0) {
-        return currents.sort((a, b) => new Date(b.start_date || 0).getTime() - new Date(a.start_date || 0).getTime())[0];
-    }
-
-    return experiences.sort((a, b) => new Date(b.start_date || 0).getTime() - new Date(a.start_date || 0).getTime())[0];
+    return pickPrimaryExperience(experiences) ?? null;
 }
 
 async function fetchAllPaginated(client: any, table: string, select: string, pageSize = 1000, maxPages = 100): Promise<any[]> {
@@ -63,7 +58,7 @@ export async function getGlobalPoolDisplay() {
 
     const [profiles, allExps, jrCandidates] = await Promise.all([
         fetchAllPaginated(client, "Candidate Profile", "candidate_id, name, age, gender"),
-        fetchAllPaginated(client, "candidate_experiences", "candidate_id, company_id, country, company, company_industry, company_group, is_current_job, start_date"),
+        fetchAllPaginated(client, "candidate_experiences", "candidate_id, company_id, country, company, company_industry, company_group, is_current_job, is_primary_current, start_date"),
         fetchAllPaginated(client, "jr_candidates", "candidate_id, jr_id, list_type"),
     ]);
 
@@ -197,7 +192,7 @@ export async function getMarketSalaryStats() {
     ((companyMasterRes.data || []) as any[]).forEach((c: any) => { companyLookup[c.company_id] = c; });
 
     const [allExps, profilesRes] = await Promise.all([
-        fetchAllPaginated(client, "candidate_experiences", "candidate_id, company_id, company, company_industry, company_group, is_current_job, start_date, position_keyword, position"),
+        fetchAllPaginated(client, "candidate_experiences", "candidate_id, company_id, company, company_industry, company_group, is_current_job, is_primary_current, start_date, position_keyword, position"),
         // Salary profiles are few (<500 rows) — single query with filter is fine
         client.from("Candidate Profile")
             .select("candidate_id, gross_salary_base_b_mth, name, job_function")

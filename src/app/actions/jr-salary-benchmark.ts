@@ -8,6 +8,7 @@ import {
     statsByGroup,
     type SalaryStats,
 } from "@/lib/salary-stats";
+import { groupExperiencesByCandidate, pickPrimaryExperience, type ExperienceRow } from "@/lib/candidate-experience-utils";
 
 /**
  * Salary benchmark for a single JR — scoped to the candidates in that JR's pool.
@@ -140,7 +141,7 @@ export async function getJRSalaryBenchmark(jrId: string): Promise<JRSalaryBenchm
             Promise.all(chunk(candidateIds).map(ids =>
                 (supabase as any)
                     .from("candidate_experiences")
-                    .select("candidate_id, company, company_id, position, is_current_job, start_date, country, company_industry")
+                    .select("candidate_id, company, company_id, position, is_current_job, is_primary_current, start_date, end_date, country, company_industry")
                     .in("candidate_id", ids)
             )),
             (supabase as any).from("country").select("country, region"),
@@ -152,20 +153,12 @@ export async function getJRSalaryBenchmark(jrId: string): Promise<JRSalaryBenchm
             (((countryRes as any).data || []) as any[]).map(r => [r.country, r.region])
         );
 
-        // Current role per candidate: prefer the one flagged Current, else the most recent start.
+        // Current role per candidate: prefer is_primary_current, else Current, else the most recent start.
         const currentExp = new Map<string, any>();
-        (experiences as any[]).forEach(e => {
-            const prev = currentExp.get(e.candidate_id);
-            if (!prev) { currentExp.set(e.candidate_id, e); return; }
-            const score = (x: any) => (x.is_current_job === "Current" ? 1 : 0);
-            if (score(e) !== score(prev)) {
-                if (score(e) > score(prev)) currentExp.set(e.candidate_id, e);
-                return;
-            }
-            if (new Date(e.start_date).getTime() > new Date(prev.start_date).getTime()) {
-                currentExp.set(e.candidate_id, e);
-            }
-        });
+        for (const [cid, exps] of groupExperiencesByCandidate(experiences as unknown as ExperienceRow[])) {
+            const best = pickPrimaryExperience(exps);
+            if (best) currentExp.set(cid, best);
+        }
 
         const companyIds = Array.from(
             new Set(Array.from(currentExp.values()).map(e => e.company_id).filter(Boolean))

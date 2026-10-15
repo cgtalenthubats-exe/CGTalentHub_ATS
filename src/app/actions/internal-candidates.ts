@@ -4,6 +4,7 @@ import { adminAuthClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import { cgCompanyMatch } from "@/lib/cg-company-match";
 import { parseAnyDate, calculateYoS } from "@/lib/date-utils";
+import { groupExperiencesByCandidate, pickPrimaryExperience, type ExperienceRow } from "@/lib/candidate-experience-utils";
 
 export interface InternalCandidate {
     candidate_id: string;
@@ -37,7 +38,7 @@ export interface InternalCandidate {
     // best experience (Current first, else Latest)
     exp_position: string | null;
     exp_company: string | null;
-    exp_label: 'Current' | 'Latest Position' | null;
+    exp_label: 'Primary' | 'Latest Position' | null;
     // Ex-Central only: บริษัทในประวัติที่อยู่ใน company_cg_mapping
     cg_prev_company: string | null;
     cg_prev_position: string | null;
@@ -100,14 +101,16 @@ export async function getInternalCandidates(filters?: {
     // current experiences ของ Group 2
     const { data: currentExps } = group2Ids.length ? await (supabase as any)
         .from('candidate_experiences')
-        .select('candidate_id, company_id')
+        .select('candidate_id, company_id, position, company, start_date, end_date, country, is_current_job, is_primary_current')
         .in('candidate_id', group2Ids)
         .eq('is_current_job', 'Current') : { data: [] };
 
-    // company_id → candidate_id map (เอาแค่ 1 current company per candidate)
+    // company_id → candidate_id map (เอาแค่ 1 current company per candidate — prefers
+    // is_primary_current when a candidate has more than one concurrent "Current" row)
     const currentCompanyMap = new Map<string, number>();
-    for (const e of (currentExps || [])) {
-        if (!currentCompanyMap.has(e.candidate_id)) currentCompanyMap.set(e.candidate_id, e.company_id);
+    for (const [cid, exps] of groupExperiencesByCandidate((currentExps || []) as unknown as ExperienceRow[])) {
+        const best = pickPrimaryExperience(exps) as any;
+        if (best?.company_id != null) currentCompanyMap.set(cid, best.company_id);
     }
 
     // company_cg_mapping: company_id → bu/sub_bu
@@ -132,30 +135,21 @@ export async function getInternalCandidates(filters?: {
     // ── Experiences: ดึงของทุก candidate (ทั้ง group1 + group2) ──────────────
     const { data: allExps } = await (supabase as any)
         .from('candidate_experiences')
-        .select('candidate_id, position, company, company_id, is_current_job, start_date, end_date')
+        .select('candidate_id, position, company, company_id, is_current_job, is_primary_current, start_date, end_date')
         .in('candidate_id', candidateIds);
 
-    // Best exp per candidate: Current first → latest start_date
-    const bestExpMap = new Map<string, { position: string; company: string; company_id: number | null; label: 'Current' | 'Latest Position' }>();
-    const allExpsByCand = new Map<string, any[]>();
-    for (const e of (allExps || [])) {
-        if (!allExpsByCand.has(e.candidate_id)) allExpsByCand.set(e.candidate_id, []);
-        allExpsByCand.get(e.candidate_id)!.push(e);
-    }
+    // Best exp per candidate: is_primary_current, else Current, else latest start_date
+    const bestExpMap = new Map<string, { position: string; company: string; company_id: number | null; label: 'Primary' | 'Latest Position' }>();
+    const allExpsByCand = groupExperiencesByCandidate((allExps || []) as unknown as ExperienceRow[]);
     for (const [cid, exps] of allExpsByCand) {
-        exps.sort((a: any, b: any) => {
-            const aCurr = (a.is_current_job || '').toLowerCase() === 'current';
-            const bCurr = (b.is_current_job || '').toLowerCase() === 'current';
-            if (aCurr !== bCurr) return aCurr ? -1 : 1;
-            return (b.start_date || '').localeCompare(a.start_date || '');
-        });
-        const best = exps[0];
+        const best = pickPrimaryExperience(exps) as any;
+        if (!best) continue;
         const isCurr = (best.is_current_job || '').toLowerCase() === 'current';
         bestExpMap.set(cid, {
             position: best.position || '',
             company: best.company || '',
             company_id: best.company_id || null,
-            label: isCurr ? 'Current' : 'Latest Position',
+            label: isCurr ? 'Primary' : 'Latest Position',
         });
     }
 

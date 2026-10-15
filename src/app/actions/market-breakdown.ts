@@ -1,7 +1,7 @@
 "use server";
 
 import { adminAuthClient } from "@/lib/supabase/admin";
-import { groupExperiencesByCandidate, type ExperienceRow } from "@/lib/candidate-experience-utils";
+import { groupExperiencesByCandidate, pickPrimaryExperience, type ExperienceRow } from "@/lib/candidate-experience-utils";
 
 export type MarketBreakdown = {
     totalCandidates: number;
@@ -68,7 +68,7 @@ export async function getPoolMarketBreakdown(candidateIds: string[]): Promise<Ma
         fetchAllPaged(
             adminAuthClient
                 .from("candidate_experiences")
-                .select("candidate_id, position, position_keyword, company, company_id, start_date, end_date, country, is_current_job")
+                .select("candidate_id, position, position_keyword, company, company_id, start_date, end_date, country, is_current_job, is_primary_current")
                 .in("candidate_id", candidateIds)
         ) as Promise<ExperienceRow[]>,
         adminAuthClient.from("company_set_group").select("company_name"),
@@ -81,7 +81,7 @@ export async function getPoolMarketBreakdown(candidateIds: string[]): Promise<Ma
     const ageMap = new Map(profileRows.map((p: any) => [p.candidate_id, p.age as number | null]));
 
     const companyIds = [...new Set(
-        [...latestByCandidate.values()].map(list => list[0]?.company_id).filter((id): id is number => id != null)
+        [...latestByCandidate.values()].map(list => pickPrimaryExperience(list)?.company_id).filter((id): id is number => id != null)
     )];
 
     const [companyMasterRes, countryRes] = await Promise.all([
@@ -105,7 +105,7 @@ export async function getPoolMarketBreakdown(candidateIds: string[]): Promise<Ma
     const ageCounts = new Map<string, number>();
 
     for (const cId of candidateIds) {
-        const latest = latestByCandidate.get(cId)?.[0];
+        const latest = pickPrimaryExperience(latestByCandidate.get(cId) ?? []);
         if (!latest) continue;
 
         const company = latest.company_id != null ? companyMap.get(latest.company_id) : null;

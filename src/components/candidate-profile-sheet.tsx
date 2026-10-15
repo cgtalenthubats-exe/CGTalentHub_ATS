@@ -376,6 +376,11 @@ export function CandidateProfileSheet({ candidateId, open, onOpenChange }: Candi
                                                 <div className="relative border-l-2 border-slate-100 ml-4 pl-8 space-y-10 py-4">
                                                     {experiences.length > 0 ? [...experiences]
                                                         .sort((a, b) => {
+                                                            const aPrimary = a.is_primary_current === true;
+                                                            const bPrimary = b.is_primary_current === true;
+                                                            if (aPrimary && !bPrimary) return -1;
+                                                            if (!aPrimary && bPrimary) return 1;
+
                                                             const aCurrent = (a.end_date?.toLowerCase() === 'present') || a.is_current_job === 'Current';
                                                             const bCurrent = (b.end_date?.toLowerCase() === 'present') || b.is_current_job === 'Current';
                                                             if (aCurrent && !bCurrent) return -1;
@@ -441,6 +446,7 @@ export function CandidateProfileSheet({ candidateId, open, onOpenChange }: Candi
                                                                             experienceId={exp.id}
                                                                             candidateId={meta?.candidate_id}
                                                                             isCurrent={isCurrent}
+                                                                            isPrimary={exp.is_primary_current === true}
                                                                             onSuccess={handleRefresh}
                                                                         />
                                                                     </div>

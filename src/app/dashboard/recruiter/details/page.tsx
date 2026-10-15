@@ -30,6 +30,11 @@ function parseMonthYearDate(dateStr: string | null | undefined): number {
 
 function sortExperiences(exps: KPIDetailExperience[]) {
     return [...exps].sort((a, b) => {
+        const aPrimary = a.is_primary_current === true;
+        const bPrimary = b.is_primary_current === true;
+        if (aPrimary && !bPrimary) return -1;
+        if (!aPrimary && bPrimary) return 1;
+
         const aCurrent = a.end_date?.toLowerCase() === 'present' || a.is_current_job === 'Current';
         const bCurrent = b.end_date?.toLowerCase() === 'present' || b.is_current_job === 'Current';
         if (aCurrent && !bCurrent) return -1;
@@ -60,7 +65,9 @@ function CandidateIdChip({ candidateId, onClick }: { candidateId: string; onClic
 function SourcingRow({ candidate, onOpenSheet }: { candidate: KPIDetailCandidate; onOpenSheet: (id: string) => void }) {
     const [expanded, setExpanded] = useState(false);
     const sorted = sortExperiences(candidate.experiences);
-    const latest = sorted.find(e => e.is_current_job === 'Current' || e.end_date?.toLowerCase() === 'present') || sorted[0];
+    const latest = sorted.find(e => e.is_primary_current === true)
+        || sorted.find(e => e.is_current_job === 'Current' || e.end_date?.toLowerCase() === 'present')
+        || sorted[0];
     const initials = candidate.name?.substring(0, 2)?.toUpperCase() || '??';
 
     return (

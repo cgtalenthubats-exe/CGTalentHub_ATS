@@ -213,7 +213,16 @@ export async function POST(req: NextRequest) {
                 };
             });
 
-            const validExpData = expData.filter((e: any) => e.position !== "Unknown Position" || e.company !== "Unknown Company");
+            // New candidate — no is_primary_current rows exist yet. Pick only the first
+            // Current row as primary: the DB's partial unique index allows just one true per
+            // candidate_id, and a scrape can legitimately report several concurrent roles.
+            const primaryIndex = expData.findIndex((e: any) => e.is_current_job === 'Current');
+            const expDataWithPrimary = expData.map((e: any, idx: number) => ({
+                ...e,
+                is_primary_current: idx === primaryIndex,
+            }));
+
+            const validExpData = expDataWithPrimary.filter((e: any) => e.position !== "Unknown Position" || e.company !== "Unknown Company");
 
             if (validExpData.length > 0) {
                 const { error: insertExpError } = await supabase

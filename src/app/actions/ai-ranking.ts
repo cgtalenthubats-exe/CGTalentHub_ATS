@@ -1,7 +1,7 @@
 "use server";
 
 import { adminAuthClient } from "@/lib/supabase/admin";
-import { groupExperiencesByCandidate, formatExperienceHistory, formatEducationHeadline, type ExperienceRow } from "@/lib/candidate-experience-utils";
+import { groupExperiencesByCandidate, pickPrimaryExperience, formatExperienceHistory, formatEducationHeadline, type ExperienceRow } from "@/lib/candidate-experience-utils";
 
 const N8N_STAGE3_URL = "https://n8n.srv1212906.hstgr.cloud/webhook/demo-stage3";
 const N8N_JR_ASSESS_URL = "https://n8n.srv1212906.hstgr.cloud/webhook/jr-assess";
@@ -165,7 +165,7 @@ export async function getStage3JobStatus(jobId: string, jrId?: string | null): P
             .in("candidate_id", candidateIds),
         adminAuthClient
             .from("candidate_experiences")
-            .select("candidate_id, position, company, company_id, start_date, end_date, country, is_current_job")
+            .select("candidate_id, position, company, company_id, start_date, end_date, country, is_current_job, is_primary_current")
             .in("candidate_id", candidateIds),
         adminAuthClient
             .from("candidate_profile_enhance")
@@ -179,7 +179,7 @@ export async function getStage3JobStatus(jobId: string, jrId?: string | null): P
     const enhanceMap = new Map((enhanceRes.data ?? []).map((e: any) => [e.candidate_id, e as any]));
 
     const companyIds = [...new Set(
-        candidateIds.map((cId: string) => expByCandidate.get(cId)?.[0]?.company_id).filter((id): id is number => id != null)
+        candidateIds.map((cId: string) => pickPrimaryExperience(expByCandidate.get(cId) ?? [])?.company_id).filter((id): id is number => id != null)
     )];
     const companyMasterRes = companyIds.length
         ? await adminAuthClient.from("company_master").select("company_id, rating").in("company_id", companyIds)
@@ -203,7 +203,7 @@ export async function getStage3JobStatus(jobId: string, jrId?: string | null): P
         const profile = profileMap.get(r.candidate_id);
         const enhance = enhanceMap.get(r.candidate_id);
         const sortedExp = expByCandidate.get(r.candidate_id) ?? [];
-        const latest = sortedExp[0];
+        const latest = pickPrimaryExperience(sortedExp);
         return {
         candidate_id: r.candidate_id,
         name: profile?.name ?? r.candidate_id,
@@ -273,7 +273,7 @@ export async function getJRCandidateRoster(jrId: string): Promise<Stage3Result[]
             .in("candidate_id", candidateIds),
         adminAuthClient
             .from("candidate_experiences")
-            .select("candidate_id, position, company, company_id, start_date, end_date, country, is_current_job")
+            .select("candidate_id, position, company, company_id, start_date, end_date, country, is_current_job, is_primary_current")
             .in("candidate_id", candidateIds),
         getLatestStatusByJrCandidateId((jrRows ?? []).map((j: any) => j.jr_candidate_id)),
     ]);
@@ -284,7 +284,7 @@ export async function getJRCandidateRoster(jrId: string): Promise<Stage3Result[]
 
     return candidateIds.map((cId: string) => {
         const profile = profileMap.get(cId);
-        const latest = expByCandidate.get(cId)?.[0];
+        const latest = pickPrimaryExperience(expByCandidate.get(cId) ?? []);
         const jrRow = jrMap.get(cId);
         return {
             candidate_id: cId,
@@ -364,7 +364,7 @@ export async function getJRTopProfileShortlist(jrId: string): Promise<ShortProfi
             .in("candidate_id", candidateIds),
         adminAuthClient
             .from("candidate_experiences")
-            .select("candidate_id, position, company, company_id, start_date, end_date, country, is_current_job")
+            .select("candidate_id, position, company, company_id, start_date, end_date, country, is_current_job, is_primary_current")
             .in("candidate_id", candidateIds),
         adminAuthClient
             .from("candidate_profile_enhance")
@@ -379,7 +379,7 @@ export async function getJRTopProfileShortlist(jrId: string): Promise<ShortProfi
     const jrMap = new Map((jrRows ?? []).map((j: any) => [j.candidate_id, j]));
 
     const companyIds = [...new Set(
-        candidateIds.map((cId: string) => expByCandidate.get(cId)?.[0]?.company_id).filter((id): id is number => id != null)
+        candidateIds.map((cId: string) => pickPrimaryExperience(expByCandidate.get(cId) ?? [])?.company_id).filter((id): id is number => id != null)
     )];
     const companyMasterRes = companyIds.length
         ? await adminAuthClient.from("company_master").select("company_id, rating").in("company_id", companyIds)
@@ -389,7 +389,7 @@ export async function getJRTopProfileShortlist(jrId: string): Promise<ShortProfi
     return candidateIds.map((cId: string) => {
         const profile = profileMap.get(cId);
         const sortedExp = expByCandidate.get(cId) ?? [];
-        const latest = sortedExp[0];
+        const latest = pickPrimaryExperience(sortedExp);
         const enhance = enhanceMap.get(cId);
         const jrRow = jrMap.get(cId);
         return {
@@ -435,7 +435,7 @@ export async function getJRInternalCandidates(jrId: string): Promise<ShortProfil
     const [expRes, enhanceRes, statusByJrCandidateId] = await Promise.all([
         adminAuthClient
             .from("candidate_experiences")
-            .select("candidate_id, position, company, company_id, start_date, end_date, country, is_current_job")
+            .select("candidate_id, position, company, company_id, start_date, end_date, country, is_current_job, is_primary_current")
             .in("candidate_id", candidateIds),
         adminAuthClient
             .from("candidate_profile_enhance")
@@ -454,7 +454,7 @@ export async function getJRInternalCandidates(jrId: string): Promise<ShortProfil
     const jrMap = new Map((jrRows ?? []).map((j: any) => [j.candidate_id, j]));
 
     const companyIds = [...new Set(
-        candidateIds.map((cId: string) => expByCandidate.get(cId)?.[0]?.company_id).filter((id): id is number => id != null)
+        candidateIds.map((cId: string) => pickPrimaryExperience(expByCandidate.get(cId) ?? [])?.company_id).filter((id): id is number => id != null)
     )];
     const companyMasterRes = companyIds.length
         ? await adminAuthClient.from("company_master").select("company_id, rating").in("company_id", companyIds)
@@ -464,7 +464,7 @@ export async function getJRInternalCandidates(jrId: string): Promise<ShortProfil
     return candidateIds.map((cId: string) => {
         const profile = profileMap.get(cId);
         const sortedExp = expByCandidate.get(cId) ?? [];
-        const latest = sortedExp[0];
+        const latest = pickPrimaryExperience(sortedExp);
         const enhance = enhanceMap.get(cId);
         const jrRow = jrMap.get(cId);
         return {

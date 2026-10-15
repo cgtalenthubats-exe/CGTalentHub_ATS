@@ -162,7 +162,12 @@ export async function POST(req: NextRequest) {
 
         // 4. Insert Work Experiences (Optional)
         if (body.experiences && Array.from(body.experiences).length > 0) {
-            const expData = body.experiences.map((exp: any) => ({
+            // New candidate, so no is_primary_current rows exist yet to conflict with — just
+            // pick the first one flagged current as the primary (the DB's partial unique
+            // index only allows one true per candidate_id, so a batch with several
+            // concurrent-current entries can't set it on all of them).
+            const primaryIndex = body.experiences.findIndex((exp: any) => exp.is_current);
+            const expData = body.experiences.map((exp: any, idx: number) => ({
                 candidate_id: newId,
                 name: name,
                 position: exp.position,
@@ -172,7 +177,8 @@ export async function POST(req: NextRequest) {
                 work_location: exp.work_location || null,
                 start_date: exp.start_date || null,
                 end_date: exp.end_date || null,
-                is_current_job: exp.is_current ? 'Current' : 'Past'
+                is_current_job: exp.is_current ? 'Current' : 'Past',
+                is_primary_current: idx === primaryIndex
             }));
 
             const { error: expError } = await supabase

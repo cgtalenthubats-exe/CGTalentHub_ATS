@@ -161,6 +161,10 @@ export function CandidatePreviewSheet({ candidateId, open, onOpenChange }: Props
     const enhance: any = data?.enhancement ?? {};
 
     const sortedExps = [...(data?.experiences ?? [])].sort((a, b) => {
+        const aPrimary = a.is_primary_current === true;
+        const bPrimary = b.is_primary_current === true;
+        if (aPrimary !== bPrimary) return aPrimary ? -1 : 1;
+
         const aCurr = a.is_current_job === 'Current' || a.end_date?.toLowerCase() === 'present';
         const bCurr = b.is_current_job === 'Current' || b.end_date?.toLowerCase() === 'present';
         if (aCurr !== bCurr) return aCurr ? -1 : 1;
@@ -398,6 +402,7 @@ export function CandidatePreviewSheet({ candidateId, open, onOpenChange }: Props
                                                             experienceId={exp.id}
                                                             candidateId={candidateId!}
                                                             isCurrent={isCurrent}
+                                                            isPrimary={exp.is_primary_current === true}
                                                             onSuccess={handleRefresh}
                                                         />
                                                     </div>

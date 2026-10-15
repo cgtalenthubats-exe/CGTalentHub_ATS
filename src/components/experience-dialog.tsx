@@ -561,8 +561,8 @@ export function DeleteExperienceButton({ id, candidateId, onSuccess }: { id: str
 }
 
 export function SetCurrentExperienceButton({
-    experienceId, candidateId, isCurrent, onSuccess
-}: { experienceId: string; candidateId: string; isCurrent: boolean; onSuccess?: () => void | Promise<void> }) {
+    experienceId, candidateId, isCurrent, isPrimary, onSuccess
+}: { experienceId: string; candidateId: string; isCurrent: boolean; isPrimary?: boolean; onSuccess?: () => void | Promise<void> }) {
     const [loading, setLoading] = useState(false);
 
     async function handleClick(e: React.MouseEvent) {
@@ -574,21 +574,36 @@ export function SetCurrentExperienceButton({
         else window.location.reload();
     }
 
+    // A candidate can genuinely hold more than one Current role at once. "Primary" is the
+    // one explicitly chosen (is_primary_current) as the single representative wherever the
+    // UI needs one value; "Concurrent" is still ongoing but not that pick — kept visually
+    // distinct (cooler/outline vs the filled amber Primary) so the two don't read as the same
+    // state. Clicking this button always un-currents the row (same toggle as before) — it
+    // doesn't yet offer a way to promote a Concurrent row to Primary without first
+    // un-currenting another. "Set Primary" (rather than "Set Current") because that's what
+    // clicking it actually does: marks the row Current AND makes it the primary pick.
+    const label = isCurrent ? (isPrimary ? "Primary" : "Concurrent") : "Set Primary";
+
     return (
         <button
             onClick={handleClick}
             disabled={loading}
-            title={isCurrent ? "Unset as Current Job" : "Set as Current Job"}
+            title={isCurrent ? "Unset as Current Job" : "Set as Current & Primary"}
             className={cn(
                 "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border",
-                isCurrent
+                isPrimary
                     ? "bg-amber-50 border-amber-200 text-amber-600 shadow-sm shadow-amber-100/50"
-                    : "bg-slate-50/50 border-slate-200 text-slate-400 hover:border-amber-300 hover:text-amber-500 hover:bg-amber-50",
+                    : isCurrent
+                        ? "bg-indigo-50 border-indigo-200 text-indigo-600"
+                        : "bg-slate-50/50 border-slate-200 text-slate-400 hover:border-amber-300 hover:text-amber-500 hover:bg-amber-50",
                 loading && "opacity-50 cursor-not-allowed"
             )}
         >
-            <Star className={cn("h-3 w-3 transition-transform", isCurrent ? "fill-amber-400 text-amber-500 scale-110" : "text-slate-300")} />
-            {isCurrent ? "Current" : "Set Current"}
+            <Star className={cn(
+                "h-3 w-3 transition-transform",
+                isPrimary ? "fill-amber-400 text-amber-500 scale-110" : isCurrent ? "text-indigo-400" : "text-slate-300"
+            )} />
+            {label}
         </button>
     );
 }

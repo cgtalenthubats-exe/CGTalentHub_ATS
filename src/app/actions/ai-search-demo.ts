@@ -244,7 +244,7 @@ export async function fetchCandidatePage(candidateIds: string[], page: number, p
             .in("candidate_id", pageIds),
         adminAuthClient
             .from("candidate_experiences")
-            .select("id, candidate_id, position, company, company_id, start_date, end_date, country, company_industry, is_current_job")
+            .select("id, candidate_id, position, company, company_id, start_date, end_date, country, company_industry, is_current_job, is_primary_current")
             .in("candidate_id", pageIds)
             .order("start_date", { ascending: false }),
     ]);

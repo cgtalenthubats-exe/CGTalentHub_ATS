@@ -353,14 +353,22 @@ export async function getCandidateBuFromMapping(candidateId: string): Promise<{
 }> {
     const supabase = adminAuthClient as any;
 
-    // ดู current job ก่อน
-    const { data: currentExp } = await supabase
+    // ดู current job ก่อน — no .limit(1) here: a candidate can have more than one row
+    // flagged 'Current' at once (genuinely concurrent jobs), and .maybeSingle() with no
+    // sort would silently return an arbitrary one. Prefer is_primary_current (the explicit,
+    // unique-per-candidate pick), else the row with the latest start_date.
+    const { data: currentExps } = await supabase
         .from('candidate_experiences')
-        .select('company_id, company_master(company_id, company_master)')
+        .select('company_id, company_master(company_id, company_master), start_date, is_primary_current')
         .eq('candidate_id', candidateId)
-        .eq('is_current_job', 'Current')
-        .limit(1)
-        .maybeSingle();
+        .eq('is_current_job', 'Current');
+
+    const currentExp = (currentExps || []).sort((a: any, b: any) => {
+        const aPrimary = a.is_primary_current === true;
+        const bPrimary = b.is_primary_current === true;
+        if (aPrimary !== bPrimary) return aPrimary ? -1 : 1;
+        return (b.start_date || '').localeCompare(a.start_date || '');
+    })[0];
 
     if (currentExp?.company_id) {
         const { data: mapping } = await supabase

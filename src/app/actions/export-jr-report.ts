@@ -7,6 +7,7 @@ import sharp from "sharp";
 import { adminAuthClient } from "@/lib/supabase/admin";
 import {
     groupExperiencesByCandidate,
+    pickPrimaryExperience,
     formatExperienceHistory,
     formatEducationHeadline,
     experienceHistoryRuns,
@@ -1093,7 +1094,7 @@ export async function fetchJRReportData(jrId: string): Promise<JRReportData> {
             .in("candidate_id", candidateIds),
         adminAuthClient
             .from("candidate_experiences")
-            .select("candidate_id, position, company, company_id, country, start_date, end_date, is_current_job")
+            .select("candidate_id, position, company, company_id, country, start_date, end_date, is_current_job, is_primary_current")
             .in("candidate_id", candidateIds),
         adminAuthClient
             .from("candidate_profile_enhance")
@@ -1123,7 +1124,8 @@ export async function fetchJRReportData(jrId: string): Promise<JRReportData> {
     const companyIds = [...new Set(
         candidateIds.flatMap(cId => {
             const exps = expByCandidate.get(cId) ?? [];
-            return exps[0]?.company_id != null ? [(exps[0] as any).company_id as number] : [];
+            const primary = pickPrimaryExperience(exps);
+            return primary?.company_id != null ? [(primary as any).company_id as number] : [];
         })
     )];
 
@@ -1140,7 +1142,7 @@ export async function fetchJRReportData(jrId: string): Promise<JRReportData> {
         const profile = profileMap.get(cId) ?? {} as any;
         const jrRow   = jrCandMap.get(cId)!;
         const exps    = expByCandidate.get(cId) ?? [];
-        const latest  = exps[0] as (ExperienceRow & { company_id?: number }) | undefined;
+        const latest  = pickPrimaryExperience(exps) as (ExperienceRow & { company_id?: number }) | undefined;
         const company = latest?.company_id != null ? companyMap.get(latest.company_id as number) : null;
         const enhance = enhanceMap.get(cId);
 

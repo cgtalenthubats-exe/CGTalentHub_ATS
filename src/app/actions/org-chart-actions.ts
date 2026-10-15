@@ -9,6 +9,7 @@ import { getN8nUrl } from './admin-actions'
 import { v4 as uuidv4 } from 'uuid'
 import {
     groupExperiencesByCandidate,
+    pickPrimaryExperience,
     formatExperienceHistory,
     formatEducationHeadline,
     type ExperienceRow,
@@ -337,23 +338,14 @@ export async function getOrgNodesRaw(uploadId: string): Promise<RawOrgNode[]> {
     if (candidateIds.length > 0) {
         const { data: experiences } = await supabase
             .from('candidate_experiences')
-            .select('candidate_id, company_id, company, position, is_current_job, start_date')
+            .select('candidate_id, company_id, company, position, is_current_job, start_date, end_date, country, is_primary_current')
             .in('candidate_id', candidateIds)
 
         if (experiences) {
+            const byCandidate = groupExperiencesByCandidate(experiences as ExperienceRow[])
             candidateIds.forEach((id: string) => {
-                const candExps = experiences ? experiences.filter((e: any) => e.candidate_id === id) : [];
-                if (candExps.length > 0) {
-                    let current = candExps.find((e: any) => e.is_current_job === 'Current')
-                    if (!current) {
-                        current = candExps.sort((a: any, b: any) => {
-                            if (!a.start_date) return 1
-                            if (!b.start_date) return -1
-                            return new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
-                        })[0]
-                    }
-                    experienceMap.set(id, current)
-                }
+                const current = pickPrimaryExperience(byCandidate.get(id) ?? [])
+                if (current) experienceMap.set(id, current)
             })
         }
     }
@@ -748,6 +740,7 @@ export async function bulkCreateOrgProfiles(uploadId: string) {
                     start_date: null,
                     end_date: null,
                     is_current_job: 'Current',
+                    is_primary_current: true,
                     row_status: 'Active'
                 }
             }
@@ -856,6 +849,7 @@ export async function createSingleOrgProfile(nodeId: string) {
                 start_date: null,
                 end_date: null,
                 is_current_job: 'Current',
+                is_primary_current: true,
                 row_status: 'Active'
             }
             await supabase.from('candidate_experiences').insert(expData)
@@ -1047,7 +1041,7 @@ export async function getOrgChartProfileCards(candidateIds: string[]): Promise<O
             .in('candidate_id', candidateIds),
         supabase
             .from('candidate_experiences')
-            .select('candidate_id, position, company, company_id, country, start_date, end_date, is_current_job')
+            .select('candidate_id, position, company, company_id, country, start_date, end_date, is_current_job, is_primary_current')
             .in('candidate_id', candidateIds),
         supabase
             .from('candidate_profile_enhance')
@@ -1062,7 +1056,8 @@ export async function getOrgChartProfileCards(candidateIds: string[]): Promise<O
     const companyIds = [...new Set(
         candidateIds.flatMap((cId) => {
             const exps = expByCandidate.get(cId) ?? []
-            return exps[0]?.company_id != null ? [(exps[0] as any).company_id as number] : []
+            const primary = pickPrimaryExperience(exps)
+            return primary?.company_id != null ? [(primary as any).company_id as number] : []
         })
     )]
 
@@ -1084,7 +1079,7 @@ export async function getOrgChartProfileCards(candidateIds: string[]): Promise<O
     return candidateIds.map((cId) => {
         const profile = profileMap.get(cId) ?? {}
         const exps = expByCandidate.get(cId) ?? []
-        const latest = exps[0] as (ExperienceRow & { company_id?: number }) | undefined
+        const latest = pickPrimaryExperience(exps) as (ExperienceRow & { company_id?: number }) | undefined
         const company = latest?.company_id != null ? companyMap.get(latest.company_id as number) : null
         const enhance = enhanceMap.get(cId)
 
@@ -1275,23 +1270,14 @@ export async function fetchOrgChartData(uploadId: string) {
     if (candidateIds.length > 0) {
         const { data: experiences } = await supabase
             .from('candidate_experiences')
-            .select('candidate_id, company_id, company, position, is_current_job, start_date')
+            .select('candidate_id, company_id, company, position, is_current_job, start_date, end_date, country, is_primary_current')
             .in('candidate_id', candidateIds)
 
         if (experiences) {
+            const byCandidate = groupExperiencesByCandidate(experiences as ExperienceRow[])
             candidateIds.forEach((id: string) => {
-                const candExps = experiences ? experiences.filter((e: any) => e.candidate_id === id) : [];
-                if (candExps.length > 0) {
-                    let current = candExps.find((e: any) => e.is_current_job === 'Current')
-                    if (!current) {
-                        current = candExps.sort((a: any, b: any) => {
-                            if (!a.start_date) return 1
-                            if (!b.start_date) return -1
-                            return new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
-                        })[0]
-                    }
-                    experienceMap.set(id, current)
-                }
+                const current = pickPrimaryExperience(byCandidate.get(id) ?? [])
+                if (current) experienceMap.set(id, current)
             })
         }
     }
@@ -1724,9 +1710,10 @@ export async function getCandidateExperiences(candidateId: string) {
     if (!candidateId) return []
     const { data, error } = await supabase
         .from('candidate_experiences')
-        .select('position, company, is_current_job')
+        .select('position, company, is_current_job, is_primary_current')
         .eq('candidate_id', candidateId)
-        .order('is_current_job', { ascending: false }) // Current jobs first
+        .order('is_primary_current', { ascending: false }) // Primary pick first, then Current jobs
+        .order('is_current_job', { ascending: false })
     
     if (error) {
         console.error('[GetExperiences] Error:', error)

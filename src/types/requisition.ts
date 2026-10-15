@@ -45,6 +45,7 @@ export interface JRCandidate {
     candidate_current_company_industry?: string;
     candidate_current_company_group?: string;
     candidate_is_current_job?: string; // 'Current' | 'Latest Experience' | null
+    candidate_concurrent_count?: number; // other genuinely-Current experiences besides the primary pick
     candidate_country?: string; // country(note) formatted
     candidate_image_url?: string; // photo
     candidate_age?: number;
@@ -85,6 +86,7 @@ export interface JRCandidateExperience {
     country: string;
     company_industry?: string;
     is_current_job?: string;
+    is_primary_current?: boolean | null;
 }
 
 export interface JRAnalytics {

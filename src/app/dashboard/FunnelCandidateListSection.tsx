@@ -140,6 +140,8 @@ function SummaryCard({ label, value, icon: Icon, color }: { label: string; value
 
 function getScopedExps(c: any) {
     const exps: any[] = c.experiences ?? [];
+    const primary = exps.find((e: any) => e.is_primary_current === true);
+    if (primary) return [primary];
     const cur = exps.find((e: any) => e.is_current_job === "Current");
     return cur ? [cur] : exps.slice(0, 1);
 }

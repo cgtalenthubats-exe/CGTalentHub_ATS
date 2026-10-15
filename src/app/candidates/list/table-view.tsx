@@ -29,6 +29,7 @@ export interface Experience {
     country: string;
     company_industry?: string;
     is_current_job?: string;
+    is_primary_current?: boolean | null;
     hotel_chain_name?: string | null;
     hotel_rating?: string | null;
 }
@@ -82,6 +83,12 @@ function parseMonthYearDate(dateStr: string | null | undefined): number {
 function sortExperiences(exps: Experience[]) {
     if (!exps) return [];
     return [...exps].sort((a, b) => {
+        // 0. Primary pick always first, regardless of its own date vs other Concurrent roles
+        const aPrimary = a.is_primary_current === true;
+        const bPrimary = b.is_primary_current === true;
+        if (aPrimary && !bPrimary) return -1;
+        if (!aPrimary && bPrimary) return 1;
+
         // 1. Current job first: end_date = 'Present' OR is_current_job = 'Current'
         const aCurrent = (a.end_date?.toLowerCase() === 'present') || a.is_current_job === 'Current' || (a as any).is_current === true;
         const bCurrent = (b.end_date?.toLowerCase() === 'present') || b.is_current_job === 'Current' || (b as any).is_current === true;
@@ -128,7 +135,11 @@ const CandidateRow = ({
 
     // Sort experiences
     const sortedExperiences = sortExperiences(candidate.experiences);
-    const latestExp = sortedExperiences.find(e => e.is_current_job === 'Current' || (e as any).is_current) || sortedExperiences[0];
+    // Prefer the explicit is_primary_current pick; fall back to the old current-first
+    // heuristic while it isn't backfilled yet.
+    const latestExp = sortedExperiences.find(e => e.is_primary_current === true)
+        || sortedExperiences.find(e => e.is_current_job === 'Current' || (e as any).is_current)
+        || sortedExperiences[0];
 
     return (
         <>

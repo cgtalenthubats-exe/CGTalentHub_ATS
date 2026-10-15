@@ -398,6 +398,11 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                         <CardContent className="relative pl-8 border-l-2 border-border/40 ml-8 space-y-10 py-8 pr-6">
                             {candidate.experiences
                                 ?.sort((a: any, b: any) => {
+                                    const aPrimary = a.is_primary_current === true;
+                                    const bPrimary = b.is_primary_current === true;
+                                    if (aPrimary && !bPrimary) return -1;
+                                    if (!aPrimary && bPrimary) return 1;
+
                                     const aCurrent = (a.end_date?.toLowerCase() === 'present') || a.is_current_job === 'Current';
                                     const bCurrent = (b.end_date?.toLowerCase() === 'present') || b.is_current_job === 'Current';
                                     if (aCurrent && !bCurrent) return -1;
@@ -434,6 +439,7 @@ export default function CandidateDetailPage({ params }: { params: Promise<{ id: 
                                                             experienceId={exp.id}
                                                             candidateId={candidate.candidate_id}
                                                             isCurrent={isCurrent}
+                                                            isPrimary={exp.is_primary_current === true}
                                                             onSuccess={() => refetchCandidate({ silent: true })}
                                                         />
                                                     </div>

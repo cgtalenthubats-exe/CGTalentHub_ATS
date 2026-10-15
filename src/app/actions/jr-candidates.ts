@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { JRCandidate, JRAnalytics, JRCandidateExperience } from "@/types/requisition";
 import { getEffectiveAge } from "@/lib/date-utils";
 import { getCandidateIdsByExperienceFilters } from "@/lib/candidate-service";
+import { pickPrimaryExperience, groupExperiencesByCandidate, type ExperienceRow } from "@/lib/candidate-experience-utils";
 import { onboardExternalCandidate } from "./ai-search";
 
 // Get current logged-in user's real_name from user_profiles (fallback to email, then 'System')
@@ -165,7 +166,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         Promise.all(candidateIdChunks.map(chunk =>
             fetchAllRows(
                 'candidate_experiences',
-                'id, candidate_id, company, company_id, position, is_current_job, start_date, end_date, country, note, company_industry, company_group',
+                'id, candidate_id, company, company_id, position, is_current_job, is_primary_current, start_date, end_date, country, note, company_industry, company_group',
                 'candidate_id',
                 chunk
             )
@@ -246,7 +247,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         return 0;
     };
 
-    const expMap = new Map<string, { company: string; company_id: string; position: string; label: string; country: string; region: string; note: string; company_industry: string; company_group: string; industry_master: string; hotel_rating: string | null; }>();
+    const expMap = new Map<string, { company: string; company_id: string; position: string; label: string; country: string; region: string; note: string; company_industry: string; company_group: string; industry_master: string; hotel_rating: string | null; concurrentCount: number; }>();
     const fullExpMap = new Map<string, JRCandidateExperience[]>();
     if (experiences && (experiences as any[]).length > 0) {
         // Group by candidate_id
@@ -271,14 +272,24 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
             });
 
 
-            const best = exps[0];
+            // pickPrimaryExperience reads is_primary_current first (the single explicit
+            // "this one" flag, unique per candidate) and only falls back to this file's own
+            // current-first+latest-start_date sort above when it isn't set yet.
+            const best = pickPrimaryExperience(exps as unknown as ExperienceRow[]) ?? exps[0];
             const isCurrent = (best.is_current_job || '').toString().trim().toLowerCase() === 'current';
             const masterData = companyMasterMap.get(best.company_id || '');
+            // How many OTHER experiences are also genuinely ongoing (Current) besides the
+            // primary pick — drives the "Primary+N" badge so a recruiter glancing at the JR
+            // table knows this candidate holds more than one role right now, without having
+            // to expand the row.
+            const concurrentCount = isCurrent
+                ? exps.filter((e: any) => e !== best && (e.is_current_job || '').toString().trim().toLowerCase() === 'current').length
+                : 0;
             expMap.set(cid, {
                 company: best.company || '',
                 company_id: best.company_id || '',
                 position: best.position || '',
-                label: isCurrent ? 'Current' : 'Latest Position',
+                label: isCurrent ? 'Primary' : 'Latest Position',
                 country: best.country || '',
                 region: countryRegionMap.get(best.country || '') || '',
                 note: best.note || '',
@@ -286,6 +297,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
                 company_group: best.company_group || '',
                 industry_master: masterData?.industry || '',
                 hotel_rating: masterData?.rating || null,
+                concurrentCount,
             });
 
             fullExpMap.set(cid, exps.map((e: any) => ({
@@ -297,6 +309,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
                 country: e.country || '',
                 company_industry: e.company_industry || '',
                 is_current_job: e.is_current_job || '',
+                is_primary_current: e.is_primary_current ?? null,
             })));
         }
     }
@@ -347,6 +360,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
             candidate_current_company_industry: exp?.company_industry || undefined,
             candidate_current_company_group: exp?.company_group || undefined,
             candidate_is_current_job: exp ? exp.label : undefined,
+            candidate_concurrent_count: exp?.concurrentCount || 0,
             candidate_country: countryDisplay || undefined,
             candidate_image_url: profile?.photo || undefined,
             candidate_age: profile?.age || (profile?.year_of_bachelor_education ? parseInt(getEffectiveAge(null, profile.year_of_bachelor_education)) || undefined : undefined),
@@ -533,20 +547,18 @@ export async function getJRActivityAgingExport(jrId: string): Promise<{
             .in('jr_candidate_id', jrCandIds)
             .returns<{ log_id: number; jr_candidate_id: string; status: string; timestamp: string }[]>(),
         supabase.from('Candidate Profile').select('candidate_id, name').in('candidate_id', candidateIds),
-        supabase.from('candidate_experiences').select('candidate_id, company, position, is_current_job, start_date').in('candidate_id', candidateIds)
+        supabase.from('candidate_experiences').select('candidate_id, company, position, is_current_job, is_primary_current, start_date, end_date, country').in('candidate_id', candidateIds)
     ]);
 
     const nameMap = new Map((profiles as any[] || []).map((p: any) => [p.candidate_id, p.name]));
 
     // Pick current (or most recent) experience per candidate for company/position
+    const expByCandidateForReport = groupExperiencesByCandidate((experiences as any[] || []) as unknown as ExperienceRow[]);
     const expMap = new Map<string, { company: string; position: string }>();
-    (experiences as any[] || []).forEach((e: any) => {
-        const existing = expMap.get(e.candidate_id);
-        const isCurrent = (e.is_current_job || '').toString().trim().toLowerCase() === 'current';
-        if (!existing || isCurrent) {
-            expMap.set(e.candidate_id, { company: e.company || '', position: e.position || '' });
-        }
-    });
+    for (const [cid, exps] of expByCandidateForReport) {
+        const best = pickPrimaryExperience(exps);
+        if (best) expMap.set(cid, { company: best.company || '', position: best.position || '' });
+    }
 
     const now = Date.now();
 

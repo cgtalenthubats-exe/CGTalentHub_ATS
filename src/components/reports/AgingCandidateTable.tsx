@@ -26,6 +26,7 @@ interface Experience {
     country: string;
     company_industry?: string;
     is_current_job?: boolean;
+    is_primary_current?: boolean | null;
 }
 
 interface Candidate {
@@ -59,6 +60,11 @@ interface AgingCandidateTableProps {
 function sortExperiences(exps: Experience[]) {
     if (!exps) return [];
     return [...exps].sort((a, b) => {
+        const aPrimary = a.is_primary_current === true;
+        const bPrimary = b.is_primary_current === true;
+        if (aPrimary && !bPrimary) return -1;
+        if (!aPrimary && bPrimary) return 1;
+
         const isAPresent = !a.end_date || a.end_date.toLowerCase() === 'present';
         const isBPresent = !b.end_date || b.end_date.toLowerCase() === 'present';
         if (isAPresent && !isBPresent) return -1;
@@ -73,7 +79,9 @@ function sortExperiences(exps: Experience[]) {
 const CandidateRow = ({ candidate, selected, onSelect }: { candidate: Candidate, selected: boolean, onSelect: (c: boolean) => void }) => {
     const [expanded, setExpanded] = useState(false);
     const sortedExperiences = sortExperiences(candidate.experiences);
-    const latestExp = sortedExperiences.find(e => e.is_current_job) || sortedExperiences[0];
+    const latestExp = sortedExperiences.find(e => e.is_primary_current === true)
+        || sortedExperiences.find(e => e.is_current_job)
+        || sortedExperiences[0];
 
     return (
         <>

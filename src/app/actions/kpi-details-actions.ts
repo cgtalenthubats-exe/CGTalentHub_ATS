@@ -10,6 +10,7 @@ export interface KPIDetailExperience {
     start_date: string;
     end_date: string;
     is_current_job: string;
+    is_primary_current?: boolean | null;
     company_industry?: string;
 }
 
@@ -140,7 +141,7 @@ export async function getRecruiterKPIDetails(targetRecruiterName: string, fys?: 
             const batch = sourcingIds.slice(i, i + 500);
             const { data: exps } = await (supabase as any)
                 .from('candidate_experiences')
-                .select('id, candidate_id, position, company, country, start_date, end_date, is_current_job, company_industry')
+                .select('id, candidate_id, position, company, country, start_date, end_date, is_current_job, is_primary_current, company_industry')
                 .in('candidate_id', batch) as { data: any[] | null };
             if (exps) {
                 exps.forEach((e: any) => {
@@ -153,6 +154,7 @@ export async function getRecruiterKPIDetails(targetRecruiterName: string, fys?: 
                         start_date: e.start_date || '',
                         end_date: e.end_date || '',
                         is_current_job: e.is_current_job || '',
+                        is_primary_current: e.is_primary_current ?? null,
                         company_industry: e.company_industry,
                     });
                 });

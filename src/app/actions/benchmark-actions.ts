@@ -47,7 +47,7 @@ export async function getRawBenchmarkData(): Promise<RawBenchmarkData> {
     // Fetch experiences ONLY for these candidates
     const { data: expData, error: expError } = await supabase
         .from('candidate_experiences')
-        .select('candidate_id, company, company_id, position, company_industry, company_group, is_current_job, start_date')
+        .select('candidate_id, company, company_id, position, company_industry, company_group, is_current_job, is_primary_current, start_date')
         .in('candidate_id', candidateIds)
         .order('start_date', { ascending: false }); // Better to sort in SQL
 
@@ -66,12 +66,21 @@ export async function getRawBenchmarkData(): Promise<RawBenchmarkData> {
         (companies || []).forEach((c: any) => companyLookup.set(c.company_id, { rating: c.rating, industry: c.industry, group: c.group }));
     }
 
-    // Build experience map: prefer is_current_job='Current', else take latest by start_date
+    // Build experience map: prefer is_primary_current, else is_current_job='Current', else
+    // take latest by start_date. Sorted globally (not grouped per candidate_id) — relies on
+    // the comparator being consistent per-candidate so each candidate's best experience is
+    // always the first of theirs encountered below; "first occurrence wins" per candidate_id
+    // then picks it out cheaply without a separate group-by pass.
     const expMap = new Map<string, any>();
     const experiences = expData || [];
 
-    // Sort all experiences: Current first, then start_date desc
+    // Sort all experiences: primary first, then Current, then start_date desc
     experiences.sort((a: any, b: any) => {
+        const aIsPrimary = a.is_primary_current === true;
+        const bIsPrimary = b.is_primary_current === true;
+        if (aIsPrimary && !bIsPrimary) return -1;
+        if (!aIsPrimary && bIsPrimary) return 1;
+
         const aIsCurrent = (a.is_current_job || '').toString().trim().toLowerCase() === 'current';
         const bIsCurrent = (b.is_current_job || '').toString().trim().toLowerCase() === 'current';
         if (aIsCurrent && !bIsCurrent) return -1;

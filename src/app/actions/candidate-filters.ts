@@ -3,6 +3,7 @@
 import { adminAuthClient } from "@/lib/supabase/admin";
 
 import { getCandidateIdsByExperienceFilters, CandidateFilters } from "@/lib/candidate-service";
+import { groupExperiencesByCandidate, pickPrimaryExperience, type ExperienceRow } from "@/lib/candidate-experience-utils";
 
 export async function searchCompanies(query: string, limit = 20, filters?: any) {
     if (!query || query.length < 1) return { results: [], totalCount: 0 };
@@ -160,23 +161,15 @@ export async function searchCandidateNames(
         const ids = rows.map(r => r.candidate_id);
         const { data: experiences } = await (adminAuthClient as any)
             .from("candidate_experiences")
-            .select("candidate_id, company, position, is_current_job, start_date")
+            .select("candidate_id, company, position, is_current_job, is_primary_current, start_date")
             .in("candidate_id", ids);
 
-        // Prefer the experience flagged Current, else the most recent one.
+        // Prefer the experience flagged is_primary_current, else Current, else the most recent one.
         const currentByCandidate = new Map<string, any>();
-        ((experiences || []) as any[]).forEach(e => {
-            const prev = currentByCandidate.get(e.candidate_id);
-            if (!prev) { currentByCandidate.set(e.candidate_id, e); return; }
-            const isCurrent = (x: any) => (x.is_current_job === "Current" ? 1 : 0);
-            if (isCurrent(e) !== isCurrent(prev)) {
-                if (isCurrent(e) > isCurrent(prev)) currentByCandidate.set(e.candidate_id, e);
-                return;
-            }
-            if (new Date(e.start_date).getTime() > new Date(prev.start_date).getTime()) {
-                currentByCandidate.set(e.candidate_id, e);
-            }
-        });
+        for (const [cid, exps] of groupExperiencesByCandidate((experiences || []) as unknown as ExperienceRow[])) {
+            const best = pickPrimaryExperience(exps);
+            if (best) currentByCandidate.set(cid, best);
+        }
 
         const lower = safe.toLowerCase();
         const results = rows

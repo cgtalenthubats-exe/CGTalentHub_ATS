@@ -199,6 +199,8 @@ export default function AISearchV3Page() {
         const exps: any[] = c.experiences ?? [];
         if (subScope === 'current') return exps.filter((e: any) => e.is_current_job === 'Current');
         if (subScope === 'latest') {
+            const primary = exps.find((e: any) => e.is_primary_current === true);
+            if (primary) return [primary];
             const cur = exps.find((e: any) => e.is_current_job === 'Current');
             return cur ? [cur] : exps.slice(0, 1);
         }
@@ -211,7 +213,12 @@ export default function AISearchV3Page() {
         const allExpsOf = (c: any) => {
             const exps: any[] = c.experiences ?? [];
             if (subScope === 'current') return exps.filter((e: any) => e.is_current_job === 'Current');
-            if (subScope === 'latest') { const cur = exps.find((e: any) => e.is_current_job === 'Current'); return cur ? [cur] : exps.slice(0, 1); }
+            if (subScope === 'latest') {
+                const primary = exps.find((e: any) => e.is_primary_current === true);
+                if (primary) return [primary];
+                const cur = exps.find((e: any) => e.is_current_job === 'Current');
+                return cur ? [cur] : exps.slice(0, 1);
+            }
             return exps;
         };
         return {

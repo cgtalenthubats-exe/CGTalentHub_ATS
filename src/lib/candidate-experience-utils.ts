@@ -9,13 +9,18 @@ export type ExperienceRow = {
     end_date: string | null;
     country: string | null;
     is_current_job: string | null;
+    // Optional: only present when the caller's .select() fetched it. Undefined is treated
+    // the same as "not primary" — see pickPrimaryExperience().
+    is_primary_current?: boolean | null;
 };
 
 /**
- * Sort order: current job first, then most recent start_date first.
- * Mirrors the double-sort logic used by the legacy Long List n8n workflow
- * (Master Code3) so "latest experience" stays consistent across every
- * report that derives position/company/country from candidate_experiences.
+ * Sort order: the is_primary_current pick first (if set), then current job, then most
+ * recent start_date. Mirrors the double-sort logic used by the legacy Long List n8n workflow
+ * (Master Code3) so "latest experience" stays consistent across every report that derives
+ * position/company/country from candidate_experiences — the primary tier is layered on top
+ * so wherever a candidate's experiences are listed, the one explicitly chosen as primary
+ * always reads first regardless of its own start_date relative to other Concurrent roles.
  */
 export function sortExperiences<T extends ExperienceRow>(exps: T[]): T[] {
     const sortValue = (dateStr: string | null) => {
@@ -23,6 +28,10 @@ export function sortExperiences<T extends ExperienceRow>(exps: T[]): T[] {
         return d ? d.getFullYear() * 100 + (d.getMonth() + 1) : 0;
     };
     return [...exps].sort((a, b) => {
+        const aPrimary = a.is_primary_current === true ? 0 : 1;
+        const bPrimary = b.is_primary_current === true ? 0 : 1;
+        if (aPrimary !== bPrimary) return aPrimary - bPrimary;
+
         const aCurrent = a.is_current_job === "Current" || a.end_date === "Present" ? 0 : 1;
         const bCurrent = b.is_current_job === "Current" || b.end_date === "Present" ? 0 : 1;
         if (aCurrent !== bCurrent) return aCurrent - bCurrent;
@@ -39,6 +48,25 @@ export function groupExperiencesByCandidate<T extends ExperienceRow>(exps: T[]):
     }
     for (const [id, list] of byCandidate) byCandidate.set(id, sortExperiences(list));
     return byCandidate;
+}
+
+/**
+ * Picks the ONE experience to show wherever a single value is needed (JR table cell,
+ * profile header, PPTX current-position line, etc). Reads `is_primary_current` first —
+ * the explicit, user-settable "this one" flag that's unique per candidate (DB-enforced).
+ * Falls back to the old current-first + latest-start_date heuristic when it isn't set yet
+ * (not backfilled, or the caller's .select() didn't fetch the column), so nothing regresses
+ * before the migration's data is populated.
+ *
+ * A candidate can legitimately have multiple `is_current_job === 'Current'` rows at once
+ * (genuinely concurrent jobs) — that fact stays untouched. This only resolves which ONE to
+ * surface where the UI can't show a list.
+ */
+export function pickPrimaryExperience<T extends ExperienceRow>(exps: T[]): T | undefined {
+    if (exps.length === 0) return undefined;
+    const primary = exps.find(e => e.is_primary_current === true);
+    if (primary) return primary;
+    return sortExperiences(exps)[0];
 }
 
 const MONTHS: Record<string, string> = {

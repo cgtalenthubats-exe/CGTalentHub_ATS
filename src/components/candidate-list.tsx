@@ -696,7 +696,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     const uniqueGenders = buildOptions(poolExcluding('gender').map(c => c.candidate_gender));
     const uniqueCompanies = buildOptions(poolExcluding('company').map(c => c.candidate_current_company));
     const uniquePositions = buildOptions(poolExcluding('position').map(c => c.candidate_current_position));
-    const uniqueCurrentJobs = ['Current', 'Latest Position'];
+    const uniqueCurrentJobs = ['Primary', 'Latest Position'];
     const uniqueCountries = buildOptions(poolExcluding('country').map(c => {
         if (!c.candidate_country) return null;
         const idx = c.candidate_country.indexOf('(');
@@ -1367,11 +1367,15 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                         {c.candidate_is_current_job ? (
                                             <span className={cn(
                                                 "text-xs font-black px-2.5 py-1 rounded-full border",
-                                                c.candidate_is_current_job === 'Current'
+                                                c.candidate_is_current_job === 'Primary'
                                                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                                                     : "bg-slate-50 text-slate-500 border-slate-200"
                                             )}>
-                                                {c.candidate_is_current_job}
+                                                {/* "+N" surfaces how many OTHER roles are also genuinely ongoing (Concurrent),
+                                                    so a recruiter doesn't have to expand the row to know there's more. */}
+                                                {c.candidate_is_current_job === 'Primary'
+                                                    ? `Primary${c.candidate_concurrent_count ? `+${c.candidate_concurrent_count}` : ''}`
+                                                    : c.candidate_is_current_job}
                                             </span>
                                         ) : (
                                             <span className="text-slate-300 text-xs">—</span>
@@ -1456,12 +1460,18 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                                         <tbody>
                                                             {sortedExperiences.map((exp) => {
                                                                 const isCurrentExp = (exp.is_current_job || '').toLowerCase() === 'current';
+                                                                const isPrimaryExp = exp.is_primary_current === true;
                                                                 return (
                                                                     <tr key={exp.id} className={cn("border-b border-slate-50 last:border-0", isCurrentExp ? "bg-blue-50/50 hover:bg-blue-50/70" : "hover:bg-slate-50")}>
                                                                         <td className="px-3 py-2 text-xs font-medium text-slate-700 overflow-hidden">
                                                                             <div className="flex items-center gap-2 min-w-0">
                                                                                 <span className="truncate" title={exp.position}>{exp.position}</span>
-                                                                                {isCurrentExp && <Badge variant="default" className="text-[9px] h-3.5 px-1 bg-blue-600 shrink-0">Current</Badge>}
+                                                                                {/* A candidate can genuinely hold more than one Current role at once —
+                                                                                    the one picked as the single representative shows "Primary", any
+                                                                                    other still-ongoing role shows "Concurrent" rather than a second
+                                                                                    identical "Current" badge. */}
+                                                                                {isPrimaryExp && <Badge variant="default" className="text-[9px] h-3.5 px-1 bg-amber-500 hover:bg-amber-500 shrink-0">Primary</Badge>}
+                                                                                {isCurrentExp && !isPrimaryExp && <Badge variant="outline" className="text-[9px] h-3.5 px-1 border-indigo-300 text-indigo-600 shrink-0">Concurrent</Badge>}
                                                                             </div>
                                                                         </td>
                                                                         <td className="px-3 py-2 text-xs text-slate-600 truncate" title={exp.company}>{exp.company}</td>
@@ -1772,6 +1782,11 @@ function parseExpMonthYear(dateStr: string | null | undefined): number {
 function sortJRExperiences(exps: JRCandidateExperience[]): JRCandidateExperience[] {
     if (!exps) return [];
     return [...exps].sort((a, b) => {
+        const aPrimary = a.is_primary_current === true;
+        const bPrimary = b.is_primary_current === true;
+        if (aPrimary && !bPrimary) return -1;
+        if (!aPrimary && bPrimary) return 1;
+
         const aCurrent = (a.is_current_job || '').toLowerCase() === 'current';
         const bCurrent = (b.is_current_job || '').toLowerCase() === 'current';
         if (aCurrent && !bCurrent) return -1;
