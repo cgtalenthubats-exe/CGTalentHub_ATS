@@ -130,6 +130,13 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
     // candidates' experiences entirely and showed "-" for Company/Position despite the data
     // existing. Page through with .range() until a page comes back short so every row is read
     // regardless of how many experiences the chunk's candidates happen to have.
+    //
+    // .order('id') is NOT optional here: .range() is LIMIT/OFFSET, and without a stable sort
+    // Postgres doesn't guarantee the same row order across separate query executions. Two
+    // .range() calls issued back-to-back (page 1, then page 2) are two separate round trips —
+    // without ORDER BY a row can land outside both windows and never get fetched at all. That
+    // produced exactly the symptom reported: the same candidates' experiences present on one
+    // page load and missing on the next, with no code change in between.
     const SUPABASE_PAGE_SIZE = 1000;
     async function fetchAllRows(table: string, select: string, column: string, ids: string[]): Promise<any[]> {
         if (ids.length === 0) return [];
@@ -140,6 +147,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
                 .from(table)
                 .select(select)
                 .in(column, ids)
+                .order('id', { ascending: true })
                 .range(offset, offset + SUPABASE_PAGE_SIZE - 1);
             if (error) {
                 console.error(`Error fetching ${table} at offset ${offset}:`, error);
