@@ -1086,16 +1086,50 @@ export async function fetchJRReportData(jrId: string): Promise<JRReportData> {
     const candidateIds = jrCandidates.map((j: any) => j.candidate_id as string);
     const jrCandidateIds = jrCandidates.map((j: any) => j.jr_candidate_id as string);
 
+    // Supabase/PostgREST caps any single select at 1000 rows with no error — it just
+    // truncates. A JR with enough experience-heavy candidates (GM/CEO level, several roles
+    // each) can blow past 1000 candidate_experiences rows on its own; a single .in() query
+    // here would silently drop some candidates' experiences from the report. .order('id') is
+    // required, not optional: .range() is LIMIT/OFFSET, and without a stable sort Postgres
+    // doesn't guarantee the same row order across the separate round trips each page is —
+    // a row can land outside every page's window and never get fetched at all. (Same bug
+    // found and fixed in getJRCandidates/jr-candidates.ts — see that file's fetchAllRows.)
+    const SUPABASE_PAGE_SIZE = 1000;
+    async function fetchAllRows(table: string, select: string, column: string, ids: string[]): Promise<any[]> {
+        if (ids.length === 0) return [];
+        const rows: any[] = [];
+        let offset = 0;
+        while (true) {
+            const { data, error } = await (adminAuthClient as any)
+                .from(table)
+                .select(select)
+                .in(column, ids)
+                .order("id", { ascending: true })
+                .range(offset, offset + SUPABASE_PAGE_SIZE - 1);
+            if (error) {
+                console.error(`Error fetching ${table} at offset ${offset}:`, error);
+                break;
+            }
+            if (!data || data.length === 0) break;
+            rows.push(...data);
+            if (data.length < SUPABASE_PAGE_SIZE) break;
+            offset += SUPABASE_PAGE_SIZE;
+        }
+        return rows;
+    }
+
     // Parallel data fetch
-    const [profilesRes, expRes, enhanceRes, statusRes] = await Promise.all([
+    const [profilesRes, expData, enhanceRes, statusRes] = await Promise.all([
         adminAuthClient
             .from("Candidate Profile")
             .select("candidate_id, name, photo, linkedin, age, age_source, nationality, gender, candidate_status, job_function")
             .in("candidate_id", candidateIds),
-        adminAuthClient
-            .from("candidate_experiences")
-            .select("candidate_id, position, company, company_id, country, start_date, end_date, is_current_job, is_primary_current")
-            .in("candidate_id", candidateIds),
+        fetchAllRows(
+            "candidate_experiences",
+            "id, candidate_id, position, company, company_id, country, start_date, end_date, is_current_job, is_primary_current",
+            "candidate_id",
+            candidateIds
+        ),
         adminAuthClient
             .from("candidate_profile_enhance")
             .select("candidate_id, education_summary")
@@ -1109,7 +1143,7 @@ export async function fetchJRReportData(jrId: string): Promise<JRReportData> {
 
     // Maps
     const profileMap = new Map<string, any>((profilesRes.data ?? []).map((p: any) => [p.candidate_id, p]));
-    const expByCandidate = groupExperiencesByCandidate((expRes.data ?? []) as ExperienceRow[]);
+    const expByCandidate = groupExperiencesByCandidate(expData as ExperienceRow[]);
     const enhanceMap = new Map<string, any>((enhanceRes.data ?? []).map((e: any) => [e.candidate_id, e]));
 
     // Latest status per jr_candidate_id (last row wins since sorted asc)

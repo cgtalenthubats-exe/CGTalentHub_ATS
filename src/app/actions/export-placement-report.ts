@@ -929,15 +929,41 @@ export async function generatePlacementReportPPTX(params: {
     const expByCandidate = new Map<string, ExperienceRow[]>();
     const enhanceMap = new Map<string, any>();
     if (candidateIds.length > 0) {
-        const [profilesRes, expRes, enhanceRes] = await Promise.all([
+        // Supabase/PostgREST caps a single select at 1000 rows with no error — it just
+        // truncates. .order('id') is required: .range() is LIMIT/OFFSET, and without a
+        // stable sort a row can land outside every page's window across the separate round
+        // trips and never get fetched. (Same bug found and fixed in jr-candidates.ts and
+        // export-jr-report.ts.)
+        const SUPABASE_PAGE_SIZE = 1000;
+        async function fetchAllExpRows(ids: string[]): Promise<any[]> {
+            if (ids.length === 0) return [];
+            const rows: any[] = [];
+            let offset = 0;
+            while (true) {
+                const { data, error } = await supabase
+                    .from("candidate_experiences")
+                    .select("id, candidate_id, position, company, company_id, country, start_date, end_date, is_current_job")
+                    .in("candidate_id", ids)
+                    .order("id", { ascending: true })
+                    .range(offset, offset + SUPABASE_PAGE_SIZE - 1);
+                if (error) {
+                    console.error(`Error fetching candidate_experiences at offset ${offset}:`, error);
+                    break;
+                }
+                if (!data || data.length === 0) break;
+                rows.push(...data);
+                if (data.length < SUPABASE_PAGE_SIZE) break;
+                offset += SUPABASE_PAGE_SIZE;
+            }
+            return rows;
+        }
+
+        const [profilesRes, expData, enhanceRes] = await Promise.all([
             supabase
                 .from("Candidate Profile")
                 .select("candidate_id, name, photo, linkedin, age, nationality")
                 .in("candidate_id", candidateIds),
-            supabase
-                .from("candidate_experiences")
-                .select("candidate_id, position, company, company_id, country, start_date, end_date, is_current_job")
-                .in("candidate_id", candidateIds),
+            fetchAllExpRows(candidateIds),
             supabase
                 .from("candidate_profile_enhance")
                 .select("candidate_id, education_summary")
@@ -947,7 +973,7 @@ export async function generatePlacementReportPPTX(params: {
             if (p.name) nameByCandidateId.set(p.candidate_id, p.name);
             profileMap.set(p.candidate_id, p);
         });
-        for (const [id, list] of groupExperiencesByCandidate((expRes.data ?? []) as ExperienceRow[])) {
+        for (const [id, list] of groupExperiencesByCandidate(expData as ExperienceRow[])) {
             expByCandidate.set(id, list);
         }
         (enhanceRes.data || []).forEach((e: any) => enhanceMap.set(e.candidate_id, e));
