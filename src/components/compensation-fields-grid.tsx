@@ -249,13 +249,24 @@ function TotalsBar({ label, monthly, yearly }: { label: string; monthly: number 
     );
 }
 
+// Radix Select can't take an empty-string item value (that's reserved internally for the
+// placeholder), so a literal blank "not specified" choice needs a sentinel mapped back to "".
+const SELECT_CLEAR_SENTINEL = "__not_specified__";
+
 function SelectField({ field, value, onChange, disabled }: { field: CompensationField; value: string; onChange: (v: string) => void; disabled?: boolean }) {
     return (
-        <Select value={value || undefined} onValueChange={onChange} disabled={disabled}>
+        <Select
+            value={value || undefined}
+            onValueChange={v => onChange(v === SELECT_CLEAR_SENTINEL ? "" : v)}
+            disabled={disabled}
+        >
             <SelectTrigger className="h-9 text-sm bg-white">
                 <SelectValue placeholder={disabled ? "—" : "Select..."} />
             </SelectTrigger>
             <SelectContent>
+                <SelectItem value={SELECT_CLEAR_SENTINEL} className="text-slate-400 italic">
+                    — Not specified —
+                </SelectItem>
                 {(field.options || []).map(opt => (
                     <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                 ))}
