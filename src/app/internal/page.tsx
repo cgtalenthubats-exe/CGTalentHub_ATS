@@ -72,8 +72,8 @@ export default function InternalCandidatePage() {
     const [isSheetOpen, setIsSheetOpen] = useState(false);
     const [mismatchTarget, setMismatchTarget] = useState<InternalCandidate | null>(null);
 
-    const loadPeople = useCallback(async () => {
-        setLoading(true);
+    const loadPeople = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+        if (!silent) setLoading(true);
         const [data, opts] = await Promise.all([
             getInternalCandidates({ search: search || undefined }),
             getInternalFilterOptions(),
@@ -91,7 +91,7 @@ export default function InternalCandidatePage() {
 
     useEffect(() => { loadSetupData(); }, [loadSetupData]);
     useEffect(() => {
-        const t = setTimeout(loadPeople, 300);
+        const t = setTimeout(() => loadPeople(), 300);
         return () => clearTimeout(t);
     }, [loadPeople]);
 
@@ -176,7 +176,8 @@ export default function InternalCandidatePage() {
     };
 
     const refresh = () => { loadPeople(); loadSetupData(); };
-    useRefreshOnFocus(refresh);
+    // Silent on refocus so the table updates in place instead of flashing the loading state
+    useRefreshOnFocus(() => { loadPeople({ silent: true }); loadSetupData(); });
 
     return (
         <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950 min-h-screen">

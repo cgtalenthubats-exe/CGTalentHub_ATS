@@ -63,8 +63,8 @@ export default function PlacementPage() {
     const [selectedYear, setSelectedYear] = useState("all");
     const [selectedStatus, setSelectedStatus] = useState("all");
 
-    const fetchData = useCallback(async () => {
-        setLoading(true);
+    const fetchData = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+        if (!silent) setLoading(true);
         const { placements, jrs } = await getRawPlacementData();
         setRawPlacements(placements);
         setRawJRs(jrs);
@@ -72,7 +72,8 @@ export default function PlacementPage() {
     }, []);
 
     useEffect(() => { fetchData(); }, [fetchData]);
-    useRefreshOnFocus(fetchData);
+    // Silent on refocus so the page updates in place instead of flashing the loading state
+    useRefreshOnFocus(() => fetchData({ silent: true }));
 
     // --- Filter options derived from raw data ---
     const buOptions = useMemo(() => {
@@ -290,7 +291,7 @@ export default function PlacementPage() {
                             <RotateCcw className="h-3 w-3" /> Reset
                         </Button>
 
-                        <Button variant="outline" size="sm" onClick={fetchData} disabled={loading} className="gap-2 text-slate-500 ml-auto">
+                        <Button variant="outline" size="sm" onClick={() => fetchData()} disabled={loading} className="gap-2 text-slate-500 ml-auto">
                             <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} /> Refresh
                         </Button>
                     </div>
