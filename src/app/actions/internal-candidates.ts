@@ -52,6 +52,37 @@ export interface InternalFilterOptions {
     job_grades: number[];
 }
 
+// PostgREST silently truncates any single select at 1000 rows with no error. The internal pool
+// (~240 people) has more than 1000 experience rows, so a bare .in() select dropped some
+// candidates' experiences entirely. Page with .range() until a page comes back short.
+// .order('id') is required: .range() is LIMIT/OFFSET across separate round trips, and without a
+// stable sort a row can fall between two pages and never be fetched.
+const SUPABASE_PAGE_SIZE = 1000;
+async function fetchAllExperienceRows(
+    supabase: any,
+    select: string,
+    candidateIds: string[],
+    applyFilter?: (q: any) => any,
+): Promise<any[]> {
+    if (candidateIds.length === 0) return [];
+    const rows: any[] = [];
+    for (let offset = 0; ; offset += SUPABASE_PAGE_SIZE) {
+        let q = supabase.from('candidate_experiences').select(select).in('candidate_id', candidateIds);
+        if (applyFilter) q = applyFilter(q);
+        const { data, error } = await q
+            .order('id', { ascending: true })
+            .range(offset, offset + SUPABASE_PAGE_SIZE - 1);
+        if (error) {
+            console.error(`Error fetching candidate_experiences at offset ${offset}:`, error);
+            break;
+        }
+        if (!data?.length) break;
+        rows.push(...data);
+        if (data.length < SUPABASE_PAGE_SIZE) break;
+    }
+    return rows;
+}
+
 export async function getInternalCandidates(filters?: {
     hiring_status?: 'Active' | 'Resigned' | 'All';
     bu?: string;
@@ -99,11 +130,12 @@ export async function getInternalCandidates(filters?: {
     const group2Ids = filtered.filter((p: any) => !erMap.has(p.candidate_id)).map((p: any) => p.candidate_id);
 
     // current experiences ของ Group 2
-    const { data: currentExps } = group2Ids.length ? await (supabase as any)
-        .from('candidate_experiences')
-        .select('candidate_id, company_id, position, company, start_date, end_date, country, is_current_job, is_primary_current')
-        .in('candidate_id', group2Ids)
-        .eq('is_current_job', 'Current') : { data: [] };
+    const currentExps = await fetchAllExperienceRows(
+        supabase,
+        'candidate_id, company_id, position, company, start_date, end_date, country, is_current_job, is_primary_current',
+        group2Ids,
+        q => q.eq('is_current_job', 'Current'),
+    );
 
     // company_id → candidate_id map (เอาแค่ 1 current company per candidate — prefers
     // is_primary_current when a candidate has more than one concurrent "Current" row)
@@ -133,10 +165,11 @@ export async function getInternalCandidates(filters?: {
     const cgProfileMap = new Map<string, any>((cgProfiles || []).map((c: any) => [c.candidate_id, c]));
 
     // ── Experiences: ดึงของทุก candidate (ทั้ง group1 + group2) ──────────────
-    const { data: allExps } = await (supabase as any)
-        .from('candidate_experiences')
-        .select('candidate_id, position, company, company_id, is_current_job, is_primary_current, start_date, end_date')
-        .in('candidate_id', candidateIds);
+    const allExps = await fetchAllExperienceRows(
+        supabase,
+        'candidate_id, position, company, company_id, is_current_job, is_primary_current, start_date, end_date',
+        candidateIds,
+    );
 
     // Best exp per candidate: is_primary_current, else Current, else latest start_date
     const bestExpMap = new Map<string, { position: string; company: string; company_id: number | null; label: 'Primary' | 'Latest Position' }>();
