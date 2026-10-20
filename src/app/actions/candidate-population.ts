@@ -17,6 +17,7 @@ export interface PopulationFilters {
 export interface PopulationData {
     total_db: number;
     total_filtered: number;
+    resume_count: number;
     currently_employed: number;
     set_experienced: number;
     by_group: { name: string; count: number }[];
@@ -268,7 +269,7 @@ export async function getCascadingPopulationOptions(filters: PopulationFilters):
 }
 
 const EMPTY_POPULATION_DATA: PopulationData = {
-    total_db: 0, total_filtered: 0, currently_employed: 0, set_experienced: 0,
+    total_db: 0, total_filtered: 0, resume_count: 0, currently_employed: 0, set_experienced: 0,
     by_group: [], by_industry: [], by_country: [], by_continent: [], by_position_keyword: [],
     by_age_range: [], by_nationality: [], nationality_unknown_count: 0,
     by_gender: [], gender_unknown_count: 0,
@@ -322,6 +323,7 @@ export async function getCandidatePopulationData(filters: PopulationFilters = {}
     return {
         total_db: data.total_db ?? 0,
         total_filtered: data.total_filtered ?? 0,
+        resume_count: data.resume_count ?? 0,
         currently_employed: data.currently_employed ?? 0,
         set_experienced: data.set_experienced ?? 0,
         by_group: data.by_group ?? [],
@@ -345,7 +347,12 @@ export async function getCandidatePopulationData(filters: PopulationFilters = {}
 // card's count). Group is resolved the same way as the Org Chart Directory
 // page: company_master.group first, falling back to industry_group's mapping
 // when a company has an industry but no group set directly.
-export async function getOrgChartCountsByGroup(): Promise<OrgChartGroupSummary> {
+//
+// Follows the dashboard filters, but only the ones that describe the COMPANY: Industry
+// Group, Industry, Hotel Chain and SET Company. Country / continent / position keyword /
+// job family / job function describe the candidate, and an org chart upload has no
+// candidate-level attribute to match them against, so those are ignored here.
+export async function getOrgChartCountsByGroup(filters: PopulationFilters = {}): Promise<OrgChartGroupSummary> {
     const supabase = adminAuthClient as any;
     const empty: OrgChartGroupSummary = { groups: [], uncategorizedCount: 0 };
 
@@ -355,18 +362,31 @@ export async function getOrgChartCountsByGroup(): Promise<OrgChartGroupSummary> 
         return empty;
     }
 
-    const companyIds = [...new Set(uploads.map((u: any) => u.company_id).filter((id: any) => id != null))];
-    if (!companyIds.length) return { groups: [], uncategorizedCount: uploads.length };
+    const hasCompanyFilter = !!(
+        filters.groups?.length || filters.industries?.length ||
+        filters.hotel_chains?.length || filters.set_symbols?.length
+    );
 
-    const [{ data: companies }, { data: industryGroups }] = await Promise.all([
-        supabase.from('company_master').select('company_id, group, industry').in('company_id', companyIds),
+    const companyIds = [...new Set(uploads.map((u: any) => u.company_id).filter((id: any) => id != null))];
+    if (!companyIds.length) return { groups: [], uncategorizedCount: hasCompanyFilter ? 0 : uploads.length };
+
+    const [{ data: companies }, { data: industryGroups }, chainMaps, setRes] = await Promise.all([
+        supabase.from('company_master').select('company_id, company_master, group, industry, hotel_chain_id').in('company_id', companyIds),
         supabase.from('industry_group').select('industry, group'),
+        filters.hotel_chains?.length ? loadHotelChainMaps(supabase) : Promise.resolve(null),
+        filters.set_symbols?.length
+            ? supabase.from('company_set_group').select('company_name').in('symbol', filters.set_symbols)
+            : Promise.resolve({ data: [] }),
     ]);
 
-    const companyById = new Map<string, { group: string | null; industry: string | null }>(
-        (companies || []).map((c: any) => [String(c.company_id), { group: c.group, industry: c.industry }])
+    const companyById = new Map<string, { name: string | null; group: string | null; industry: string | null; hotel_chain_id: number | null }>(
+        (companies || []).map((c: any) => [String(c.company_id), { name: c.company_master, group: c.group, industry: c.industry, hotel_chain_id: c.hotel_chain_id }])
     );
     const groupByIndustry = new Map<string, string>((industryGroups || []).map((ig: any) => [ig.industry, ig.group]));
+
+    // Same matching the RPC uses for SET companies: case-insensitive company name match.
+    const setNames = new Set<string>((setRes.data || []).map((r: any) => String(r.company_name).toLowerCase()));
+    const chainBrandIds = chainMaps ? new Set(resolveChainBrandIds(chainMaps, filters.hotel_chains)) : null;
 
     const groupCounts = new Map<string, number>();
     const groupSubIndustries = new Map<string, Map<string, number>>();
@@ -376,6 +396,16 @@ export async function getOrgChartCountsByGroup(): Promise<OrgChartGroupSummary> 
         const company = u.company_id != null ? companyById.get(String(u.company_id)) : null;
         const industry = company?.industry?.trim() || null;
         const group = (company?.group?.trim() || (industry ? groupByIndustry.get(industry) : null) || '').trim();
+
+        if (hasCompanyFilter) {
+            // An upload with no resolvable company can't satisfy any company-level filter.
+            if (!company) continue;
+            if (filters.groups?.length && !filters.groups.includes(group)) continue;
+            if (filters.industries?.length && !(industry && filters.industries.includes(industry))) continue;
+            if (chainBrandIds && !(company.hotel_chain_id != null && chainBrandIds.has(company.hotel_chain_id))) continue;
+            if (filters.set_symbols?.length && !(company.name && setNames.has(company.name.toLowerCase()))) continue;
+        }
+
         if (!group || SKIP.has(group)) {
             uncategorizedCount++;
             continue;

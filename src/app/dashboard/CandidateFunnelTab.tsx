@@ -461,10 +461,12 @@ export default function CandidateFunnelTab() {
         Promise.all([
             getCandidatePopulationData(f),
             getCascadingPopulationOptions(f),
-        ]).then(([d, c]) => {
+            getOrgChartCountsByGroup(f),
+        ]).then(([d, c, o]) => {
             if (seq !== requestSeq.current) return; // stale response — a newer filter change already superseded this
             setData(d);
             setCascade(c);
+            setOrgChartGroups(o);
         }).catch(console.error).finally(() => {
             if (seq === requestSeq.current) setDataLoading(false);
         });
@@ -516,6 +518,16 @@ export default function CandidateFunnelTab() {
 
     const hasFilters = Object.values(filters).some(v => Array.isArray(v) && v.length > 0);
     const activeFilterCount = Object.values(filters).reduce<number>((acc, v) => acc + (Array.isArray(v) ? v.length : 0), 0);
+
+    // KPI cards: site-wide numbers when nothing is selected, otherwise the filtered numbers.
+    // (Unfiltered, the site-wide totals also count candidates with no experience rows, which
+    // the filtered RPC can't see, so they differ slightly from total_filtered with no filters.)
+    const totalProfile = hasFilters && data ? data.total_filtered : (siteStats?.totalCandidates ?? 0);
+    const totalCv = hasFilters && data ? data.resume_count : (siteStats?.resumeCount ?? 0);
+    // Org charts only follow the company-level filters; see getOrgChartCountsByGroup.
+    const orgFilterApplies = !!(filters.groups?.length || filters.industries?.length || filters.hotel_chains?.length || filters.set_symbols?.length);
+    const filteredOrgTotal = orgChartGroups.groups.reduce((acc, g) => acc + g.count, 0) + orgChartGroups.uncategorizedCount;
+    const totalOrg = orgFilterApplies ? filteredOrgTotal : (siteStats?.orgChartCount ?? 0);
 
     if (loading) return (
         <div className="flex h-64 items-center justify-center gap-2 text-slate-400">
@@ -630,9 +642,9 @@ export default function CandidateFunnelTab() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-5xl font-black tracking-tighter text-slate-900">
-                            {loading ? "..." : (siteStats?.totalCandidates ?? 0).toLocaleString()}
+                            {loading ? "..." : totalProfile.toLocaleString()}
                         </div>
-                        <div className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Database Records</div>
+                        <div className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wide">{hasFilters ? "Matching Filters" : "Database Records"}</div>
                     </CardContent>
                     <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
                         <Users className="w-12 h-12" />
@@ -645,9 +657,9 @@ export default function CandidateFunnelTab() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-5xl font-black tracking-tighter text-slate-900">
-                            {loading ? "..." : (siteStats?.resumeCount ?? 0).toLocaleString()}
+                            {loading ? "..." : totalCv.toLocaleString()}
                         </div>
-                        <div className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Verified Documents</div>
+                        <div className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wide">{hasFilters ? "Matching Filters" : "Verified Documents"}</div>
                     </CardContent>
                     <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
                         <FileText className="w-12 h-12" />
@@ -660,9 +672,11 @@ export default function CandidateFunnelTab() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-5xl font-black tracking-tighter text-slate-900">
-                            {loading ? "..." : (siteStats?.orgChartCount ?? 0).toLocaleString()}
+                            {loading ? "..." : totalOrg.toLocaleString()}
                         </div>
-                        <div className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Org Nodes</div>
+                        <div className="mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                            {orgFilterApplies ? "Matching Filters" : hasFilters ? "All Org Charts · company filters only" : "Org Nodes"}
+                        </div>
                     </CardContent>
                     <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
                         <Database className="w-12 h-12" />
