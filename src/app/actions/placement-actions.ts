@@ -28,20 +28,41 @@ export interface RawPlacementData {
     jrs: JRRecord[];
 }
 
+// PostgREST silently truncates any single select at 1000 rows with no error, so page with
+// .range() until a page comes back short. orderBy must be a unique column so the pages are
+// stable across round trips (otherwise a row can fall between two pages).
+const SUPABASE_PAGE_SIZE = 1000;
+async function fetchAllRows(table: string, select: string, orderBy: string): Promise<any[]> {
+    const rows: any[] = [];
+    for (let offset = 0; ; offset += SUPABASE_PAGE_SIZE) {
+        const { data, error } = await (adminAuthClient as any)
+            .from(table)
+            .select(select)
+            .order(orderBy, { ascending: true })
+            .range(offset, offset + SUPABASE_PAGE_SIZE - 1);
+        if (error) {
+            console.error(`Error fetching ${table} at offset ${offset}:`, error);
+            break;
+        }
+        if (!data?.length) break;
+        rows.push(...data);
+        if (data.length < SUPABASE_PAGE_SIZE) break;
+    }
+    return rows;
+}
+
 // Fetch ALL raw data once — filtering done client-side for instant response
 export async function getRawPlacementData(): Promise<RawPlacementData> {
     const supabase = adminAuthClient;
 
-    const [erRes, jrRes] = await Promise.all([
-        supabase
-            .from('employment_record')
-            .select('jr_id, candidate_id, position, bu, sub_bu, candidate_name, hire_date, hiring_status, outsource_fee_20_percent, job_grade, annual_salary'),
-        supabase
-            .from('job_requisitions')
-            .select('jr_id, bu, sub_bu, request_date'),
+    const [rawPlacements, rawJrs] = await Promise.all([
+        fetchAllRows(
+            'employment_record',
+            'employment_record_id, jr_id, candidate_id, position, bu, sub_bu, candidate_name, hire_date, hiring_status, outsource_fee_20_percent, job_grade, annual_salary',
+            'employment_record_id',
+        ),
+        fetchAllRows('job_requisitions', 'jr_id, bu, sub_bu, request_date', 'jr_id'),
     ]);
-
-    const rawPlacements = erRes.data || [];
 
     // Live-join candidate_name from Candidate Profile — same fix already applied
     // to getEmploymentRecords() (requisitions/placements): name should always
@@ -65,7 +86,7 @@ export async function getRawPlacementData(): Promise<RawPlacementData> {
         annual_salary: r.annual_salary || 0,
     }));
 
-    const jrs: JRRecord[] = (jrRes.data || []).map((r: any) => ({ ...r }));
+    const jrs: JRRecord[] = rawJrs.map((r: any) => ({ ...r }));
 
     return { placements, jrs };
 }

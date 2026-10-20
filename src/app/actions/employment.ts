@@ -3,22 +3,37 @@
 import { adminAuthClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 
+// PostgREST silently truncates any single select at 1000 rows with no error, so page with
+// .range() until a page comes back short. The sort must be stable across round trips or a row
+// can fall between two pages: er_number alone isn't unique (and can be null), so
+// employment_record_id breaks the ties.
+const SUPABASE_PAGE_SIZE = 1000;
+const PROFILE_CHUNK_SIZE = 200;
+
 export async function getEmploymentRecords(status?: 'Active' | 'Resigned') {
     const supabase = adminAuthClient;
-    let query = supabase
-        .from('employment_record')
-        .select('*, resignation_reason')
-        .order('er_number', { ascending: false });
 
-    if (status) {
-        query = query.eq('hiring_status', status);
-    }
+    const data: any[] = [];
+    for (let offset = 0; ; offset += SUPABASE_PAGE_SIZE) {
+        let query = supabase
+            .from('employment_record')
+            .select('*, resignation_reason')
+            .order('er_number', { ascending: false })
+            .order('employment_record_id', { ascending: false });
 
-    const { data, error } = await query;
+        if (status) {
+            query = query.eq('hiring_status', status);
+        }
 
-    if (error) {
-        console.error(`Error fetching ${status} employment records:`, error);
-        return [];
+        const { data: page, error } = await query.range(offset, offset + SUPABASE_PAGE_SIZE - 1);
+
+        if (error) {
+            console.error(`Error fetching ${status} employment records at offset ${offset}:`, error);
+            return [];
+        }
+        if (!page?.length) break;
+        data.push(...page);
+        if (page.length < SUPABASE_PAGE_SIZE) break;
     }
 
     // Live-join identity fields from Candidate Profile — name/LinkedIn/DOB should always
@@ -26,25 +41,31 @@ export async function getEmploymentRecords(status?: 'Active' | 'Resigned') {
     // (Position, BU, salary, etc. stay as stored — those are historical facts about this
     // specific placement, not identity data, and must not drift if the candidate's current
     // role changes later.)
-    const records = data || [];
+    const records = data;
     if (records.length > 0) {
-        const candidateIds = records.map((r: any) => r.candidate_id).filter(Boolean);
+        const candidateIds = [...new Set(records.map((r: any) => r.candidate_id).filter(Boolean))] as string[];
 
-        if (candidateIds.length > 0) {
-            const { data: profiles, error: profileError } = await supabase
+        // Chunked so a large record set doesn't blow the request URL length; one row per
+        // candidate_id, so each chunk stays well under the 1000-row cap.
+        const profiles: any[] = [];
+        let profileError = false;
+        for (let i = 0; i < candidateIds.length; i += PROFILE_CHUNK_SIZE) {
+            const { data: chunk, error } = await supabase
                 .from('Candidate Profile')
                 .select('candidate_id, date_of_birth, name, linkedin')
-                .in('candidate_id', candidateIds);
+                .in('candidate_id', candidateIds.slice(i, i + PROFILE_CHUNK_SIZE));
+            if (error) { profileError = true; break; }
+            profiles.push(...(chunk || []));
+        }
 
-            if (!profileError && profiles) {
-                const profileMap = new Map(profiles.map((p: any) => [p.candidate_id, p]));
-                records.forEach((r: any) => {
-                    const profile = r.candidate_id ? profileMap.get(r.candidate_id) : null;
-                    r.date_of_birth = profile?.date_of_birth || null;
-                    if (profile?.name) r.candidate_name = profile.name;
-                    if (profile?.linkedin) r.linkedIn = profile.linkedin;
-                });
-            }
+        if (!profileError) {
+            const profileMap = new Map(profiles.map((p: any) => [p.candidate_id, p]));
+            records.forEach((r: any) => {
+                const profile = r.candidate_id ? profileMap.get(r.candidate_id) : null;
+                r.date_of_birth = profile?.date_of_birth || null;
+                if (profile?.name) r.candidate_name = profile.name;
+                if (profile?.linkedin) r.linkedIn = profile.linkedin;
+            });
         }
     }
 
