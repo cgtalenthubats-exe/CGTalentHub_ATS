@@ -12,6 +12,10 @@ export interface PopulationFilters {
     hotel_chains?: string[];
     job_groupings?: string[];
     job_functions?: string[];
+    // v2 RPC only (FUNNEL_RPC_V2). internal_status: 'Active' | 'Ex-Central' | 'External'
+    internal_status?: string[];
+    bus?: string[];
+    sub_bus?: string[];
 }
 
 export interface PopulationData {
@@ -53,6 +57,11 @@ export interface PopulationFilterOptions {
     hotel_chains: string[];
     job_groupings: string[];
     job_functions: string[];
+    // v2 only: true when the Internal Status / BU / Sub-BU filters are available
+    internal_filters_enabled: boolean;
+    // distinct (bu, sub_bu) pairs among internal candidates — UI derives the
+    // Sub-BU options from the BUs currently selected
+    bu_pairs: { bu: string; sub_bu: string | null }[];
 }
 
 // Cascading options — same shape minus set_companies (that dropdown's options are
@@ -81,6 +90,11 @@ export interface OrgChartGroupSummary {
     // but surfaced here so the total can be reconciled against Total Org.
     uncategorizedCount: number;
 }
+
+// Dev-only switch: when "true" (set in .env.local, NOT on production) the Funnel
+// calls get_candidate_population_data_v2 and exposes the Internal Status / BU /
+// Sub-BU filters. Unset = v1 RPC and the exact previous behaviour.
+const FUNNEL_RPC_V2 = process.env.FUNNEL_RPC_V2 === 'true';
 
 const SKIP = new Set(['Unknown', 'N/A', 'Not Found', 'No Match Found', 'Undetermined', 'Unclassified', 'Wait AI Check', 'Unassigned', 'Uncategorized', '', 'null']);
 
@@ -153,11 +167,26 @@ export async function getPopulationFilterOptions(): Promise<PopulationFilterOpti
     const job_groupings = [...new Set<string>((cpRes.data || []).map((r: any) => r.job_grouping).filter((g: any) => g && !SKIP.has(g)))].sort();
     const job_functions = [...new Set<string>((cpRes.data || []).map((r: any) => r.job_function).filter((f: any) => f && !SKIP.has(f)))].sort();
 
+    let bu_pairs: PopulationFilterOptions['bu_pairs'] = [];
+    if (FUNNEL_RPC_V2) {
+        const { data: buData } = await supabase.from('candidate_internal_resolved').select('bu, sub_bu').not('bu', 'is', null);
+        const seen = new Set<string>();
+        for (const r of (buData || []) as { bu: string; sub_bu: string | null }[]) {
+            const key = `${r.bu}|${r.sub_bu ?? ''}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            bu_pairs.push({ bu: r.bu, sub_bu: r.sub_bu });
+        }
+        bu_pairs.sort((a, b) => a.bu.localeCompare(b.bu) || (a.sub_bu ?? '').localeCompare(b.sub_bu ?? ''));
+    }
+
     return {
         groups, industries, countries, continents, position_keywords,
         set_companies: setRes.data || [],
         hotel_chains: chainMaps.allParentNames,
         job_groupings, job_functions,
+        internal_filters_enabled: FUNNEL_RPC_V2,
+        bu_pairs,
     };
 }
 
@@ -290,7 +319,7 @@ const EMPTY_POPULATION_DATA: PopulationData = {
 export async function getCandidatePopulationData(filters: PopulationFilters = {}): Promise<PopulationData> {
     const supabase = adminAuthClient as any;
 
-    const { data, error } = await supabase.rpc('get_candidate_population_data', {
+    const params: Record<string, string[]> = {
         p_groups: filters.groups ?? [],
         p_industries: filters.industries ?? [],
         p_countries: filters.countries ?? [],
@@ -300,7 +329,16 @@ export async function getCandidatePopulationData(filters: PopulationFilters = {}
         p_set_symbols: filters.set_symbols ?? [],
         p_job_groupings: filters.job_groupings ?? [],
         p_job_functions: filters.job_functions ?? [],
-    });
+    };
+    if (FUNNEL_RPC_V2) {
+        params.p_internal_status = filters.internal_status ?? [];
+        params.p_bus = filters.bus ?? [];
+        params.p_sub_bus = filters.sub_bus ?? [];
+    }
+    const { data, error } = await supabase.rpc(
+        FUNNEL_RPC_V2 ? 'get_candidate_population_data_v2' : 'get_candidate_population_data',
+        params,
+    );
 
     if (error || !data) {
         console.error('get_candidate_population_data RPC error:', error);

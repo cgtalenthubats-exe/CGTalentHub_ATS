@@ -413,7 +413,12 @@ const FILTER_LABELS: Record<keyof PopulationFilters, string> = {
     hotel_chains: "Hotel Chain",
     job_groupings: "Job Family",
     job_functions: "Job Function",
+    internal_status: "Internal Status",
+    bus: "BU",
+    sub_bus: "Sub-BU",
 };
+
+const INTERNAL_STATUS_OPTIONS = ["Active", "Ex-Central", "External"];
 
 function ActiveFilterChips({ filters, onRemove }: { filters: PopulationFilters; onRemove: (key: keyof PopulationFilters, value: string) => void }) {
     const chips: { key: keyof PopulationFilters; value: string }[] = [];
@@ -540,6 +545,15 @@ export default function CandidateFunnelTab() {
         const sc = filterOptions?.set_companies.find((s: SetCompany) => s.symbol === sym);
         return sc ? `${sc.symbol} — ${sc.company_name}` : sym;
     });
+    // BU / Sub-BU options come from the internal candidates' resolved (bu, sub_bu)
+    // pairs; Sub-BU narrows to the selected BUs. A selected value is always kept
+    // in its list so it can still be un-ticked.
+    const buPairs = filterOptions?.bu_pairs || [];
+    const buOptions = union([...new Set(buPairs.map(p => p.bu))], filters.bus || []);
+    const subBuOptions = union(
+        [...new Set(buPairs.filter(p => !(filters.bus || []).length || (filters.bus || []).includes(p.bu)).map(p => p.sub_bu).filter((s): s is string => !!s))],
+        filters.sub_bus || [],
+    );
     const handleSetChange = (val: string) => {
         const sym = val.split(' — ')[0];
         updateFilter('set_symbols', sym);
@@ -604,6 +618,26 @@ export default function CandidateFunnelTab() {
                         selected={filters.job_functions || []}
                         onChange={v => updateFilter('job_functions', v)}
                     />
+                    {filterOptions?.internal_filters_enabled && (<>
+                        <FilterMultiSelect
+                            label="Internal Status"
+                            options={INTERNAL_STATUS_OPTIONS}
+                            selected={filters.internal_status || []}
+                            onChange={v => updateFilter('internal_status', v)}
+                        />
+                        <FilterMultiSelect
+                            label="BU"
+                            options={buOptions}
+                            selected={filters.bus || []}
+                            onChange={v => updateFilter('bus', v)}
+                        />
+                        <FilterMultiSelect
+                            label="Sub-BU"
+                            options={subBuOptions}
+                            selected={filters.sub_bus || []}
+                            onChange={v => updateFilter('sub_bus', v)}
+                        />
+                    </>)}
                     {hasFilters && (
                         <Button
                             variant="ghost" size="sm"
