@@ -418,7 +418,14 @@ const FILTER_LABELS: Record<keyof PopulationFilters, string> = {
     sub_bus: "Sub-BU",
 };
 
-const INTERNAL_STATUS_OPTIONS = ["Active", "Ex-Central", "External"];
+const INTERNAL_SEGMENTS = ["All", "Internal", "Ex-Central", "External"] as const;
+type InternalSegment = typeof INTERNAL_SEGMENTS[number];
+// Header segment → value the RPC's p_internal_status expects ('Internal' is shown as 'Active' in the DB).
+const SEGMENT_STATUS: Record<Exclude<InternalSegment, "All">, string> = {
+    "Internal": "Active",
+    "Ex-Central": "Ex-Central",
+    "External": "External",
+};
 
 function ActiveFilterChips({ filters, onRemove }: { filters: PopulationFilters; onRemove: (key: keyof PopulationFilters, value: string) => void }) {
     const chips: { key: keyof PopulationFilters; value: string }[] = [];
@@ -521,6 +528,14 @@ export default function CandidateFunnelTab() {
         loadData(next);
     }, [filters, loadData]);
 
+    const setInternalSegment = useCallback((seg: InternalSegment) => {
+        const next = { ...filters };
+        if (seg === 'All') delete next.internal_status; else next.internal_status = [SEGMENT_STATUS[seg]];
+        if (seg !== 'Internal') { delete next.bus; delete next.sub_bus; }
+        setFilters(next);
+        loadData(next);
+    }, [filters, loadData]);
+
     const hasFilters = Object.values(filters).some(v => Array.isArray(v) && v.length > 0);
     const activeFilterCount = Object.values(filters).reduce<number>((acc, v) => acc + (Array.isArray(v) ? v.length : 0), 0);
 
@@ -554,6 +569,15 @@ export default function CandidateFunnelTab() {
         [...new Set(buPairs.filter(p => !(filters.bus || []).length || (filters.bus || []).includes(p.bu)).map(p => p.sub_bu).filter((s): s is string => !!s))],
         filters.sub_bus || [],
     );
+    // Header segment ↔ filters.internal_status (single-select). 'All' = no status filter.
+    // BU / Sub-BU only mean something for Internal (Active) people, so they're shown for that
+    // segment (or while a BU/Sub-BU is still selected, so it can be cleared) and dropped
+    // whenever the segment changes to anything else.
+    const activeSegment: InternalSegment = filters.internal_status?.length === 1
+        ? (INTERNAL_SEGMENTS.find(s => s !== 'All' && SEGMENT_STATUS[s] === filters.internal_status![0]) ?? 'All')
+        : 'All';
+    const showBuFilters = !!filterOptions?.internal_filters_enabled
+        && (activeSegment === 'Internal' || !!filters.bus?.length || !!filters.sub_bus?.length);
     const handleSetChange = (val: string) => {
         const sym = val.split(' — ')[0];
         updateFilter('set_symbols', sym);
@@ -563,6 +587,24 @@ export default function CandidateFunnelTab() {
         <div className="space-y-6">
             {/* ── Filter Bar — options narrow (cascade) as other filters are picked ── */}
             <div className="space-y-2">
+                {filterOptions?.internal_filters_enabled && (
+                    <div className="inline-flex gap-1 rounded-xl bg-slate-100 p-1">
+                        {INTERNAL_SEGMENTS.map(seg => (
+                            <button
+                                key={seg}
+                                onClick={() => setInternalSegment(seg)}
+                                className={cn(
+                                    "px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all",
+                                    activeSegment === seg
+                                        ? "bg-indigo-600 text-white shadow-sm"
+                                        : "text-slate-500 hover:text-slate-700"
+                                )}
+                            >
+                                {seg}
+                            </button>
+                        ))}
+                    </div>
+                )}
                 <div className="flex flex-wrap items-center gap-2">
                     <FilterMultiSelect
                         label="Industry Group"
@@ -618,13 +660,7 @@ export default function CandidateFunnelTab() {
                         selected={filters.job_functions || []}
                         onChange={v => updateFilter('job_functions', v)}
                     />
-                    {filterOptions?.internal_filters_enabled && (<>
-                        <FilterMultiSelect
-                            label="Internal Status"
-                            options={INTERNAL_STATUS_OPTIONS}
-                            selected={filters.internal_status || []}
-                            onChange={v => updateFilter('internal_status', v)}
-                        />
+                    {showBuFilters && (<>
                         <FilterMultiSelect
                             label="BU"
                             options={buOptions}
