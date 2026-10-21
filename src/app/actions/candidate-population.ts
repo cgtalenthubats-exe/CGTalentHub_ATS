@@ -381,6 +381,45 @@ export async function getCandidatePopulationData(filters: PopulationFilters = {}
     };
 }
 
+/**
+ * Candidate ids for the Funnel's Internal Status / BU / Sub-BU filters, so the
+ * "View Candidates" list (which runs on the separate search_candidate_ids RPC,
+ * unaware of these filters) can be narrowed to the same people the Funnel counts.
+ * Reads the same candidate_internal_resolved view the v2 RPC joins.
+ *
+ * mode 'include': the list must be restricted TO `ids`.
+ * mode 'exclude': External — everyone NOT in the view, so the list must drop `ids`.
+ *
+ * The UI's toggle is single-select. A mixed "External + Internal/Ex-Central" selection
+ * (not reachable from the toggle) falls back to the internal part only.
+ */
+export async function getInternalFilterCandidateIds(filters: PopulationFilters): Promise<{ mode: 'include' | 'exclude'; ids: string[] }> {
+    const supabase = adminAuthClient as any;
+    const { data, error } = await supabase.from('candidate_internal_resolved').select('candidate_id, internal_status, bu, sub_bu');
+    if (error) {
+        console.error('candidate_internal_resolved read error:', error);
+        return { mode: 'include', ids: [] };
+    }
+    const rows: { candidate_id: string; internal_status: string; bu: string | null; sub_bu: string | null }[] = data || [];
+
+    const statuses = filters.internal_status || [];
+    const bus = filters.bus || [];
+    const subBus = filters.sub_bus || [];
+    const internalStatuses = statuses.filter(s => s !== 'External');
+
+    if (statuses.includes('External') && !internalStatuses.length && !bus.length && !subBus.length) {
+        return { mode: 'exclude', ids: rows.map(r => r.candidate_id) };
+    }
+
+    const ids = rows
+        .filter(r =>
+            (!internalStatuses.length || internalStatuses.includes(r.internal_status)) &&
+            (!bus.length || (r.bu != null && bus.includes(r.bu))) &&
+            (!subBus.length || (r.sub_bu != null && subBus.includes(r.sub_bu))))
+        .map(r => r.candidate_id);
+    return { mode: 'include', ids };
+}
+
 // Each org_chart_uploads row is one org chart (matches the "Total Org" KPI
 // card's count). Group is resolved the same way as the Org Chart Directory
 // page: company_master.group first, falling back to industry_group's mapping

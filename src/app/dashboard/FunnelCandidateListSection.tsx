@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
     Users, Building2, Briefcase, TrendingUp, Loader2, X, Globe,
     ChevronDown, AlertCircle, UserPlus,
@@ -14,7 +14,9 @@ import { CandidateTableView } from "@/app/candidates/list/table-view";
 import { AddCandidateDialog } from "@/components/ai-search/AddCandidateDialog";
 import { searchDemoCandidates, fetchCandidatePage } from "@/app/actions/ai-search-demo";
 import { EMPTY_FILTERS, type DemoFilterState } from "@/app/ai-search-demo/types";
-import type { PopulationFilters } from "@/app/actions/candidate-population";
+import { getInternalFilterCandidateIds, type PopulationFilters } from "@/app/actions/candidate-population";
+
+type InternalRestrict = { mode: 'include' | 'exclude'; ids: string[] };
 
 const PAGE_SIZE = 20;
 const EMPTY_SUMMARY = { total: 0, current: 0, past: 0, companies: 0, countries: 0 };
@@ -160,6 +162,9 @@ export default function FunnelCandidateListSection({ filters: populationFilters 
     const [searching, setSearching] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
     const [droppedFilterNote, setDroppedFilterNote] = useState<string | null>(null);
+    // true when the summary cards are derived from loaded candidates (Internal/BU filters active)
+    const [summaryDerived, setSummaryDerived] = useState(false);
+    const effectSeq = useRef(0);
 
     const [subSearch, setSubSearch] = useState("");
     const [subPosition, setSubPosition] = useState<string[]>([]);
@@ -214,15 +219,30 @@ export default function FunnelCandidateListSection({ filters: populationFilters 
         return allFiltered.slice(start, start + PAGE_SIZE);
     }, [hasSubFilter, candidates, allFiltered, currentPage]);
 
-    const runSearch = useCallback(async (f: DemoFilterState) => {
+    // `restrict` (Internal Status / BU / Sub-BU) narrows the search result to the same people the
+    // Funnel counts. The search RPC's summary stats don't know about it, so when it's set the
+    // summary cards are derived from the loaded candidates instead (see below).
+    const runSearch = useCallback(async (f: DemoFilterState, restrict: InternalRestrict | null = null, skipSearch = false) => {
         setSearching(true);
         setHasSearched(true);
         setCurrentPage(1);
         try {
-            const result = await searchDemoCandidates(f);
+            let result: { candidateIds: string[]; total: number; current: number; past: number; companies: number; countries?: number };
+            if (skipSearch && restrict) {
+                // Only Internal/Ex-Central/BU filters active: the id set IS the answer, no search needed.
+                result = { candidateIds: restrict.ids, total: restrict.ids.length, current: 0, past: 0, companies: 0, countries: 0 };
+            } else {
+                result = await searchDemoCandidates(f);
+                if (restrict) {
+                    const idSet = new Set(restrict.ids);
+                    const kept = result.candidateIds.filter(id => restrict.mode === 'include' ? idSet.has(id) : !idSet.has(id));
+                    result = { candidateIds: kept, total: kept.length, current: 0, past: 0, companies: 0, countries: 0 };
+                }
+            }
             setAllCandidateIds(result.candidateIds);
             setAllCandidatesData([]);
             clearSubFilters();
+            setSummaryDerived(!!restrict);
             setSummary({ total: result.total, current: result.current, past: result.past, companies: result.companies, countries: result.countries ?? 0 });
             const page1 = await fetchCandidatePage(result.candidateIds.slice(0, PAGE_SIZE), 1, PAGE_SIZE);
             setCandidates(page1);
@@ -231,6 +251,17 @@ export default function FunnelCandidateListSection({ filters: populationFilters 
                 void fetchCandidatePage(result.candidateIds, 1, result.candidateIds.length).then(all => {
                     setAllCandidatesData(all);
                     setAllDataLoading(false);
+                    if (restrict) {
+                        const scoped = all.map(getScopedExps);
+                        const current = all.filter(c => (c.experiences ?? []).some((e: any) => e.is_current_job === "Current")).length;
+                        setSummary({
+                            total: result.total,
+                            current,
+                            past: result.total - current,
+                            companies: new Set(scoped.flat().map((e: any) => e.company).filter(Boolean)).size,
+                            countries: new Set(scoped.flat().map((e: any) => e.country).filter(Boolean)).size,
+                        });
+                    }
                 });
             }
         } catch (err) {
@@ -259,14 +290,32 @@ export default function FunnelCandidateListSection({ filters: populationFilters 
             : null
         );
 
-        if (hasMappedFilter(mapped)) {
-            void runSearch(mapped);
-        } else {
+        const hasInternalFilter = !!(populationFilters.internal_status?.length || populationFilters.bus?.length || populationFilters.sub_bus?.length);
+        const clearList = () => {
             setHasSearched(false);
             setCandidates([]);
             setAllCandidateIds([]);
             setSummary(EMPTY_SUMMARY);
-        }
+        };
+
+        // Guards against a slower, older run overwriting a newer one (the id lookup is async).
+        const seq = ++effectSeq.current;
+        void (async () => {
+            if (!hasInternalFilter) {
+                if (hasMappedFilter(mapped)) void runSearch(mapped); else clearList();
+                return;
+            }
+            const restrict = await getInternalFilterCandidateIds(populationFilters);
+            if (seq !== effectSeq.current) return;
+            if (hasMappedFilter(mapped)) {
+                void runSearch(mapped, restrict);
+            } else if (restrict.mode === 'include') {
+                void runSearch(mapped, restrict, true);
+            } else {
+                // "External" alone would be every candidate outside CG — too broad to list.
+                clearList();
+            }
+        })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [populationFilters, runSearch]);
 
@@ -296,10 +345,10 @@ export default function FunnelCandidateListSection({ filters: populationFilters 
                 <>
                     <div className="grid grid-cols-5 gap-3 shrink-0">
                         <SummaryCard label="Total Found" value={searching ? "…" : summary.total} icon={Users} color="bg-indigo-500" />
-                        <SummaryCard label="Currently in Role" value={searching ? "…" : summary.current} icon={TrendingUp} color="bg-emerald-500" />
-                        <SummaryCard label="Past Role" value={searching ? "…" : summary.past} icon={Briefcase} color="bg-sky-500" />
-                        <SummaryCard label="Companies" value={searching ? "…" : summary.companies} icon={Building2} color="bg-violet-500" />
-                        <SummaryCard label="Countries" value={searching ? "…" : summary.countries} icon={Globe} color="bg-teal-500" />
+                        <SummaryCard label="Currently in Role" value={searching || (summaryDerived && allDataLoading) ? "…" : summary.current} icon={TrendingUp} color="bg-emerald-500" />
+                        <SummaryCard label="Past Role" value={searching || (summaryDerived && allDataLoading) ? "…" : summary.past} icon={Briefcase} color="bg-sky-500" />
+                        <SummaryCard label="Companies" value={searching || (summaryDerived && allDataLoading) ? "…" : summary.companies} icon={Building2} color="bg-violet-500" />
+                        <SummaryCard label="Countries" value={searching || (summaryDerived && allDataLoading) ? "…" : summary.countries} icon={Globe} color="bg-teal-500" />
                     </div>
 
                     {candidates.length > 0 && (
@@ -363,7 +412,9 @@ export default function FunnelCandidateListSection({ filters: populationFilters 
                 </>
             ) : (
                 <div className="bg-white rounded-xl border shadow-sm flex items-center justify-center text-slate-400 py-16 text-sm">
-                    No filters carried over into the candidate list — refine the filters above (e.g. Country, Industry, Position Keyword, Hotel Chain, Job Function).
+                    {populationFilters.internal_status?.includes('External') && !populationFilters.bus?.length && !populationFilters.sub_bus?.length
+                        ? "External covers every candidate outside CG — add another filter above (e.g. Country, Industry, Position Keyword) to list them."
+                        : "No filters carried over into the candidate list — refine the filters above (e.g. Country, Industry, Position Keyword, Hotel Chain, Job Function)."}
                 </div>
             )}
 
