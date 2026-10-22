@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
-import { Save, User, Check, ChevronsUpDown, Camera, Loader2, FileText, X, UploadCloud, ChevronDown } from "lucide-react";
+import { Save, User, Check, ChevronsUpDown, Camera, Loader2, FileText, X, UploadCloud, ChevronDown, Plus } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +28,7 @@ import { toast } from "@/lib/notifications";
 import { CompensationFieldsGrid } from "@/components/compensation-fields-grid";
 import { readCompensation, buildCompensationPayload, type CompensationDraft } from "@/lib/compensation";
 import { getEffectiveAge, formatDateForInput, extractYear, calculateBachelorYearFromAge } from "@/lib/date-utils";
-import { ALL_JOB_GROUPING_LABELS, getFunctionsForGrouping } from "@/lib/job-function-constants";
+import { getJobFunctionOptions, addJobFunctionOption, type JobGroupingOption } from "@/app/actions/job-function";
 
 interface CandidateEditFormProps {
     candidateId: string;
@@ -47,6 +47,10 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
     const [openNat, setOpenNat] = useState(false);
     const [countries, setCountries] = useState<string[]>([]);
     const [openCountry, setOpenCountry] = useState(false);
+    const [jobGroupings, setJobGroupings] = useState<JobGroupingOption[]>([]);
+    const [openJobFunction, setOpenJobFunction] = useState(false);
+    const [jobFunctionQuery, setJobFunctionQuery] = useState("");
+    const [addingJobFunction, setAddingJobFunction] = useState(false);
 
     // Form State (Files)
     const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -103,6 +107,14 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                 // 1b. Fetch Countries
                 const { data: countryData } = await supabase.from('country').select('country').order('country');
                 if (countryData) setCountries((countryData as any).map((c: any) => c.country).filter(Boolean));
+
+                // 1c. Fetch Job Function master list
+                try {
+                    const jobFnOptions = await getJobFunctionOptions();
+                    setJobGroupings(jobFnOptions);
+                } catch (e) {
+                    console.error('Failed to load job function options', e);
+                }
 
                 // 2. Fetch Candidate
                 const res = await fetch(`/api/candidates/${candidateId}`);
@@ -566,23 +578,75 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                                     <select
                                         className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                                         value={formData.job_grouping}
-                                        onChange={e => setFormData(prev => ({ ...prev, job_grouping: e.target.value, job_function: '' }))}
+                                        onChange={e => { setFormData(prev => ({ ...prev, job_grouping: e.target.value, job_function: '' })); setJobFunctionQuery(''); }}
                                     >
                                         <option value="">Select Grouping...</option>
-                                        {ALL_JOB_GROUPING_LABELS.map(g => <option key={g} value={g}>{g}</option>)}
+                                        {jobGroupings.map(g => <option key={g.label} value={g.label}>{g.label}</option>)}
                                     </select>
                                 </div>
-                                <div className="space-y-1.5">
+                                <div className="space-y-1.5 flex flex-col">
                                     <Label className="text-xs">Job Function</Label>
-                                    <select
-                                        className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-50"
-                                        value={formData.job_function}
-                                        onChange={e => setFormData(prev => ({ ...prev, job_function: e.target.value }))}
-                                        disabled={!formData.job_grouping}
-                                    >
-                                        <option value="">Select Function...</option>
-                                        {getFunctionsForGrouping(formData.job_grouping).map(f => <option key={f} value={f}>{f}</option>)}
-                                    </select>
+                                    <Popover open={openJobFunction} onOpenChange={setOpenJobFunction}>
+                                        <PopoverTrigger asChild>
+                                            <Button
+                                                variant="outline"
+                                                role="combobox"
+                                                disabled={!formData.job_grouping}
+                                                className="h-9 justify-between pl-3 font-normal w-full text-left text-sm disabled:opacity-50"
+                                            >
+                                                <span className="truncate">{formData.job_function || "Select function..."}</span>
+                                                <ChevronsUpDown className="ml-2 h-4 w-4 opacity-50 shrink-0" />
+                                            </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="p-0 w-[280px]" align="start">
+                                            <Command>
+                                                <CommandInput
+                                                    placeholder="Search or type new..."
+                                                    value={jobFunctionQuery}
+                                                    onValueChange={setJobFunctionQuery}
+                                                />
+                                                <CommandList>
+                                                    <CommandEmpty className="px-2 py-1.5">
+                                                        {jobFunctionQuery.trim() && (
+                                                            <button
+                                                                type="button"
+                                                                disabled={addingJobFunction}
+                                                                className="flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent disabled:opacity-50"
+                                                                onClick={async () => {
+                                                                    setAddingJobFunction(true);
+                                                                    try {
+                                                                        const newLabel = await addJobFunctionOption(formData.job_grouping, jobFunctionQuery.trim());
+                                                                        setJobGroupings(prev => prev.map(g => g.label === formData.job_grouping
+                                                                            ? { ...g, functions: [...g.functions, newLabel].sort((a, b) => a.localeCompare(b)) }
+                                                                            : g));
+                                                                        setFormData(prev => ({ ...prev, job_function: newLabel }));
+                                                                        setJobFunctionQuery("");
+                                                                        setOpenJobFunction(false);
+                                                                        toast.success(`Added "${newLabel}" to ${formData.job_grouping}`);
+                                                                    } catch (err: any) {
+                                                                        toast.error(err?.message || "Failed to add job function");
+                                                                    } finally {
+                                                                        setAddingJobFunction(false);
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <Plus className="h-4 w-4 shrink-0" />
+                                                                {addingJobFunction ? "Adding..." : `Add "${jobFunctionQuery.trim()}" as new function`}
+                                                            </button>
+                                                        )}
+                                                    </CommandEmpty>
+                                                    <CommandGroup className="max-h-[200px] overflow-y-auto">
+                                                        {(jobGroupings.find(g => g.label === formData.job_grouping)?.functions ?? []).map((f) => (
+                                                            <CommandItem key={f} value={f} onSelect={() => { setFormData(prev => ({ ...prev, job_function: f })); setJobFunctionQuery(""); setOpenJobFunction(false); }}>
+                                                                <Check className={cn("mr-2 h-4 w-4", formData.job_function === f ? "opacity-100" : "opacity-0")} />
+                                                                {f}
+                                                            </CommandItem>
+                                                        ))}
+                                                    </CommandGroup>
+                                                </CommandList>
+                                            </Command>
+                                        </PopoverContent>
+                                    </Popover>
                                 </div>
                             </div>
 
