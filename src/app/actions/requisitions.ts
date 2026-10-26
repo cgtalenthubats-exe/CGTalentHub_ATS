@@ -68,6 +68,9 @@ function mapRowsToJRs(data: any[]): JobRequisition[] {
         feedback_file: row.feedback_file || "",
         closed_date: row.closed_date || null,
         jr_note: row.jr_note || null,
+        budget_min: toBudget(row.budget_min),
+        budget_max: toBudget(row.budget_max),
+        budget_note: row.budget_note || null,
     }));
 }
 
@@ -141,6 +144,14 @@ export async function getJRSelectionDataLean() {
 }
 
 
+const toBudget = (v: any): number | null => (v === null || v === undefined || v === "" || isNaN(Number(v)) ? null : Number(v));
+
+// The budget is internal to the ATS — don't leak the new fields into the n8n JR webhook payload.
+const withoutBudget = (data: any) => {
+    const { budget_min, budget_max, budget_note, ...rest } = data || {};
+    return rest;
+};
+
 // Fetch Single JR by ID
 export async function getRequisition(id: string): Promise<JobRequisition | null> {
     const supabase = adminAuthClient;
@@ -176,6 +187,9 @@ export async function getRequisition(id: string): Promise<JobRequisition | null>
         feedback_file: row.feedback_file || "",
         closed_date: row.closed_date || null,
         jr_note: row.jr_note || null,
+        budget_min: toBudget(row.budget_min),
+        budget_max: toBudget(row.budget_max),
+        budget_note: row.budget_note || null,
     };
 }
 
@@ -298,6 +312,11 @@ export async function updateJobRequisition(jrId: string, data: any, isFileUpdate
             request_date: data.request_date,
         };
         if (closedDate !== undefined) updatePayload.closed_date = closedDate;
+        if ("budget_min" in data || "budget_max" in data || "budget_note" in data) {
+            updatePayload.budget_min = toBudget(data.budget_min);
+            updatePayload.budget_max = toBudget(data.budget_max);
+            updatePayload.budget_note = data.budget_note || null;
+        }
 
         const { data: updated, error: updateError } = await (supabase
             .from('job_requisitions') as any)
@@ -313,7 +332,7 @@ export async function updateJobRequisition(jrId: string, data: any, isFileUpdate
 
         // --- Trigger Webhook ---
         const { triggerJRWebhook } = await import("./n8n-actions");
-        triggerJRWebhook(jrId, data, 'update', isFileUpdated).catch(e => console.error("Failed to trigger JR Webhook (Update):", e));
+        triggerJRWebhook(jrId, withoutBudget(data), 'update', isFileUpdated).catch(e => console.error("Failed to trigger JR Webhook (Update):", e));
         syncGeneratedJDPdf(jrId, data);
 
         const updatedData = updated as any;
@@ -342,6 +361,9 @@ export async function updateJobRequisition(jrId: string, data: any, isFileUpdate
                 feedback_file: updatedData.feedback_file || "",
                 closed_date: updatedData.closed_date || null,
                 jr_note: updatedData.jr_note || null,
+                budget_min: toBudget(updatedData.budget_min),
+                budget_max: toBudget(updatedData.budget_max),
+                budget_note: updatedData.budget_note || null,
             }
         };
     } catch (e: any) {
@@ -402,6 +424,11 @@ export async function createJobRequisition(data: any): Promise<JobRequisition | 
             create_by: data.create_by || await getCurrentUserRealName(),
             is_active: data.is_active || 'Active',
 
+            // Salary budget (optional, ฿/month)
+            budget_min: toBudget(data.budget_min),
+            budget_max: toBudget(data.budget_max),
+            budget_note: data.budget_note || null,
+
             // Defaults
             created_at: new Date().toISOString()
         };
@@ -419,7 +446,7 @@ export async function createJobRequisition(data: any): Promise<JobRequisition | 
 
         // --- Trigger Webhook ---
         const { triggerJRWebhook } = await import("./n8n-actions");
-        triggerJRWebhook(nextId, data, 'create').catch(e => console.error("Failed to trigger JR Webhook (Create):", e));
+        triggerJRWebhook(nextId, withoutBudget(data), 'create').catch(e => console.error("Failed to trigger JR Webhook (Create):", e));
         syncGeneratedJDPdf(nextId, data);
 
         const insertedData = inserted as any;
@@ -442,6 +469,9 @@ export async function createJobRequisition(data: any): Promise<JobRequisition | 
             created_at: insertedData.created_at,
             updated_at: insertedData.created_at,
             jr_type: insertedData.jr_type || "New",
+            budget_min: toBudget(insertedData.budget_min),
+            budget_max: toBudget(insertedData.budget_max),
+            budget_note: insertedData.budget_note || null,
         };
 
     } catch (e) {

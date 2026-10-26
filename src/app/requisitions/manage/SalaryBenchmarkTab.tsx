@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/lib/notifications";
-import { cn } from "@/lib/utils";
+import { cn, formatMoneyInput } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { CandidateAvatar } from "@/components/candidate-avatar";
 import { JRCandidateSheet } from "@/components/jr-candidate-sheet";
@@ -192,8 +192,8 @@ function BudgetDialog({ open, onOpenChange, data, onSaved }: {
 
     useEffect(() => {
         if (!open) return;
-        setMin(data.budget?.min ? String(data.budget.min) : "");
-        setMax(data.budget?.max ? String(data.budget.max) : "");
+        setMin(data.budget?.min ? formatMoneyInput(String(data.budget.min)) : "");
+        setMax(data.budget?.max ? formatMoneyInput(String(data.budget.max)) : "");
         setNote(data.budget?.note || "");
     }, [open, data.budget]);
 
@@ -230,11 +230,11 @@ function BudgetDialog({ open, onOpenChange, data, onSaved }: {
                     <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                             <Label className="text-xs font-bold">Budget (min)</Label>
-                            <Input value={min} onChange={e => setMin(e.target.value)} placeholder="100000" inputMode="numeric" />
+                            <Input value={min} onChange={e => setMin(formatMoneyInput(e.target.value))} placeholder="100,000" inputMode="numeric" />
                         </div>
                         <div className="space-y-1.5">
                             <Label className="text-xs font-bold">Budget (max)</Label>
-                            <Input value={max} onChange={e => setMax(e.target.value)} placeholder="optional" inputMode="numeric" />
+                            <Input value={max} onChange={e => setMax(formatMoneyInput(e.target.value))} placeholder="optional" inputMode="numeric" />
                         </div>
                     </div>
                     <div className="space-y-1.5">
@@ -496,7 +496,7 @@ function PipelineTable({
     );
 }
 
-export function SalaryBenchmarkTab({ jrId }: { jrId: string }) {
+export function SalaryBenchmarkTab({ jrId, onBudgetSaved }: { jrId: string; onBudgetSaved?: () => void | Promise<void> }) {
     const [data, setData] = useState<JRSalaryBenchmark | null>(null);
     const [loading, setLoading] = useState(true);
     const [budgetOpen, setBudgetOpen] = useState(false);
@@ -757,7 +757,7 @@ export function SalaryBenchmarkTab({ jrId }: { jrId: string }) {
                 A market-wide view across the whole database belongs in the dashboard, not here.
             </p>
 
-            <BudgetDialog open={budgetOpen} onOpenChange={setBudgetOpen} data={data} onSaved={load} />
+            <BudgetDialog open={budgetOpen} onOpenChange={setBudgetOpen} data={data} onSaved={async () => { await load(); await onBudgetSaved?.(); }} />
         </div>
     );
 }

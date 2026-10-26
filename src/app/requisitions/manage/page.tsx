@@ -448,6 +448,19 @@ export default function JRManagePage() {
                                         <span className="text-slate-300">·</span>
                                         <span>Status: <span className="font-semibold text-foreground">{selectedJR.is_active || '-'}</span></span>
                                         <span className="text-slate-300">·</span>
+                                        {(selectedJR.budget_min || selectedJR.budget_max) && (
+                                            <>
+                                                <span title={selectedJR.budget_note || undefined}>
+                                                    Budget: <span className="font-semibold text-foreground">
+                                                        {selectedJR.budget_min && selectedJR.budget_max
+                                                            ? `฿${selectedJR.budget_min.toLocaleString()} – ฿${selectedJR.budget_max.toLocaleString()}`
+                                                            : `฿${(selectedJR.budget_min || selectedJR.budget_max)!.toLocaleString()}`}
+                                                        <span className="font-normal text-muted-foreground"> /mo</span>
+                                                    </span>
+                                                </span>
+                                                <span className="text-slate-300">·</span>
+                                            </>
+                                        )}
                                         {(() => {
                                             const days = getJRAgingDays(selectedJR.opened_date, selectedJR.closed_date);
                                             const isClosed = selectedJR.is_active === 'Closed';
@@ -795,7 +808,15 @@ export default function JRManagePage() {
                                 </TabsContent>
 
                                 <TabsContent value="salary" className="mt-0">
-                                    <SalaryBenchmarkTab key={`salary-${selectedJR.id}`} jrId={selectedJR.id} />
+                                    <SalaryBenchmarkTab
+                                        key={`salary-${selectedJR.id}`}
+                                        jrId={selectedJR.id}
+                                        onBudgetSaved={async () => {
+                                            // Keep the header's Budget in sync after "Set budget" on this tab.
+                                            const fresh = await getRequisition(selectedJR.id);
+                                            if (fresh) setSelectedJR(prev => prev ? { ...prev, budget_min: fresh.budget_min, budget_max: fresh.budget_max, budget_note: fresh.budget_note } : prev);
+                                        }}
+                                    />
                                 </TabsContent>
                                 <TabsContent value="ai-suggestion" className="mt-0">
                                     <AiSuggestionTab
