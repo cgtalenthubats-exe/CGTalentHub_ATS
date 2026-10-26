@@ -6,7 +6,8 @@ import { Info, Loader2, RefreshCw } from "lucide-react";
 import { getRawBenchmarkData, type BenchmarkCandidate } from "@/app/actions/benchmark-actions";
 import { parseSalary } from "@/lib/benchmark-utils";
 import { buildSalaryHistogram, buildSalaryStats, percentileRank, statsByGroup } from "@/lib/salary-stats";
-import { BenchmarkFilterBar, useBenchmarkFilters } from "./benchmark-filters";
+import { BENCHMARK_FILTER_FIELDS, BenchmarkFilterBar, useBenchmarkFilters } from "./benchmark-filters";
+import { BENCHMARK_TABLE_ID, BenchmarkCandidateTable } from "./BenchmarkCandidateTable";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -54,16 +55,25 @@ function SummaryCard({ label, value, sub, tone = "slate" }: {
     );
 }
 
-function BreakdownTable({ title, keyLabel, rows }: {
+function BreakdownTable({ title, keyLabel, rows, active, onPick }: {
     title: string; keyLabel: string; rows: ReturnType<typeof statsByGroup>;
+    /** Values of this dimension currently in the filter, highlighted in the table. */
+    active?: string[];
+    /** Clicking a row narrows the filters to that value and lists the people behind it. */
+    onPick?: (value: string) => void;
 }) {
-    if (rows.length === 0) return null;
     return (
         <Card className="border-slate-200">
             <CardContent className="p-0">
-                <div className="px-4 py-3 border-b border-slate-100 text-[11px] font-black uppercase tracking-wider text-slate-500">
-                    {title}
+                <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-slate-500">
+                    <span>{title}</span>
+                    {onPick && rows.length > 0 && <span className="text-[10px] font-semibold normal-case tracking-normal text-indigo-500">click a row to see who</span>}
                 </div>
+                {rows.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-xs font-semibold text-slate-400">
+                        Not enough data — a group needs at least 3 candidates with a salary.
+                    </div>
+                ) : (
                 <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                         <thead className="bg-slate-50 text-[10px] font-black uppercase tracking-wider text-slate-500">
@@ -77,7 +87,15 @@ function BreakdownTable({ title, keyLabel, rows }: {
                         </thead>
                         <tbody className="divide-y divide-slate-100">
                             {rows.slice(0, 12).map(r => (
-                                <tr key={r.key} className="hover:bg-slate-50/60">
+                                <tr
+                                    key={r.key}
+                                    onClick={onPick ? () => onPick(r.key) : undefined}
+                                    className={cn(
+                                        "hover:bg-slate-50/60",
+                                        onPick && "cursor-pointer",
+                                        active?.includes(r.key) && "bg-indigo-50/70"
+                                    )}
+                                >
                                     <td className="px-4 py-2 font-bold text-slate-700 max-w-[260px] truncate" title={r.key}>{r.key}</td>
                                     <td className="px-4 py-2 text-right font-black text-slate-800">{thb(r.median)}</td>
                                     <td className="px-4 py-2 text-right text-slate-500">{thb(r.p25)}</td>
@@ -88,6 +106,7 @@ function BreakdownTable({ title, keyLabel, rows }: {
                         </tbody>
                     </table>
                 </div>
+                )}
             </CardContent>
         </Card>
     );
@@ -126,6 +145,18 @@ export default function SalaryBenchmarkTab() {
     const byIndustry = useMemo(() => statsByGroup(rows, c => c.company_industry, amount), [rows]);
     const byCompany = useMemo(() => statsByGroup(rows, c => c.company, amount), [rows]);
     const byJobFunction = useMemo(() => statsByGroup(rows, c => c.job_function, amount), [rows]);
+    const byPosition = useMemo(() => statsByGroup(rows, c => c.position, amount), [rows]);
+    const byHotelChain = useMemo(() => statsByGroup(rows, c => c.hotel_chain, amount), [rows]);
+
+    // Clicking a breakdown row narrows that dimension to the one value, then scrolls to the people.
+    const pick = (filterKey: string) => (value: string) => {
+        filters.replace(filterKey, [value]);
+        requestAnimationFrame(() => document.getElementById(BENCHMARK_TABLE_ID)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    };
+    const activeOf = (filterKey: string) => filters.selected[filterKey] ?? [];
+    const filterSummary = BENCHMARK_FILTER_FIELDS
+        .filter(f => (filters.selected[f.key] ?? []).length > 0)
+        .map(f => `${f.label}: ${(filters.selected[f.key] ?? []).join(", ")}`);
 
     if (loading) {
         return (
@@ -289,11 +320,15 @@ export default function SalaryBenchmarkTab() {
                     )}
 
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                        <BreakdownTable title="Median by Hotel Star Rating" keyLabel="Star Rating" rows={byRating} />
-                        <BreakdownTable title="Median by Industry" keyLabel="Industry" rows={byIndustry} />
-                        <BreakdownTable title="Median by Job Function" keyLabel="Job Function" rows={byJobFunction} />
-                        <BreakdownTable title="Median by Company — top 12" keyLabel="Company" rows={byCompany} />
+                        <BreakdownTable title="Median by Hotel Chain" keyLabel="Hotel Chain" rows={byHotelChain} active={activeOf("hotelChain")} onPick={pick("hotelChain")} />
+                        <BreakdownTable title="Median by Hotel Star Rating" keyLabel="Star Rating" rows={byRating} active={activeOf("rating")} onPick={pick("rating")} />
+                        <BreakdownTable title="Median by Industry" keyLabel="Industry" rows={byIndustry} active={activeOf("industry")} onPick={pick("industry")} />
+                        <BreakdownTable title="Median by Job Function" keyLabel="Job Function" rows={byJobFunction} active={activeOf("jobFunction")} onPick={pick("jobFunction")} />
+                        <BreakdownTable title="Median by Position — top 12" keyLabel="Position" rows={byPosition} active={activeOf("position")} onPick={pick("position")} />
+                        <BreakdownTable title="Median by Company — top 12" keyLabel="Company" rows={byCompany} active={activeOf("company")} onPick={pick("company")} />
                     </div>
+
+                    <BenchmarkCandidateTable rows={rows} filterSummary={filterSummary} stats={stats} />
 
                     <p className="text-[10px] text-slate-400 font-medium">
                         Source: candidate profiles in our own database. This is internal data, not a published salary survey —

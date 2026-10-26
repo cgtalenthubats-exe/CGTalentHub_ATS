@@ -302,3 +302,28 @@ HIDDEN_STATUSES  = { "Interview Scheduled - ..." }  // ซ่อนจาก flo
 ---
 
 *Created: 2026-09-16 | JR Salary Benchmark v3 · Dashboard Benchmark v1 · Stage Aging v2*
+
+---
+
+## อัปเดต 2026-10-26 — Budget ตอนสร้าง/แก้ JR + แก้ Dashboard benchmark ดึง experience ไม่ครบ
+
+**Budget เก็บที่ไหน:** `job_requisitions.budget_min / budget_max / budget_note` (฿ ต่อเดือน, basic salary — ฐานเดียวกับตัวเลขตลาด) ใช้ร่วมกันทั้งจาก Salary Benchmark tab (`updateJRBudget`) และฟอร์ม JR
+
+**เพิ่ม:**
+- ฟอร์ม Create / Edit JR (`src/components/create-jr-form.tsx`) มีช่อง Salary Budget (min / max / note) — optional, validate max ≥ min
+- `createJobRequisition` / `updateJobRequisition` / `getRequisition` / list mapper อ่าน-เขียน budget (`src/app/actions/requisitions.ts`); update แตะ budget เฉพาะเมื่อ caller ส่ง field มา (copy JR / quick-edit อื่นไม่ล้างค่า)
+- budget ไม่ถูกส่งเข้า n8n JR webhook (`withoutBudget`)
+- หัวหน้า JR Manage แสดง `Budget: ฿min – ฿max /mo` (hover = note) และ refresh เองหลัง "Set budget" ใน Salary Benchmark tab (`onBudgetSaved`)
+
+**แก้บั๊ก:** `getRawBenchmarkData` (`benchmark-actions.ts`) ดึง `candidate_experiences` ไม่แบ่งหน้า → ถูกตัดที่ 1,000 แถว (pool นี้มี ~2,635 แถว) ทำให้ ~80 จาก ~430 คนไม่มี company/position/industry/rating และตกจาก filter — ตอนนี้ paginate (order by id) และใช้ `parseAnyDate` เรียง start_date (เดิม parse "M-YYYY" ไม่ได้)
+
+**ตัดสินใจ:** คน 8 คนที่มี benefit แต่ไม่มี base salary — ไม่แสดง (ไม่ให้กราฟเพี้ยน)
+
+**สถิติ ณ 2026-10-26:** 438 คนมีข้อมูลค่าตอบแทน (430 มี base salary); Medical/Dental/IPD/OPD ยังไม่มีใครกรอก; JR ที่มี budget 5/213
+
+### อัปเดตเพิ่ม (2026-10-26) — Salary Benchmark / Package Info (dashboard)
+- `FilterMultiSelect` (ใช้ร่วมหลายหน้า) มี prop ใหม่ `onReplace(values)` → แสดง "Select all matching (N)" / Clear ทีเดียว; ค้นหาเป็นแบบทุกคำต้องอยู่ในชื่อ (ไม่ fuzzy) เปิดใช้แล้วที่ benchmark filters + Candidate Funnel; หน้าอื่นยังเป็นแบบ toggle ทีละค่า
+- Filter **Hotel Chain** (ก่อน Rating): `BenchmarkCandidate.hotel_chain` = chain แม่ของบริษัท primary/current (company_master.hotel_chain_id → hotel_chain_master); ณ วันนี้ 69/425 คนที่มีเงินเดือน map ได้ (22 chain)
+- Salary Benchmark: เพิ่ม "Median by Hotel Chain / Position", คลิกแถวใน Median by ... = ตั้ง filter ค่านั้นแล้วเลื่อนไปตารางรายคน, แถวที่ n<3 แสดงข้อความ "Not enough data" แทนการหาย
+- ตารางรายคน `BenchmarkCandidateTable.tsx`: Position / Company / Hotel Chain / Rating / Industry / Salary, เรียงได้, ชื่ออยู่หลัง checkbox "Show names" (ปิดเป็นค่าเริ่มต้น), **Export Excel** (sheet Candidates = ทุก benefit ที่ไม่ retired + sheet Summary = filter ที่ใช้ + median/P25/P75; ชื่อตาม checkbox)
+- ช่อง budget ใน JR form / Set budget dialog ใส่ comma ขณะพิมพ์ (`formatMoneyInput` ใน `lib/utils.ts`)
