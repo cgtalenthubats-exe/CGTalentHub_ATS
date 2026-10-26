@@ -256,8 +256,7 @@ export async function setCurrentExperience(experienceId: string, candidateId: st
     const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
     const updateData: any = {
-        is_current_job: newStatus,
-        is_current: newStatus === "Current"
+        is_current_job: newStatus
     };
 
     if (newStatus === "Current") {
@@ -291,6 +290,85 @@ export async function setCurrentExperience(experienceId: string, candidateId: st
     if (setError) {
         console.error("setCurrentExperience set error:", setError);
         return { error: setError.message };
+    }
+
+    revalidatePath(`/candidates/${candidateId}`);
+    return { success: true };
+}
+
+// Make this experience the candidate's ONE primary pick. Unlike setCurrentExperience this
+// is not a toggle: calling it on a row that is already Current (a "Concurrent" role) just
+// promotes it and leaves it Current; the previously-primary row stays Current too, it only
+// loses the primary flag. The DB partial unique index allows one primary per candidate, so
+// the old flag is cleared first and restored if setting the new one fails.
+export async function setPrimaryExperience(experienceId: string, candidateId: string) {
+    const client = adminAuthClient as any;
+
+    const { data: prev, error: prevError } = await client
+        .from("candidate_experiences")
+        .select("id")
+        .eq("candidate_id", candidateId)
+        .eq("is_primary_current", true);
+    if (prevError) return { error: prevError.message };
+    const prevIds: string[] = (prev || []).map((r: any) => r.id).filter((id: string) => id !== experienceId);
+
+    if (prevIds.length > 0) {
+        const { error: unsetError } = await client
+            .from("candidate_experiences")
+            .update({ is_primary_current: false })
+            .in("id", prevIds);
+        if (unsetError) return { error: unsetError.message };
+    }
+
+    const { error: setError } = await client
+        .from("candidate_experiences")
+        .update({ is_current_job: "Current", end_date: null, is_primary_current: true })
+        .eq("id", experienceId)
+        .eq("candidate_id", candidateId);
+
+    if (setError) {
+        console.error("setPrimaryExperience set error:", setError);
+        if (prevIds.length > 0) {
+            await client.from("candidate_experiences").update({ is_primary_current: true }).in("id", prevIds);
+        }
+        return { error: setError.message };
+    }
+
+    revalidatePath(`/candidates/${candidateId}`);
+    return { success: true };
+}
+
+// Explicitly end a role (never toggles back to Current). A non-current row can't be the
+// primary pick, so its flag is cleared; we don't auto-promote another row — readers fall
+// back to pickPrimaryExperience()'s heuristic until the user picks one.
+export async function markExperiencePast(experienceId: string, candidateId: string) {
+    const client = adminAuthClient as any;
+
+    const { data: exp, error: fetchError } = await client
+        .from("candidate_experiences")
+        .select("end_date")
+        .eq("id", experienceId)
+        .single();
+    if (fetchError) return { error: fetchError.message };
+
+    // Keep a real end date if one is already there; only fill the current month for
+    // null/"Present". Stored as M-YYYY (e.g. "10-2026") — the format ~all existing rows use.
+    const hasRealEnd = !!exp?.end_date && exp.end_date.toString().trim().toLowerCase() !== "present";
+    const now = new Date();
+    const endMonth = `${now.getMonth() + 1}-${now.getFullYear()}`;
+
+    const { error } = await client
+        .from("candidate_experiences")
+        .update({
+            is_current_job: "Past",
+            is_primary_current: false,
+            end_date: hasRealEnd ? exp.end_date : endMonth,
+        })
+        .eq("id", experienceId)
+        .eq("candidate_id", candidateId);
+    if (error) {
+        console.error("markExperiencePast error:", error);
+        return { error: error.message };
     }
 
     revalidatePath(`/candidates/${candidateId}`);
@@ -337,9 +415,19 @@ export async function updateExperience(experienceId: string, candidateId: string
         }
     }
 
-    // Same as addExperience/setCurrentExperience: flipping this row Current makes it the
-    // primary pick too, so clear any other primary flag on this candidate first.
-    if (isCurrent) {
+    // Only a Past -> Current flip claims the primary pick (same as addExperience). Saving an
+    // edit on a row that is ALREADY Current must leave its primary state alone — otherwise
+    // fixing a typo on a Concurrent role would silently steal Primary from the real one.
+    const { data: before, error: beforeError } = await client
+        .from("candidate_experiences")
+        .select("is_current_job")
+        .eq("id", experienceId)
+        .single();
+    if (beforeError) return { error: beforeError.message };
+    const wasCurrent = before?.is_current_job === "Current";
+    const becomesPrimary = isCurrent && !wasCurrent;
+
+    if (becomesPrimary) {
         const { error: unsetError } = await client
             .from("candidate_experiences")
             .update({ is_primary_current: false })
@@ -361,7 +449,9 @@ export async function updateExperience(experienceId: string, candidateId: string
             start_date: startDate || null,
             end_date: isCurrent ? null : (endDate || null),
             is_current_job: isCurrent ? "Current" : "Past",
-            is_primary_current: isCurrent
+            // Already-Current rows keep whatever primary flag they had (field omitted);
+            // rows turned Past can't be primary.
+            ...(becomesPrimary ? { is_primary_current: true } : !isCurrent ? { is_primary_current: false } : {})
         })
         .eq("id", experienceId);
 
