@@ -5,6 +5,7 @@ import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveCo
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { getDistributionStats } from "@/app/actions/pending-tasks-actions";
+import { SHOW_JOB_GROUPING } from "@/lib/job-function-utils";
 
 export default function DistributionAnalytics() {
     const [data, setData] = useState<any>(null);
@@ -45,12 +46,14 @@ export default function DistributionAnalytics() {
                 description="Talent allocation by business units (Full Scope)"
                 color="#f59e0b"
             />
+            {SHOW_JOB_GROUPING && (
             <DistributionChart 
                 data={data?.jobGroupDist || []} 
                 title="Job Grouping Distribution" 
                 description="Categorization of talent core expertise (Full Scope)"
                 color="#6366f1"
             />
+            )}
             <DistributionChart 
                 data={data?.jobFuncDist || []} 
                 title="Job Function Distribution" 

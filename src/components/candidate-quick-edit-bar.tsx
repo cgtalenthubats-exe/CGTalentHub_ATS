@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { StatusSelect } from "@/components/ui/status-select";
 import { getJobFunctionOptions, addJobFunctionOption, type JobGroupingOption } from "@/app/actions/job-function";
 import { toast } from "@/lib/notifications";
+import { SHOW_JOB_GROUPING, allFunctionOptions, groupingForFunction } from "@/lib/job-function-utils";
 
 const ADD_NEW_VALUE = "__add_new__";
 
@@ -23,6 +24,8 @@ export function QuickEditBar({ candidate, onSave }: { candidate: any; onSave: (f
     const [addingNewFunction, setAddingNewFunction] = useState(false);
     const [newFunctionDraft, setNewFunctionDraft] = useState('');
     const [savingNewFunction, setSavingNewFunction] = useState(false);
+    // Only used when Job Grouping is hidden: the grouping a brand-new function is filed under.
+    const [newFunctionGrouping, setNewFunctionGrouping] = useState('');
 
     useEffect(() => {
         setLinkedin(candidate?.linkedin || '');
@@ -37,11 +40,21 @@ export function QuickEditBar({ candidate, onSave }: { candidate: any; onSave: (f
         getJobFunctionOptions().then(setJobGroupings).catch(() => {});
     }, []);
 
-    const functionsForGrouping = jobGroupings.find(g => g.label === jobGrouping)?.functions ?? [];
+    const functionsForGrouping = SHOW_JOB_GROUPING
+        ? (jobGroupings.find(g => g.label === jobGrouping)?.functions ?? [])
+        : allFunctionOptions(jobGroupings);
+    const groupingForNewFunction = SHOW_JOB_GROUPING ? jobGrouping : newFunctionGrouping;
 
     const save = async (field: string, value: any) => {
         setSaving(field);
         await onSave({ [field]: value });
+        setSaving(null);
+    };
+
+    // Several fields in one save (job_function + the job_grouping derived from it).
+    const saveFields = async (fields: Record<string, any>) => {
+        setSaving('job_function');
+        await onSave(fields);
         setSaving(null);
     };
 
@@ -114,7 +127,7 @@ export function QuickEditBar({ candidate, onSave }: { candidate: any; onSave: (f
                     </div>
                 </div>
                 {/* Job Grouping */}
-                <div className="space-y-1">
+                {SHOW_JOB_GROUPING && <div className="space-y-1">
                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Job Grouping</label>
                     <select
                         value={jobGrouping}
@@ -131,7 +144,7 @@ export function QuickEditBar({ candidate, onSave }: { candidate: any; onSave: (f
                         <option value="">— Select Grouping —</option>
                         {jobGroupings.map(g => <option key={g.label} value={g.label}>{g.label}</option>)}
                     </select>
-                </div>
+                </div>}
                 {/* Job Function */}
                 <div className="space-y-1">
                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Job Function</label>
@@ -140,11 +153,15 @@ export function QuickEditBar({ candidate, onSave }: { candidate: any; onSave: (f
                             value={jobFunction}
                             onChange={e => {
                                 const v = e.target.value;
-                                if (v === ADD_NEW_VALUE) { setAddingNewFunction(true); setNewFunctionDraft(''); return; }
+                                if (v === ADD_NEW_VALUE) { setAddingNewFunction(true); setNewFunctionDraft(''); setNewFunctionGrouping(''); return; }
                                 setJobFunction(v);
-                                save('job_function', v);
+                                if (SHOW_JOB_GROUPING) { save('job_function', v); return; }
+                                // Grouping is hidden: keep job_grouping in sync with the chosen function.
+                                const g = groupingForFunction(jobGroupings, v);
+                                setJobGrouping(g);
+                                saveFields({ job_function: v, job_grouping: g });
                             }}
-                            disabled={!jobGrouping || saving === 'job_function'}
+                            disabled={(SHOW_JOB_GROUPING && !jobGrouping) || saving === 'job_function'}
                             className="w-full h-8 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-300 disabled:opacity-50"
                         >
                             <option value="">— Select Function —</option>
@@ -153,6 +170,16 @@ export function QuickEditBar({ candidate, onSave }: { candidate: any; onSave: (f
                         </select>
                     ) : (
                         <div className="flex gap-2">
+                            {!SHOW_JOB_GROUPING && (
+                                <select
+                                    value={newFunctionGrouping}
+                                    onChange={e => setNewFunctionGrouping(e.target.value)}
+                                    className="h-8 max-w-[45%] rounded-lg border border-slate-200 bg-white px-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                                >
+                                    <option value="">Group for new function…</option>
+                                    {jobGroupings.map(g => <option key={g.label} value={g.label}>{g.label}</option>)}
+                                </select>
+                            )}
                             <input
                                 autoFocus
                                 value={newFunctionDraft}
@@ -162,14 +189,19 @@ export function QuickEditBar({ candidate, onSave }: { candidate: any; onSave: (f
                             />
                             <Button
                                 size="sm" variant="outline" className="h-8 px-3 text-xs font-black"
-                                disabled={savingNewFunction || !newFunctionDraft.trim()}
+                                disabled={savingNewFunction || !newFunctionDraft.trim() || !groupingForNewFunction}
                                 onClick={async () => {
                                     setSavingNewFunction(true);
                                     try {
-                                        const newLabel = await addJobFunctionOption(jobGrouping, newFunctionDraft.trim());
-                                        setJobGroupings(prev => prev.map(g => g.label === jobGrouping ? { ...g, functions: [...g.functions, newLabel].sort((a, b) => a.localeCompare(b)) } : g));
+                                        const newLabel = await addJobFunctionOption(groupingForNewFunction, newFunctionDraft.trim());
+                                        setJobGroupings(prev => prev.map(g => g.label === groupingForNewFunction ? { ...g, functions: [...g.functions, newLabel].sort((a, b) => a.localeCompare(b)) } : g));
                                         setJobFunction(newLabel);
-                                        await save('job_function', newLabel);
+                                        if (SHOW_JOB_GROUPING) {
+                                            await save('job_function', newLabel);
+                                        } else {
+                                            setJobGrouping(groupingForNewFunction);
+                                            await saveFields({ job_function: newLabel, job_grouping: groupingForNewFunction });
+                                        }
                                         setAddingNewFunction(false);
                                         toast.success(`Added "${newLabel}"`);
                                     } catch (err: any) {

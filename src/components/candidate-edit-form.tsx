@@ -29,6 +29,7 @@ import { CompensationFieldsGrid } from "@/components/compensation-fields-grid";
 import { readCompensation, buildCompensationPayload, type CompensationDraft } from "@/lib/compensation";
 import { getEffectiveAge, formatDateForInput, extractYear, calculateBachelorYearFromAge } from "@/lib/date-utils";
 import { getJobFunctionOptions, addJobFunctionOption, type JobGroupingOption } from "@/app/actions/job-function";
+import { SHOW_JOB_GROUPING, allFunctionOptions, groupingForFunction } from "@/lib/job-function-utils";
 
 interface CandidateEditFormProps {
     candidateId: string;
@@ -51,6 +52,8 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
     const [openJobFunction, setOpenJobFunction] = useState(false);
     const [jobFunctionQuery, setJobFunctionQuery] = useState("");
     const [addingJobFunction, setAddingJobFunction] = useState(false);
+    // Only used when Job Grouping is hidden: the grouping a brand-new function is filed under.
+    const [newFnGrouping, setNewFnGrouping] = useState("");
 
     // Form State (Files)
     const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -573,7 +576,7 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="space-y-1.5">
+                                {SHOW_JOB_GROUPING && <div className="space-y-1.5">
                                     <Label className="text-xs">Job Grouping</Label>
                                     <select
                                         className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -583,7 +586,7 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                                         <option value="">Select Grouping...</option>
                                         {jobGroupings.map(g => <option key={g.label} value={g.label}>{g.label}</option>)}
                                     </select>
-                                </div>
+                                </div>}
                                 <div className="space-y-1.5 flex flex-col">
                                     <Label className="text-xs">Job Function</Label>
                                     <Popover open={openJobFunction} onOpenChange={setOpenJobFunction}>
@@ -591,7 +594,7 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                                             <Button
                                                 variant="outline"
                                                 role="combobox"
-                                                disabled={!formData.job_grouping}
+                                                disabled={SHOW_JOB_GROUPING && !formData.job_grouping}
                                                 className="h-9 justify-between pl-3 font-normal w-full text-left text-sm disabled:opacity-50"
                                             >
                                                 <span className="truncate">{formData.job_function || "Select function..."}</span>
@@ -606,23 +609,53 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                                                     onValueChange={setJobFunctionQuery}
                                                 />
                                                 <CommandList>
-                                                    <CommandEmpty className="px-2 py-1.5">
+                                                    <CommandEmpty className="px-2 py-1.5 text-xs text-muted-foreground">No matching function</CommandEmpty>
+                                                    <CommandGroup className="max-h-[200px] overflow-y-auto">
+                                                        {(SHOW_JOB_GROUPING
+                                                            ? (jobGroupings.find(g => g.label === formData.job_grouping)?.functions ?? [])
+                                                            : allFunctionOptions(jobGroupings)
+                                                        ).map((f) => (
+                                                            <CommandItem key={f} value={f} onSelect={() => {
+                                                                // Grouping hidden: derive job_grouping from the chosen function so it stays in sync.
+                                                                setFormData(prev => ({ ...prev, job_function: f, ...(SHOW_JOB_GROUPING ? {} : { job_grouping: groupingForFunction(jobGroupings, f) }) }));
+                                                                setJobFunctionQuery(""); setOpenJobFunction(false);
+                                                            }}>
+                                                                <Check className={cn("mr-2 h-4 w-4", formData.job_function === f ? "opacity-100" : "opacity-0")} />
+                                                                {f}
+                                                            </CommandItem>
+                                                        ))}
+                                                    </CommandGroup>
+                                                </CommandList>
+                                                {jobFunctionQuery.trim() && !allFunctionOptions(jobGroupings).some(f => f.replace(/\s*\([^)]*\)$/, "").toLowerCase() === jobFunctionQuery.trim().toLowerCase()) && (
+                                                    <div className="border-t px-2 py-1.5">
+                                                        {!SHOW_JOB_GROUPING && jobFunctionQuery.trim() && (
+                                                            <select
+                                                                value={newFnGrouping}
+                                                                onChange={e => setNewFnGrouping(e.target.value)}
+                                                                className="mb-1 h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
+                                                            >
+                                                                <option value="">Group for the new function...</option>
+                                                                {jobGroupings.map(g => <option key={g.label} value={g.label}>{g.label}</option>)}
+                                                            </select>
+                                                        )}
                                                         {jobFunctionQuery.trim() && (
                                                             <button
                                                                 type="button"
-                                                                disabled={addingJobFunction}
+                                                                disabled={addingJobFunction || !(SHOW_JOB_GROUPING ? formData.job_grouping : newFnGrouping)}
                                                                 className="flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded hover:bg-accent disabled:opacity-50"
                                                                 onClick={async () => {
                                                                     setAddingJobFunction(true);
                                                                     try {
-                                                                        const newLabel = await addJobFunctionOption(formData.job_grouping, jobFunctionQuery.trim());
-                                                                        setJobGroupings(prev => prev.map(g => g.label === formData.job_grouping
+                                                                        const targetGrouping = SHOW_JOB_GROUPING ? formData.job_grouping : newFnGrouping;
+                                                                        const newLabel = await addJobFunctionOption(targetGrouping, jobFunctionQuery.trim());
+                                                                        setJobGroupings(prev => prev.map(g => g.label === targetGrouping
                                                                             ? { ...g, functions: [...g.functions, newLabel].sort((a, b) => a.localeCompare(b)) }
                                                                             : g));
-                                                                        setFormData(prev => ({ ...prev, job_function: newLabel }));
+                                                                        setFormData(prev => ({ ...prev, job_function: newLabel, job_grouping: targetGrouping }));
+                                                                        setNewFnGrouping("");
                                                                         setJobFunctionQuery("");
                                                                         setOpenJobFunction(false);
-                                                                        toast.success(`Added "${newLabel}" to ${formData.job_grouping}`);
+                                                                        toast.success(`Added "${newLabel}" to ${targetGrouping}`);
                                                                     } catch (err: any) {
                                                                         toast.error(err?.message || "Failed to add job function");
                                                                     } finally {
@@ -634,16 +667,8 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                                                                 {addingJobFunction ? "Adding..." : `Add "${jobFunctionQuery.trim()}" as new function`}
                                                             </button>
                                                         )}
-                                                    </CommandEmpty>
-                                                    <CommandGroup className="max-h-[200px] overflow-y-auto">
-                                                        {(jobGroupings.find(g => g.label === formData.job_grouping)?.functions ?? []).map((f) => (
-                                                            <CommandItem key={f} value={f} onSelect={() => { setFormData(prev => ({ ...prev, job_function: f })); setJobFunctionQuery(""); setOpenJobFunction(false); }}>
-                                                                <Check className={cn("mr-2 h-4 w-4", formData.job_function === f ? "opacity-100" : "opacity-0")} />
-                                                                {f}
-                                                            </CommandItem>
-                                                        ))}
-                                                    </CommandGroup>
-                                                </CommandList>
+                                                    </div>
+                                                )}
                                             </Command>
                                         </PopoverContent>
                                     </Popover>
