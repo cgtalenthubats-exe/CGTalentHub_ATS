@@ -16,6 +16,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Tooltip as UiTooltip, TooltipTrigger as UiTooltipTrigger, TooltipContent as UiTooltipContent, TooltipProvider as UiTooltipProvider } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import FunnelCandidateListSection from "./FunnelCandidateListSection";
+import { SHOW_JOB_GROUPING } from "@/lib/job-function-utils";
+
+// Org chart KPI + "Organization Charts by Group Industries" card are hidden on the Funnel for now
+// (this page is about candidates). Flip to true to bring them back; the org counts aren't even
+// fetched while this is false.
+const SHOW_ORG_CHARTS = false;
+const EMPTY_ORG_SUMMARY: OrgChartGroupSummary = { groups: [], uncategorizedCount: 0 };
 
 // ── Validated categorical palette ───────────────────────────────────────────
 // 6 hues, checked with the dataviz skill's validator (CVD ΔE 9.2 worst-adjacent,
@@ -169,8 +176,16 @@ function RankedListCard({
     title, subtitle, data, icon: Icon, selected, onSelect, filterTotal, limit = 10,
 }: { title: string; subtitle?: string; data: { name: string; count: number }[]; icon: React.ElementType; selected?: string[]; onSelect?: (name: string) => void; filterTotal?: number; limit?: number }) {
     const [dialogOpen, setDialogOpen] = useState(false);
+    const [query, setQuery] = useState("");
+    const [tab, setTab] = useState<"all" | "selected">("all");
     const clickable = !!onSelect;
     const displayData = data.slice(0, limit);
+    const selectedCount = data.filter(d => selected?.includes(d.name)).length;
+    // Keep each row's original rank (i) so numbering stays meaningful while searching/filtering.
+    const q = query.trim().toLowerCase();
+    const visibleRows = data
+        .map((d, i) => ({ d, i }))
+        .filter(({ d }) => (tab === "all" || selected?.includes(d.name)) && (!q || d.name.toLowerCase().includes(q)));
     const hasMore = data.length > limit;
 
     const renderRow = (d: { name: string; count: number }, globalIdx: number) => {
@@ -234,7 +249,7 @@ function RankedListCard({
                 )}
             </div>
 
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <Dialog open={dialogOpen} onOpenChange={o => { setDialogOpen(o); if (!o) { setQuery(""); setTab("all"); } }}>
                 <DialogContent className="max-w-sm max-h-[80vh] flex flex-col">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-sm font-black">
@@ -245,8 +260,32 @@ function RankedListCard({
                             <p className="text-xs text-indigo-500 font-semibold">Click to toggle filter</p>
                         )}
                     </DialogHeader>
+                    <input
+                        value={query}
+                        onChange={e => setQuery(e.target.value)}
+                        placeholder={`Search ${data.length} items...`}
+                        className="h-8 w-full rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                    />
+                    {clickable && (
+                        <div className="inline-flex w-fit gap-1 rounded-lg bg-slate-100 p-0.5">
+                            {([["all", `All (${data.length})`], ["selected", `Selected (${selectedCount})`]] as const).map(([key, label]) => (
+                                <button
+                                    key={key}
+                                    onClick={() => setTab(key)}
+                                    className={cn(
+                                        "px-3 py-1 rounded-md text-[11px] font-bold transition-all",
+                                        tab === key ? "bg-white text-indigo-700 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                                    )}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                     <div className="overflow-y-auto flex-1 space-y-1 pr-1">
-                        {data.map((d, i) => renderRow(d, i))}
+                        {visibleRows.length
+                            ? visibleRows.map(({ d, i }) => renderRow(d, i))
+                            : <div className="py-6 text-center text-xs font-bold uppercase tracking-widest text-slate-400">No matches</div>}
                     </div>
                 </DialogContent>
             </Dialog>
@@ -473,7 +512,7 @@ export default function CandidateFunnelTab() {
         Promise.all([
             getCandidatePopulationData(f),
             getCascadingPopulationOptions(f),
-            getOrgChartCountsByGroup(f),
+            SHOW_ORG_CHARTS ? getOrgChartCountsByGroup(f) : Promise.resolve(EMPTY_ORG_SUMMARY),
         ]).then(([d, c, o]) => {
             if (seq !== requestSeq.current) return; // stale response — a newer filter change already superseded this
             setData(d);
@@ -490,7 +529,7 @@ export default function CandidateFunnelTab() {
             getCandidatePopulationData({}),
             getCascadingPopulationOptions({}),
             fetch('/api/stats').then(r => r.json()),
-            getOrgChartCountsByGroup(),
+            SHOW_ORG_CHARTS ? getOrgChartCountsByGroup() : Promise.resolve(EMPTY_ORG_SUMMARY),
         ]).then(([opts, d, c, stats, orgGroups]) => {
             setFilterOptions(opts);
             setData(d);
@@ -509,6 +548,15 @@ export default function CandidateFunnelTab() {
         const current = (filters[key] as string[] | undefined) || [];
         const next = { ...filters, [key]: toggleItem(current, value) };
         if ((next[key] as string[]).length === 0) delete next[key];
+        setFilters(next);
+        loadData(next);
+    }, [filters, loadData]);
+
+    // Replaces a filter's whole selection in ONE update (Select all / Clear in the dropdowns) —
+    // calling updateFilter per value would fire a data request each time.
+    const setFilterValues = useCallback((key: keyof PopulationFilters, values: string[]) => {
+        const next = { ...filters, [key]: values };
+        if (values.length === 0) delete next[key];
         setFilters(next);
         loadData(next);
     }, [filters, loadData]);
@@ -611,30 +659,35 @@ export default function CandidateFunnelTab() {
                         options={union(cascade.groups, filters.groups || [])}
                         selected={filters.groups || []}
                         onChange={v => updateFilter('groups', v)}
+                        onReplace={vals => setFilterValues('groups', vals)}
                     />
                     <FilterMultiSelect
                         label="Industry"
                         options={union(cascade.industries, filters.industries || [])}
                         selected={filters.industries || []}
                         onChange={v => updateFilter('industries', v)}
+                        onReplace={vals => setFilterValues('industries', vals)}
                     />
                     <FilterMultiSelect
                         label="Continent"
                         options={union(cascade.continents, filters.continents || [])}
                         selected={filters.continents || []}
                         onChange={v => updateFilter('continents', v)}
+                        onReplace={vals => setFilterValues('continents', vals)}
                     />
                     <FilterMultiSelect
                         label="Work Country"
                         options={union(cascade.countries, filters.countries || [])}
                         selected={filters.countries || []}
                         onChange={v => updateFilter('countries', v)}
+                        onReplace={vals => setFilterValues('countries', vals)}
                     />
                     <FilterMultiSelect
                         label="Position Keyword"
                         options={union(cascade.position_keywords, filters.position_keywords || [])}
                         selected={filters.position_keywords || []}
                         onChange={v => updateFilter('position_keywords', v)}
+                        onReplace={vals => setFilterValues('position_keywords', vals)}
                     />
                     <FilterMultiSelect
                         label="SET Company"
@@ -647,18 +700,23 @@ export default function CandidateFunnelTab() {
                         options={union(cascade.hotel_chains, filters.hotel_chains || [])}
                         selected={filters.hotel_chains || []}
                         onChange={v => updateFilter('hotel_chains', v)}
+                        onReplace={vals => setFilterValues('hotel_chains', vals)}
                     />
-                    <FilterMultiSelect
-                        label="Job Family"
-                        options={union(cascade.job_groupings, filters.job_groupings || [])}
-                        selected={filters.job_groupings || []}
-                        onChange={v => updateFilter('job_groupings', v)}
-                    />
+                    {SHOW_JOB_GROUPING && (
+                        <FilterMultiSelect
+                            label="Job Family"
+                            options={union(cascade.job_groupings, filters.job_groupings || [])}
+                            selected={filters.job_groupings || []}
+                            onChange={v => updateFilter('job_groupings', v)}
+                            onReplace={vals => setFilterValues('job_groupings', vals)}
+                        />
+                    )}
                     <FilterMultiSelect
                         label="Job Function"
                         options={union(cascade.job_functions, filters.job_functions || [])}
                         selected={filters.job_functions || []}
                         onChange={v => updateFilter('job_functions', v)}
+                        onReplace={vals => setFilterValues('job_functions', vals)}
                     />
                     {showBuFilters && (<>
                         <FilterMultiSelect
@@ -666,12 +724,14 @@ export default function CandidateFunnelTab() {
                             options={buOptions}
                             selected={filters.bus || []}
                             onChange={v => updateFilter('bus', v)}
+                            onReplace={vals => setFilterValues('bus', vals)}
                         />
                         <FilterMultiSelect
                             label="Sub-BU"
                             options={subBuOptions}
                             selected={filters.sub_bus || []}
                             onChange={v => updateFilter('sub_bus', v)}
+                            onReplace={vals => setFilterValues('sub_bus', vals)}
                         />
                     </>)}
                     {hasFilters && (
@@ -705,7 +765,7 @@ export default function CandidateFunnelTab() {
             </div>
 
             {/* ── Site-wide KPI cards ─────────────────────────────────────────── */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+            <div className={cn("grid grid-cols-1 gap-6", SHOW_ORG_CHARTS ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
                 <Card className="relative overflow-hidden group border-none bg-white ring-1 ring-slate-200 shadow-xl transition-all hover:shadow-2xl">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Total Profile</CardTitle>
@@ -736,7 +796,7 @@ export default function CandidateFunnelTab() {
                     </div>
                 </Card>
 
-                <Card className="relative overflow-hidden group bg-slate-100 border-2 border-slate-300 shadow-xl transition-all hover:shadow-2xl">
+                {SHOW_ORG_CHARTS && <Card className="relative overflow-hidden group bg-slate-100 border-2 border-slate-300 shadow-xl transition-all hover:shadow-2xl">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Total Org</CardTitle>
                     </CardHeader>
@@ -751,12 +811,12 @@ export default function CandidateFunnelTab() {
                     <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:scale-110 transition-transform">
                         <Database className="w-12 h-12" />
                     </div>
-                </Card>
+                </Card>}
             </div>
 
             {/* ── By Industry Group (candidates) + Org Charts by Group Industries ── */}
             {data && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <div className={cn("grid grid-cols-1 gap-5", SHOW_ORG_CHARTS && "lg:grid-cols-2")}>
                     <IndustryGroupCard
                         groupData={data.by_group}
                         positionData={data.by_position_keyword}
@@ -766,11 +826,13 @@ export default function CandidateFunnelTab() {
                         onSelectPositionKeyword={v => updateFilter('position_keywords', v)}
                         filterTotal={data.total_filtered}
                     />
-                    <OrgChartByGroupCard
-                        title="Organization Charts by Group Industries"
-                        data={orgChartGroups.groups} icon={Network}
-                        uncategorizedCount={orgChartGroups.uncategorizedCount}
-                    />
+                    {SHOW_ORG_CHARTS && (
+                        <OrgChartByGroupCard
+                            title="Organization Charts by Group Industries"
+                            data={orgChartGroups.groups} icon={Network}
+                            uncategorizedCount={orgChartGroups.uncategorizedCount}
+                        />
+                    )}
                 </div>
             )}
 
@@ -808,9 +870,9 @@ export default function CandidateFunnelTab() {
             {/*    Keyword now lives inline as the By Industry Group card's   ── */}
             {/*    drill-down, so it's out of this row entirely               ── */}
             {data && (
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                <div className={`grid grid-cols-1 gap-5 ${SHOW_JOB_GROUPING ? "lg:grid-cols-3" : "lg:grid-cols-2"}`}>
                     <RankedListCard title="By Industry" data={data.by_industry} icon={Building2} selected={filters.industries || []} onSelect={v => updateFilter('industries', v)} filterTotal={data.total_filtered} />
-                    <RankedListCard title="By Job Family" data={data.by_job_grouping} icon={Users} selected={filters.job_groupings || []} onSelect={v => updateFilter('job_groupings', v)} filterTotal={data.total_filtered} />
+                    {SHOW_JOB_GROUPING && <RankedListCard title="By Job Family" data={data.by_job_grouping} icon={Users} selected={filters.job_groupings || []} onSelect={v => updateFilter('job_groupings', v)} filterTotal={data.total_filtered} />}
                     <RankedListCard title="By Job Function" data={data.by_job_function} icon={Target} selected={filters.job_functions || []} onSelect={v => updateFilter('job_functions', v)} filterTotal={data.total_filtered} />
                 </div>
             )}
