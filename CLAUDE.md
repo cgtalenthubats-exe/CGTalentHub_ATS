@@ -161,3 +161,4 @@ Logic: `cardinality(array) = 0` = ไม่ filter field นั้น, LEFT JOIN
 
 @docs/hotel_chain_system.md
 @docs/country_location_system.md
+@docs/primary_experience_system.md

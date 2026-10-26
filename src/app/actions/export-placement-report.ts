@@ -942,7 +942,7 @@ export async function generatePlacementReportPPTX(params: {
             while (true) {
                 const { data, error } = await supabase
                     .from("candidate_experiences")
-                    .select("id, candidate_id, position, company, company_id, country, start_date, end_date, is_current_job")
+                    .select("id, candidate_id, position, company, company_id, country, start_date, end_date, is_current_job, is_primary_current")
                     .in("candidate_id", ids)
                     .order("id", { ascending: true })
                     .range(offset, offset + SUPABASE_PAGE_SIZE - 1);

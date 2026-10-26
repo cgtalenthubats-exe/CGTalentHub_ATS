@@ -1380,6 +1380,14 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                         ) : (
                                             <span className="text-slate-300 text-xs">—</span>
                                         )}
+                                        {c.candidate_primary_unset && (
+                                            <span
+                                                title="This candidate has several current roles but no Primary has been chosen. The role shown is an automatic guess — open the profile and pick the Primary one."
+                                                className="mt-1 block w-fit text-[10px] font-bold px-2 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200"
+                                            >
+                                                ⚠ Pick primary
+                                            </span>
+                                        )}
                                     </td>
                                     {/* Country column */}
                                     <td className="px-4 py-4">
