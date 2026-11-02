@@ -18,10 +18,9 @@ import { cn } from "@/lib/utils";
 import FunnelCandidateListSection from "./FunnelCandidateListSection";
 import { SHOW_JOB_GROUPING } from "@/lib/job-function-utils";
 
-// Org chart KPI + "Organization Charts by Group Industries" card are hidden on the Funnel for now
-// (this page is about candidates). Flip to true to bring them back; the org counts aren't even
-// fetched while this is false.
-const SHOW_ORG_CHARTS = false;
+// Org chart KPI + "Organization Charts by Group Industries" card show as usual, except while the
+// Internal toggle is on: those candidates are our own staff and there are no org charts for them
+// yet, so the org numbers would only mislead (they aren't fetched in that mode either).
 const EMPTY_ORG_SUMMARY: OrgChartGroupSummary = { groups: [], uncategorizedCount: 0 };
 
 // ── Validated categorical palette ───────────────────────────────────────────
@@ -466,6 +465,11 @@ const SEGMENT_STATUS: Record<Exclude<InternalSegment, "All">, string> = {
     "External": "External",
 };
 
+// True while the header toggle is on "Internal" (single status = Active).
+function isInternalOnly(f: PopulationFilters): boolean {
+    return f.internal_status?.length === 1 && f.internal_status[0] === SEGMENT_STATUS.Internal;
+}
+
 function ActiveFilterChips({ filters, onRemove }: { filters: PopulationFilters; onRemove: (key: keyof PopulationFilters, value: string) => void }) {
     const chips: { key: keyof PopulationFilters; value: string }[] = [];
     (Object.keys(filters) as (keyof PopulationFilters)[]).forEach(key => {
@@ -512,7 +516,7 @@ export default function CandidateFunnelTab() {
         Promise.all([
             getCandidatePopulationData(f),
             getCascadingPopulationOptions(f),
-            SHOW_ORG_CHARTS ? getOrgChartCountsByGroup(f) : Promise.resolve(EMPTY_ORG_SUMMARY),
+            isInternalOnly(f) ? Promise.resolve(EMPTY_ORG_SUMMARY) : getOrgChartCountsByGroup(f),
         ]).then(([d, c, o]) => {
             if (seq !== requestSeq.current) return; // stale response — a newer filter change already superseded this
             setData(d);
@@ -529,7 +533,7 @@ export default function CandidateFunnelTab() {
             getCandidatePopulationData({}),
             getCascadingPopulationOptions({}),
             fetch('/api/stats').then(r => r.json()),
-            SHOW_ORG_CHARTS ? getOrgChartCountsByGroup() : Promise.resolve(EMPTY_ORG_SUMMARY),
+            getOrgChartCountsByGroup(),
         ]).then(([opts, d, c, stats, orgGroups]) => {
             setFilterOptions(opts);
             setData(d);
@@ -624,6 +628,7 @@ export default function CandidateFunnelTab() {
     const activeSegment: InternalSegment = filters.internal_status?.length === 1
         ? (INTERNAL_SEGMENTS.find(s => s !== 'All' && SEGMENT_STATUS[s] === filters.internal_status![0]) ?? 'All')
         : 'All';
+    const showOrgCharts = !isInternalOnly(filters);
     const showBuFilters = !!filterOptions?.internal_filters_enabled
         && (activeSegment === 'Internal' || !!filters.bus?.length || !!filters.sub_bus?.length);
     const handleSetChange = (val: string) => {
@@ -765,7 +770,7 @@ export default function CandidateFunnelTab() {
             </div>
 
             {/* ── Site-wide KPI cards ─────────────────────────────────────────── */}
-            <div className={cn("grid grid-cols-1 gap-6", SHOW_ORG_CHARTS ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
+            <div className={cn("grid grid-cols-1 gap-6", showOrgCharts ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
                 <Card className="relative overflow-hidden group border-none bg-white ring-1 ring-slate-200 shadow-xl transition-all hover:shadow-2xl">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Total Profile</CardTitle>
@@ -796,7 +801,7 @@ export default function CandidateFunnelTab() {
                     </div>
                 </Card>
 
-                {SHOW_ORG_CHARTS && <Card className="relative overflow-hidden group bg-slate-100 border-2 border-slate-300 shadow-xl transition-all hover:shadow-2xl">
+                {showOrgCharts && <Card className="relative overflow-hidden group bg-slate-100 border-2 border-slate-300 shadow-xl transition-all hover:shadow-2xl">
                     <CardHeader className="pb-2">
                         <CardTitle className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Total Org</CardTitle>
                     </CardHeader>
@@ -816,7 +821,7 @@ export default function CandidateFunnelTab() {
 
             {/* ── By Industry Group (candidates) + Org Charts by Group Industries ── */}
             {data && (
-                <div className={cn("grid grid-cols-1 gap-5", SHOW_ORG_CHARTS && "lg:grid-cols-2")}>
+                <div className={cn("grid grid-cols-1 gap-5", showOrgCharts && "lg:grid-cols-2")}>
                     <IndustryGroupCard
                         groupData={data.by_group}
                         positionData={data.by_position_keyword}
@@ -826,7 +831,7 @@ export default function CandidateFunnelTab() {
                         onSelectPositionKeyword={v => updateFilter('position_keywords', v)}
                         filterTotal={data.total_filtered}
                     />
-                    {SHOW_ORG_CHARTS && (
+                    {showOrgCharts && (
                         <OrgChartByGroupCard
                             title="Organization Charts by Group Industries"
                             data={orgChartGroups.groups} icon={Network}
