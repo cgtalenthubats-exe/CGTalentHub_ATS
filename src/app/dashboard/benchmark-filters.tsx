@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Briefcase, Building2, Factory, RotateCcw, Star } from "lucide-react";
+import { Briefcase, Building2, Factory, Globe2, MapPin, RotateCcw, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
 import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
@@ -26,6 +26,8 @@ interface FilterField {
 }
 
 export const BENCHMARK_FILTER_FIELDS: FilterField[] = [
+    { key: "region", label: "Region", field: "region", icon: Globe2 },
+    { key: "country", label: "Location (Country)", field: "country", icon: MapPin },
     { key: "industry", label: "Industry", field: "company_industry", icon: Factory },
     { key: "group", label: "Company Group", field: "company_group", icon: Building2 },
     ...(SHOW_JOB_GROUPING ? [{ key: "jobGrouping", label: "Job Grouping", field: "job_grouping", icon: Briefcase, exclude: ["NA", "Not found exp"] }] : []),

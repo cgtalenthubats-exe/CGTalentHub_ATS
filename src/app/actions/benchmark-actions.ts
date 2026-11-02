@@ -21,6 +21,10 @@ export interface BenchmarkCandidate {
     rating: string | null;
     /** Parent hotel chain (e.g. "IHG Hotels & Resorts") of the current/primary company, when mapped. */
     hotel_chain: string | null;
+    /** Where the person is: work country of the current/primary role when reliably known, else the country they live in. */
+    country: string | null;
+    /** Region of that country (country master). */
+    region: string | null;
 }
 
 export interface RawBenchmarkData {
@@ -57,7 +61,7 @@ export async function getRawBenchmarkData(): Promise<RawBenchmarkData> {
     for (let offset = 0; ; offset += PAGE_SIZE) {
         const { data: page, error: expError } = await supabase
             .from('candidate_experiences')
-            .select('id, candidate_id, company, company_id, position, company_industry, company_group, is_current_job, is_primary_current, start_date')
+            .select('id, candidate_id, company, company_id, position, company_industry, company_group, is_current_job, is_primary_current, start_date, country, note')
             .in('candidate_id', candidateIds)
             .order('id', { ascending: true })
             .range(offset, offset + PAGE_SIZE - 1);
@@ -104,6 +108,37 @@ export async function getRawBenchmarkData(): Promise<RawBenchmarkData> {
     const expMap = new Map<string, any>();
     const experiences = expData || [];
 
+    // Location, same rule as the Funnel's "By Location": the work country of the best experience —
+    // but only when it came from the candidate's own profile (note "profile input"); countries guessed
+    // from the company's HQ are unreliable — otherwise the country they are based in.
+    const { data: countryRows } = await (supabase as any).from('country').select('country, region');
+    const regionByCountry = new Map<string, string>(((countryRows as any[]) || []).filter(r => r.country && r.region).map(r => [r.country, r.region]));
+    // Hong Kong isn't in the country master; give it its region so it still groups with East Asia.
+    const REGION_FALLBACK: Record<string, string> = { 'Hong Kong': 'East Asia' };
+    const isKnownCountry = (c: string) => regionByCountry.has(c) || c in REGION_FALLBACK;
+
+    const SKIP_COUNTRY = new Set(['unknown', 'n/a', 'not found', 'no match found', 'undetermined', 'unclassified', 'wait ai check', 'unassigned', 'not found exp', 'null', '']);
+    // Profile addresses are sometimes stored whole ("Pattaya, Thailand", "Hong Kong SAR"): reduce them to a
+    // country we know, and drop anything that still isn't one ("Multi Location") rather than offer junk options.
+    const usableCountry = (c: any): string | null => {
+        const v = (c ?? '').toString().trim();
+        if (!v || SKIP_COUNTRY.has(v.toLowerCase())) return null;
+        const candidates = [v, v.replace(/\s+SAR$/i, ''), v.split(',').pop()!.trim().replace(/\s+SAR$/i, '')];
+        return candidates.find(isKnownCountry) ?? null;
+    };
+    const basedInByCandidate = new Map<string, string>();
+    for (let offset = 0; ; offset += PAGE_SIZE) {
+        const { data: page } = await supabase
+            .from('candidate_profile_enhance')
+            .select('candidate_id, country')
+            .in('candidate_id', candidateIds)
+            .order('candidate_id', { ascending: true })
+            .range(offset, offset + PAGE_SIZE - 1);
+        if (!page || page.length === 0) break;
+        (page as any[]).forEach(r => { const c = usableCountry(r.country); if (c) basedInByCandidate.set(r.candidate_id, c); });
+        if (page.length < PAGE_SIZE) break;
+    }
+
     // Sort all experiences: primary first, then Current, then start_date desc
     experiences.sort((a: any, b: any) => {
         const aIsPrimary = a.is_primary_current === true;
@@ -132,12 +167,14 @@ export async function getRawBenchmarkData(): Promise<RawBenchmarkData> {
                 company_group: master?.group || exp.company_group || '',
                 rating: master?.rating || null,
                 hotel_chain: master?.chain || null,
+                work_country: /profile input/i.test(exp.note || '') ? usableCountry(exp.country) : null,
             });
         }
     });
 
     const candidates: BenchmarkCandidate[] = candidatesWithSalary.map((cp: any) => {
-        const job = expMap.get(cp.candidate_id) || { company: null, position: null, company_industry: null, company_group: null, rating: null, hotel_chain: null };
+        const job = expMap.get(cp.candidate_id) || { company: null, position: null, company_industry: null, company_group: null, rating: null, hotel_chain: null, work_country: null };
+        const country = job.work_country || basedInByCandidate.get(cp.candidate_id) || null;
         return {
             ...cp,
             company: job.company || null,
@@ -146,6 +183,8 @@ export async function getRawBenchmarkData(): Promise<RawBenchmarkData> {
             company_group: job.company_group || null,
             rating: job.rating || null,
             hotel_chain: job.hotel_chain || null,
+            country,
+            region: country ? (regionByCountry.get(country) ?? REGION_FALLBACK[country] ?? null) : null,
         };
     });
 

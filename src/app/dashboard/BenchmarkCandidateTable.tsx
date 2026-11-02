@@ -21,7 +21,7 @@ import type { BenchmarkCandidate } from "@/app/actions/benchmark-actions";
 const PAGE = 50;
 const thb = (n: number | null) => (n === null ? "—" : `฿${Math.round(n).toLocaleString()}`);
 
-type SortKey = "salary" | "position" | "company" | "hotel_chain" | "rating";
+type SortKey = "salary" | "position" | "company" | "country" | "hotel_chain" | "rating";
 
 export const BENCHMARK_TABLE_ID = "benchmark-candidate-table";
 
@@ -69,14 +69,14 @@ export function BenchmarkCandidateTable({ rows, filterSummary, stats }: {
         const header = [
             "Candidate ID",
             ...(showNames ? ["Name"] : []),
-            "Position", "Company", "Hotel Chain", "Hotel Rating", "Industry", "Company Group", "Job Function",
+            "Position", "Company", "Location (Country)", "Region", "Hotel Chain", "Hotel Rating", "Industry", "Company Group", "Job Function",
             "Base Salary (฿/month)",
             ...benefitFields.map(f => (f.unit ? `${f.label} (${f.unit})` : f.label)),
         ];
         const body = sorted.map(({ c, salary }) => [
             c.candidate_id,
             ...(showNames ? [c.name] : []),
-            c.position ?? "", c.company ?? "", c.hotel_chain ?? "", c.rating ?? "", c.company_industry ?? "", c.company_group ?? "", c.job_function ?? "",
+            c.position ?? "", c.company ?? "", c.country ?? "", c.region ?? "", c.hotel_chain ?? "", c.rating ?? "", c.company_industry ?? "", c.company_group ?? "", c.job_function ?? "",
             salary,
             ...benefitFields.map(f => {
                 const state = benefitState(f, c);
@@ -149,6 +149,7 @@ export function BenchmarkCandidateTable({ rows, filterSummary, stats }: {
                                 <th className="px-4 py-2 text-left uppercase tracking-wider font-black">ID{showNames ? " / Name" : ""}</th>
                                 <SortHead k="position" label="Position" />
                                 <SortHead k="company" label="Company" />
+                                <SortHead k="country" label="Location" />
                                 <SortHead k="hotel_chain" label="Hotel Chain" />
                                 <SortHead k="rating" label="Rating" />
                                 <th className="px-4 py-2 text-left uppercase tracking-wider font-black">Industry</th>
@@ -175,6 +176,7 @@ export function BenchmarkCandidateTable({ rows, filterSummary, stats }: {
                                     </td>
                                     <td className="px-4 py-2 font-semibold text-slate-700 max-w-[240px] truncate" title={c.position ?? ""}>{c.position || "—"}</td>
                                     <td className="px-4 py-2 text-slate-600 max-w-[200px] truncate" title={c.company ?? ""}>{c.company || "—"}</td>
+                                    <td className="px-4 py-2 text-slate-500 max-w-[140px] truncate" title={c.region ? `${c.country} · ${c.region}` : (c.country ?? "")}>{c.country || "—"}</td>
                                     <td className="px-4 py-2 text-slate-500 max-w-[160px] truncate" title={c.hotel_chain ?? ""}>{c.hotel_chain || "—"}</td>
                                     <td className="px-4 py-2 text-slate-500 whitespace-nowrap">{c.rating || "—"}</td>
                                     <td className="px-4 py-2 text-slate-500 max-w-[160px] truncate" title={c.company_industry ?? ""}>{c.company_industry || "—"}</td>

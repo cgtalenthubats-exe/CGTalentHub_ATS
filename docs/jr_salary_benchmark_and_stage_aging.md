@@ -327,3 +327,11 @@ HIDDEN_STATUSES  = { "Interview Scheduled - ..." }  // ซ่อนจาก flo
 - Salary Benchmark: เพิ่ม "Median by Hotel Chain / Position", คลิกแถวใน Median by ... = ตั้ง filter ค่านั้นแล้วเลื่อนไปตารางรายคน, แถวที่ n<3 แสดงข้อความ "Not enough data" แทนการหาย
 - ตารางรายคน `BenchmarkCandidateTable.tsx`: Position / Company / Hotel Chain / Rating / Industry / Salary, เรียงได้, ชื่ออยู่หลัง checkbox "Show names" (ปิดเป็นค่าเริ่มต้น), **Export Excel** (sheet Candidates = ทุก benefit ที่ไม่ retired + sheet Summary = filter ที่ใช้ + median/P25/P75; ชื่อตาม checkbox)
 - ช่อง budget ใน JR form / Set budget dialog ใส่ comma ขณะพิมพ์ (`formatMoneyInput` ใน `lib/utils.ts`)
+
+### อัปเดตเพิ่ม (2026-11-03) — Region / Location (Country) ใน Salary Benchmark
+- Filter ใหม่ **Region** และ **Location (Country)** (อยู่หน้าสุดของแถบ filter ใน Salary Benchmark + Package Info), ตาราง "Median by Region / Location", คอลัมน์ Location ในตารางรายคน, และคอลัมน์ Location + Region ใน Excel
+- ความหมายของ Location = กติกาเดียวกับการ์ด "By Location" ใน Funnel: **country ของงาน primary/current เมื่อเชื่อถือได้ (note มี "profile input") ไม่งั้นใช้ประเทศที่อยู่อาศัย (candidate_profile_enhance.country)** — ไม่ใช้ country ที่ AI เดาจาก HQ; ครอบคลุม 387/433 คนที่มีเงินเดือน (Thailand 293)
+- Region มาจากตาราง `country`; ค่า address เต็มใน based-in ("Pattaya, Thailand", "Hong Kong SAR") ถูก normalize เป็นประเทศ, ค่าที่ไม่ใช่ประเทศ ("Multi Location", "NULL") ถูกทิ้ง; Hong Kong ไม่อยู่ใน `country` เลยมี fallback Region = East Asia ใน `benchmark-actions.ts`
+- โค้ด: `benchmark-actions.ts` (`country`, `region` ต่อ candidate), `benchmark-filters.tsx`, `SalaryBenchmarkTab.tsx`, `BenchmarkCandidateTable.tsx`
+- ไม่มี filter "Based in" แยก (ต่างจาก AI Search) — ถ้าต้องการแยก work country vs based-in ให้เพิ่มทีหลัง
+- **Include small groups (n<3)** (2026-11-03): สวิตช์เหนือตาราง "Median by …" ใน Salary Benchmark (ปิดเป็นค่าเริ่มต้น = ซ่อนกลุ่มที่ <3 คนเหมือนเดิม); เมื่อเปิด แถว n<3 ขึ้นป้าย "low sample", สีจาง, P25/P75 เป็น "—" (`LOW_SAMPLE_N` ใน `SalaryBenchmarkTab.tsx`, `statsByGroup(..., minSample)`); การ์ดสรุปด้านบนไม่มีเกณฑ์ขั้นต่ำอยู่แล้ว

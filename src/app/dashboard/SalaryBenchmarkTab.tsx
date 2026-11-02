@@ -28,6 +28,9 @@ const thb = (n: number | null | undefined) =>
 const thbShort = (n: number) =>
     n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${Math.round(n / 1000)}K` : String(Math.round(n));
 
+/** Groups below this many candidates are "low sample": hidden by default, flagged (and without P25/P75) when shown. */
+const LOW_SAMPLE_N = 3;
+
 const GLOSSARY: { term: string; meaning: string }[] = [
     {
         term: "Which candidates",
@@ -36,7 +39,7 @@ const GLOSSARY: { term: string; meaning: string }[] = [
     { term: "Median", meaning: "The middle salary: half earn more, half earn less. Used instead of an average so outliers can't drag it." },
     { term: "P25 – P75", meaning: "The middle half of the group. A quarter earn below P25, a quarter above P75." },
     { term: "Compare a figure", meaning: "Type any monthly salary to see where it would sit in the filtered group, as a percentile." },
-    { term: "n", meaning: "How many candidates a figure is built from. Breakdown rows need at least 3." },
+    { term: "n", meaning: "How many candidates a figure is built from. Breakdown rows need at least 3 unless 'Include small groups' is on." },
     { term: "Basic salary only", meaning: "Monthly basic salary in THB. Bonus is listed separately in months and never folded in." },
 ];
 
@@ -71,7 +74,7 @@ function BreakdownTable({ title, keyLabel, rows, active, onPick }: {
                 </div>
                 {rows.length === 0 ? (
                     <div className="px-4 py-6 text-center text-xs font-semibold text-slate-400">
-                        Not enough data — a group needs at least 3 candidates with a salary.
+                        Not enough data — a group needs at least {LOW_SAMPLE_N} candidates with a salary (or turn on &quot;Include small groups&quot;).
                     </div>
                 ) : (
                 <div className="overflow-x-auto">
@@ -93,13 +96,20 @@ function BreakdownTable({ title, keyLabel, rows, active, onPick }: {
                                     className={cn(
                                         "hover:bg-slate-50/60",
                                         onPick && "cursor-pointer",
-                                        active?.includes(r.key) && "bg-indigo-50/70"
+                                        active?.includes(r.key) && "bg-indigo-50/70",
+                                        r.n < LOW_SAMPLE_N && "text-slate-400"
                                     )}
                                 >
-                                    <td className="px-4 py-2 font-bold text-slate-700 max-w-[260px] truncate" title={r.key}>{r.key}</td>
-                                    <td className="px-4 py-2 text-right font-black text-slate-800">{thb(r.median)}</td>
-                                    <td className="px-4 py-2 text-right text-slate-500">{thb(r.p25)}</td>
-                                    <td className="px-4 py-2 text-right text-slate-500">{thb(r.p75)}</td>
+                                    <td className={cn("px-4 py-2 font-bold max-w-[260px] truncate", r.n < LOW_SAMPLE_N ? "text-slate-500" : "text-slate-700")} title={r.key}>
+                                        {r.key}
+                                        {r.n < LOW_SAMPLE_N && (
+                                            <span className="ml-2 rounded-full bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-amber-600">low sample</span>
+                                        )}
+                                    </td>
+                                    <td className={cn("px-4 py-2 text-right font-black", r.n < LOW_SAMPLE_N ? "text-slate-500" : "text-slate-800")}>{thb(r.median)}</td>
+                                    {/* P25/P75 of one or two people say nothing about spread */}
+                                    <td className="px-4 py-2 text-right text-slate-500">{r.n < LOW_SAMPLE_N ? "—" : thb(r.p25)}</td>
+                                    <td className="px-4 py-2 text-right text-slate-500">{r.n < LOW_SAMPLE_N ? "—" : thb(r.p75)}</td>
                                     <td className="px-4 py-2 text-right text-slate-400 font-bold">{r.n}</td>
                                 </tr>
                             ))}
@@ -117,6 +127,7 @@ export default function SalaryBenchmarkTab() {
     const [loading, setLoading] = useState(true);
     const [showGlossary, setShowGlossary] = useState(false);
     const [compareInput, setCompareInput] = useState("");
+    const [includeSmall, setIncludeSmall] = useState(false);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -141,12 +152,15 @@ export default function SalaryBenchmarkTab() {
     const comparePercentile = compareValue && stats ? percentileRank(values, compareValue) : null;
 
     const amount = (c: BenchmarkCandidate) => parseSalary(c.gross_salary_base_b_mth) ?? 0;
-    const byRating = useMemo(() => statsByGroup(rows, c => c.rating, amount), [rows]);
-    const byIndustry = useMemo(() => statsByGroup(rows, c => c.company_industry, amount), [rows]);
-    const byCompany = useMemo(() => statsByGroup(rows, c => c.company, amount), [rows]);
-    const byJobFunction = useMemo(() => statsByGroup(rows, c => c.job_function, amount), [rows]);
-    const byPosition = useMemo(() => statsByGroup(rows, c => c.position, amount), [rows]);
-    const byHotelChain = useMemo(() => statsByGroup(rows, c => c.hotel_chain, amount), [rows]);
+    const minN = includeSmall ? 1 : LOW_SAMPLE_N;
+    const byRating = useMemo(() => statsByGroup(rows, c => c.rating, amount, minN), [rows, minN]);
+    const byIndustry = useMemo(() => statsByGroup(rows, c => c.company_industry, amount, minN), [rows, minN]);
+    const byCompany = useMemo(() => statsByGroup(rows, c => c.company, amount, minN), [rows, minN]);
+    const byJobFunction = useMemo(() => statsByGroup(rows, c => c.job_function, amount, minN), [rows, minN]);
+    const byPosition = useMemo(() => statsByGroup(rows, c => c.position, amount, minN), [rows, minN]);
+    const byHotelChain = useMemo(() => statsByGroup(rows, c => c.hotel_chain, amount, minN), [rows, minN]);
+    const byRegion = useMemo(() => statsByGroup(rows, c => c.region, amount, minN), [rows, minN]);
+    const byCountry = useMemo(() => statsByGroup(rows, c => c.country, amount, minN), [rows, minN]);
 
     // Clicking a breakdown row narrows that dimension to the one value, then scrolls to the people.
     const pick = (filterKey: string) => (value: string) => {
@@ -319,7 +333,15 @@ export default function SalaryBenchmarkTab() {
                         </Card>
                     )}
 
+                    <label className="flex w-fit items-center gap-2 text-xs font-semibold text-slate-500 cursor-pointer select-none">
+                        <input type="checkbox" checked={includeSmall} onChange={e => setIncludeSmall(e.target.checked)} />
+                        Include small groups (under {LOW_SAMPLE_N} candidates)
+                        <span className="font-normal text-slate-400">— shown as &quot;low sample&quot;, without P25/P75</span>
+                    </label>
+
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                        <BreakdownTable title="Median by Region" keyLabel="Region" rows={byRegion} active={activeOf("region")} onPick={pick("region")} />
+                        <BreakdownTable title="Median by Location (Country) — top 12" keyLabel="Country" rows={byCountry} active={activeOf("country")} onPick={pick("country")} />
                         <BreakdownTable title="Median by Hotel Chain" keyLabel="Hotel Chain" rows={byHotelChain} active={activeOf("hotelChain")} onPick={pick("hotelChain")} />
                         <BreakdownTable title="Median by Hotel Star Rating" keyLabel="Star Rating" rows={byRating} active={activeOf("rating")} onPick={pick("rating")} />
                         <BreakdownTable title="Median by Industry" keyLabel="Industry" rows={byIndustry} active={activeOf("industry")} onPick={pick("industry")} />
@@ -332,7 +354,9 @@ export default function SalaryBenchmarkTab() {
 
                     <p className="text-[10px] text-slate-400 font-medium">
                         Source: candidate profiles in our own database. This is internal data, not a published salary survey —
-                        a group needs at least 3 candidates before it appears in a breakdown.
+                        {includeSmall
+                            ? `groups under ${LOW_SAMPLE_N} candidates are marked "low sample" — treat them as individual salaries, not a market median.`
+                            : `a group needs at least ${LOW_SAMPLE_N} candidates before it appears in a breakdown.`}
                     </p>
                 </>
             )}

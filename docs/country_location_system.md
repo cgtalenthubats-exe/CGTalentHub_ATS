@@ -123,3 +123,7 @@ full_address = "Hong Kong SAR"                    → country = null ← คว�
 ---
 
 *Last updated: 2026-05-20 | Country/Location System v2 — all tasks complete*
+
+---
+
+*Addendum 2026-11-03:* Salary Benchmark (dashboard) ใช้ "Location" แบบ derived เดียวกับ Funnel By Location (work country ที่เชื่อถือได้ ไม่งั้น based-in) — ดู `docs/jr_salary_benchmark_and_stage_aging.md`; Decision Log ด้านบนเรื่องไม่รวม filter ยังใช้กับ AI Search (Work Country กับ Based in แยกกัน)
