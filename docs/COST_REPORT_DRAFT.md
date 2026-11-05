@@ -18,17 +18,17 @@
 
 | รายการ | ใช้ทำอะไร | ตัวเลขที่ให้มา | ผลตรวจ | สถานะ |
 |---|---|---|---|---|
-| Supabase Pro | ฐานข้อมูลหลัก (Postgres, Auth, Storage, RPC) | $25 | $25 ต่อ organization ตรงกับแหล่งข้อมูล แต่รวม compute เฉพาะ 1 project (เครดิต $10 ครอบ Micro); project เพิ่มโดยประมาณ $10/เดือน | ⚠️ ตรวจว่า **Supabase B** (project เวกเตอร์ แยกจากหลัก ตาม `ai-search-v3-plan.md`) อยู่ org เดียวกันหรือไม่ ถ้าใช่อาจมี ~+$10 |
+| Supabase Pro | ฐานข้อมูลหลัก (Postgres, Auth, Storage, RPC, vector) | $25 | $25 ต่อ organization ตรงกับแหล่งข้อมูล (รวม compute 1 project) | ✅ รวมเป็น **project เดียว** แล้ว (เดิมแยก Supabase B สำหรับ vector เพราะกลัว DB เต็ม ตอนนี้พื้นที่เหลือเฟือ จึงไม่มีค่า project เพิ่ม) |
 | n8n บน Hostinger VPS | workflow AI/automation ทั้งหมด | $15 | KVM 2 โปรโมชั่น ~$8.8–9, **ต่ออายุ ~$15**, add-on backup รายวัน $2.99 | ✅ สอดคล้องกับราคาต่ออายุ (ไม่รวม backup add-on ถ้ามี) |
-| Apify | (ตามที่ระบุ) | $39 | แหล่งข้อมูลส่วนใหญ่ระบุ Starter **$29** ($26 รายปี) และ Scale $199; ไม่พบแหล่งที่ระบุ $39 | ❌ **ไม่ตรง** ตรวจใบแจ้งหนี้จริง อาจเป็นแผนเก่า หรือ $29 + ค่าใช้เกิน |
+| Apify | (ตามที่ระบุ) | $29 | Starter $29 ($26 รายปี) ตรงกับแหล่งข้อมูล | ✅ ยืนยันจากเจ้าของระบบ |
 | Vercel | โฮสต์ Next.js (ดูข้อ 4) | — | Pro **$20/เดือน** ต่อ deploying seat รวมเครดิตใช้งาน $20 | ❓ ยังไม่ทราบแผนปัจจุบัน |
+| Domain name (ชื่อโดเมน) | ชื่อเว็บของระบบ | — | ยังไม่รวมในตัวเลข | **[ใส่ตัวเลข ต่อปี ÷ 12]** |
 | Gmail API | ส่งรายงานทางอีเมล | — | ไม่เห็นค่าใช้จ่ายใน repo | ไม่รวม |
 
 **ผลรวมค่าคงที่ (ประมาณ):**
-- ตามตัวเลขที่ให้มา: 25 + 15 + 39 = **$79**
-- ถ้า Vercel Pro 1 seat: **+$20 → ~$99**
-- ถ้า Supabase B คิดเงินแยก: **+~$10**
-- ถ้า Apify จริงคือ $29: **−$10**
+- Supabase 25 + n8n 15 + Apify 29 = **$69**
+- ถ้าใช้ Vercel Pro 1 seat: **+$20 → ~$89**
+- บวกค่า domain (ต่อปี ÷ 12) ที่ยังไม่รวม
 
 (ยังไม่รวม VAT และค่าธรรมเนียมบัตร)
 
@@ -87,7 +87,7 @@
 
 | รายการ | จำนวน |
 |---|---|
-| Gemini (ส่วนใหญ่ของงาน AI) | **[ใส่ตัวเลข]** |
+| Gemini + Vertex embedding (ส่วนใหญ่ของงาน AI) | **[ใส่ตัวเลข]** |
 | Anthropic (Haiku แปลง filter + Sonnet สรุป Stage 3) | **[ใส่ตัวเลข]** |
 | OpenAI (ถ้ามีการใช้) | **[ใส่ตัวเลข]** |
 | Buffer เผื่อ retry / ปริมาณพุ่ง | **[ใส่ %]** |
@@ -96,38 +96,42 @@
 
 ### 3.5 สิ่งที่ตัดออกแล้ว (ระบบเก่า)
 - **Perplexity** — ใช้ใน flow เก่าของหน้า `/ai-search` (agent ค้นบริษัท/ข่าว) ปัจจุบันตัดออกแล้ว (ใน `StatusPipeline.tsx` ยังมีข้อความ label เก่าอยู่ เป็นเรื่อง UI ไม่มีค่าใช้จ่าย)
-- **บริการ Google Cloud Business** — ตัดออกเพราะเป็นของระบบเก่า ต้นทุนลดลง
-- ⚠️ ตรวจให้แน่ใจว่า **embedding `text-embedding-005` ยังเรียกผ่าน Vertex AI หรือย้ายไป Gemini API แล้ว** เพราะ Vertex ผูกกับบิล Google Cloud ถ้ายังใช้อยู่ จะมีค่าใช้จ่ายส่วนนี้แยกจากเครดิต Gemini
+- **บริการ Google Cloud ที่ใช้กับ AppSheet** — AppSheet ของระบบเก่าคิดค่าบริการตามจำนวนผู้ใช้งาน ปัจจุบันตัดออกแล้ว เมื่อมาใช้ระบบนี้ ต้นทุนลดลงและไม่ผูกกับจำนวนผู้ใช้
+- **Vertex AI embedding** (`text-embedding-005`) ถือเป็นส่วนหนึ่งของค่า LLM ฝั่ง Google จึงรวมอยู่ในงบเครดิต AI ข้อ 3.4 ไม่ได้แยกเป็นบริการ Google Cloud ต่างหาก
 
 ---
 
-## 4. Vercel จำเป็นไหม
+## 4. Vercel — จำเป็นต้องใช้แผน Pro ไหม
+
+**คำถามที่ถูกต้องคือ:** ถ้าโฮสต์เว็บแอปบน Vercel ต่อ และเก็บเงินจากผู้ใช้ ต้องใช้แผน Pro หรือไม่
 
 **สิ่งที่ตรวจพบ**
 - มี project `cg-talent-hub-ats` บน Vercel ผูกกับ repo นี้ และ docs ระบุว่าใช้ Vercel Preview ของ branch ทดสอบ
-- แอปมีโค้ดที่พึ่ง serverless (`outputFileTracingIncludes` ใน `next.config.ts`) และไม่ได้ตั้ง `maxDuration` ให้ function ใดเลย
-- ผมอ่านแผน (Hobby/Pro) และการใช้งานจริงไม่ได้ เพราะ scope ต้องให้เจ้าของอนุมัติสิทธิ์ก่อน
+- ผมอ่านแผนปัจจุบัน (Hobby/Pro) ไม่ได้ เพราะ scope ต้องให้เจ้าของอนุมัติสิทธิ์ก่อน
 
-**ข้อสรุป**
-- Vercel ทำหน้าที่โฮสต์เว็บแอป ถ้าไม่ใช้ ต้องย้ายไปโฮสต์ที่อื่น (เช่น VPS เดิม) ซึ่งได้ประหยัด ~$20 แต่ต้องดูแลเอง: deploy, SSL, restart, ไม่มี preview ต่อ branch และต้องปรับให้รันนอก serverless
-- ถ้าแผนปัจจุบันเป็น Hobby: Hobby ออกแบบสำหรับการใช้ส่วนตัว/ไม่เชิงพาณิชย์ เมื่อเก็บเงินผู้ใช้ น่าจะต้องใช้ Pro (ยืนยันกับเงื่อนไขของ Vercel ก่อน)
-- งานที่หนัก (สร้าง PPTX, export) อาจชนเพดานเวลา function ของแผน ต้องเช็คหน้า Functions ของ Vercel
+**ข้อสรุป: เป็นเรื่องเงื่อนไขการใช้งาน ไม่ใช่เรื่องฟีเจอร์ — ถ้าเก็บเงินผู้ใช้ ควรใช้ Pro**
+- เอกสารทางการของ Vercel ระบุว่า Hobby จำกัดสำหรับการใช้ส่วนบุคคลที่ไม่เชิงพาณิชย์ และการใช้งานเชิงพาณิชย์ต้องใช้ Pro หรือ Enterprise การเก็บเงินค่าใช้ระบบจากผู้ใช้เข้าข่ายเชิงพาณิชย์ ไม่ใช่แค่ "มีก็ดี"
+- ความเสี่ยงของการอยู่ Hobby คือผิดเงื่อนไขการใช้งานและ project อาจถูกระงับ (ข้อหลังมาจากแหล่งรอง) นิยามตรงของคำว่า "เชิงพาณิชย์" ควรอ่านจากหน้า Fair Use ของ Vercel เองก่อนสรุปกับลูกค้า
+- ฝั่งเทคนิค ตอนนี้ Pro ยังไม่ได้ให้ความสามารถที่ระบบใช้เพิ่ม: เวลารัน function ค่าเริ่มต้นคือ 300 วินาทีทั้ง Hobby และ Pro และโค้ดยังไม่ได้ตั้ง `maxDuration` เพดานที่ต่างกันคือ Hobby 300 วินาที vs Pro 800 วินาที เป็นประโยชน์เมื่อมีงาน export หนักที่เกิน 5 นาที
 
-**ทางเลือกที่ต้องตัดสินใจ:** อยู่ Vercel Pro ($20) หรือย้ายไป VPS ($0 เพิ่ม แต่เพิ่มภาระดูแล)
+**ค่าใช้จ่าย:** Pro $20/เดือน ต่อ deploying seat (รวมเครดิตใช้งาน $20) ผู้ดูอย่างเดียว (viewer) ไม่คิดเงินตามแหล่งข้อมูลบุคคลที่สาม
+**ทางเลือก:** ย้ายไปโฮสต์บน VPS เดิมเพื่อเลี่ยง $20 แต่ต้องดูแลเอง (deploy, SSL, restart) และเสีย preview ต่อ branch
 
 ---
 
 ## 5. รายการที่ต้องยืนยันก่อนส่งรายงาน
 
-1. Apify จ่ายจริงเท่าไร (ตัวเลข $39 ไม่ตรงกับราคาที่พบ)
-2. Supabase B อยู่ org เดียวกันหรือไม่ และคิดเงินอย่างไร
-3. แผน Vercel ปัจจุบัน (Hobby/Pro) และจำนวน seat
-4. Embedding ยังอยู่บน Vertex AI หรือไม่
-5. มีการใช้ OpenAI จริงหรือไม่ และใช้ในงานใด
-6. โมเดลที่ใช้จัดหมวด Job Function ใน n8n
-7. ตัวเลข TPM ของ Gemini Tier 1 เทียบ Tier 2 จาก AI Studio
-8. ยอดใช้จริง 3 เดือนล่าสุดของ Gemini / Anthropic / OpenAI เพื่อกรอกงบข้อ 3.4
-9. Backup add-on ของ VPS ($2.99) มีหรือไม่
+ยืนยันแล้ว: Apify $29, Supabase เหลือ project เดียว, Google Cloud ที่ตัดคือ AppSheet, Vertex embedding นับรวมใน LLM
+
+ยังต้องยืนยัน:
+1. แผน Vercel ปัจจุบัน (Hobby/Pro) และจำนวน seat
+2. ราคา domain และรอบต่ออายุ (ต่อปี) รวมค่า DNS/อีเมลถ้ามี
+3. มีการใช้ OpenAI จริงหรือไม่ และใช้ในงานใด
+4. โมเดลที่ใช้จัดหมวด Job Function ใน n8n
+5. ตัวเลข TPM ของ Gemini Tier 1 เทียบ Tier 2 จาก AI Studio
+6. ยอดใช้จริง 3 เดือนล่าสุดของ Gemini / Anthropic / OpenAI เพื่อกรอกงบข้อ 3.4
+7. Backup add-on ของ VPS ($2.99) มีหรือไม่
+8. หลังรวม Supabase เหลือ project เดียว: workflow n8n ที่เคยชี้ไป Supabase B (vector rank) ต้องปรับให้ชี้ไป project หลัก
 
 ---
 
@@ -138,6 +142,8 @@
 - Gemini API billing: https://ai.google.dev/gemini-api/docs/billing
 - OpenAI prepaid billing: https://help.openai.com/en/articles/9047769
 - Vercel Pro plan: https://vercel.com/docs/plans/pro-plan
+- Vercel Hobby plan / Fair use guidelines: https://vercel.com/docs/limits/fair-use-guidelines
+- Vercel Functions limitations: https://vercel.com/docs/functions/limitations
 - Supabase (database-only cost FAQ): https://supabase.com/kb/faqs/platform/database-only-cost
 - Hostinger self-hosted n8n: https://www.hostinger.com/self-hosted-n8n
 - Apify pricing (ตัวเลขจากบุคคลที่สาม ต้องยืนยันที่ apify.com/pricing): https://automationatlas.io/answers/apify-pricing-explained-2026/
