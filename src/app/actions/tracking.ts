@@ -1,6 +1,7 @@
 "use server";
 
 import { adminAuthClient } from "@/lib/supabase/admin";
+import { pickPrimaryExperience } from "@/lib/candidate-experience-utils";
 
 export interface TrackingStats {
     totalJRs: number;
@@ -91,7 +92,7 @@ export async function getTrackingData(filters: {
     // parallel fetch logs and experiences
     const [logsRes, expRes] = await Promise.all([
         supabase.from('status_log').select('jr_candidate_id, status, timestamp, log_id').in('jr_candidate_id', jrCandIds),
-        supabase.from('candidate_experiences').select('candidate_id, country, company_industry, start_date').in('candidate_id', candidateIds)
+        supabase.from('candidate_experiences').select('candidate_id, country, company_industry, start_date, end_date, is_current_job, is_primary_current').in('candidate_id', candidateIds)
     ]);
 
     const logsMap = new Map();
@@ -108,8 +109,8 @@ export async function getTrackingData(filters: {
 
     const candidateContextMap = new Map();
     expMap.forEach((exps, cId) => {
-        exps.sort((a: any, b: any) => (b.start_date || "").localeCompare(a.start_date || ""));
-        candidateContextMap.set(cId, exps[0]);
+        // Same single-value rule as every other page: primary pick, else current, else latest.
+        candidateContextMap.set(cId, pickPrimaryExperience(exps));
     });
 
     const statusCounts: Record<string, number> = {};

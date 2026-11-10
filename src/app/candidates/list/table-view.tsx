@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { Checkbox } from "@/components/ui/checkbox";
 import { CandidateLinkedinButton } from "@/components/candidate-linkedin-button";
 import { CandidateOrgChartButton } from "@/components/candidate-org-chart-button";
+import { SHOW_JOB_GROUPING } from "@/lib/job-function-utils";
 
 // --- Types (Duplicated from page.tsx to avoid circular deps or complex refactor) ---
 export interface Experience {
@@ -231,7 +232,7 @@ const CandidateRow = ({
                 </TableCell>
                 <TableCell>
                     <div className="flex flex-col gap-1.5">
-                        {candidate.job_grouping && (
+                        {SHOW_JOB_GROUPING && candidate.job_grouping && (
                             <Badge variant="outline" className="w-fit text-[10px] h-5 bg-blue-50 text-blue-700 border-blue-100 truncate max-w-[150px]">
                                 {candidate.job_grouping}
                             </Badge>
@@ -241,7 +242,7 @@ const CandidateRow = ({
                                 {candidate.job_function}
                             </Badge>
                         )}
-                        {!candidate.job_grouping && !candidate.job_function && <span className="text-slate-300">-</span>}
+                        {!(SHOW_JOB_GROUPING && candidate.job_grouping) && !candidate.job_function && <span className="text-slate-300">-</span>}
                     </div>
                 </TableCell>
                 {showHotelColumn ? (
@@ -383,7 +384,7 @@ export function CandidateTableView({
                         <TableHead>Position</TableHead>
                         <TableHead>Company</TableHead>
                         <TableHead>Country</TableHead>
-                        <TableHead>Job Group/Function</TableHead>
+                        <TableHead>{SHOW_JOB_GROUPING ? "Job Group/Function" : "Job Function"}</TableHead>
                         {showHotelColumn ? (
                             <TableHead className="w-[170px]">Hotel</TableHead>
                         ) : (

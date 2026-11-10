@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Briefcase, Building2, Factory, RotateCcw, Star } from "lucide-react";
+import { Briefcase, Building2, Factory, Globe2, MapPin, RotateCcw, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FilterMultiSelect } from "@/components/ui/filter-multi-select";
 import { ActiveFilterChips } from "@/components/ui/active-filter-chips";
 import type { BenchmarkCandidate } from "@/app/actions/benchmark-actions";
+import { SHOW_JOB_GROUPING } from "@/lib/job-function-utils";
 
 /**
  * The candidate filter bar shared by the dashboard's benchmark tabs.
@@ -25,12 +26,15 @@ interface FilterField {
 }
 
 export const BENCHMARK_FILTER_FIELDS: FilterField[] = [
+    { key: "region", label: "Region", field: "region", icon: Globe2 },
+    { key: "country", label: "Location (Country)", field: "country", icon: MapPin },
     { key: "industry", label: "Industry", field: "company_industry", icon: Factory },
     { key: "group", label: "Company Group", field: "company_group", icon: Building2 },
-    { key: "jobGrouping", label: "Job Grouping", field: "job_grouping", icon: Briefcase, exclude: ["NA", "Not found exp"] },
+    ...(SHOW_JOB_GROUPING ? [{ key: "jobGrouping", label: "Job Grouping", field: "job_grouping", icon: Briefcase, exclude: ["NA", "Not found exp"] }] : []),
     { key: "jobFunction", label: "Job Function", field: "job_function", exclude: ["NA", "Not found exp"] },
     { key: "company", label: "Company", field: "company" },
     { key: "position", label: "Position", field: "position" },
+    { key: "hotelChain", label: "Hotel Chain", field: "hotel_chain", icon: Building2 },
     { key: "rating", label: "Rating", field: "rating", icon: Star },
 ];
 
@@ -39,6 +43,8 @@ export interface BenchmarkFilters {
     filtered: BenchmarkCandidate[];
     options: Record<string, string[]>;
     toggle: (key: string, value: string) => void;
+    /** Replaces one filter's whole selection at once (Select all / Clear). */
+    replace: (key: string, values: string[]) => void;
     remove: (key: string, value: string) => void;
     reset: () => void;
     activeCount: number;
@@ -79,6 +85,7 @@ export function useBenchmarkFilters(rows: BenchmarkCandidate[]): BenchmarkFilter
             const cur = prev[key] ?? [];
             return { ...prev, [key]: cur.includes(value) ? cur.filter(v => v !== value) : [...cur, value] };
         }),
+        replace: (key, values) => setSelected(prev => ({ ...prev, [key]: values })),
         remove: (key, value) => setSelected(prev => ({ ...prev, [key]: (prev[key] ?? []).filter(v => v !== value) })),
         reset: () => setSelected({}),
         activeCount: Object.values(selected).reduce((n, v) => n + v.length, 0),
@@ -97,6 +104,7 @@ export function BenchmarkFilterBar({ filters }: { filters: BenchmarkFilters }) {
                         options={filters.options[f.key] ?? []}
                         selected={filters.selected[f.key] ?? []}
                         onChange={val => filters.toggle(f.key, val)}
+                        onReplace={vals => filters.replace(f.key, vals)}
                     />
                 ))}
                 <Button variant="ghost" size="sm" onClick={filters.reset} className="gap-2 text-slate-500 hover:text-red-500">

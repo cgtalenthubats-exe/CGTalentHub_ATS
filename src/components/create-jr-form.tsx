@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Check, ChevronsUpDown, Plus, Loader2, Upload, UploadCloud, FileText, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, formatMoneyInput } from "@/lib/utils";
 import { createClient } from "@supabase/supabase-js";
 
 // Initialize Supabase Client for client-side storage upload
@@ -122,7 +122,11 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData, sel
         job_description: initialData?.job_description || "",
         feedback_file: initialData?.feedback_file || "",
         create_by: initialData?.created_by || "",
-        is_active: initialData?.is_active || "Active"
+        is_active: initialData?.is_active || "Active",
+        // Salary budget, kept as text while typing and converted to numbers on submit.
+        budget_min: initialData?.budget_min != null ? formatMoneyInput(String(initialData.budget_min)) : "",
+        budget_max: initialData?.budget_max != null ? formatMoneyInput(String(initialData.budget_max)) : "",
+        budget_note: initialData?.budget_note || ""
     });
     
     // Combined Profiles Logic
@@ -240,12 +244,22 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData, sel
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        const parseBudget = (s: string) => (s.trim() ? Number(s.replace(/[^0-9.]/g, "")) : null);
+        const budgetMin = parseBudget(formData.budget_min);
+        const budgetMax = parseBudget(formData.budget_max);
+        if (budgetMin !== null && budgetMax !== null && budgetMax < budgetMin) {
+            toast.error("Maximum budget cannot be lower than the minimum.");
+            return;
+        }
+        const payload = { ...formData, budget_min: budgetMin, budget_max: budgetMax };
+
         setIsLoading(true);
 
         try {
             if (isEdit) {
                 const { updateJobRequisition } = await import("@/app/actions/requisitions");
-                const result = await updateJobRequisition(initialData.id, formData, isFileUpdated);
+                const result = await updateJobRequisition(initialData.id, payload, isFileUpdated);
                 if (result.success && result.data) {
                     toast.success("Job Requisition updated successfully");
                     onSuccess(result.data);
@@ -254,7 +268,7 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData, sel
                 }
             } else {
                 const { createJobRequisition } = await import("@/app/actions/requisitions");
-                const newJR = await createJobRequisition(formData);
+                const newJR = await createJobRequisition(payload);
                 if (newJR) {
                     toast.success("Job Requisition created successfully");
                     onSuccess(newJR);
@@ -399,6 +413,30 @@ export function CreateJobRequisitionForm({ onCancel, onSuccess, initialData, sel
                             <SelectItem value="Closed">Closed</SelectItem>
                         </SelectContent>
                     </Select>
+                </div>
+
+                {/* Salary budget (optional) — same fields as the Salary Benchmark tab's "Set budget" */}
+                <div className="space-y-2 md:col-span-2">
+                    <Label>Salary Budget <span className="text-xs font-normal text-slate-400">(optional · monthly basic salary, THB)</span></Label>
+                    <div className="grid grid-cols-2 gap-3">
+                        <Input
+                            value={formData.budget_min}
+                            onChange={(e) => handleChange("budget_min", formatMoneyInput(e.target.value))}
+                            placeholder="Min e.g. 100,000"
+                            inputMode="numeric"
+                        />
+                        <Input
+                            value={formData.budget_max}
+                            onChange={(e) => handleChange("budget_max", formatMoneyInput(e.target.value))}
+                            placeholder="Max (leave empty if a single figure)"
+                            inputMode="numeric"
+                        />
+                    </div>
+                    <Input
+                        value={formData.budget_note}
+                        onChange={(e) => handleChange("budget_note", e.target.value)}
+                        placeholder="Budget note (approval reference, package notes...)"
+                    />
                 </div>
 
                 {/* Job Description File (PDF Upload) */}

@@ -55,6 +55,7 @@ import { SmartCandidateSearch } from "@/components/smart-candidate-search"; // [
 import { searchCompanies, searchPositions } from "@/app/actions/candidate-filters";
 import { triggerCandidateRefresh } from "@/app/actions/n8n-actions";
 import { getBulkCandidateOrgCharts } from "@/app/actions/org-chart-actions";
+import { SHOW_JOB_GROUPING } from "@/lib/job-function-utils";
 
 // Types
 interface Candidate {
@@ -609,7 +610,7 @@ export default function CandidateListPage() {
                             <FilterMultiSelect label="Industry" icon={Building} options={options.industries} selected={filters.industries} onChange={(v: string[]) => setFilterArray('industries', v)} />
 
                             {/* 9. Job Group */}
-                            <FilterMultiSelect label="Job Group" icon={Briefcase} options={options.jobGroupings} selected={filters.jobGroupings} onChange={(v: string[]) => setFilterArray('jobGroupings', v)} />
+                            {SHOW_JOB_GROUPING && <FilterMultiSelect label="Job Group" icon={Briefcase} options={options.jobGroupings} selected={filters.jobGroupings} onChange={(v: string[]) => setFilterArray('jobGroupings', v)} />}
 
                             {/* 10. Job Function */}
                             <FilterMultiSelect label="Job Function" icon={Layers} options={options.jobFunctions} selected={filters.jobFunctions} onChange={(v: string[]) => setFilterArray('jobFunctions', v)} />
@@ -1147,7 +1148,7 @@ function CandidateRichCard({
                     </div>
 
                     <div className="flex gap-2 mt-4">
-                        {candidate.job_grouping && <Badge variant="secondary" className="text-[10px] bg-blue-50 text-blue-700">{candidate.job_grouping}</Badge>}
+                        {SHOW_JOB_GROUPING && candidate.job_grouping && <Badge variant="secondary" className="text-[10px] bg-blue-50 text-blue-700">{candidate.job_grouping}</Badge>}
                         {candidate.job_function && <Badge variant="secondary" className="text-[10px] bg-purple-50 text-purple-700">{candidate.job_function}</Badge>}
                     </div>
                 </div>

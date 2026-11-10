@@ -14,6 +14,7 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { CandidateProfileSheet } from "@/components/candidate-profile-sheet";
+import { SHOW_JOB_GROUPING } from "@/lib/job-function-utils";
 
 // --- Helpers ---
 function parseMonthYearDate(dateStr: string | null | undefined): number {
@@ -114,7 +115,7 @@ function SourcingRow({ candidate, onOpenSheet }: { candidate: KPIDetailCandidate
                 </TableCell>
                 <TableCell>
                     <div className="flex flex-col gap-1">
-                        {candidate.job_grouping && (
+                        {SHOW_JOB_GROUPING && candidate.job_grouping && (
                             <Badge variant="outline" className="w-fit text-[10px] h-5 bg-blue-50 text-blue-700 border-blue-100 truncate max-w-[150px]">
                                 {candidate.job_grouping}
                             </Badge>
@@ -124,7 +125,7 @@ function SourcingRow({ candidate, onOpenSheet }: { candidate: KPIDetailCandidate
                                 {candidate.job_function}
                             </Badge>
                         )}
-                        {!candidate.job_grouping && !candidate.job_function && <span className="text-slate-300 text-xs">-</span>}
+                        {!(SHOW_JOB_GROUPING && candidate.job_grouping) && !candidate.job_function && <span className="text-slate-300 text-xs">-</span>}
                     </div>
                 </TableCell>
                 <TableCell className="text-xs text-slate-500 font-mono">{formatDate(candidate.created_date)}</TableCell>
@@ -247,7 +248,7 @@ function KPIDetailContent() {
                                                 <TableHead>Position</TableHead>
                                                 <TableHead>Company</TableHead>
                                                 <TableHead>Country</TableHead>
-                                                <TableHead>Job Group / Function</TableHead>
+                                                <TableHead>{SHOW_JOB_GROUPING ? "Job Group / Function" : "Job Function"}</TableHead>
                                                 <TableHead>Created</TableHead>
                                             </TableRow>
                                         </TableHeader>

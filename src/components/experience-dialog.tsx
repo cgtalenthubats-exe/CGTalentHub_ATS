@@ -14,9 +14,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { addExperience, deleteExperience, searchCompanies, getCompanyDetails, getFieldSuggestions, setCurrentExperience, updateExperience, getIndustryGroupMaster, getCountryMaster } from "@/app/actions/candidate";
+import { addExperience, deleteExperience, searchCompanies, getCompanyDetails, getFieldSuggestions, setPrimaryExperience, markExperiencePast, updateExperience, getIndustryGroupMaster, getCountryMaster } from "@/app/actions/candidate";
 import { formatMonthYear } from "@/lib/date-utils";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { Info, Plus, Trash2, Check, ChevronsUpDown, Star, Edit } from "lucide-react";
 import {
     Command,
@@ -565,11 +566,15 @@ export function SetCurrentExperienceButton({
 }: { experienceId: string; candidateId: string; isCurrent: boolean; isPrimary?: boolean; onSuccess?: () => void | Promise<void> }) {
     const [loading, setLoading] = useState(false);
 
-    async function handleClick(e: React.MouseEvent) {
+    async function run(e: React.MouseEvent, action: typeof setPrimaryExperience) {
         e.preventDefault();
         setLoading(true);
-        await setCurrentExperience(experienceId, candidateId);
+        const res: any = await action(experienceId, candidateId);
         setLoading(false);
+        if (res?.error) {
+            toast.error(`Update failed: ${res.error}`);
+            return;
+        }
         if (onSuccess) await onSuccess();
         else window.location.reload();
     }
@@ -578,32 +583,46 @@ export function SetCurrentExperienceButton({
     // one explicitly chosen (is_primary_current) as the single representative wherever the
     // UI needs one value; "Concurrent" is still ongoing but not that pick — kept visually
     // distinct (cooler/outline vs the filled amber Primary) so the two don't read as the same
-    // state. Clicking this button always un-currents the row (same toggle as before) — it
-    // doesn't yet offer a way to promote a Concurrent row to Primary without first
-    // un-currenting another. "Set Primary" (rather than "Set Current") because that's what
-    // clicking it actually does: marks the row Current AND makes it the primary pick.
+    // state. The main pill only ever PROMOTES to primary (Concurrent / Set Primary -> Primary);
+    // ending a role is a separate "End" pill shown on current rows, so promoting a concurrent
+    // role never silently turns it into Past.
     const label = isCurrent ? (isPrimary ? "Primary" : "Concurrent") : "Set Primary";
 
     return (
-        <button
-            onClick={handleClick}
-            disabled={loading}
-            title={isCurrent ? "Unset as Current Job" : "Set as Current & Primary"}
-            className={cn(
-                "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border",
-                isPrimary
-                    ? "bg-amber-50 border-amber-200 text-amber-600 shadow-sm shadow-amber-100/50"
-                    : isCurrent
-                        ? "bg-indigo-50 border-indigo-200 text-indigo-600"
-                        : "bg-slate-50/50 border-slate-200 text-slate-400 hover:border-amber-300 hover:text-amber-500 hover:bg-amber-50",
-                loading && "opacity-50 cursor-not-allowed"
+        <span className="inline-flex items-center gap-1.5">
+            <button
+                onClick={(e) => run(e, setPrimaryExperience)}
+                disabled={loading || isPrimary}
+                title={isPrimary ? "Primary current job" : "Make this the Primary job"}
+                className={cn(
+                    "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border",
+                    isPrimary
+                        ? "bg-amber-50 border-amber-200 text-amber-600 shadow-sm shadow-amber-100/50 cursor-default"
+                        : isCurrent
+                            ? "bg-indigo-50 border-indigo-200 text-indigo-600 hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50"
+                            : "bg-slate-50/50 border-slate-200 text-slate-400 hover:border-amber-300 hover:text-amber-500 hover:bg-amber-50",
+                    loading && "opacity-50 cursor-not-allowed"
+                )}
+            >
+                <Star className={cn(
+                    "h-3 w-3 transition-transform",
+                    isPrimary ? "fill-amber-400 text-amber-500 scale-110" : isCurrent ? "text-indigo-400" : "text-slate-300"
+                )} />
+                {label}
+            </button>
+            {isCurrent && (
+                <button
+                    onClick={(e) => run(e, markExperiencePast)}
+                    disabled={loading}
+                    title="End this job (mark as Past)"
+                    className={cn(
+                        "px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border border-slate-200 text-slate-400 hover:border-rose-300 hover:text-rose-500 hover:bg-rose-50 transition-all",
+                        loading && "opacity-50 cursor-not-allowed"
+                    )}
+                >
+                    End
+                </button>
             )}
-        >
-            <Star className={cn(
-                "h-3 w-3 transition-transform",
-                isPrimary ? "fill-amber-400 text-amber-500 scale-110" : isCurrent ? "text-indigo-400" : "text-slate-300"
-            )} />
-            {label}
-        </button>
+        </span>
     );
 }

@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, RotateCcw, RefreshCw, CheckCircle2, Minus, Search, Building2, Briefcase, Factory, Info, Star, TrendingUp } from "lucide-react";
 import { formatNumberWithCommas } from "@/lib/utils";
+import { SHOW_JOB_GROUPING } from "@/lib/job-function-utils";
 
 // ---- Benefit row definitions ----
 // Derived from the shared compensation schema: base salary has its own column in this table, and
@@ -342,7 +343,7 @@ export default function PackageInfoTab() {
                                             <th className="px-4 py-2.5 text-left font-semibold">Position</th>
                                             <th className="px-4 py-2.5 text-left font-semibold">Company</th>
                                             <th className="px-4 py-2.5 text-left font-semibold">Industry</th>
-                                            <th className="px-4 py-2.5 text-left font-semibold">Job Grouping</th>
+                                            {SHOW_JOB_GROUPING && <th className="px-4 py-2.5 text-left font-semibold">Job Grouping</th>}
                                             <th className="px-4 py-2.5 text-right font-semibold">Gross Salary (mth)</th>
                                             <th className="px-4 py-2.5 text-center font-semibold">Bonus</th>
                                             <th className="px-4 py-2.5 text-center font-semibold">Car</th>
@@ -358,7 +359,7 @@ export default function PackageInfoTab() {
                                                 <td className="px-4 py-2 text-slate-700 font-medium max-w-[150px] truncate" title={c.position || ''}>{c.position || '-'}</td>
                                                 <td className="px-4 py-2 text-slate-600 max-w-[150px] truncate" title={c.company || ''}>{c.company || '-'}</td>
                                                 <td className="px-4 py-2 text-slate-500 max-w-[130px] truncate" title={c.company_industry || ''}>{c.company_industry || '-'}</td>
-                                                <td className="px-4 py-2 text-slate-500">{c.job_grouping || '-'}</td>
+                                                {SHOW_JOB_GROUPING && <td className="px-4 py-2 text-slate-500">{c.job_grouping || '-'}</td>}
                                                 <td className="px-4 py-2 text-right font-mono text-indigo-700 font-semibold">
                                                     {formatNumberWithCommas(c.gross_salary_base_b_mth) || '-'}
                                                 </td>

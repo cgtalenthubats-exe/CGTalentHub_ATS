@@ -22,6 +22,11 @@ export interface JobRequisition {
     feedback_file?: string;
     closed_date?: string | null; // Set automatically when is_active transitions to 'Closed'; freezes JR aging
     jr_note?: string | null;
+    // Monthly basic-salary budget in THB (job_requisitions.budget_min/max/note). Also editable from the
+    // Salary Benchmark tab; entered here at create/edit time so it's on the JR from the start.
+    budget_min?: number | null;
+    budget_max?: number | null;
+    budget_note?: string | null;
 }
 
 export interface JRCandidate {
@@ -45,6 +50,7 @@ export interface JRCandidate {
     candidate_current_company_industry?: string;
     candidate_current_company_group?: string;
     candidate_is_current_job?: string; // 'Current' | 'Latest Experience' | null
+    candidate_primary_unset?: boolean; // has concurrent Current roles but no is_primary_current pick yet
     candidate_concurrent_count?: number; // other genuinely-Current experiences besides the primary pick
     candidate_country?: string; // country(note) formatted
     candidate_image_url?: string; // photo

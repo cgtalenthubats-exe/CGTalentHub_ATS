@@ -255,7 +255,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
         return 0;
     };
 
-    const expMap = new Map<string, { company: string; company_id: string; position: string; label: string; country: string; region: string; note: string; company_industry: string; company_group: string; industry_master: string; hotel_rating: string | null; concurrentCount: number; }>();
+    const expMap = new Map<string, { company: string; company_id: string; position: string; label: string; country: string; region: string; note: string; company_industry: string; company_group: string; industry_master: string; hotel_rating: string | null; concurrentCount: number; primaryUnset: boolean; }>();
     const fullExpMap = new Map<string, JRCandidateExperience[]>();
     if (experiences && (experiences as any[]).length > 0) {
         // Group by candidate_id
@@ -306,6 +306,9 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
                 industry_master: masterData?.industry || '',
                 hotel_rating: masterData?.rating || null,
                 concurrentCount,
+                // Several ongoing roles but nobody picked the primary one: the row below is just the
+                // heuristic guess, so flag it for the recruiter to confirm.
+                primaryUnset: concurrentCount > 0 && best.is_primary_current !== true,
             });
 
             fullExpMap.set(cid, exps.map((e: any) => ({
@@ -369,6 +372,7 @@ export async function getJRCandidates(jrId: string): Promise<JRCandidate[]> {
             candidate_current_company_group: exp?.company_group || undefined,
             candidate_is_current_job: exp ? exp.label : undefined,
             candidate_concurrent_count: exp?.concurrentCount || 0,
+            candidate_primary_unset: exp?.primaryUnset || false,
             candidate_country: countryDisplay || undefined,
             candidate_image_url: profile?.photo || undefined,
             candidate_age: profile?.age || (profile?.year_of_bachelor_education ? parseInt(getEffectiveAge(null, profile.year_of_bachelor_education)) || undefined : undefined),

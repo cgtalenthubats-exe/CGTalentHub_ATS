@@ -6,6 +6,18 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * For money inputs: keeps digits (and one decimal point) and re-inserts thousands commas as the
+ * user types — "100000" -> "100,000". Returns "" when nothing numeric is left.
+ */
+export function formatMoneyInput(raw: string): string {
+    const cleaned = raw.replace(/[^0-9.]/g, "");
+    if (!cleaned) return "";
+    const [int, ...rest] = cleaned.split(".");
+    const withCommas = (int || "0").replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return rest.length ? `${withCommas}.${rest.join("")}` : withCommas;
+}
+
+/**
  * Formats a number or string into a comma-separated string (e.g., 400000 -> 400,000)
  */
 export function formatNumberWithCommas(value: string | number | null | undefined): string {

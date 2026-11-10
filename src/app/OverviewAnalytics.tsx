@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2, TrendingUp, Users, Briefcase, FileText, Database, Layers, LayoutGrid, Building2, Globe } from "lucide-react";
 import { getDashboardOverviewStats } from "@/app/actions/analytics";
 import { getDistributionStats } from "@/app/actions/pending-tasks-actions";
+import { SHOW_JOB_GROUPING } from "@/lib/job-function-utils";
 
 export default function OverviewAnalytics() {
     const [data, setData] = useState<any>(null);
@@ -79,7 +80,7 @@ export default function OverviewAnalytics() {
             </div>
 
             {/* NEW: Job Family + Job Group Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-4 border-t border-slate-100">
+            <div className={`grid grid-cols-1 gap-6 pt-4 border-t border-slate-100 ${SHOW_JOB_GROUPING ? "lg:grid-cols-2" : ""}`}>
                 <DistributionChart 
                     data={distData?.jobFuncDist || []} 
                     title="Job Family" 
@@ -87,6 +88,7 @@ export default function OverviewAnalytics() {
                     color="#ec4899"
                     icon={<LayoutGrid className="h-4 w-4" />}
                 />
+                {SHOW_JOB_GROUPING && (
                 <DistributionChart 
                     data={distData?.jobGroupDist || []} 
                     title="Job Group" 
@@ -94,6 +96,7 @@ export default function OverviewAnalytics() {
                     color="#6366f1"
                     icon={<Layers className="h-4 w-4" />}
                 />
+                )}
             </div>
 
             {/* NEW: Industry + Company Group Row */}
