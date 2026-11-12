@@ -31,9 +31,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { rankNationalities } from "@/lib/nationality-search";
 
-function SubMSFilter({ label, options, selected, setSelected }: {
-    label: string; options: string[]; selected: string[]; setSelected: (v: string[]) => void;
+function SubMSFilter({ label, options, selected, setSelected, prefixFirst }: {
+    label: string; options: string[]; selected: string[]; setSelected: (v: string[]) => void; prefixFirst?: boolean;
 }) {
     const [open, setOpen] = useState(false);
     const [pending, setPending] = useState<string[]>([]);
@@ -43,7 +44,9 @@ function SubMSFilter({ label, options, selected, setSelected }: {
         if (isOpen) { setPending([...selected]); setSearch(''); }
         setOpen(isOpen);
     };
-    const filtered = search ? options.filter(o => o.toLowerCase().includes(search.toLowerCase())) : options;
+    const filtered = !search ? options
+        : prefixFirst ? rankNationalities(options, search)
+        : options.filter(o => o.toLowerCase().includes(search.toLowerCase()));
     const toggle = (val: string) => setPending(p => p.includes(val) ? p.filter(x => x !== val) : [...p, val]);
     const apply = () => { setSelected([...pending]); setOpen(false); };
     const clear = () => { setPending([]); setSelected([]); setOpen(false); };
@@ -627,7 +630,7 @@ export default function AiSearchDemoPage() {
                             <SubMSFilter label="Position"     options={subOptions.positions}    selected={subPosition}    setSelected={setSubPosition} />
                             <SubMSFilter label="Company"      options={subOptions.companies}    selected={subCompany}     setSelected={setSubCompany} />
                             <SubMSFilter label="Country"      options={subOptions.countries}    selected={subCountry}     setSelected={setSubCountry} />
-                            <SubMSFilter label="Nationality"  options={subOptions.nationalities} selected={subNationality} setSelected={setSubNationality} />
+                            <SubMSFilter label="Nationality"  options={subOptions.nationalities} selected={subNationality} setSelected={setSubNationality} prefixFirst />
                             <SubMSFilter label="Gender"       options={subOptions.genders}      selected={subGender}      setSelected={setSubGender} />
                             <SubMSFilter label="Hotel Rating" options={subOptions.hotelRatings} selected={subHotelRating} setSelected={setSubHotelRating} />
                             {hasSubFilter && (

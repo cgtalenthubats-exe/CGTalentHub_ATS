@@ -309,12 +309,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
             finalGradYear = null;
         }
 
+        // Only touch age-related columns when the request actually carries an age field.
+        // Otherwise a partial PATCH (nationality, gender, remark tags...) would hit the
+        // "all empty" branch above for candidates with an age but no DOB/grad year
+        // (e.g. estimated age) and wipe their age to null.
+        const touchesAge = body.age !== undefined
+            || body.date_of_birth !== undefined
+            || body.year_of_bachelor_education !== undefined;
+
         // Apply to updateData — when doing a direct age edit, don't overwrite date_of_birth in DB
-        if (!isManualAgeEdit) {
-            updateData.date_of_birth = finalDob;
+        if (touchesAge) {
+            if (!isManualAgeEdit) {
+                updateData.date_of_birth = finalDob;
+            }
+            updateData.year_of_bachelor_education = finalGradYear;
+            updateData.age = finalAge;
         }
-        updateData.year_of_bachelor_education = finalGradYear;
-        updateData.age = finalAge;
 
         // Set age_source based on what provided the age
         if (body.date_of_birth !== undefined || body.year_of_bachelor_education !== undefined || body.age !== undefined) {
@@ -328,7 +338,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         }
 
         // Auto-add Over-aged when age >= 57
-        if (finalAge !== null && finalAge >= 57) {
+        if (touchesAge && finalAge !== null && finalAge >= 57) {
             const existingStatuses: string[] = (profileData.candidate_status as string[] | null) ?? [];
             const incomingStatuses: string[] = Array.isArray(candidate_status) ? candidate_status : existingStatuses;
             if (!incomingStatuses.includes('Over-aged')) {

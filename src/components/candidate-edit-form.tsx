@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { StatusSelect } from "@/components/ui/status-select";
 import { supabase } from "@/lib/supabase/client";
 import { cn, formatNumberWithCommas, parseNumberFromCommas } from "@/lib/utils";
+import { nationalityCmdkFilter } from "@/lib/nationality-search";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
     Command,
@@ -519,7 +520,7 @@ export function CandidateEditForm({ candidateId, onSuccess, onCancel, showCancel
                                             </Button>
                                         </PopoverTrigger>
                                         <PopoverContent className="p-0 w-[240px]" align="start">
-                                            <Command>
+                                            <Command filter={nationalityCmdkFilter}>
                                                 <CommandInput placeholder="Search..." />
                                                 <CommandList>
                                                     <CommandEmpty>No nationality found.</CommandEmpty>

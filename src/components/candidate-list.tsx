@@ -44,6 +44,16 @@ import { getStatuses, addStatus } from "@/app/actions/candidate-filters";
 import { toast } from "@/lib/notifications";
 import { getJobRequisitions } from "@/app/actions/requisitions";
 import { cn } from "@/lib/utils";
+import { rankNationalities, nationalityCmdkFilter } from "@/lib/nationality-search";
+import { supabase } from "@/lib/supabase/client";
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command";
 import {
     Popover,
     PopoverContent,
@@ -135,8 +145,8 @@ const MATCH_KEYS = [
 type MatchKey = typeof MATCH_KEYS[number];
 
 // Standalone multi-select filter with search input + Apply/Clear UX
-function MSFilter({ label, options, selected, setSelected }: {
-    label: string; options: string[]; selected: string[]; setSelected: (v: string[]) => void;
+function MSFilter({ label, options, selected, setSelected, prefixFirst }: {
+    label: string; options: string[]; selected: string[]; setSelected: (v: string[]) => void; prefixFirst?: boolean;
 }) {
     const [open, setOpen] = useState(false);
     const [pending, setPending] = useState<string[]>([]);
@@ -147,9 +157,9 @@ function MSFilter({ label, options, selected, setSelected }: {
         setOpen(isOpen);
     };
 
-    const filtered = search
-        ? options.filter(o => o.toLowerCase().includes(search.toLowerCase()))
-        : options;
+    const filtered = !search ? options
+        : prefixFirst ? rankNationalities(options, search)
+        : options.filter(o => o.toLowerCase().includes(search.toLowerCase()));
 
     const togglePending = (val: string) =>
         setPending(p => p.includes(val) ? p.filter(x => x !== val) : [...p, val]);
@@ -807,7 +817,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
     const totalVirtualSize = rowVirtualizer.getTotalSize();
     const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
     const paddingBottom = virtualItems.length > 0 ? totalVirtualSize - virtualItems[virtualItems.length - 1].end : 0;
-    const COL_SPAN = showSalary ? 20 : 19;
+    const COL_SPAN = showSalary ? 21 : 20;
 
 
 
@@ -940,7 +950,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                         <MSFilter label="Experience Type" options={uniqueCurrentJobs} selected={filterIsCurrentJob} setSelected={setFilterIsCurrentJob} />
                         <MSFilter label="Country" options={uniqueCountries} selected={filterCountry} setSelected={setFilterCountry} />
                         <MSFilter label="Region" options={uniqueRegions} selected={filterRegion} setSelected={setFilterRegion} />
-                        <MSFilter label="Nationality" options={uniqueNationalities} selected={filterNationality} setSelected={setFilterNationality} />
+                        <MSFilter label="Nationality" options={uniqueNationalities} selected={filterNationality} setSelected={setFilterNationality} prefixFirst />
                         <MSFilter label="Industry" options={uniqueIndustries} selected={filterIndustry} setSelected={setFilterIndustry} />
                         <MSFilter label="Hotel Rating" options={uniqueRatings} selected={filterRating} setSelected={setFilterRating} />
                         <MSFilter label="Reviewed By" options={uniqueReviewers} selected={filterReviewer} setSelected={setFilterReviewer} />
@@ -1006,6 +1016,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[180px]">Head Recruit Feedback</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[200px]">Head Recruit Note</th>
                             <th className="text-right font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[80px]">Action</th>
+                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[150px]">Nationality</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[70px]">Rank</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[120px]">Type</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[185px]">Status</th>
@@ -1147,6 +1158,17 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
+                                    </td>
+                                    {/* Nationality — inline edit (same list + save path as Profile edit) */}
+                                    <td className="px-4 py-4 overflow-hidden">
+                                        <NationalityCell
+                                            candidateId={c.candidate_id}
+                                            nationality={c.candidate_nationality || ''}
+                                            onSaved={async () => {
+                                                const updated = await getJRCandidates(jrId);
+                                                setCandidates(updated);
+                                            }}
+                                        />
                                     </td>
                                     <td className="px-4 py-4">
                                         <Popover>
@@ -1770,6 +1792,76 @@ function SexAgeCell({ candidateId, gender, age, ageSource, onSaved }: {
                 <Button size="sm" className="w-full h-8 text-xs font-black" disabled={saving} onClick={save}>
                     {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Save'}
                 </Button>
+            </PopoverContent>
+        </Popover>
+    );
+}
+
+// Nationality list is the same for every row — fetch once, share across cells.
+let nationalityListPromise: Promise<string[]> | null = null;
+function loadNationalityList(): Promise<string[]> {
+    if (!nationalityListPromise) {
+        nationalityListPromise = Promise.resolve(
+            supabase.from('nationality').select('nationality').order('nationality')
+        ).then(({ data }) => ["N/A", ...((data as any[]) || []).map(n => n.nationality)])
+         .catch(() => { nationalityListPromise = null; return [] as string[]; });
+    }
+    return nationalityListPromise;
+}
+
+function NationalityCell({ candidateId, nationality, onSaved }: {
+    candidateId: string;
+    nationality: string;
+    onSaved: () => void;
+}) {
+    const [open, setOpen] = useState(false);
+    const [options, setOptions] = useState<string[]>([]);
+    const [saving, setSaving] = useState(false);
+
+    useEffect(() => {
+        if (open && options.length === 0) loadNationalityList().then(setOptions);
+    }, [open]);
+
+    const pick = async (nat: string) => {
+        setSaving(true);
+        try {
+            const res = await fetch(`/api/candidates/${candidateId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nationality: nat }),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            setOpen(false);
+            onSaved();
+        } catch (e: any) {
+            toast.error("Failed to save nationality: " + (e?.message || "unknown error"));
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <button className="inline-flex items-center gap-1.5 max-w-full text-[13px] font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 px-2.5 py-1.5 rounded-lg border border-slate-100 hover:border-slate-200 transition-all">
+                    <span className="truncate">{nationality || '—'}</span>
+                    <ChevronDown className="h-3 w-3 opacity-40 shrink-0" />
+                </button>
+            </PopoverTrigger>
+            <PopoverContent className="p-0 w-[240px] rounded-xl shadow-xl border-slate-100" align="start">
+                <Command filter={nationalityCmdkFilter}>
+                    <CommandInput placeholder="Search nationality..." />
+                    <CommandList>
+                        <CommandEmpty>{options.length === 0 ? 'Loading...' : 'No nationality found.'}</CommandEmpty>
+                        <CommandGroup className="max-h-[220px] overflow-y-auto">
+                            {options.map(nat => (
+                                <CommandItem key={nat} value={nat} disabled={saving} onSelect={() => pick(nat)}>
+                                    <span className={cn(nat === nationality && "font-black text-indigo-600")}>{nat}</span>
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
             </PopoverContent>
         </Popover>
     );

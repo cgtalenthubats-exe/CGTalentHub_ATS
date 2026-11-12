@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { rankNationalities } from "@/lib/nationality-search";
 import { DemoFilterState, POSITION_LEVELS } from "./types";
 
 interface StaticOptions {
@@ -63,6 +64,7 @@ function FilterPopover({
     placeholder = "Search...",
     emptyHint,
     variant = "include",
+    prefixFirst,
 }: {
     label: string;
     options: string[];
@@ -71,6 +73,7 @@ function FilterPopover({
     placeholder?: string;
     emptyHint?: string;
     variant?: "include" | "exclude";
+    prefixFirst?: boolean;
 }) {
     const [open, setOpen] = useState(false);
     const [pending, setPending] = useState<string[]>([]);
@@ -82,8 +85,10 @@ function FilterPopover({
     };
 
     const filtered = useMemo(
-        () => search ? options.filter(o => o.toLowerCase().includes(search.toLowerCase())) : options,
-        [options, search]
+        () => !search ? options
+            : prefixFirst ? rankNationalities(options, search)
+            : options.filter(o => o.toLowerCase().includes(search.toLowerCase())),
+        [options, search, prefixFirst]
     );
 
     const toggle = (val: string) =>
@@ -833,6 +838,7 @@ export function FilterPanel({ staticOptions, cascadingOptions, cascadeLoading, f
                     onChange={v => set("nationalities", v)}
                     placeholder="Search nationality..."
                     emptyHint="Apply filters first"
+                    prefixFirst
                 />
                 <AgeFilterPopover
                     ageMin={filters.age_min}
