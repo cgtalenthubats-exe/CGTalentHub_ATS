@@ -41,13 +41,21 @@ export async function middleware(request: NextRequest) {
     // Allow access to login, auth callback, and unauthorized pages
     // Allow access to login, auth callback, and unauthorized pages
     // Also allow access to ALL API routes as requested
-    if (path.startsWith('/login') || path.startsWith('/auth') || path.startsWith('/unauthorized') || path.startsWith('/api')) {
+    // /.well-known = public OAuth discovery metadata (MCP connectors fetch it unauthenticated)
+    if (path.startsWith('/login') || path.startsWith('/auth') || path.startsWith('/unauthorized') || path.startsWith('/api') || path.startsWith('/.well-known')) {
         return response
     }
 
     // If no user, redirect to login
     if (!user) {
-        return NextResponse.redirect(new URL('/login', request.url))
+        const redirect = NextResponse.redirect(new URL('/login', request.url))
+        // OAuth consent needs its authorization_id after login; /auth/callback reads this cookie.
+        if (path.startsWith('/oauth/consent')) {
+            redirect.cookies.set('post_login_next', path + request.nextUrl.search, {
+                path: '/', maxAge: 600, httpOnly: true, sameSite: 'lax',
+            })
+        }
+        return redirect
     }
 
     // Check if user is in whitelist (user_profiles)
