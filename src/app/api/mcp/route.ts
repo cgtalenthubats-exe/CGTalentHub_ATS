@@ -1,6 +1,6 @@
-import { timingSafeEqual } from "node:crypto";
-import { createMcpHandler } from "mcp-handler";
+import { createMcpHandler, getPublicOrigin } from "mcp-handler";
 import { tools } from "@/lib/mcp/tools";
+import { authenticateMcp } from "@/lib/mcp/auth";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -22,23 +22,33 @@ const mcp = createMcpHandler(
             );
         }
     },
-    { instructions: INSTRUCTIONS, serverInfo: { name: "cgats", version: "0.1.0" } } as any,
+    { instructions: INSTRUCTIONS, serverInfo: { name: "cgats", version: "0.2.0" } } as any,
 );
 
-function authorized(req: Request): boolean | null {
-    const expected = process.env.MCP_API_TOKEN;
-    if (!expected) return null; // not configured -> endpoint disabled
-    const header = req.headers.get("authorization") ?? "";
-    const given = header.startsWith("Bearer ") ? header.slice(7) : "";
-    const a = Buffer.from(given);
-    const b = Buffer.from(expected);
-    return a.length === b.length && timingSafeEqual(a, b);
+async function logToolCall(req: Request, who: string) {
+    try {
+        if (req.method !== "POST") return;
+        const body = await req.clone().json();
+        const calls = Array.isArray(body) ? body : [body];
+        for (const c of calls) {
+            if (c?.method === "tools/call") console.log(`[mcp] ${who} -> ${c.params?.name}`);
+        }
+    } catch {
+        // logging must never break a request
+    }
 }
 
 async function handler(req: Request) {
-    const auth = authorized(req);
-    if (auth === null) return new Response("MCP endpoint disabled", { status: 503 });
-    if (!auth) return new Response("Unauthorized", { status: 401, headers: { "WWW-Authenticate": "Bearer" } });
+    const auth = await authenticateMcp(req);
+    if (!auth.ok) {
+        // Per the MCP auth spec: point clients at the protected-resource metadata so they can start OAuth.
+        const metadata = `${getPublicOrigin(req)}/.well-known/oauth-protected-resource`;
+        return new Response(auth.message, {
+            status: auth.status,
+            headers: { "WWW-Authenticate": `Bearer resource_metadata="${metadata}"` },
+        });
+    }
+    await logToolCall(req, auth.who);
     return mcp(req);
 }
 

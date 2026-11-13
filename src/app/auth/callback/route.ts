@@ -7,10 +7,13 @@ export async function GET(request: Request) {
     const { searchParams, origin } = new URL(request.url)
     const code = searchParams.get('code')
     // if "next" is in param, use it as the redirect URL
-    const next = searchParams.get('next') ?? '/'
+    const cookieStore = await cookies()
+    const savedNext = cookieStore.get('post_login_next')?.value
+    const candidateNext = searchParams.get('next') ?? savedNext ?? '/'
+    // Only same-site relative paths (blocks "//evil.com" and "@evil.com" style redirects)
+    const next = candidateNext.startsWith('/') && !candidateNext.startsWith('//') ? candidateNext : '/'
 
     if (code) {
-        const cookieStore = await cookies()
         const supabase = createServerClient(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
             process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -37,7 +40,9 @@ export async function GET(request: Request) {
         const { error } = await supabase.auth.exchangeCodeForSession(code)
 
         if (!error) {
-            return NextResponse.redirect(`${origin}${next}`)
+            const res = NextResponse.redirect(`${origin}${next}`)
+            if (savedNext) res.cookies.delete('post_login_next')
+            return res
         }
     }
 
