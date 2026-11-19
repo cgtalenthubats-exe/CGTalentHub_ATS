@@ -1016,7 +1016,6 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[180px]">Head Recruit Feedback</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[200px]">Head Recruit Note</th>
                             <th className="text-right font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[80px]">Action</th>
-                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[150px]">Nationality</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[70px]">Rank</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[120px]">Type</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[185px]">Status</th>
@@ -1024,6 +1023,7 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[120px]">ID</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[50px]">LI</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[280px]">Candidate Details</th>
+                            <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[150px]">Nationality</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[120px]">Gender/Age</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[200px]">Company</th>
                             <th className="text-left font-black text-slate-500 text-xs uppercase tracking-widest px-5 py-4 w-[200px]">Position</th>
@@ -1158,17 +1158,6 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
-                                    </td>
-                                    {/* Nationality — inline edit (same list + save path as Profile edit) */}
-                                    <td className="px-4 py-4 overflow-hidden">
-                                        <NationalityCell
-                                            candidateId={c.candidate_id}
-                                            nationality={c.candidate_nationality || ''}
-                                            onSaved={async () => {
-                                                const updated = await getJRCandidates(jrId);
-                                                setCandidates(updated);
-                                            }}
-                                        />
                                     </td>
                                     <td className="px-4 py-4">
                                         <Popover>
@@ -1309,6 +1298,17 @@ export function CandidateList({ jrId, jobTitle, bu, subBu, updatedBy, showSalary
                                                 {c.candidate_email || "No email recorded"}
                                             </span>
                                         </div>
+                                    </td>
+                                    {/* Nationality — inline edit (same list + save path as Profile edit) */}
+                                    <td className="px-4 py-4 overflow-hidden">
+                                        <NationalityCell
+                                            candidateId={c.candidate_id}
+                                            nationality={c.candidate_nationality || ''}
+                                            onSaved={async () => {
+                                                const updated = await getJRCandidates(jrId);
+                                                setCandidates(updated);
+                                            }}
+                                        />
                                     </td>
                                     {/* Gender/Age — inline edit */}
                                     <td className="px-4 py-4 overflow-hidden">
